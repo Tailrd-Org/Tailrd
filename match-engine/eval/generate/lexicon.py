@@ -6,10 +6,10 @@ phones sit in the 555-01xx block that is reserved for fiction, mail goes to exam
 employers are assembled from generic words. Pure data plus `title_for`; no I/O, no clock.
 
 Hygiene rules the tests enforce on these banks (so the ground truth stays exact):
-  * no word of a bullet bank is a verb of `config/verbs.yaml` except the one verb a template
-    deliberately uses, and none is a negation or aspiration term (`config/negation.yaml`);
-  * no phrase contains a digit (only the quantified tails do);
-  * no phrase spells a skill of the default vocabulary.
+  * every bullet the banks can build reads, to the engine (`matcher.score.evidence.analyze_bullet`),
+    as the verb class its template declares and as AFFIRMED, whatever the lexicon holds now;
+  * every quantified tail reads as quantified (`is_quantified`), every other phrase carries no digit;
+  * no phrase is a negation or aspiration term, and none spells a skill of the default vocabulary.
 """
 
 from __future__ import annotations
@@ -158,7 +158,8 @@ class FamilyData:
     employer_words: tuple[str, ...]
     objects: tuple[str, ...]  # what the work produces, as noun phrases for bullets
     metrics: tuple[str, ...]  # quantities that can be pushed down
-    scale_tail: str  # a quantified tail with {n}
+    scale_tail: str  # a quantified tail with {n}: a glued magnitude ("40K") or a counting noun
+    scale_range: tuple[int, int] = (2, 90)  # the numbers {n} is drawn from
     title_pattern: str | None = None  # "{skill} Developer": a title that names a skill (ROLE_TITLE)
     title_kinds: tuple[SkillKind, ...] = ()
     mos: tuple[tuple[str, str, str], ...] = ()  # (code, title, civilian translation)
@@ -221,7 +222,7 @@ FAMILY_DATA: dict[str, FamilyData] = {
             "weekly reports",
         ),
         metrics=("report turnaround", "forecast error", "query times", "manual effort"),
-        scale_tail=", covering {n} business units",
+        scale_tail=", covering {n}K records",
         title_pattern="{skill} Engineer",
         title_kinds=(T, D),
         mos=(
@@ -253,7 +254,7 @@ FAMILY_DATA: dict[str, FamilyData] = {
             "release tooling",
         ),
         metrics=("deployment time", "downtime", "cloud spend", "recovery time"),
-        scale_tail=", covering {n} production services",
+        scale_tail=", handling {n}K requests per minute",
         title_pattern="{skill} Engineer",
         title_kinds=(T,),
         mos=(
@@ -361,7 +362,7 @@ FAMILY_DATA: dict[str, FamilyData] = {
             "account schedules",
         ),
         metrics=("close time", "reporting errors", "processing time", "outstanding balances"),
-        scale_tail=", covering {n} entities",
+        scale_tail=", covering {n}K transactions",
         mos=(
             ("36B", "Financial Management Technician", "Disbursing, ledger upkeep and budget tracking"),
             (
@@ -387,6 +388,7 @@ FAMILY_DATA: dict[str, FamilyData] = {
         ),
         metrics=("patient wait times", "medication errors", "readmissions", "documentation time"),
         scale_tail=", covering {n} patients per shift",
+        scale_range=(4, 14),
         mos=(
             (
                 "68W",
@@ -413,7 +415,7 @@ GENERIC_FAMILY = FamilyData(
         "planning cycles",
     ),
     metrics=("turnaround time", "rework", "error rates", "handling time"),
-    scale_tail=", covering {n} client accounts",
+    scale_tail=", covering {n}K client accounts",
     mos=(
         (
             "92A",
@@ -529,7 +531,6 @@ FIXED_TAILS = (
     (", saving {n} hours per week", (3, 30)),
     (" for {n} internal teams", (3, 15)),
 )
-SCALE_RANGE = (2, 90)
 # Tails without a number.
 PLAIN_TAILS = (
     ", improving day-to-day reliability",
