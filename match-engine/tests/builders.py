@@ -12,13 +12,18 @@ import math
 import random
 from collections.abc import Iterable, Mapping
 from datetime import date
+from types import MappingProxyType
 from typing import Optional
 
 from matcher.config import EngineConfig
+from matcher.errors import Flag
 from matcher.graph.model import SkillGraph, SkillNode
 from matcher.models import (
     DateValue,
+    DimensionName,
+    DimensionScore,
     Evidence,
+    Fact,
     JobPosting,
     JobRequirement,
     Necessity,
@@ -57,6 +62,15 @@ M_CRITICAL = 0.20
 W_REQUIRED = 0.35  # §5.1
 W_PREFERRED = 0.10  # §5.2
 W_TOOLS = 0.10  # §5.7
+SPEC_WEIGHTS: Mapping[DimensionName, float] = MappingProxyType({  # SPEC §5, every dimension
+    DimensionName.REQUIRED_SKILLS: 0.35,
+    DimensionName.PREFERRED_SKILLS: 0.10,
+    DimensionName.EXPERIENCE: 0.15,
+    DimensionName.SENIORITY: 0.10,
+    DimensionName.DOMAIN: 0.10,
+    DimensionName.EDUCATION: 0.10,
+    DimensionName.TOOLS: 0.10,
+})
 
 AS_OF = date(2026, 10, 8)
 FOUR_YEARS_AGO = date(2022, 10, 8)  # 1,461 days (one leap day) = exactly 4.0 years of 365.25 days
@@ -164,6 +178,23 @@ def posting(*requirements: JobRequirement) -> JobPosting:
     return JobPosting(requirements=requirements)
 
 
+# ─── Dimension scores (what the dimension scorers hand the aggregator) ──────────────────────
+
+
+def dimension(name: DimensionName, value: float, *, facts: Iterable[Fact] = ()) -> DimensionScore:
+    """A scored dimension as the scorers return it: the SPEC weight as configured and effective
+    weight, contribution = weight × value (the aggregator redistributes, SPEC §14.5)."""
+    weight = SPEC_WEIGHTS[name]
+    return DimensionScore(name=name, value=value, weight=weight, effective_weight=weight,
+                          contribution=weight * value, abstained=False, facts=tuple(facts))
+
+
+def abstained_dimension(name: DimensionName, reason: Flag) -> DimensionScore:
+    """An abstaining dimension: no value, no effective weight, no contribution, no facts."""
+    return DimensionScore(name=name, value=None, weight=SPEC_WEIGHTS[name], effective_weight=0.0,
+                          contribution=0.0, abstained=True, abstain_reason=reason)
+
+
 # ─── Config and graphs ────────────────────────────────────────────────────────────────────
 
 
@@ -174,6 +205,15 @@ def with_scoring(config: EngineConfig, section: str, **changes: object) -> Engin
     scoring = config.scoring.model_copy(update={section: part})
     fields = {name: getattr(config, name) for name in EngineConfig.model_fields}
     fields["scoring"] = scoring
+    return EngineConfig(**fields)
+
+
+def with_gates(config: EngineConfig, section: str, **changes: object) -> EngineConfig:
+    """A fresh config with `gates.<section>` fields replaced (same rule as `with_scoring`)."""
+    part = getattr(config.gates, section).model_copy(update=changes)
+    gates = config.gates.model_copy(update={section: part})
+    fields = {name: getattr(config, name) for name in EngineConfig.model_fields}
+    fields["gates"] = gates
     return EngineConfig(**fields)
 
 

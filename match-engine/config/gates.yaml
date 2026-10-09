@@ -22,6 +22,23 @@ license:
     - cred.teaching_license
     - cred.electrician_license
     - cred.paramedic_license
+  # Formal designations on the way to a licence (taxonomy DECISIONS D-28): a nursing student is not
+  # a registered nurse. They never show a licence through the graph, even placed below it; they
+  # count only for a gate that lists them itself ("P.Eng. or EIT"). Listed here explicitly, never
+  # guessed from an id; tests/test_gates.py checks this list covers every in-progress node the
+  # taxonomy marks (data/taxonomy/resolver.json "in_progress" values) once the taxonomy is built.
+  in_progress_credential_ids:
+    - cred.cpa_in_progress
+    - cred.nursing_student
+    - cred.eit
+    - cred.articling_student
+    - cred.cfa_candidate
+    - cred.cdl_trainee
+    - cred.medical_student
+    - cred.pharmacy_student
+    - cred.teacher_candidate
+    - cred.electrician_apprentice
+    - cred.paramedic_student
 
 security_clearance:
   enabled: true

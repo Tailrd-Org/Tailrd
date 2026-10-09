@@ -68,6 +68,16 @@ class WorkAuthGateConfig(Frozen):
 class LicenseGateConfig(Frozen):
     enabled: bool = True
     professional_credential_ids: tuple[str, ...] = ()
+    # Formal designations on the way to a licence (taxonomy DECISIONS D-28): never licence evidence
+    # through the graph. An explicit list: an id's spelling decides nothing.
+    in_progress_credential_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _disjoint(self) -> "LicenseGateConfig":
+        both = sorted(set(self.professional_credential_ids) & set(self.in_progress_credential_ids))
+        if both:
+            raise ValueError(f"listed both as professional licences and as in-progress designations: {both}")
+        return self
 
 
 class ClearanceGateConfig(Frozen):
