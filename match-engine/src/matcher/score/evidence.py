@@ -19,17 +19,20 @@ experience, without ever zeroing a skill the bullet demonstrates.
   (`verbs.defer_to_earlier`: "using", ...) defers to an earlier verb. A verb chained to an
   earlier one, directly or across only to/in/with/on, takes the head's class: "Helped to build"
   is ASSISTANCE, "Contributed to building" PARTICIPATION.
-* Inheritance (D-34a, D-34b, D-34f). A clause with no verb takes the previous clause's verb
-  class when it holds only mentions, list words, articles and punctuation, or when it follows
-  and/or/nor inside a sentence. It takes the previous clause's polarity only from a mention
-  there, and never across a sentence end (. ; ! ?) or "but"/"yet".
+* Inheritance (D-34a, D-34b, D-34f). A clause with no verb (a deferring participle alone does
+  not count) takes the previous clause's verb class when it holds only mentions, list words,
+  articles and punctuation, or when it follows and/or/nor inside a sentence. Only such a pure
+  list also takes the previous clause's polarity, only from a mention there, and never across a
+  sentence end (. ; ! ?) or "but"/"yet".
 * Polarity (§15.2, D-34c). A hard-negation term negates a mention only when every token between
   them is a scope filler (`negation.hard_negation.scope_fillers`), another mention, an
   aspiration term or a "yet" right after the term; otherwise it governs the noun it opens
-  ("with no downtime using Kubernetes"). An exception phrase ("not only") and a term joined by a
-  hyphen ("no-code", "not-for-profit") never negate; "n't" counts as "not". Else an aspiration
-  term among the `negation.window_tokens` tokens before the mention (another mention counts as
-  one token, punctuation as none; a phrase only whole) makes it ASPIRATIONAL.
+  ("with no downtime using Kubernetes"). A deferring participle right after a mention opens a
+  new tool and stops the negation ("without Redis using Nginx"). An exception phrase ("not
+  only") and a term joined by a hyphen ("no-code", "not-for-profit") never negate; "n't" counts
+  as "not". Else an aspiration term among the `negation.window_tokens` tokens before the
+  mention (another mention counts as one token, punctuation as none; a phrase only whole) makes
+  it ASPIRATIONAL.
 
 The lexicons are config (verbs.yaml, negation.yaml). The short closed word lists below are
 grammar for reading a bullet, not weights to tune.
@@ -183,6 +186,7 @@ class _Lexicons(NamedTuple):
     fillers: _Lexicon
     aspirational: _Lexicon
     listing: _Lexicon
+    version_names: frozenset[str]  # lower-case names before a version number (is_quantified)
 
 
 def _normalised(entry: str) -> str:
@@ -229,6 +233,7 @@ def _build_lexicons(config: EngineConfig) -> _Lexicons:
         fillers=_lexicon((term, None) for term in negation.hard_negation.scope_fillers),
         aspirational=_lexicon((term, None) for term in negation.aspirational.terms),
         listing=_lexicon((word, None) for word in LIST_WORDS + ARTICLES),
+        version_names=frozenset(_normalised(name) for name in verbs.version_names),
     )
 
 
@@ -415,7 +420,8 @@ class _ClauseReader:
 
     def __init__(self, units: Sequence[_Unit], lex: _Lexicons, window: int) -> None:
         verbs = [match for match in _find(units, lex.verbs) if _attaches(units, match, lex)]
-        self.has_verbs = bool(verbs)
+        # A clause whose only verbs defer ("reports using Tableau") is verbless for D-34f.
+        self.has_verbs = any(match.text not in lex.defer for match in verbs)
         # Chain heads (D-34d): a verb right after another, or after only link words, takes the
         # earlier verb's head.
         heads: dict[tuple[int, int], tuple[VerbClass, str]] = {}
@@ -450,6 +456,9 @@ class _ClauseReader:
         passable = [unit.kind == _MENTION_UNIT for unit in units]
         _mark(passable, _find(units, lex.fillers))
         _mark(passable, aspirations)
+        for k in range(1, len(units)):  # "without Redis using Nginx": the participle opens a new tool
+            if units[k].kind == _WORD_UNIT and units[k].word in lex.defer and units[k - 1].kind == _MENTION_UNIT:
+                passable[k] = False
         term_ends = {match.stop for match in hard}
         for k, unit in enumerate(units):
             if unit.kind == _WORD_UNIT and unit.word == "yet" and k in term_ends:
@@ -494,6 +503,16 @@ class _Attachment(NamedTuple):
     trigger: str
 
 
+def _verb_for(
+    inherited: Optional[tuple[VerbClass, str]], reader: _ClauseReader, position: int
+) -> tuple[VerbClass, str]:
+    """The inherited verb, or the clause's own: an inherited NO_VERB never hides the clause's
+    deferring participle ("Shipped features and reports using Tableau" attaches "using")."""
+    if inherited is not None and inherited[0] is not VerbClass.NO_VERB:
+        return inherited
+    return reader.verb_at(position) or _NO_VERB
+
+
 class _Handoff(NamedTuple):
     """What a clause hands the next one: its verb, and its polarity when it holds a mention."""
 
@@ -526,31 +545,26 @@ def analyze_bullet(
     previous: Optional[_Handoff] = None
     for clause in _clauses(text, components, lex, config):
         reader = _ClauseReader(clause.units, lex, window)
-        inherits = (
-            inherit
-            and previous is not None
-            and not reader.has_verbs
-            and (
-                _only_list_words(clause.units, lex.listing)  # D-34a
-                or (bool(clause.after & LIST_CONJUNCTIONS) and not clause.after & SENTENCE_ENDS)  # D-34f
-            )
-        )
-        handed = None  # polarity from a mention of the previous clause (D-34b)
-        if inherits and previous is not None and not clause.after & POLARITY_BARRIERS:
+        pure_list = _only_list_words(clause.units, lex.listing)
+        inherited: Optional[tuple[VerbClass, str]] = None  # D-34a pure list, D-34f after and/or/nor
+        if inherit and previous is not None and not reader.has_verbs and (
+            pure_list or (bool(clause.after & LIST_CONJUNCTIONS) and not clause.after & SENTENCE_ENDS)
+        ):
+            inherited = previous.verb
+        handed = None  # polarity from a mention of the previous clause, into a pure list only (D-34b)
+        if inherited is not None and pure_list and previous is not None and not clause.after & POLARITY_BARRIERS:
             handed = previous.polarity
         last: Optional[_Attachment] = None
         for position, unit in enumerate(clause.units):
             if unit.kind != _MENTION_UNIT:
                 continue
-            verb = previous.verb if inherits and previous is not None else reader.verb_at(position) or _NO_VERB
+            verb = _verb_for(inherited, reader, position)
             polarity = reader.polarity_at(position) or handed or _AFFIRMED
             last = attached[unit.component] = _Attachment(verb[0], verb[1], polarity[0], polarity[1])
         if last is not None:
             previous = _Handoff((last.verb_class, last.verb), (last.polarity, last.trigger))
-        elif inherits and previous is not None:
-            previous = _Handoff(previous.verb, None)
-        else:
-            previous = _Handoff(reader.verb_at(len(clause.units)) or _NO_VERB, None)
+        else:  # a clause without a mention hands on its verb class only
+            previous = _Handoff(_verb_for(inherited, reader, len(clause.units)), None)
 
     starts = [start for start, _ in components]
     result = []
@@ -584,22 +598,6 @@ _MULTIPLY = "\u00d7"  # the multiplication sign, as in "4×"
 _SCALE_WORDS = frozenset({"percent", "times", "thousand", "million", "billion", "trillion"})
 _NOUN_SCAN_STOPS = frozenset({".", "!", "?", ";", ",", ":"})
 _SENTENCE_OPENERS = frozenset({".", "!", "?", ";", ":", "*", "-", "\u2022", "\u2013", "\u2014"})
-# A lower-case word before a number opens a count, not a version, when it is a function word or
-# a verb form: "for 30 students", "built 12 dashboards", "to track 40 projects".
-_COUNT_OPENERS = frozenset({
-    "a", "about", "across", "almost", "among", "an", "and", "approx", "approximately", "around", "at",
-    "between", "by", "each", "every", "fewer", "first", "for", "from", "in", "into", "last", "least",
-    "less", "more", "most", "nearly", "next", "nor", "of", "on", "only", "or", "over", "past", "per",
-    "roughly", "some", "than", "the", "these", "those", "through", "to", "top", "under", "up", "with",
-    "within",
-})
-_IRREGULAR_PAST = frozenset({
-    "began", "brought", "built", "did", "drew", "drove", "fed", "flew", "fought", "found", "gave", "got",
-    "grew", "held", "hit", "kept", "knew", "led", "left", "lent", "made", "met", "oversaw", "paid", "put",
-    "ran", "read", "rebuilt", "rewrote", "rode", "rose", "said", "sat", "saw", "sent", "set", "shot",
-    "sold", "sought", "spent", "split", "spread", "stood", "struck", "taught", "thought", "threw",
-    "told", "took", "understood", "undertook", "upheld", "won", "wore", "wrote",
-})
 
 
 class _QToken(NamedTuple):
@@ -649,13 +647,13 @@ def _currency_before(tokens: Sequence[_QToken], i: int, text: str) -> bool:
     return sign.kind == "sym" and _is_currency(sign.text) and text[sign.end:tokens[i].start] in ("", " ")
 
 
-def _after_name(tokens: Sequence[_QToken], i: int, text: str) -> bool:
+def _after_name(tokens: Sequence[_QToken], i: int, text: str, names: frozenset[str]) -> bool:
     """Is number `i` a version right after a tech name ("React 18", "react 18", "Java 8+")?
 
     The word just before it, separated by spaces only, must not open the sentence (the first
     word of a bullet is its verb: "Managed 3 servers"). A word holding a capital is a name; a
-    lower-case word is one unless it opens a count: a function word, a verb form (-ed, -ing,
-    -s, an irregular past, an outcome verb) or a word right after "to" ("to track 40 projects").
+    lower-case word is one only when it is in `verbs.version_names` ("react", "java"): any
+    other lower-case word opens a count ("maintain 12 microservices", "all 40 services").
     """
     if i < 2:
         return False
@@ -666,15 +664,7 @@ def _after_name(tokens: Sequence[_QToken], i: int, text: str) -> bool:
         return False
     if any(char.isupper() for char in name.text):
         return True
-    word = name.text.lower()
-    opens_count = (
-        word in _COUNT_OPENERS
-        or word in _IRREGULAR_PAST
-        or word in OUTCOME_VERBS
-        or word.endswith(("ed", "ing", "s"))
-        or _word(tokens, i - 2) == "to"
-    )
-    return not opens_count
+    return name.text.lower() in names
 
 
 def _next_words(tokens: Sequence[_QToken], i: int, text: str, limit: int = 2) -> Iterator[str]:
@@ -699,7 +689,7 @@ def _next_words(tokens: Sequence[_QToken], i: int, text: str, limit: int = 2) ->
         j += 2 if paired else 1
 
 
-def _is_quantity(tokens: Sequence[_QToken], i: int, text: str) -> bool:
+def _is_quantity(tokens: Sequence[_QToken], i: int, text: str, names: frozenset[str]) -> bool:
     token = tokens[i]
     if _currency_before(tokens, i, text):  # $120K, €50k
         return True
@@ -714,14 +704,14 @@ def _is_quantity(tokens: Sequence[_QToken], i: int, text: str) -> bool:
             if following.text == _MULTIPLY and not gap:
                 return True
             if following.text == "+" and not gap:  # 500+, but not "Java 8+"
-                return not _after_name(tokens, i, text)
+                return not _after_name(tokens, i, text, names)
         elif following.kind == "word" and following.text.lower() in _SCALE_WORDS:
             return True  # 30 percent, 3 times, 2 million
     if not _at_least_two(token.text):
         return False
     if _word(tokens, i - 1) == "of" and _word(tokens, i - 2) in ("team", "teams"):
         return True  # "a team of 4"
-    if _after_name(tokens, i, text):
+    if _after_name(tokens, i, text, names):
         return False
     for distance, word in enumerate(_next_words(tokens, i, text), start=1):
         if word in COUNTING_NOUNS:
@@ -742,7 +732,7 @@ def _amount_follows(tokens: Sequence[_QToken], i: int) -> bool:
     return currency or not _is_year(tokens[j])
 
 
-def is_quantified(text: str) -> bool:
+def is_quantified(text: str, config: EngineConfig) -> bool:
     """Does the bullet state a quantified outcome (ROLE_BULLET_QUANTIFIED)?
 
     True for a number followed by "%" / "percent", preceded by a currency sign, followed by
@@ -750,8 +740,9 @@ def is_quantified(text: str) -> bool:
     (N ≥ 2); a number ≥ 2 followed within two tokens by a counting noun ("15 Grade 9 students":
     a name with its number is one token); or a number after "by"/"to" following an outcome verb
     in the same sentence. Never for a year on its own or a version right after a tech name
-    ("React 18", "react 18", "Python 3", "ES6").
+    ("React 18", "Python 3", "ES6"; in lower case only after `verbs.version_names`: "react 18").
     """
+    names = _lexicons(config).version_names
     tokens = _qtokens(text)
     after_outcome_verb = False
     for i, token in enumerate(tokens):
@@ -764,7 +755,7 @@ def is_quantified(text: str) -> bool:
                 after_outcome_verb = True
             elif after_outcome_verb and word in ("by", "to") and _amount_follows(tokens, i):
                 return True
-        elif _is_quantity(tokens, i, text):
+        elif _is_quantity(tokens, i, text, names):
             return True
     return False
 

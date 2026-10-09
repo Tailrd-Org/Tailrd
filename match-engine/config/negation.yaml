@@ -10,12 +10,17 @@ hard_negation:
   # A hard term negates a skill only when every token between them is one of these (or another
   # skill, or an aspiration term): "no prior experience with Java". Otherwise it governs the
   # noun it opens: "with no downtime using Kubernetes" (DECISIONS D-34c). "use", "work" and
-  # "have" complete the paradigm for "didn't use", "haven't worked", "don't have".
+  # "have" complete the paradigm for "didn't use", "haven't worked", "don't have"; the ordinary
+  # modifiers from "direct" on keep "No production experience with X" and "Not very familiar
+  # with X" negated, while "no production downtime using X" still affirms X.
   scope_fillers: ["experience", "knowledge", "prior", "previous", "professional", "formal",
                   "hands-on", "working", "real-world", "familiarity", "exposure", "background",
                   "expertise", "skills", "proficiency", "familiar", "proficient", "experienced",
                   "comfortable", "skilled", "used", "worked", "using", "with", "in", "of", "on",
-                  "at", "to", "any", "the", "a", "an", "use", "work", "have"]
+                  "at", "to", "any", "the", "a", "an", "use", "work", "have",
+                  "direct", "practical", "commercial", "industry", "production", "real",
+                  "extensive", "significant", "relevant", "much", "very", "really", "fully",
+                  "currently", "previously", "before", "once", "too"]
   # Phrases whose negation word negates nothing: "Not only built the API in Go".
   exceptions: ["not only"]
 

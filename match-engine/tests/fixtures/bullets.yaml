@@ -706,3 +706,86 @@ probes:
     quantified: false
     mentions:
       - {surface: "Tableau", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+
+  # --- Review round 2 ---------------------------------------------------------------------------
+  # D-34f hands on the verb class only: the negation or aspiration stays in its own clause.
+  - text: "Not familiar with Docker and proficient in Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Not familiar with Docker or experienced with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Aspiring data scientist interested in machine learning and experienced in Python and SQL"
+    quantified: false
+    mentions:
+      - {surface: "machine learning", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "interested in", multiplier: 0.15}
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Studying Japanese and fluent in Korean"
+    quantified: false
+    mentions:
+      - {surface: "Japanese", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "studying", multiplier: 0.15}
+      - {surface: "Korean", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # Ordinary modifiers stay inside the negation's scope (D-34c) ...
+  - text: "No production experience with Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no", multiplier: 0.0}
+  - text: "Not very familiar with Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Not currently using Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "using", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Have not previously used Rust"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Never really used Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "never", multiplier: 0.0}
+  # ... but never carry it past the noun they modify.
+  - text: "Shipped with no production downtime using Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+  # "using" right after a negated tool opens a new tool: the negation stops there (D-34c).
+  - text: "Built the cache without Redis using Nginx"
+    quantified: false
+    mentions:
+      - {surface: "Redis", verb_class: OWNERSHIP, verb: "built", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Nginx", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Deployed the app without Docker using Terraform"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXECUTION, verb: "deployed", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Terraform", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Built the UI without React using Svelte"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "built", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Svelte", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  # "!" and "?" end sentences, so polarity stops at them (D-34b).
+  - text: "Seeking an internship! Python, SQL"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "No experience with Java? Python and Go"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no experience", multiplier: 0.0}
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Go", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # A clause whose only verb defers ("using") is verbless for D-34f: "Built" wins.
+  - text: "Built dashboards and reports using Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Tableau", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}

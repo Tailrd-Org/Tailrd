@@ -144,6 +144,8 @@ class VerbsConfig(Frozen):
     # Entries that are nouns: they attach only when one of the followers comes next (D-34e).
     noun_entries: tuple[str, ...]
     noun_entry_followers: tuple[str, ...]
+    # Lower-case product names whose following number is a version, not a quantity ("react 18").
+    version_names: tuple[str, ...]
 
     @model_validator(mode="after")
     def _valid(self) -> "VerbsConfig":

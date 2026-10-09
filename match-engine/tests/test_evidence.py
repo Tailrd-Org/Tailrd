@@ -134,7 +134,7 @@ def test_bullet(bullet: dict, config) -> None:
     mentions = [_mention(text, m["surface"], m.get("occurrence", 1)) for m in bullet["mentions"]]
     got = analyze_bullet(text, mentions, config)
     assert len(got) == len(mentions)
-    assert is_quantified(text) is bullet["quantified"], text
+    assert is_quantified(text, config) is bullet["quantified"], text
     evidence = Evidence.ROLE_BULLET_QUANTIFIED if bullet["quantified"] else Evidence.ROLE_BULLET
     for label, mention, ev in zip(bullet["mentions"], mentions, got):
         where = f"{label['surface']!r} in {text!r}"
@@ -207,6 +207,38 @@ def test_hard_negation_beats_aspiration_in_one_window(config) -> None:
     # The aspiration term sits inside the negation's scope (DECISIONS D-34c).
     ev = _one("Not interested in Java", "Java", config)
     assert (ev.polarity, ev.trigger) == (Polarity.NEGATED, "not")
+
+
+@pytest.mark.parametrize("text", [
+    *(f"No {word} experience with Docker" for word in (
+        "direct", "commercial", "practical", "production", "real", "industry", "extensive", "significant",
+        "relevant")),
+    "Not very familiar with Docker", "Not currently using Docker", "Have not previously used Docker",
+    "Never before used Docker", "Never really used Docker", "Never once used Docker",
+    "Not too familiar with Docker", "Not fully familiar with Docker", "Not much experience with Docker",
+])
+def test_ordinary_modifiers_stay_in_negation_scope(text: str, config) -> None:
+    assert _one(text, "Docker", config).polarity is Polarity.NEGATED, text
+
+
+@pytest.mark.parametrize("text", [
+    "Shipped with no production downtime using Kubernetes", "Shipped with no real downtime using Kubernetes",
+])
+def test_a_filler_never_carries_negation_past_a_noun(text: str, config) -> None:
+    assert _one(text, "Kubernetes", config).polarity is Polarity.AFFIRMED
+
+
+def test_leverage_behaves_like_using(config) -> None:
+    ev = _one("Built dashboards leveraging Looker", "Looker", config)
+    assert (ev.verb_class, ev.verb) == (VerbClass.OWNERSHIP, "built")  # defers to the earlier verb
+    ev = _one("Leveraged Snowflake for reporting", "Snowflake", config)
+    assert (ev.verb_class, ev.verb) == (VerbClass.PARTICIPATION, "leveraged")  # nothing earlier
+
+
+def test_a_deferring_participle_attaches_when_nothing_is_inherited(config) -> None:
+    # D-34f: "using" alone leaves the clause verbless, but an inherited NO_VERB does not erase it
+    ev = _one("Shipped features and reports using Tableau", "Tableau", config)
+    assert (ev.verb_class, ev.verb) == (VerbClass.PARTICIPATION, "using")
 
 
 def test_contractions_count_as_not(config) -> None:
@@ -398,13 +430,13 @@ def test_long_bullets_take_linear_time(unit: str, verb_class: VerbClass, polarit
 
 
 @pytest.mark.slow
-def test_long_text_is_quantified_in_linear_time() -> None:
+def test_long_text_is_quantified_in_linear_time(config) -> None:
     # ~2 s linear; re-slicing the rest of the tokens per number took ~50 s at this size.
     text = "2 " * 200_000
     started = time.perf_counter()
-    assert is_quantified(text) is False
+    assert is_quantified(text, config) is False
     assert time.perf_counter() - started < 25.0
-    assert is_quantified(text + "2 users") is True
+    assert is_quantified(text + "2 users", config) is True
 
 
 def test_lexicons_are_built_once_per_config(config) -> None:
@@ -463,9 +495,28 @@ def test_analysis_is_deterministic(config) -> None:
     "Tutored 15 Grade 9 students",
     "Supported 40 Fortune 500 clients",
     "Deployed to 300 Windows 10 machines",
+    # fix round 2: a lower-case word before a number is a count unless it is a version name
+    "Develop and maintain 12 microservices",
+    "Design and build 12 dashboards",
+    "Currently manage 12 servers",
+    "Lead and mentor 5 engineers",
+    "Train and support 40 users",
+    "Develop and serve 500+ customers",
+    "Migrated all 40 services to Kubernetes",
+    "Fixed all 12 bugs before launch",
+    "Reviewed all 200 pull requests",
+    "Supported our 40 clients",
 ])
-def test_quantified(text: str) -> None:
-    assert is_quantified(text) is True
+def test_quantified(text: str, config) -> None:
+    assert is_quantified(text, config) is True
+
+
+def test_version_names_come_from_config(config) -> None:
+    text = "Shipped react 18 apps"
+    assert is_quantified(text, config) is False
+    data = config.verbs.model_dump()
+    data["version_names"] = tuple(name for name in data["version_names"] if name != "react")
+    assert is_quantified(text, _replace(config, verbs=VerbsConfig(**data))) is True
 
 
 @pytest.mark.parametrize("text", [
@@ -493,8 +544,8 @@ def test_quantified(text: str) -> None:
     "Worked in a team of 1",
     "",
 ])
-def test_not_quantified(text: str) -> None:
-    assert is_quantified(text) is False
+def test_not_quantified(text: str, config) -> None:
+    assert is_quantified(text, config) is False
 
 
 # ─── E (DECISIONS D-32) ─────────────────────────────────────────────────────────────────

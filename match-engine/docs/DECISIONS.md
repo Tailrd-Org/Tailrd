@@ -118,52 +118,62 @@ only: the verb multiplier replaces them, so tuning them changes nothing.
 **D-33 Negation (§15.2).** A hard-negated mention contributes 0. An aspirational mention
 contributes `min(value, 0.15)`. Another, non-negated mention of the same skill still counts.
 
-**D-34a Clause rules (§15.1). [Spec: clarified]** Boundaries are `. ; ,` and the coordinating
-conjunctions *and, but, or, nor, yet, so*. "for" is excluded: in bullets it is a preposition
-("built dashboards for the sales team using Tableau"). A clause that holds only skill mentions
-and list words ("…using React, Redux and D3") is a list continuation and inherits the previous
-clause's verb; otherwise every comma-separated tool after "using" would fall to NO_VERB.
-Punctuation inside a word or number ("Node.js", "1,000") or a skill name, and the period of an
-abbreviation ("U.S.", "e.g.", "i.e.", "Inc."), are not boundaries.
+**D-34a Clause rules (§15.1). [Spec: clarified]** Boundaries are `. ; , ! ?` and the coordinating
+conjunctions *and, but, or, nor, yet, so* ("!" and "?" end sentences like "."). "for" is excluded:
+in bullets it is a preposition ("built dashboards for the sales team using Tableau"). A clause that
+holds only skill mentions and list words ("…using React, Redux and D3") is a list continuation and
+inherits the previous clause's verb; otherwise every comma-separated tool after "using" would fall
+to NO_VERB. Punctuation inside a word or number ("Node.js", "1,000") or a skill name, and the
+period of an abbreviation ("U.S.", "e.g.", "i.e.", "Inc."), are not boundaries.
 
 The guiding intent of D-34b..D-34f (SPEC §15): credit demonstrated work by its verb and stop
 interest or negation from counting as experience. A literal reading that zeroes a skill the
 bullet demonstrates defeats it.
 
-**D-34b Polarity across clauses.** A clause that inherits a verb (D-34a, D-34f) takes the
-previous clause's polarity only from a mention there: "Not familiar with Docker or Kubernetes"
-negates both, "Studying Japanese and Korean" is aspirational for both. A clause without a mention
-hands on its verb class only. Polarity never crosses a sentence end (`. ; ! ?`) or "but"/"yet":
-in "Seeking a data analyst internship. Python, SQL, Tableau" and "No experience with Java, but
-Python and Go" the listed skills are affirmed.
+**D-34b Polarity across clauses.** Only a pure-list clause (D-34a) takes the previous clause's
+polarity, only from a mention there: "Not familiar with Docker or Kubernetes" negates both,
+"Studying Japanese and Korean" is aspirational for both. A clause without a mention hands on its
+verb class only. Polarity never crosses a sentence end (`. ; ! ?`) or "but"/"yet": in "Seeking a
+data analyst internship. Python, SQL, Tableau" and "No experience with Java, but Python and Go"
+the listed skills are affirmed.
 
-**D-34c Negation scope.** A hard-negation term negates a mention only when every token between
-them is a scope filler (`negation.hard_negation.scope_fillers`: experience, prior, hands-on,
-familiar, used, with, the, ...), another mention, an aspiration term ("Not interested in Java"
-stays negated) or a "yet" right after the term. Otherwise the term governs the noun it opens:
-"Automated deployments with no manual steps using Terraform" affirms Terraform. "use", "work"
-and "have" join the ruled fillers so "didn't use", "haven't worked" and "don't have experience"
-negate. An `exceptions` phrase ("not only") and a term joined by a hyphen ("no-code",
-"not-for-profit", "never-used") never negate; "n't" counts as "not"; "yet" right after a
-negation is not a clause boundary. Aspiration keeps the 6-token window inside the clause.
+**D-34c Negation scope. [Deviation]** Why: SPEC §15.2's 6-token window zeroes skills a bullet
+demonstrates ("Deployed with no downtime using Kubernetes"). A hard-negation term negates a mention
+only when every token between them is a scope filler (`negation.hard_negation.scope_fillers`:
+experience, prior, hands-on, familiar, used, with, the, ...; also ordinary modifiers such as
+direct, production, very, currently, previously), another mention, an aspiration term ("Not
+interested in Java" stays negated) or a "yet" right after the term. Otherwise the term governs the
+noun it opens: "Automated deployments with no manual steps using Terraform" and "no production
+downtime using Kubernetes" affirm the tool. A deferring participle right after a mention opens a
+new tool: "Built the cache without Redis using Nginx" negates Redis only. "use", "work" and "have"
+join the ruled fillers so "didn't use", "haven't worked" and "don't have experience" negate. An
+`exceptions` phrase ("not only") and a term joined by a hyphen ("no-code", "not-for-profit",
+"never-used") never negate; "n't" counts as "not"; "yet" right after a negation is not a clause
+boundary. Aspiration keeps the 6-token window inside the clause.
 
-**D-34d Verb chains.** A verb followed, directly or across only "to", "in", "with" or "on", by
-another verb heads the chain and gives its class: "Helped to build" is ASSISTANCE, "Contributed
-to building" and "Participated in designing" PARTICIPATION, "Assisted in developing" ASSISTANCE.
-An instrument participle (`verbs.defer_to_earlier`: using, utilizing, utilising, leveraging)
-defers to an earlier verb of its clause: "Built dashboards using React" is OWNERSHIP.
+**D-34d Verb chains. [Deviation]** Why: §15.1's nearest verb credits "Helped build X" as OWNERSHIP
+and "Built dashboards using React" as PARTICIPATION. A verb followed, directly or across only
+"to", "in", "with" or "on", by another verb heads the chain and gives its class: "Helped to build"
+is ASSISTANCE, "Contributed to building" and "Participated in designing" PARTICIPATION, "Assisted
+in developing" ASSISTANCE. An instrument participle (`verbs.defer_to_earlier`: using, utilizing,
+utilising and the leverage family) defers to an earlier verb of its clause: "Built dashboards
+using React" is OWNERSHIP.
 
-**D-34e Nouns that look like verbs.** Base and third-person forms (design, designs, support,
-engineers, work, use, lead, drive, scale, ...: a form whose -s/-es sibling is listed, or that
-sibling) attach only in verb position, the first word of a clause or right after "to". Noun
-entries (`verbs.noun_entries`: exposure, familiarity, awareness) attach only before "of", "to",
-"with" or "in". Past and -ing forms attach anywhere, and the "using" deferral only skips to verbs
-that attach. So "Used design patterns in Java" is PARTICIPATION, "Wrote design docs for the Kafka
-migration" NO_VERB and "Shadowed senior engineers using Kubernetes" ASSISTANCE.
+**D-34e Nouns that look like verbs. [Deviation]** Why: §15.1 matches word forms, so nouns ("design
+docs", "support tickets", "5 engineers") would attach as verbs. Base and third-person forms
+(design, designs, support, engineers, work, use, lead, drive, scale, ...: a form whose -s/-es
+sibling is listed, or that sibling) attach only in verb position, the first word of a clause or
+right after "to". Noun entries (`verbs.noun_entries`: exposure, familiarity, awareness) attach only
+before "of", "to", "with" or "in". Past and -ing forms attach anywhere, and the "using" deferral
+only skips to verbs that attach. So "Used design patterns in Java" is PARTICIPATION, "Wrote design
+docs for the Kafka migration" NO_VERB and "Shadowed senior engineers using Kubernetes" ASSISTANCE.
 
 **D-34f Conjunction clauses.** A verbless clause produced by "and", "or" or "nor" (not after a
-sentence end) inherits the previous clause's verb class whatever it holds: "Built dashboards and
-reports in Tableau" is OWNERSHIP. After punctuation only a pure list inherits (D-34a).
+sentence end) inherits the previous clause's verb class, and only the verb class, whatever it holds:
+"Built dashboards and reports in Tableau" is OWNERSHIP, while "Not familiar with Docker and
+proficient in Kubernetes" affirms Kubernetes. A clause whose only verb is a deferring participle
+counts as verbless ("Built dashboards and reports using Tableau" is OWNERSHIP); an inherited
+NO_VERB never hides that participle. After punctuation only a pure list inherits (D-34a).
 
 **D-34 Recency.** `years = (as_of - last_used).days / 365.25`; current roles are 0 years.
 Skills-blob and certification mentions take the résumé's latest activity date (latest role end,

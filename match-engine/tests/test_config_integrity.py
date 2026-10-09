@@ -141,13 +141,23 @@ def test_negation_matches_spec(config) -> None:
 def test_evidence_grammar_config(config) -> None:
     # DECISIONS D-34c, D-34d, D-34e
     v, hard = config.verbs, config.negation.hard_negation
-    assert v.defer_to_earlier == ("using", "utilizing", "utilising", "leveraging")
+    assert v.defer_to_earlier == ("using", "utilizing", "utilising", "leverage", "leverages", "leveraged",
+                                  "leveraging")
+    leverage = {"leverage", "leverages", "leveraged", "leveraging"}
+    assert leverage <= set(v.classes[VerbClass.PARTICIPATION].verbs)  # a no-op unless they are verbs
     assert v.noun_entries == ("exposure", "familiarity", "awareness")
     assert set(v.noun_entry_followers) == {"of", "to", "with", "in"}
+    assert {".", ";", ",", "!", "?"} == set(v.clause_punctuation)  # "!" and "?" end sentences (D-34b)
+    assert {"react", "java", "python", "node", "windows", "excel", "office"} <= set(v.version_names)
+    assert "go" not in v.version_names  # "go" is an ordinary verb in lower case
     ruled = {"experience", "knowledge", "prior", "previous", "professional", "formal", "hands-on",
              "working", "real-world", "familiarity", "exposure", "background", "expertise", "skills",
              "proficiency", "familiar", "proficient", "experienced", "comfortable", "skilled", "used",
-             "worked", "using", "with", "in", "of", "on", "at", "to", "any", "the", "a", "an"}
+             "worked", "using", "with", "in", "of", "on", "at", "to", "any", "the", "a", "an",
+             # fix round 2
+             "direct", "practical", "commercial", "industry", "production", "real", "extensive",
+             "significant", "relevant", "much", "very", "really", "fully", "currently", "previously",
+             "before", "once", "too"}
     assert ruled <= set(hard.scope_fillers)
     assert all(isinstance(f, str) for f in hard.scope_fillers)  # YAML must not turn "on" into True
     assert hard.exceptions == ("not only",)
