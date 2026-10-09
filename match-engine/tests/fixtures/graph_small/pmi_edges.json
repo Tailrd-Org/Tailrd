@@ -1,0 +1,27 @@
+{
+ "edges":{
+  "skill.aws":{
+   "skill.terraform":0.55
+  },
+  "skill.docker":{
+   "skill.kubernetes":0.7
+  },
+  "skill.kubernetes":{
+   "skill.docker":0.7
+  },
+  "skill.nextjs":{
+   "skill.react":0.8
+  },
+  "skill.react":{
+   "skill.nextjs":0.8,
+   "skill.vue":0.65
+  },
+  "skill.terraform":{
+   "skill.aws":0.55
+  },
+  "skill.vue":{
+   "skill.react":0.65
+  }
+ },
+ "format":1
+}

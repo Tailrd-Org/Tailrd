@@ -17,3 +17,12 @@ settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "engine"))
 @pytest.fixture(scope="session")
 def config() -> EngineConfig:
     return load_config()
+
+
+@pytest.fixture(scope="session")
+def small_graph():
+    """The committed tests/fixtures/graph_small artifacts, loaded (and hash-checked) once."""
+    from matcher.graph.loader import load_graph
+    from tests.fixtures.build_graph_small import FIXTURE_DIR
+
+    return load_graph(FIXTURE_DIR)

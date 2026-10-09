@@ -1,0 +1,11 @@
+{
+ "artifacts":{
+  "idf.json":"91c6ba308b70d0f1eb59c972321e4157b6175490992836ddfb7535749cee8e5d",
+  "nodes.json":"0a8578c5edb63a658840ac6314906dcb09e2a984aa8f4f5d078db992938496d8",
+  "pmi_edges.json":"0f1867125ed174396509061fe4149eb1c6fbe3dbd5a0353356eac133749f2773"
+ },
+ "format":1,
+ "sources":{
+  "fixture":"hand-built synthetic graph (tests/fixtures/build_graph_small.py)"
+ }
+}
