@@ -272,20 +272,176 @@ validated when written) — load time matters (Vercel cold starts).
 - [ ] Implement the modules; rerun → PASS; run the full suite once → PASS; `ruff check` clean
 - [ ] Commit by explicit paths: `git add match-engine/src/matcher/graph match-engine/src/matcher/normalize match-engine/tests && git commit -m "feat(match-engine): skill graph core (aliases, traversal, idf/pmi, loader, resolver)"`
 
-### Task 2.2 ∥: Taxonomy build from ESCO + O*NET + curated synonyms
-**Files:** `scripts/fetch_sources.py`, `scripts/build_taxonomy.py`, `data/taxonomy/{nodes.json.gz,MANIFEST.json}`, `config/curated_aliases.yaml`, `config/curated_edges.yaml`.
-Sources: ESCO v1.2 CSV (form POST at esco.ec.europa.eu/en/use-esco/download; fallback: ESCO API),
-O*NET 30.0 text db (`https://www.onetcenter.org/dl_files/database/db_30_0_text.zip`): Technology
-Skills, Tools Used, Alternate Titles, Occupation Data; Tailrd `_SKILL_SYNONYMS` + `IMPLIES`.
-Raw downloads in `data/raw/` (ignored). Node schema per SPEC §3 + D-13 (CREDENTIAL kind) + `release_year`.
-Also builds `data/taxonomy/mos_crosswalk.json` (SPEC §14.3: military MOS/MOC code → civilian
-skill ids, from O*NET's military crosswalk + the occupations' technology/skill links) and
-`data/taxonomy/titles.json` (O*NET alternate titles → occupation code + job family).
+### Task 2.2: Taxonomy build (ESCO + O*NET + curated) and the 1,000 surface-form gate
+
+Paths relative to `match-engine/`. Read SPEC §3 ("Seed it from ESCO and/or O*NET ... Do not
+hand-write a taxonomy from scratch"), §14.3 (military crosswalk), §14.4 (release dates),
+DECISIONS D-13, D-20, D-23, D-04. Builds on Task 2.1: `graph.loader.write_artifacts/load_graph`,
+`graph.aliases.normalize_surface`, `normalize.resolver.Resolver` (read them first).
+
+**Files:**
+- Create: `scripts/fetch_sources.py` (downloads into `data/raw/`, records sha256 of each download)
+- Create: `scripts/build_taxonomy.py` (reads `data/raw/` + curated config, writes `data/taxonomy/`)
+- Create: `config/curated_taxonomy.yaml` (curated nodes, ambiguous casings, blocked aliases),
+  `config/curated_edges.yaml` (hand-curated related edges, weights in [0.4, 0.8])
+- Create (generated, committed): `data/taxonomy/{nodes.json.gz, idf.json, pmi_edges.json,
+  resolver.json, titles.json, mos_crosswalk.json, naics.json, MANIFEST.json, SOURCES.md}`
+- Modify: `src/matcher/graph/loader.py` — add `load_resolver_settings(taxonomy_dir) -> dict` (reads
+  the hash-verified `resolver.json`) and `load_resolver(taxonomy_dir, config) -> Resolver`
+  (graph + ambiguous map in one call)
+- Test: `tests/fixtures/surface_forms.tsv`, `tests/test_surface_forms.py`, `tests/test_taxonomy_build.py`
+
+**Sources** (record version, URL, licence and attribution in `data/taxonomy/SOURCES.md`):
+1. ESCO v1.2.x classification CSV, English, plus French labels (`skills_fr.csv`) when obtainable.
+   The download at `https://esco.ec.europa.eu/en/use-esco/download` is a Drupal form POST
+   (fields `version`, `content`, `language`, `file_type`, `form_build_id`, `form_id=download_form`);
+   fall back to the ESCO Web Service API (`https://ec.europa.eu/esco/api`) with polite rate
+   limiting, or an official mirror. Files needed: skills, skill groups, broader relations (skill
+   pillar hierarchy), transversal / language / digital skill collections, occupations,
+   occupation–skill relations.
+2. O*NET 30.0 text database `https://www.onetcenter.org/dl_files/database/db_30_0_text.zip`
+   (CC BY 4.0): Technology Skills, Tools Used, Alternate Titles, Occupation Data, Knowledge, Job Zones;
+   and O*NET's military crosswalk (MOC → O*NET-SOC; see onetcenter.org/crosswalks).
+3. NAICS 2022 2–6 digit codes and titles (census.gov) → `naics.json` (`{"format":1,"codes":{"5112": "Software Publishers", ...}}`).
+4. Tailrd's curated tables: `backend/services/structured_extraction.py` `_SKILL_SYNONYMS` and
+   `backend/services/local_match.py` `IMPLIES` / `_DISPLAY` (copy their content into
+   `config/curated_taxonomy.yaml`; nothing under `src/` may import `backend`).
+If a source cannot be fetched, build from what was fetched, say so in SOURCES.md and the report,
+and still meet the gate below. Never commit anything under `data/raw/`.
+
+**Node rules:**
+- Ids: curated and O*NET technology `skill.<slug>` (shared namespace: an O*NET example or ESCO
+  label whose `normalize_surface` equals a curated node's label/alias MERGES into it — aliases
+  unioned, curated label/kind/parents/release_year win); ESCO skills `esco.<slug>` (slug of the
+  preferred label; on collision append `_` + 6 hex of the concept UUID); ESCO skill groups
+  `esco.group.<code>`; UNSPSC commodity classes `cat.<code>`; credentials `cred.<slug>`; fields of
+  study `field.<slug>`. Every id deterministic across rebuilds.
+- Kinds: ESCO transversal → SOFT; ESCO knowledge → DOMAIN; ESCO skill/competence → METHODOLOGY;
+  O*NET Technology Skills → TECHNOLOGY or TOOL by commodity class (programming/development/
+  database/OS/network/cloud/web classes → TECHNOLOGY; office/spreadsheet/presentation/project
+  management/CAD/accounting/ERP/CRM/graphics/video/analytics apps → TOOL; table in the script);
+  O*NET Tools Used → TOOL; credentials → CREDENTIAL; fields → DOMAIN.
+- Parents: ESCO broader relations; O*NET example → its `cat.<commodity>` node; curated parents
+  (e.g. `skill.react` → `skill.js_framework` → `skill.javascript`; `IMPLIES` pairs become parents:
+  postgresql → sql, typescript → javascript, next.js → react, ...).
+- Aliases: ESCO preferred + alt + hidden labels (+ French ones); the label without a trailing
+  parenthetical (`Python (computer programming)` → `Python`); O*NET examples with vendor prefix
+  and trailing "software" removed (`Microsoft Excel` → `Excel`, `Atlassian JIRA` → `JIRA`,
+  `Amazon Web Services AWS software` → `AWS`, `Amazon Web Services`). Drop a SINGLE-WORD ESCO
+  alt/hidden label unless it equals that node's own preferred label or is curated (single generic
+  words cause most false positives); drop every alias listed under `blocked_aliases`; drop aliases
+  of ≤ 2 characters unless curated. Ambiguous English words that are also skills (Go, R, C, REST,
+  Spring, Excel, Swift, Rust, Dart, React, Next, Express, Chef, Lean, Access, Word, Teams, Outlook,
+  Spark, ...) go in `ambiguous` with their required casing → written to `resolver.json`
+  (`{"format":1,"ambiguous":{"go":"Go",...}}`).
+- `release_year` for technologies a posting might over-ask (SPEC §14.4): at least Kubernetes 2014,
+  Docker 2013, React 2013, Vue 2014, Angular 2016, Svelte 2016, Next.js 2016, TypeScript 2012,
+  Go 2009, Rust 2015, Swift 2014, Kotlin 2011, Flutter 2017, GraphQL 2015, Terraform 2014,
+  FastAPI 2018, PyTorch 2016, TensorFlow 2015, Snowflake 2014, dbt 2016, Airflow 2015, Kafka 2011.
+- Credentials: every id in `config/gates.yaml` `professional_credential_ids` must exist, plus
+  common ones (AWS/Azure/GCP certifications, CompTIA A+/Network+/Security+, CISSP, CCNA, PMP,
+  CAPM, CSM/PSM, Six Sigma belts, ITIL, CFA, CPA Canada, CMA, CHRP/CHRL, EIT, LEED, Red Seal,
+  First Aid/CPR/BLS/ACLS, WHMIS, Food Handler, forklift, ordinary driver's licence
+  `cred.drivers_license` incl. Ontario G/G2), each with a related edge to the skill it certifies.
+- Fields of study (`field.*`, ~40: computer science, software/computer/electrical/mechanical/civil/
+  chemical engineering, mathematics, statistics, data science, physics, business, commerce,
+  finance, accounting, economics, marketing, psychology, biology, chemistry, nursing, health
+  sciences, communications, design, law, political science, education, ...) with parents
+  (`field.engineering`, `field.business_admin`, `field.science`) and curated related edges
+  (CS–software engineering 0.80, CS–computer engineering 0.70, statistics–mathematics 0.70,
+  data science–statistics 0.70, data science–CS 0.70, finance–accounting 0.60, economics–finance
+  0.60, ...); aliases incl. "CS", "Comp Sci", "B.Comm", French ("génie logiciel", "informatique").
+- `titles.json`: `{"format":1,"titles":{"<normalized title>":{"soc":"15-1252.00","family":"<SOC
+  major group title>","job_zone":4}}}` from O*NET occupations + alternate titles.
+- `mos_crosswalk.json`: `{"format":1,"codes":{"25B":{"branch":"army","title":"...","soc":[...],
+  "skill_ids":[...]}}}`; skill_ids = the hot/in-demand technology examples and top knowledge areas
+  of the mapped occupations that exist as nodes. If the crosswalk can't be fetched, a curated
+  table of ≥ 40 common codes across branches, flagged as such in SOURCES.md.
+- Write everything through `write_artifacts` (idf `{}` and edges = curated edges only for now;
+  Task 2.3 fills real IDF/PMI) and list the extra JSON files in MANIFEST so they are hash-pinned.
+- Hash pinning vs. line endings (from Task 2.1): this repository converts line endings on
+  Windows checkouts, which would change the artifact bytes and fail the sha256 check. Add
+  `match-engine/data/taxonomy/.gitattributes` with `* -text` (as
+  `tests/fixtures/graph_small/.gitattributes` does) BEFORE the first commit of the artifacts.
+- `Resolver.resolve()` requires the exact casing for ambiguous keys (`resolve("go")` → NONE,
+  `resolve("Go")` → skill.go); skills-list items go through `extract(context="list")`. Write the
+  ambiguous lines of the surface-form TSV accordingly (state the context in a 4th column if you
+  test some through `extract`).
+- When writing Python source that contains `\uXXXX` escapes, check the file afterwards: the
+  file-writing tool has been seen to turn escapes into raw invisible characters
+  (`grep -nP "[\x{200B}-\x{200D}\x{FEFF}\x{00AD}]"` must find nothing in source files).
+
+**Gate (BUILD Milestone 2): 1,000 hand-picked surface forms resolve correctly.**
+`tests/fixtures/surface_forms.tsv` — exactly 1,000 data lines `surface<TAB>expected_id<TAB>method`
+(method ∈ EXACT, ALIAS, FUZZY, NONE), hand-picked across: programming languages and frameworks
+with every common spelling (ReactJS / React.js / react, Node / NodeJS / Node.js, Postgres /
+PostgreSQL / psql, k8s, Golang, C++ / cpp, C# / csharp, .NET / dotnet, JS, ES6, HTML5, CSS3,
+SCSS, sklearn, PowerBI / Power BI, ...), data/ML, cloud/DevOps, design tools, office tools,
+business/finance/accounting (QuickBooks, GAAP, IFRS, financial modeling, Bloomberg Terminal),
+marketing/sales (SEO, HubSpot, Salesforce), healthcare (BLS, CPR, EMR), trades and engineering
+(AutoCAD, SolidWorks, PLC, SCADA, LabVIEW, Verilog), soft skills, credentials, fields of study,
+~50 French forms, ~40 typos that must FUZZY-match (≥ 6 chars, ≤ 2 edits), and ~40 strings that
+must NOT resolve (NONE: "synergy", "rockstar", generic words). `tests/test_surface_forms.py`
+loads the REAL `data/taxonomy` via `load_resolver` and asserts every line, reporting all failures
+at once (one parametrised case per line). Also a test that loading + building the resolver takes
+< 3 s and that every `professional_credential_ids` id exists in the graph.
+`tests/test_taxonomy_build.py`: the builder is deterministic (build twice from the same raw
+inputs → identical artifact hashes; use a tiny raw-input fixture under `tests/fixtures/raw_mini/`
+so the test needs no network), merging rules, alias filtering rules, id collision rule.
+
+- [ ] Fetch sources (network) → `data/raw/`; write build tests on `raw_mini` → FAIL; implement builder → PASS
+- [ ] Run the full build; write the 1,000-line TSV; iterate on curated config until the gate passes
+- [ ] Full suite once; ruff clean; commit by explicit paths (scripts, config, data/taxonomy, src/matcher/graph/loader.py, tests)
 
 ### Task 2.3: Corpus statistics (IDF, PMI) from Tailrd postings
-**Files:** `scripts/pull_corpus.py` (reads `DATABASE_URL`, writes `data/raw/corpus/postings.jsonl.gz`),
-`scripts/compute_idf.py`, `scripts/compute_pmi.py`, `data/taxonomy/{idf.json,pmi_edges.json}`.
-Behaviour: D-21 (mention-weighted CDF), D-22 (NPMI ≥ 0.4, co-occurrence ≥ 5, out-degree 20, curated wins).
+
+Paths relative to `match-engine/`. Read SPEC §3.1–§3.2 ("computed offline from our own job
+corpus ... pure counting"), DECISIONS D-21, D-22, D-04 and the ledger ruling on the corpus source.
+Builds on Task 2.1 (`graph.idf.normalize_idf`, `graph.pmi.build_edges`, `write_artifacts`,
+`load_graph`) and Task 2.2 (`data/taxonomy/*`, `graph.loader.load_resolver`).
+
+**Files:** Create `scripts/pull_corpus.py`, `scripts/corpus_stats.py` (shared: iterate the corpus,
+extract mentions, count df and co-df), `scripts/compute_idf.py`, `scripts/compute_pmi.py`;
+regenerate (committed) `data/taxonomy/{idf.json, pmi_edges.json, MANIFEST.json}` and add
+`data/taxonomy/corpus_report.md`; Test `tests/test_corpus_stats.py` with a synthetic in-repo corpus
+`tests/fixtures/corpus_mini.jsonl` (~30 invented postings).
+Modify: `pyproject.toml` eval extra — add `pg8000==1.31.2` (already installed in the venv).
+
+**Behaviour:**
+1. `pull_corpus.py --env-file <path> [--limit N]`: reads ONLY `DATABASE_URL` from the env file or
+   the environment (never prints, logs or writes it), connects read-only with pg8000 (TLS), and
+   streams `SELECT id, title, description, role_category, experience_level, first_seen_at,
+   scraped_at FROM scraped_jobs WHERE length(coalesce(description,'')) > 200 AND duplicate_of IS
+   NULL ORDER BY id` into `data/raw/corpus/postings.jsonl.gz` (git-ignored; scraped text never
+   leaves `data/raw/`). Run it once against `C:\Users\elmas\Desktop\Tailrd\.env` (the Development
+   branch, ~5,475 postings). Record the row count and date range (not the text) for SOURCES.md.
+2. `corpus_stats.py`: for each posting, `resolver.extract(title + "\n" + description)` (prose
+   context) → the SET of canonical ids (df counts each skill once per posting) and every unordered
+   pair of ids in that set (co-df). Deterministic regardless of row order.
+3. `compute_idf.py`: N = postings processed; `normalize_idf(df, N)` → `idf.json` (via
+   `write_artifacts`, nodes and edges unchanged).
+4. `compute_pmi.py`: `build_edges(df, co_df, N, threshold=taxonomy.pmi_threshold (0.4),
+   min_cooccurrence=taxonomy.pmi_min_cooccurrence (5), max_out_degree=taxonomy.max_out_degree
+   (20), curated=<config/curated_edges.yaml>)`; skip pairs where one id is an ancestor of the other
+   (the hierarchy already relates them) → `pmi_edges.json` via `write_artifacts`.
+5. `corpus_report.md` (committed; aggregates only, no posting text): corpus size and date range,
+   the 100 most frequent ids with df and normalised idf, the 50 strongest PMI edges, and "noisy
+   alias suspects" — ids with df share > 30 % that are not SOFT. For every suspect that is a
+   false positive (a generic word mapped to a specific skill), add the alias to
+   `blocked_aliases` in `config/curated_taxonomy.yaml`, rebuild with `scripts/build_taxonomy.py`,
+   and recompute; the 1,000-form gate (Task 2.2) must stay green. Note the final suspect list and
+   what you blocked in the report.
+6. SOURCES.md gains a "Corpus statistics" section: source (Tailrd scraped postings, Development
+   branch), N, date range, extraction method; and the one-line command to recompute against any
+   database (`--env-file`).
+
+**Tests:** on `corpus_mini.jsonl`: df/co-df counts equal hand counts for three named skills and
+one pair; idf/pmi outputs deterministic under shuffled input; ancestor pairs excluded; curated
+edges present; and the committed real artifacts load (`load_graph`), all idf ∈ [0,1], every edge
+endpoint is a node, out-degree ≤ 20 except curated, and `kubernetes`'s normalised idf is greater
+than `microsoft_office`'s (SPEC §3.1's motivating example), naming the real ids you produced.
+
+- [ ] Pull the corpus; tests → FAIL; implement → PASS; compute real artifacts; review suspects; full suite incl. the surface-form gate; ruff; commit by explicit paths
 
 ### Task 2.4: Gate — 1,000 surface forms
 **Files:** `tests/fixtures/surface_forms.tsv` (1,000 lines: surface → expected id, spanning tech,
@@ -295,30 +451,712 @@ business, health, trades, soft skills, credentials, FR labels), `tests/test_surf
 
 Order inside the milestone (BUILD.md): one dimension at a time, test first; aggregator only after all seven pass.
 
-### Task 3.1: Evidence (§15) — `score/evidence.py`, `tests/test_evidence.py` (100 labelled bullets fixture `tests/fixtures/bullets.yaml`)
-### Task 3.2: Prepared résumé index — `score/prepare.py` (per-skill best mentions, latest activity date, relation cache)
-### Task 3.3: The seven dimensions — `score/dimensions/{required_skills,preferred_skills,experience,seniority,domain,education,tools}.py`, `tests/test_dimensions_<name>.py` each with closed-form expected values
-### Task 3.4: Gates, aggregate, redistribution, critical-miss cap — `score/{gates,aggregate}.py`, `tests/test_aggregate.py`, `tests/test_weight_redistribution.py`
-### Task 3.5: Confidence, intervals, engine entry point — `score/{confidence,intervals,engine}.py`
-### Task 3.6: Fixtures and global properties — `tests/fixtures/profiles/*.json` (30 pairs incl. `student_projects_only.json`), `tests/test_totality.py` (50k fuzzed), `tests/test_determinism.py` (1,000 runs), `tests/test_forbidden_features.py`
+**Common to every Milestone 3 task** (paths relative to `match-engine/`): read SPEC §1, §5, §13,
+§14.5, §15 and DECISIONS D-23, D-30..D-46 first. Everything under `src/matcher/score/` is PURE:
+no I/O, no clock, no config loading (config arrives as an `EngineConfig` argument), no randomness,
+no imports of `matcher.parse`, `matcher.ingest`, numpy or anything outside stdlib + pydantic +
+`matcher.{models,errors,config,graph}`. Every function that returns a score clamps it to [0,1];
+weighted sums use `math.fsum`; no float `==` (use `math.isclose` or `<` with an epsilon); every
+division guarded; a non-finite intermediate raises `EngineFault(Flag.NUMERIC_FAULT)` (helper
+`score/numeric.py: finite(x) -> float`, `clamp01(x) -> float`). Tests use the hand-built graph
+`tests/fixtures/graph_small/` (loaded with `graph.loader.load_graph`) and `load_config()`.
+Expected values in tests are written as closed-form arithmetic from the spec, independent of
+the implementation (EVAL §2.2: "verifies the implementation against the spec's math").
+
+### Task 3.1: Evidence (§15) — `score/evidence.py`, `tests/test_evidence.py`, `tests/fixtures/bullets.yaml`
+
+**Files:** Create `src/matcher/score/__init__.py`, `src/matcher/score/numeric.py`,
+`src/matcher/score/evidence.py`; Test `tests/test_evidence.py`, `tests/fixtures/bullets.yaml`.
+
+**Interfaces (Produces):**
+```python
+class BulletMention(Frozen): canonical_id: str; start: int; end: int     # char offsets into the bullet
+class MentionEvidence(Frozen): canonical_id: str; start: int; end: int
+    verb_class: VerbClass; polarity: Polarity; verb: str = ""; trigger: str = ""
+def analyze_bullet(text: str, mentions: Sequence[BulletMention], config: EngineConfig) -> tuple[MentionEvidence, ...]
+def is_quantified(text: str) -> bool
+def evidence_multiplier(evidence: Evidence, verb_class: VerbClass, config: EngineConfig) -> float   # E, DECISIONS D-32
+def recency_multiplier(last_used: Optional[date], as_of: date, config: EngineConfig) -> float      # R, §5.1/D-34
+def apply_polarity(value: float, polarity: Polarity, config: EngineConfig) -> float               # D-33
+```
+**Behaviour:**
+1. Clauses: split at `config.verbs.clause_punctuation` and at the coordinating conjunctions as
+   whole words (case-insensitive). A mention belongs to the clause containing its start.
+2. Verb: the nearest lexicon entry (single word or phrase such as "coursework in", matched on
+   lower-cased whole words) that ENDS before the mention within its clause → its class.
+   None in the clause → if `list_continuation_inherits_verb` and the clause holds only skill
+   mentions, list words (`and`, `or`, `&`, `as well as`, `plus`, `including`, `with`), articles and
+   punctuation, inherit the verb class of the previous clause (transitively); else `NO_VERB`.
+3. Polarity: scan the `config.negation.window_tokens` tokens before the mention inside its clause;
+   any hard-negation term → `NEGATED`; else any aspirational term → `ASPIRATIONAL`; else `AFFIRMED`.
+   Multi-word terms ("no experience", "looking to") match as phrases.
+4. `is_quantified` (bullet level, SPEC: ROLE_BULLET_QUANTIFIED): true when the bullet holds a
+   quantified outcome — a number followed by `%`, preceded by a currency sign, followed by
+   `k`/`K`/`M`/`B`/`x`/`×`/`+`/`times`, a number ≥ 2 followed within two tokens by a counting noun
+   (users, customers, clients, people, engineers, members, students, requests, transactions,
+   records, hours, days, weeks, projects, teams, servers, apps, services, tests, tickets,
+   patients, employees, events, orders, ... — a list in the module), or a number after "by"/"to"
+   following an outcome verb (increased, decreased, reduced, improved, grew, cut, saved, boosted,
+   lowered, accelerated). Never: a 4-digit year 1900–2100 on its own, or a version number right
+   after a tech name ("React 18", "Python 3", "ES6").
+5. `evidence_multiplier`: SKILLS_BLOB → `scoring.evidence.SKILLS_BLOB` (0.65); ROLE_TITLE,
+   CERTIFICATION → 1.00; ROLE_BULLET → `verbs.multiplier(verb_class)`; ROLE_BULLET_QUANTIFIED →
+   `min(verbs.quantified_cap, verbs.multiplier(verb_class) × verbs.quantified_bonus)`.
+6. `recency_multiplier`: `None` last_used → 1.0; years = max(0, (as_of − last_used).days / 365.25);
+   `max(floor, exp(−decay_per_year × years))`.
+7. `apply_polarity`: NEGATED → `negation.hard_negation.m` (0.0); ASPIRATIONAL →
+   `min(value, negation.aspirational.m)`; AFFIRMED → value.
+
+**Tests:** `bullets.yaml` holds exactly 100 hand-written bullets, each with its mentions (surface
+strings located in the text by the test), the expected `verb_class` and `polarity` per mention,
+the expected `is_quantified`, and the expected multiplier `apply_polarity(evidence_multiplier(
+ROLE_BULLET[_QUANTIFIED], verb), polarity)` per mention. Cover every verb class and inflection
+form, NO_VERB, clause boundaries (comma, semicolon, "and" between clauses), list continuation
+("Built dashboards using React, Redux and D3" → all OWNERSHIP), "for" not splitting, negation
+inside vs outside the 6-token window, negation not crossing a clause boundary, every aspirational
+phrase ("Seeking to transition into machine learning" → ASPIRATIONAL, 0.15), quantified vs not
+(versions, years). Plus unit tests: E table, quantified cap (EXECUTION 0.85 × 1.15 = 0.9775;
+OWNERSHIP 1.0 × 1.15 → 1.0), R at 0 / 2 / 4 / 10 years (1.0, e^−0.3 = 0.740818, floor 0.55 since
+e^−0.6 = 0.548812 < 0.55, 0.55).
+
+- [ ] Write fixture + tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): evidence strength, verbs, negation (SPEC §15)`
+
+### Task 3.2: Prepared résumé + skill coverage dimensions (§5.1, §5.2, §5.7)
+
+**Files:** Create `src/matcher/score/prepare.py`, `src/matcher/score/coverage.py`,
+`src/matcher/score/dimensions/__init__.py`, `.../dimensions/required_skills.py`,
+`.../dimensions/preferred_skills.py`, `.../dimensions/tools.py`;
+Test `tests/test_dimensions_required_skills.py`, `tests/test_dimensions_preferred_skills.py`,
+`tests/test_dimensions_tools.py`, `tests/test_prepare.py`.
+
+**Interfaces (Produces):**
+```python
+class SkillValue(Frozen): skill_id: str; value: float; evidence_mult: float; recency_mult: float
+    evidence: Evidence; polarity: Polarity; source: SkillSource
+class PreparedResume(Frozen):   # arbitrary_types_allowed not needed: holds only models
+    resume: Resume; as_of: date; latest_activity: Optional[date]
+    best: dict[str, SkillValue]            # per canonical id: the max-value mention
+    child_cover: dict[str, tuple[float, str]]   # requirement id -> (best child credit × value, via id)
+def prepare_resume(resume: Resume, graph: SkillGraph, config: EngineConfig, as_of: date) -> PreparedResume
+class RequirementMatch(Frozen): group: str; members: tuple[str, ...]; best_member: str
+    m: float; relation: RelationKind; via: Optional[str]; idf: float; weight_multiplier: float
+    necessity: Necessity; critical: bool
+def match_skill(prepared, requirement_id: str, graph, config) -> tuple[float, RelationKind, Optional[str]]
+def match_requirements(prepared, requirements: Sequence[JobRequirement], graph, config) -> tuple[RequirementMatch, ...]
+def coverage_value(matches: Sequence[RequirementMatch]) -> Optional[float]
+def score_required_skills(prepared, posting, graph, config) -> DimensionScore
+def score_preferred_skills(prepared, posting, graph, config) -> DimensionScore
+def score_tools(prepared, posting, graph, config) -> DimensionScore
+```
+**Behaviour:**
+1. `prepare_resume`: collect every SkillRef from roles (incl. ROLE_TITLE refs), projects,
+   skills_blob, certifications. last_used for R: `ref.last_used`, else the role's end (as_of when
+   current), else the project's end, else `latest_activity`; `latest_activity` = max over dated
+   roles of (as_of if current else end.value) and over project end values, or None (→ R = 1.0).
+   value = `apply_polarity(evidence_multiplier × recency_multiplier, polarity)`; `best[id]` keeps
+   the max value (ties: deterministic by evidence enum order then source). `child_cover[a]` for
+   every ancestor `a` (within `relations.max_depth`) of every `best` id = max `relations.child ×
+   value` (× `provisional_multiplier` if either node is provisional), with the via id.
+2. `match_skill(r)`: max of — EXACT `best[r].value`; CHILD `child_cover[r]`; SIBLING for each
+   `s` in `best` with a related edge to r: `clamp(w, sibling_min, sibling_max) × best[s].value`;
+   PARENT for each ancestor `a` of r present in `best`: `relations.parent × best[a].value`;
+   × `provisional_multiplier` when r or the via node is provisional. Ties keep the order EXACT,
+   CHILD, SIBLING, PARENT. Unknown r (not in graph) → exact only. Nothing → (0.0, NONE, None).
+3. `match_requirements`: group by `or_group` (None → its own group keyed by skill_id); group
+   `m` = max member m; `idf` = max member `graph.idf_of(id, idf.unseen_default)`;
+   `weight_multiplier` = max member multiplier; `critical` = REQUIRED and idf >
+   `critical_miss.idf_threshold` and m < `critical_miss.m_threshold`. Groups sorted by group key.
+4. `coverage_value` = fsum(idf × wm × m) / fsum(idf × wm); None when the denominator ≤ 1e-12.
+5. Dimensions: required uses REQUIRED requirements, preferred PREFERRED, tools IMPLIED
+   (DECISIONS D-30). No requirements of that necessity → abstain with `NO_REQUIRED_REQUIREMENTS` /
+   `NO_PREFERRED_REQUIREMENTS` / `NO_IMPLIED_REQUIREMENTS`; zero denominator → abstain with
+   `NO_REQUIREMENTS_RESOLVED`. Scored → `DimensionScore(value=clamped, weight=configured,
+   effective_weight=configured, contribution=configured×value, abstained=False)` (aggregate
+   recomputes effective weights). Facts: one per group, code `REQ_MATCH` (m ≥ 0.5), `REQ_PARTIAL`
+   (0 < m < 0.5), `REQ_MISS` (m < 1e-12), subject = best member, value = m, detail {relation, via,
+   idf, weight_multiplier, necessity, members}; plus `Fact(code="CRITICAL_MISS", subject=best
+   member, value=m, detail={"idf": idf})` for every critical group (required only).
+
+**Closed-form tests (graph_small idfs read from the graph in the test):** required = react,
+python, kubernetes; résumé: current role bullet "Built React apps" (ROLE_BULLET, OWNERSHIP),
+skills blob python and docker, as_of = role still current → v(react)=1.0, v(python)=0.65,
+kubernetes via SIBLING docker (edge 0.70) = 0.70 × 0.65 = 0.455 →
+`(i_r×1.0 + i_p×0.65 + i_k×0.455)/(i_r+i_p+i_k)`. Also: CHILD (nextjs on résumé, react required
+→ 0.85 × v), PARENT (javascript on résumé, react required → 0.40 × v), sibling clamp (edge 0.65 →
+0.65; a test graph edge 0.95 → 0.80), OR-group max and max idf, critical flag at idf > 0.7 with
+m < 0.2, recency (role ended 4 years before as_of → R = 0.55), quantified bonus, negated mention
+→ 0, aspirational → 0.15, the same skill 50 times in the blob == once, provisional × 0.8,
+overflow `weight_multiplier` 0.5 in tools, every abstain path.
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): skill coverage dimensions (§5.1, §5.2, §5.7)`
+
+### Task 3.3: Experience, seniority, domain, education dimensions (§5.3–§5.6)
+
+**Files:** Create `.../dimensions/experience.py`, `seniority.py`, `domain.py`, `education.py`;
+Test `tests/test_dimensions_experience.py`, `..._seniority.py`, `..._domain.py`, `..._education.py`.
+
+**Interfaces:** `score_experience(prepared, posting, graph, config) -> DimensionScore` and the same
+signature for `score_seniority`, `score_domain`, `score_education`. Helpers exported for reuse:
+`role_relevance(role, posting, graph, config) -> float`, `relevant_months(prepared, posting, graph,
+config) -> float`, `experience_curve(ratio, config) -> float`, `candidate_level(resume) ->
+Optional[SeniorityLevel]`, `naics_credit(a, b, config) -> float`.
+
+**Behaviour:** exactly DECISIONS D-35..D-41:
+- relevance = cosine in the posting's requirement space over ALL requirement ids (each member of
+  an OR-group individually, each id once): `v_job[r] = idf(r)`, `v_role[r] = idf(r) × best relation
+  credit of the role's AFFIRMED skill mentions for r` (credit only: exact 1, child 0.85, sibling
+  clamp(w), parent 0.40 — no E, no R); zero norm → 0.
+- months = sweep over dated roles (end = as_of when current; end clamped to as_of): each
+  elementary interval counts once at the max over active roles of `relevance ×
+  (experience.internship_weight if is_internship else 1)`; months = days / 30.4375.
+- min_months per D-37 (`MIN_YEARS_DEFAULTED` fact when the seniority default is used); ratio →
+  `ratio < knee: value_at_knee × ratio/knee`; `knee ≤ ratio < 1: value_at_knee + (1−value_at_knee)
+  × (ratio−knee)/(1−knee)`; `ratio ≥ 1: 1.0`.
+- abstain `DATES_MISSING` (roles exist, none dated), `FUNCTIONAL_RESUME` (resume flag),
+  `NO_EXPERIENCE_REQUIREMENT` (no years and no posting seniority); no roles at all → value 0.0
+  with fact `NO_WORK_EXPERIENCE`.
+- seniority per D-38/D-39: same track `gap = job.level − cand.level`; cross track: candidate
+  mapped to the job's track with `cross_track_offset` (M n ≈ IC n+2), then the same gap and
+  `− cross_track_penalty`; `gap < 0` (above level) counts as 0 unless
+  `penalize_overqualification`, and adds fact `OVERQUALIFIED`; `max(0, 1 − step × gap − penalty)`.
+  Candidate level = highest level among current roles, else the most recent role (latest end).
+  Unknown either side → abstain `SENIORITY_UNKNOWN`.
+- domain per D-40: `naics_credit(a, b)`: one code a prefix of the other → exact (1.00); common
+  prefix ≥ 3 → 0.70; common prefix ≥ 2 or same `sector_groups` member → 0.40; else 0.15. Value = max
+  over (role code, posting code). Abstain `INDUSTRY_UNKNOWN` when either side has no codes.
+- education per D-41: no requirement → `no_requirement` (1.0). Candidate level = max rank over
+  `resume.education` (none listed → NONE). Shortfall 0 → meets, 1 → one_below, ≥2 →
+  two_or_more_below; `or_equivalent` or PREFERRED necessity → one tier more lenient. Field
+  multiplier `field_multiplier_min + (1 − field_multiplier_min) × best credit` (exact 1, child,
+  sibling, parent as above) between candidate field ids and required field ids; 1.0 when no field
+  is required; 0.7 when required but the candidate lists none. Certification bonus:
+  `cert_bonus_each` per résumé credential related (exact/child/sibling/parent) to any posting
+  requirement skill or listed in `certifications_preferred`/`_required`, capped at
+  `cert_bonus_cap`. Value = min(1, level × field + bonus).
+
+**Closed-form tests:** relevance with r1 (idf .8, exact) and r2 (idf .6, parent .4):
+`(0.64 + 0.144) / (sqrt(0.64 + 0.0576) × 1.0) = 0.784 / 0.835225 = 0.938669`; a role Jan 2020–Dec
+2021 fully relevant vs a 36-month minimum: months = (2021-12-31 − 2020-01-01).days / 30.4375 =
+730 / 30.4375 = 23.983573 → ratio 0.666210 → 0.6 + 0.4 × 0.166210/0.5 = 0.732968; two identical overlapping roles count once;
+an internship at 0.5; concurrent consulting union never exceeds calendar time; overqualified
+ratio 3 → 1.0; curve at 0.25 → 0.30. Seniority: IC2 vs IC3 → 0.72; IC1 vs IC3 → 0.44; IC0 vs IC4
+→ 0.0; IC4 vs IC2 → 1.0 + OVERQUALIFIED (0.44 with penalize on); M2 vs IC3 → 0.80; IC3 vs M2 →
+0.52; IC1 vs M1 → 0.24. Domain: "541511" vs "5415" → 1.0; "541511" vs "541330" → 0.70; "5112"
+vs "5191" → 0.40; "311" vs "325" (both manufacturing 31-33) → 0.40; "52" vs "62" → 0.15.
+Education: meets → 1.0; one below → 0.55; two below → 0.20; or_equivalent one below → 1.0;
+related field credit c → (0.7 + 0.3c); two relevant certs on a one-below candidate → 0.55 + 0.2.
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): experience, seniority, domain, education dimensions`
+
+### Task 3.4: Gates, aggregation, redistribution, critical-miss cap (§4, §6, §14.5)
+
+**Files:** Create `src/matcher/score/gates.py`, `src/matcher/score/aggregate.py`;
+Test `tests/test_gates.py`, `tests/test_aggregate.py`, `tests/test_weight_redistribution.py`.
+
+**Interfaces:**
+```python
+def evaluate_gates(resume: Resume, posting: JobPosting, graph: SkillGraph, config: EngineConfig) -> tuple[GateStatus, tuple[GateResult, ...]]
+class Aggregate(Frozen): raw: float; dimensions: dict[str, DimensionScore]; caps: tuple[CapApplied, ...]; scored_weight: float
+def aggregate(dimensions: Sequence[DimensionScore], config: EngineConfig) -> Optional[Aggregate]   # None = nothing scored
+```
+**Behaviour:** gates per DECISIONS D-60 and `config/gates.yaml` (work authorisation: candidate
+`work_auth` None → WARN `WORK_AUTH_UNKNOWN`; needs sponsorship and posting
+`sponsorship_available is False` → FAIL `SPONSORSHIP_UNAVAILABLE`; citizenship required and the
+candidate's known citizenships miss every posting country → FAIL `CITIZENSHIP_REQUIRED`
+(unknown → WARN); known authorised countries missing the posting's countries → FAIL when the
+posting says no sponsorship, else WARN `WORK_AUTH_MISMATCH`. Licence: any credential id (or a
+descendant) among résumé certifications → PASS; else FAIL `LICENSE_MISSING` if any id is in
+`professional_credential_ids`, else WARN `LICENSE_UNVERIFIED`. Clearance: candidate has it →
+PASS; active required → `active_missing_status` `CLEARANCE_MISSING`; else
+`obtainable_status` `CLEARANCE_OBTAINABLE`. Location: onsite required and the candidate's known
+locations share no country+region or city with the posting's → WARN `LOCATION_MISMATCH`; unknown
+→ PASS. A disabled gate kind → PASS. Overall = FAIL if any FAIL, else WARN if any WARN, else PASS.)
+Aggregate per DECISIONS D-42/D-43: effective weights = configured weights renormalised over the
+non-abstaining dimensions; the §14.5 special case moves the whole required weight to preferred
+when required abstained with `NO_REQUIRED_REQUIREMENTS` and preferred scored; returns new
+`DimensionScore`s (effective_weight, contribution = ew × value, clamped); raw = fsum; then the
+critical-miss cap from the required dimension's `CRITICAL_MISS` facts (1 → `min(raw, cap_one)`,
+≥ 2 → `min(raw, cap_two_or_more)`, recorded as `CapApplied`); clamp. All abstained → None.
+Non-finite anywhere → `EngineFault(NUMERIC_FAULT)`.
+
+**Closed-form tests:** all seven scored with values (.8, .5, .6, .72, .15, 1.0, .4) → raw =
+.35×.8+.10×.5+.15×.6+.10×.72+.10×.15+.10×1.0+.10×.4 = 0.647; domain abstains → (0.647 − 0.015)/0.9
+= 0.702222; required abstains with NO_REQUIRED and preferred scored → preferred weight 0.45;
+the silent-bug test: experience abstaining ≠ experience scoring 0.0 ((0.647 − 0.09)/0.85 =
+0.655294 vs 0.647 − 0.09 = 0.557);
+one critical miss caps 0.95 → 0.70, two → 0.55, cap never raises a lower raw; nothing scored →
+None; every gate rule above.
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): gates and aggregation with redistribution and critical-miss cap`
+
+### Task 3.5: Confidence, intervals, calibrator protocol, engine entry point (§13, §17)
+
+**Files:** Create `src/matcher/score/confidence.py`, `src/matcher/score/intervals.py`,
+`src/matcher/score/engine.py`, `src/matcher/calibrate/__init__.py`, `src/matcher/calibrate/base.py`;
+Test `tests/test_confidence.py`, `tests/test_intervals.py`, `tests/test_engine.py`.
+
+**Interfaces:**
+```python
+# calibrate/base.py
+class Calibrator(Protocol):
+    def calibrate(self, raw: float) -> tuple[int, CalibrationInfo]: ...
+class FixedCalibrator:            # tests only: round(100 × raw), CalibrationInfo(method="identity", scope="test", n=0, version="test")
+# score/confidence.py
+def compute_confidence(resume, posting, prepared, dimensions, matches, config) -> Confidence
+def requirement_count_factor(n: int, config) -> float
+def outcome_for(confidence: Confidence, config) -> Outcome      # SCORED / SCORED_LOW_CONFIDENCE / NEEDS_REVIEW
+# score/engine.py
+def score(resume: Any, posting: Any, *, as_of: Any, config: EngineConfig, graph: SkillGraph,
+          calibration: Calibrator, options: ScoreOptions = ScoreOptions()) -> MatchResult
+def review_result(reasons: Sequence[Flag], *, config, graph, as_of: date, input_digest: str = "") -> MatchResult
+```
+**Behaviour:** confidence per §17.1 and D-44 (components: parse_quality from the résumé tier;
+taxonomy_coverage = (requirement_token_count − len(unresolved)) / requirement_token_count,
+None when the count is 0; evidence_density = share of matched requirement groups whose via/exact
+skill's best evidence is not SKILLS_BLOB, None when nothing matched; temporal_completeness = dated
+roles / roles, None without roles; requirement_count = piecewise-linear `requirement_count_curve`
+on the number of distinct requirement ids (clamped to the end points); dimension_coverage = sum of
+configured weights of scoring dimensions); value = exp(Σ wᵢ ln max(cᵢ, floor) / Σ wᵢ) over defined
+components; reasons = the LOW_* flag of every component below `weak_component`. Outcome: ≥ 0.80
+SCORED, ≥ 0.60 SCORED_LOW_CONFIDENCE, else NEEDS_REVIEW with `LOW_CONFIDENCE` + those reasons.
+Engine order: validate (anything not a valid Resume/JobPosting/date → `review_result(
+[INVALID_INPUT])`); resume flags in `NEEDS_REVIEW_REASONS` → NEEDS_REVIEW with them; posting with
+no requirements → NEEDS_REVIEW `POSTING_UNSCORABLE` if flagged else `NO_REQUIREMENTS_RESOLVED`;
+`INVALID_AS_OF` when as_of precedes every date on the résumé; gates (FAIL → GATE_FAIL result, no
+score computed); prepare; seven dimensions; aggregate (None → NEEDS_REVIEW `NOTHING_SCORABLE`);
+calibrate → calibrated int, band = `bands.band_for`; confidence → outcome (display_score only
+when SCORED); `with_interval` → intervals; `engine_version` = config.engine_version;
+`config_hash` = `combined_hash(config, graph.version)`; `input_digest` = first 16 hex of sha256
+over canonical résumé JSON + "|" + canonical posting JSON + "|" + as_of ISO. Non-strict mode
+turns any exception into NEEDS_REVIEW (`NUMERIC_FAULT` for that EngineFault, else
+`INTERNAL_ERROR`); strict re-raises. Explanation and improvements stay empty until Milestone 4.
+Intervals per D-45: pessimistic and optimistic variants of the résumé (imprecise dates moved to
+their earliest/latest bounds so durations are shortest/longest and last-use oldest/newest) and
+of the posting (each unresolved token as an extra REQUIRED pseudo-requirement
+`unresolved:<normalized token>` scored as missed / matched with idf
+`intervals.unresolved_token_idf`); low/high = min/max calibrated score over base and both
+variants; `display` = (high − low) > `intervals.display_spread`.
+
+**Closed-form tests:** components (1.0, 0.8, 0.5, 1.0, 0.85, 0.9) → 0.820893 → SCORED; one
+component undefined → mean over five; requirement_count_factor 1 → 0.40, 3 → 0.625, 5 → 0.85,
+7 → 0.91, 10 and 20 → 1.0; outcome thresholds; engine routes INVALID_INPUT (bytes, dict junk,
+NaN), INVALID_AS_OF, POSTING_UNSCORABLE, GATE_FAIL (no raw score), NOTHING_SCORABLE; a GATE_FAIL
+input never carries a percentage; strict vs non-strict on an injected fault; digest stable; an
+interval wider than 6 points displays.
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): confidence, intervals and the engine entry point`
+
+### Task 3.6: Thirty hand-built pairs and the global properties (§10, §13, §9)
+
+**Files:** Create `tests/fixtures/profiles/*.json` (30), `tests/test_fixture_pairs.py`,
+`tests/test_totality.py`, `tests/test_determinism.py`, `tests/test_forbidden_features.py`,
+`tests/test_properties.py`, `tests/strategies.py` (Hypothesis strategies for valid Resume /
+JobPosting over graph_small ids).
+
+Each fixture: `{"name","description","as_of","resume":{...},"posting":{...},"expected":{
+"outcome", "raw_score" (or null), "derivation": "<the arithmetic, in words>"}}` with the raw
+score computed BY HAND from the spec (abs_tol 0.001). The 30 cover: strong all-round match;
+zero overlap (raw 0.0, Limited, valid); `student_projects_only` (skills + projects, no roles →
+valid score with NO_WORK_EXPERIENCE); internship applicant; career changer (domain floor 0.15);
+OR-group; one critical miss (cap 0.70); two (cap 0.55); all-PREFERRED posting (weight moves to
+preferred); single requirement (confidence penalty); no dates (experience abstains,
+redistributes); functional résumé; overlapping roles; concurrent consulting; internship at half
+weight; over-qualified (no deduction); cross-track; GATE_FAIL sponsorship; GATE_WARN location;
+licence FAIL; the posting's skills pasted as a skills blob (< 0.85 raw); 200-skill blob (IDF
+handles it); one skill ×50 (== once); negated mention; aspirational mention; four-year-old
+skills (R floor); imprecise season dates; degree or-equivalent; certification bonus; unrelated
+industry.
+- `test_totality.py`: Hypothesis over arbitrary bytes, arbitrary unicode, arbitrary JSON-ish
+  dicts and valid-but-random models; every call returns a MatchResult whose outcome is one of the
+  four; for VALID random models the outcome is never INTERNAL_ERROR/NUMERIC_FAULT and raw ∈ [0,1].
+  `max_examples` from env `TOTALITY_EXAMPLES` (default 2,000; the gate runs 50,000).
+- `test_determinism.py`: 1,000 runs of every fixture → identical canonical bytes; the same pairs
+  scored in two subprocesses with different `PYTHONHASHSEED` → identical bytes.
+- `test_forbidden_features.py` (SPEC §9; never weaken later): AST scan of `score/` modules other
+  than `gates.py` for attribute access to `title_raw`, `employer`, `surface_form`, `field_raw`,
+  `locations`, `work_auth`, `name`, `institution`, `school`, `address`, `birth`, `age`,
+  `gender`, `photo`; behavioural invariance: changing employer / title_raw / surface_form /
+  field_raw / project name / locations (without onsite gates) leaves every byte of the result
+  except `input_digest` unchanged; moving roles apart in time (gaps) while keeping durations and
+  last-use dates leaves the raw score unchanged.
+- `test_properties.py` (Hypothesis): adding a matching skill never lowers raw; removing a
+  résumé skill a requirement needs never raises it; raw ∈ [0,1]; GATE_FAIL never has a score.
+
+**Gate (BUILD Milestone 3):** all seven dimensions match closed-form values; `TOTALITY_EXAMPLES=50000` green.
+
+- [ ] Fixtures + tests → run → fix engine bugs found (each bug gets a regression test) → PASS; gate run; commit `test(match-engine): 30 hand-built pairs, totality, determinism, forbidden features`
 
 **Gate:** all seven dimensions match closed-form values; totality green over 50k fuzzed inputs.
 
 ## Milestone 4 — Explanation
 ### Task 4.1: `explain/{breakdown,gaps,counterfactual}.py`, `tests/test_explanation_completeness.py`
-Counterfactual per ADVANCED §7 (quoted in the task prompt): greedy + one swap pass, |S| ≤ 4,
-learning cost = graph distance from the candidate's skills; output strings like
-"Adding demonstrated Terraform experience would move this to roughly 84".
+
+Paths relative to `match-engine/`. Read SPEC §7 (display rules), §8 (explanation output), §17.2
+("surface the reason, always and specifically"), §18 ("What to tell users") and DECISIONS D-52.
+ADVANCED §7, the only part of ADVANCED.md in scope, is quoted here — do not open that file:
+
+> Formalize SPEC.md §8's `to_improve` as a constrained minimization: minimize Σ_{s ∈ S}
+> learning_cost(s) subject to score(resume ⊕ S) ≥ next_band_threshold, |S| ≤ 4.
+> `learning_cost(s)` from the skill graph: distance from the candidate's existing skill
+> centroid, scaled by typical time-to-proficiency. Solve as a small ILP or greedy with a
+> swap-improvement pass — the search space is tiny because `score()` is pure and fast.
+> Output: "Two steps from a Strong match: Terraform (≈3 weeks given your Kubernetes background)
+> and a CI/CD pipeline project (≈2 weeks). Estimated fit: 84."
+
+**Files:** Create `src/matcher/explain/{__init__,labels,breakdown,gaps,counterfactual}.py`;
+Modify `src/matcher/score/engine.py` (fill `explanation` when `options.with_explanation`,
+`improvements` + `explanation.to_improve` when `options.with_counterfactual`), `config/scoring.yaml`
++ `config.py` (new `counterfactual:` section: `weeks_by_kind` {TECHNOLOGY: 4, TOOL: 2,
+METHODOLOGY: 4, DOMAIN: 8, SOFT: 2, CREDENTIAL: 8}, `weeks_per_hop` 1.0, `unreachable_hops` 4,
+`added_evidence` ROLE_BULLET, `added_verb` EXECUTION); Test
+`tests/test_explanation_completeness.py`, `tests/test_counterfactual.py`, `tests/test_breakdown.py`.
+
+**Interfaces:**
+```python
+def skill_label(graph: SkillGraph, skill_id: str) -> str                        # labels.py, display casing
+def find_gaps(result: MatchResult, posting: JobPosting, prepared: PreparedResume, graph, config) -> tuple[Gap, ...]
+class Gap(Frozen): requirement_id: str; necessity: Necessity; m: float; impact: float; covered_by: tuple[str, ...]
+def improve(resume, posting, *, as_of, config, graph, calibration, max_steps: int = 4) -> tuple[Improvement, ...]
+def build_explanation(result: MatchResult, resume, posting, prepared, graph, config,
+                      improvements: Sequence[Improvement] = ()) -> Explanation
+```
+**Behaviour:**
+1. Headline: SCORED → `"Fit score 76 · Good match"` (`bands.display.label`); with a displayed
+   interval → `"Fit score 71–79 · Good match"`; LOW_CONFIDENCE → the band only; GATE_FAIL →
+   `"Not eligible: <FLAG_TEXT of the failing gate>"`; NEEDS_REVIEW → `"We couldn't score this
+   match"`. Never "%" after the number (SPEC §7 naming). `basis` = `bands.basis[scope]` with the
+   score (empty when no score is displayed).
+2. Strengths (≤ 4, by contribution): required coverage "`k` of `n` required skills" (+ the
+   dimension contribution, signed, 2 decimals, e.g. "+0.31"); preferred likewise; experience
+   "`x` yrs relevant vs `y` required" (years to one decimal; "vs a typical `y`" when defaulted);
+   seniority/education/industry when they scored ≥ 0.8.
+3. Gaps: every REQUIRED group with m < 0.5 ("Missing: Terraform (required)" or "Partly covered:
+   …"), impact = −(effective required weight × idf×wm/Σ(idf×wm) × (1 − m)), with a note naming the
+   candidate skills that partially cover it ("Your Kubernetes and AWS experience partially covers
+   this") from `covered_by` (siblings/children/parents present on the résumé); then PREFERRED
+   gaps, experience shortfall, seniority gap, education shortfall; ordered by impact.
+4. Notes: one specific sentence per low-confidence reason, gate warning, cap and informational flag
+   (FLAG_TEXT), e.g. DATES_MISSING → "We couldn't read the dates on this résumé, so experience
+   depth isn't reflected in this score." OVERQUALIFIED is a note, never a gap.
+5. `improve`: candidates = skills of REQUIRED/PREFERRED/IMPLIED groups with m < 0.5; adding a
+   skill = a new mention in the most recent role (or a new undated project when there is no
+   role) with evidence `added_evidence`/`added_verb`; target = the next band's minimum above the
+   current calibrated score (already Strong → no suggestions). learning_cost(s) = `weeks_by_kind`
+   × (1 + `weeks_per_hop` × min hops from any résumé skill via `traversal.distance`, capped at
+   `unreachable_hops`). Greedy by score gain per week, ≤ `max_steps`, then one swap pass that
+   lowers total weeks while still reaching the target; every candidate re-scored with
+   `engine.score(..., options=ScoreOptions(with_explanation=False, with_counterfactual=False))`.
+   Return the chosen set (if it reaches the target) and up to three single-skill improvements;
+   each `Improvement.text` reads "Adding demonstrated Terraform experience would move this to
+   roughly 84" (multi-skill: "Adding Terraform and CI/CD would move this to roughly 86 (Strong
+   match)"). Deterministic: ties broken by skill id.
+6. Totality: explanation building never raises; every outcome gets an Explanation.
+
+**Tests:** completeness over the 30 fixtures and Hypothesis-random valid pairs (every outcome has
+an explanation; SCORED has score, band, basis and ≥ 1 strength or gap; every REQUIRED group
+appears in strengths or gaps; LOW_CONFIDENCE has a band, no score, ≥ 1 specific note;
+GATE_FAIL has the gate reason and no score); impact arithmetic on a closed-form fixture;
+counterfactual: suggested skills re-scored actually reach the stated score; the swap pass never
+raises total weeks; already-Strong → no suggestions; determinism.
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): explanation, gaps and counterfactual improvements (SPEC §8)`
 
 ## Milestone 5 — Eval harness
 ### Task 5.1 ∥: Generator + renderers — `eval/generate/{profiles,render}.py`, `eval/generate/templates/*.j2` (8 templates × 6 formats)
+
+Paths relative to `match-engine/`. Read EVAL.md §2 (the synthetic corpus, "the main workhorse")
+first. Offline code (numpy, reportlab, jinja2, python-docx, pymupdf, Pillow allowed); deterministic
+from a seed (`random.Random(seed)` / numpy `default_rng(seed)`), never the wall clock; synthetic
+people only ("Alex Example" style names, example.com emails) — no PII.
+
+**Files:** Create `eval/generate/__init__.py`, `eval/generate/vocabulary.py`,
+`eval/generate/profiles.py`, `eval/generate/postings.py`, `eval/generate/render.py`,
+`eval/generate/templates/{chronological,functional,two_column,academic_cv,ats_plain,designer_heavy,federal_long,military_transition}.j2`,
+`eval/generate/corpus.py` (CLI: `python -m eval.generate.corpus --profiles 500 --seed 7 --out eval/corpora/synthetic`);
+Test `tests/eval/test_generate.py`.
+
+**Interfaces (Produces):**
+```python
+class VocabSkill(Frozen): id: str; label: str; kind: SkillKind; families: tuple[str, ...]; aliases: tuple[str, ...] = ()
+class Vocabulary(Frozen): skills: tuple[VocabSkill, ...]; families: tuple[str, ...]
+def default_vocabulary() -> Vocabulary                 # ~150 skills over ~8 families, ids "skill.<slug>"
+def vocabulary_from_graph(graph: SkillGraph, ids: Sequence[str]) -> Vocabulary
+class GroundTruthBullet(Frozen): text: str; skill_ids: tuple[str, ...]; verb_class: VerbClass; quantified: bool
+class GroundTruthRole(Frozen): title: str; seniority: SeniorityLevel; employer: str; industry: str
+    start: date; end: Optional[date]; is_internship: bool; bullets: tuple[GroundTruthBullet, ...]
+class CandidateProfile(Frozen):
+    profile_id: str; family: str; target_posting_id: str; fit_level: int        # 0..3 by construction
+    skills: tuple[tuple[str, float, Evidence, Optional[date]], ...]             # (skill_id, years, tier, last_used)
+    roles: tuple[GroundTruthRole, ...]; projects: tuple[...]; education: tuple[Education, ...]
+    certifications: tuple[str, ...]; skills_section: tuple[str, ...]; summary: str
+def generate_postings(vocab, n_per_family: int, seed: int) -> tuple[JobPosting, ...]   # with REQUIRED/PREFERRED/IMPLIED, posting ids
+def generate_profiles(vocab, postings, n: int, seed: int) -> tuple[CandidateProfile, ...]  # spread over fit levels 0..3 per posting
+def expected_resume(profile: CandidateProfile, vocab, as_of: date) -> Resume      # what a perfect parser recovers
+TEMPLATES: tuple[str, ...]   # the 8 names above
+FORMATS: tuple[str, ...]     # ("pdf_latex", "pdf_word", "pdf_canva_like", "docx", "txt", "pdf_scanned_300dpi")
+def render(profile: CandidateProfile, template: str, fmt: str, vocab: Vocabulary, *, seed: int = 0) -> bytes
+```
+**Behaviour:**
+1. Fit levels are constructed, not guessed: for a target posting, level 3 covers ≥ 90 % of the
+   REQUIRED skills with ROLE_BULLET evidence and meets years/seniority/education; level 2 ~70 %;
+   level 1 ~40 %; level 0 a different family. Record `fit_level` as the graded relevance label.
+2. Bullets are written from verb templates per VerbClass ("Architected {skill} services...",
+   "Assisted with {skill} migrations...") with quantified variants ("…reducing latency by 35%").
+3. `expected_resume` maps the ground truth to the engine `Resume` exactly (evidence tiers, verb
+   classes, month-precision dates, internship flags, education levels/fields, certifications).
+4. Templates are Jinja2 producing one neutral intermediate document (headings, paragraphs,
+   bullet lists, side-blocks); per-format renderers lay it out:
+   `pdf_latex` (reportlab, serif, LaTeX `article`-like margins), `pdf_word` (reportlab, Calibri-like
+   sans default margins), `pdf_canva_like` (two columns, coloured sidebar with skills/contact),
+   `docx` (python-docx, real headings and list styles; two_column template uses a table),
+   `txt` (plain), `pdf_scanned_300dpi` (render `pdf_word`, rasterise every page at 300 dpi with
+   PyMuPDF, small seeded rotation ≤ 0.5° and noise, embed as an image-only PDF).
+   `functional` omits the chronology (skills grouped by theme; employers listed without dates);
+   `academic_cv` adds publications/teaching; `federal_long` adds hours/week, supervisor, duties
+   (multi-page); `military_transition` lists an MOS/MOC code with a civilian translation;
+   `designer_heavy` uses icons (unicode), skill bars and a sidebar; `ats_plain` is single-column,
+   no tables; `two_column` puts skills/education in a left column.
+5. Corpus CLI writes `eval/corpora/synthetic/<profile_id>/<template>__<format>.<ext>` plus
+   `profiles.jsonl`, `postings.jsonl`, `manifest.json` (seed, counts, sha256 of each file); same
+   seed → byte-identical files (set reportlab `invariant=1` and fixed document metadata/dates).
+   Generating 500 profiles × 48 renderings must work (report the wall time).
+
+**Tests:** generation determinism (same seed → identical profiles and identical rendered bytes for
+a sample of template×format), every template × format renders non-empty and opens (PDF via
+PyMuPDF with ≥ 1 page; DOCX via python-docx; scanned PDF has no text layer), the text of
+`txt` contains every skills_section label, fit levels spread 0..3 per posting, `expected_resume`
+validates as a `Resume` and has one SkillRef per ground-truth bullet mention.
+
+- [ ] Tests → FAIL; implement → PASS; generate the 500-profile corpus once (not committed — `eval/corpora/synthetic/` is ignored) and report time + size; full suite; ruff; commit `feat(match-engine): synthetic profile generator and renderers (EVAL §2.1)`
 ### Task 5.2 ∥: Metrics — `eval/metrics/{ranking,calibration,fairness,bootstrap}.py` with tests on known values
+
+Paths relative to `match-engine/`. Read EVAL.md §3 (metrics, guardrails, "always report
+confidence intervals") and §4 (summary table verdicts) first. This is offline evaluation code
+(DECISIONS D-02): numpy is allowed; nothing under `src/matcher` may import it. Deterministic:
+every random draw comes from `numpy.random.default_rng(seed)` with an explicit seed argument.
+
+**Files:** Create `eval/__init__.py`, `eval/metrics/__init__.py`, `eval/metrics/ranking.py`,
+`eval/metrics/calibration.py`, `eval/metrics/fairness.py`, `eval/metrics/bootstrap.py`;
+Test `tests/eval/test_ranking.py`, `tests/eval/test_calibration.py`, `tests/eval/test_fairness.py`,
+`tests/eval/test_bootstrap.py` (+ `tests/eval/__init__.py` if needed for imports).
+
+**Data shape used by every function:** a `PairScore` record (frozen dataclass or pydantic Frozen):
+`posting_id: str, pair_id: str, score: float | None` (None = abstained / no score),
+`relevance: int` (graded label 0..3: 0 limited, 1 partial, 2 good, 3 strong), `advanced: bool | None`
+(binary outcome when known), `band_pred: int | None` and `band_true: int | None` (0..3, same
+order), `group: str | None` (opaque fairness group id), `hard: bool = False`.
+
+**Interfaces (Produces):**
+```python
+# ranking.py
+def ndcg_at_k(pairs: Sequence[PairScore], k: int = 10) -> float | None       # mean over postings
+def precision_at_k(pairs, k: int = 10, good_threshold: int = 2) -> float | None
+def auc_roc(pairs) -> float | None                                           # uses .advanced
+def kendall_tau_b(xs: Sequence[float], ys: Sequence[float]) -> float | None
+def per_posting(pairs, metric: Callable[[Sequence[PairScore]], float | None]) -> dict[str, float]
+# calibration.py
+def expected_calibration_error(probs: Sequence[float], outcomes: Sequence[bool], bins: int = 10) -> float | None
+def band_accuracy(pairs) -> dict[str, float]          # {"exact", "off_by_one", "off_by_two_plus"}
+def abstention_stats(pairs) -> dict[str, float | None] # {"rate", "precision"} precision = share of abstentions with hard=True
+# fairness.py
+def selection_rates(pairs, selected: Callable[[PairScore], bool], min_group_n: int = 100) -> dict[str, tuple[int, float]]
+def four_fifths(pairs, selected, min_group_n: int = 100) -> FairnessResult   # min_ratio, per_group, passed (min_ratio >= 0.80), groups_excluded
+# bootstrap.py
+def bootstrap_ci(pairs, metric, *, n_resamples: int = 1000, seed: int = 0, alpha: float = 0.05) -> CI    # point, low, high
+def bootstrap_delta(baseline_pairs, current_pairs, metric, *, n_resamples: int = 1000, seed: int = 0,
+                    min_effect: float = 0.01, higher_is_better: bool = True) -> DeltaCI   # point, low, high, verdict
+```
+
+**Behaviour:**
+1. NDCG@k per posting: rank pairs with a non-None score by score descending, ties broken by
+   `pair_id` ascending (deterministic); DCG = Σ_{i=1..k} (2^rel_i − 1)/log2(i + 1); IDCG from the
+   ideal ordering of the same posting's pairs (all pairs, including abstained ones, count toward
+   IDCG — an abstention cannot improve NDCG); postings with IDCG == 0 are skipped; mean over the
+   rest; None when no posting qualifies.
+2. Precision@k: per posting, share of the top-k (by the same ordering) with relevance ≥
+   `good_threshold`; denominator = min(k, number of scored pairs); mean over postings.
+3. AUC-ROC over pairs with non-None score and non-None `advanced`: Mann–Whitney U with ties
+   counted 0.5; None if either class is empty.
+4. Kendall τ-b with the standard tie correction; None for fewer than 2 points or a constant input.
+5. ECE: equal-width bins on [0,1] (`bins` of them, last bin closed), Σ (n_b/N)·|mean(prob) −
+   mean(outcome)|; probs outside [0,1] raise ValueError; empty input → None.
+6. Band accuracy over pairs with both bands: exact share, |diff| == 1 share, |diff| ≥ 2 share.
+7. Selection rates per group with n ≥ `min_group_n` (smaller groups are reported in
+   `groups_excluded` and never decide pass/fail); ratio = rate_g / max rate; `min_ratio`; passed =
+   min_ratio ≥ 0.80 (EVAL §3 guardrail). No eligible groups → passed=True with min_ratio=None.
+8. Bootstrap resamples POSTINGS with replacement (pairs within a posting are correlated, EVAL §3),
+   recomputing the metric on the concatenated pairs each time; percentile CI at alpha/2 and
+   1 − alpha/2; resamples where the metric is None are skipped; same seed → identical output.
+   `bootstrap_delta` pairs baseline/current by posting id (only postings present in both), resamples
+   the same posting ids for both sides, and returns verdict: `PASS` when the CI excludes 0 in the
+   good direction AND |point| ≥ min_effect; `FAIL` when the CI excludes 0 in the bad direction;
+   otherwise `NOISE` (EVAL §4/§5.3: "an NDCG improvement of 0.004 with a CI of ±0.02 is noise").
+
+**Tests (hand-computed values stated in the tests):** NDCG for a 3-pair posting with a known
+answer (write the arithmetic in a comment); perfect ranking → 1.0; reversed → known value; ties
+by pair_id; abstained pairs lower NDCG; P@k; AUC with ties (e.g. scores [0.1,0.4,0.35,0.8] and
+labels [F,F,T,T] → 0.75); τ-b against a textbook example; ECE on a 2-bin toy; band accuracy;
+four-fifths with one group at 0.79 ratio → passed False, a 40-pair group excluded; bootstrap
+determinism (same seed twice → identical), CI contains the point, delta verdicts PASS/NOISE/FAIL
+on constructed data.
+
+- [ ] Write the tests → run → FAIL; implement → PASS; full suite once; ruff clean
+- [ ] Commit by explicit paths: `git add match-engine/eval match-engine/tests/eval`
 ### Task 5.3: Suites, report, run, baseline — `eval/suites/{properties,synthetic,mutations}.py`, `eval/{report,run,baseline}.py`, Makefile targets
 **Gate:** `make eval-fast` < 2 min; 500 synthetic profiles generated.
 
 ## Milestone 6 — Parsing (largest milestone)
 ### Task 6.1 ∥: Dates — `parse/dates.py`, `tests/test_dates.py` (every SPEC §14.2 row)
+
+Paths relative to `match-engine/`. Read SPEC §14.2 and §11 ("nine date formats") first.
+Contracts you build on (do not change): `models.DateValue(value, earliest, latest, precision)`
+with `imprecise` = precision in {SEASON, QUARTER, YEAR}; `models.DatePrecision`; `errors.Flag`
+(you MAY add `Flag.FUTURE_START` with a `FLAG_TEXT` line if you need it — nothing else in errors.py).
+"Date parsing will produce more bugs than any other single component. Write it as a standalone
+module with its own exhaustive test file" (SPEC §14.2). It must never raise on any input.
+
+**Files:** Create `src/matcher/parse/__init__.py`, `src/matcher/parse/dates.py`; Test `tests/test_dates.py`.
+
+**Interfaces (Produces):**
+```python
+class DateRange(Frozen):
+    start: Optional[DateValue]; end: Optional[DateValue]; is_current: bool
+    flags: tuple[Flag, ...] = (); raw: str = ""
+def parse_date(text: str, *, as_of: date, role: Literal["start","end","point"] = "point",
+               lang: Literal["en","fr"] = "en") -> tuple[Optional[DateValue], tuple[Flag, ...]]
+def parse_range(text: str, *, as_of: date, lang: Literal["en","fr"] = "en") -> Optional[DateRange]
+def find_date_ranges(text: str, *, as_of: date, lang: Literal["en","fr"] = "en") -> tuple[tuple[int, int, DateRange], ...]
+def months_between(a: date, b: date) -> float          # (b - a).days / 30.4375, may be negative
+```
+`find_date_ranges` returns `(start_offset, end_offset, range)` spans located inside a longer line
+(e.g. `"Software Intern, Acme — May 2023 – Aug 2023, Ottawa"`), non-overlapping, sorted, so the
+role parser (Task 6.3) can find and cut the date out of a header line.
+
+**Behaviour (every row is a test):**
+1. Point formats (en): `Jan 2020`, `January 2020`, `Jan. 2020`, `Sept 2020`, `01/2020`, `1/2020`,
+   `2020-01`, `2020/01`, `01.2020`, `2020`, `Jan '20`, `'19`, `2020-03-15`, `03/15/2020`,
+   `15/03/2020` (day > 12 ⇒ D/M/Y), `March 15, 2020`, `15 March 2020`. Ambiguous `03/04/2020`
+   ⇒ M/D/Y in `en`, D/M/Y in `fr`. Precision: day forms DAY; month forms MONTH; bare year YEAR.
+   French: `janvier 2020`, `févr. 2021`, `fevrier 2021`, `août 2019`, `déc. 2018`, `juil. 2022`.
+2. Month precision as `start` → first day of the month; as `end` → last day; `point` → first day;
+   `earliest`/`latest` = first/last day of the month. Day precision: earliest = latest = value.
+3. Seasons and quarters (SPEC: "map to quarter midpoint, flag IMPRECISE"): Winter=Q1, Spring=Q2,
+   Summer=Q3, Fall/Autumn=Q4 (fr: hiver, printemps, été/ete, automne); `Q3 2021`, `2021 Q3`,
+   `Fall '19`, `Summer 2020`. value = quarter midpoint (Q1 Feb 15, Q2 May 16, Q3 Aug 16, Q4 Nov 16),
+   earliest/latest = quarter start/end, precision SEASON (seasons) or QUARTER (Qn), flag
+   `IMPRECISE_DATE`. Bare year: value = Jul 1 (start/point) or Jul 1 (end), earliest Jan 1, latest
+   Dec 31, flag `IMPRECISE_DATE`.
+4. A range written as ONE period (`Summer 2020`, `2020`, `Q3 2021`) means the role spanned it:
+   start = DateValue(value=period start, earliest=period start, latest=period midpoint),
+   end = DateValue(value=period end, earliest=period midpoint, latest=period end), IMPRECISE.
+5. Ranges: separators `–`, `—`, `-`, `to`, `through`, `until`, `till`, `à`, `au`, `jusqu'à`;
+   `Jan 2020 – Mar 2021`, `2019-2021`, `2019 to 2021`, `May–Aug 2020` (start month inherits the
+   end's year), `Sept 2019 - Apr. 2020`, `Since 2019` / `Depuis 2019` (current), `2018/19`
+   academic year ⇒ Sep 2018 – Apr 2019 (MONTH precision).
+6. Present markers resolve to `as_of` with `is_current=True` and `end=None`: `Present`, `Current`,
+   `Now`, `Ongoing`, `To date`, `Today`, a dangling dash (`Jan 2020 –`, `2019 —`), fr `Présent`,
+   `Aujourd'hui`, `À ce jour`, `En cours`, `Actuel`, `Maintenant`.
+7. Two-digit years (`'19`, `98`, `Fall '19`): the unique year in `[as_of.year − 80, as_of.year + 19]`
+   with that last-two-digits; flag `TWO_DIGIT_YEAR`.
+8. Future end date (end.value > as_of): end becomes `DateValue.exact(as_of, DatePrecision.DAY)`,
+   flag `FUTURE_END_CLAMPED`. Start after as_of: the range is dropped (returns a
+   DateRange with start=None, end=None and flag `FUTURE_START`; the caller drops the role).
+9. End before start: swap when the swapped range is plausible (start ≥ as_of − 80 years and
+   duration ≤ 50 years), flag `DATE_RANGE_SWAPPED`; otherwise start=end=None, flag `DATE_RANGE_DROPPED`.
+10. Non-Gregorian with an explicit marker: Buddhist Era `2563 BE`/`พ.ศ. 2563` → year − 543; Solar
+    Hijri `1399 SH`/`هـ.ش` → +621; Hijri `1441 AH`/`هـ` → round(year × 0.970229 + 621.5643);
+    Hebrew `5780 AM` → −3760; flag `NON_GREGORIAN_CONVERTED`. A marker with a year that converts
+    outside [1900, as_of.year + 1] → no date, flag `UNSUPPORTED_CALENDAR`.
+11. Years outside [as_of.year − 80, as_of.year + 10] without a calendar marker are not dates.
+    Numbers that are clearly not dates (`$2020`, `2020 users`, phone numbers, `40k`) never parse.
+12. Totality: `parse_date`, `parse_range` and `find_date_ranges` never raise for any `str`
+    (Hypothesis over `st.text()`), and `start.value <= end.value` whenever both are present.
+
+- [ ] Write `tests/test_dates.py` (one parametrised case per row above, plus Hypothesis totality) → run → FAIL
+- [ ] Implement `parse/dates.py` → run → PASS; full suite once; ruff clean
+- [ ] Commit by explicit paths: `git add match-engine/src/matcher/parse match-engine/tests/test_dates.py` (+ errors.py if you added FUTURE_START)
 ### Task 6.2 ∥: Ingest — `ingest/{detect,pdf,docx,ocr,normalize_text,quality}.py`, `tests/fixtures/edge/` (~60), `tests/test_edge_ingest.py`
+
+Paths relative to `match-engine/`. Read SPEC §14.1 (every row is a requirement), §17.1 (parse
+tiers A=1.0, B=0.8, C=0.55) and DECISIONS D-02, D-70 first. Ingest turns bytes into normalised
+text + layout lines, a parse tier, a language and flags — or a NEEDS_REVIEW reason. It never
+raises. pdfplumber, pymupdf (`fitz`), python-docx and rapidocr are imported INSIDE functions (the
+core package must import without them). "Build the fixture directory tests/fixtures/edge/ first;
+it is the real specification" (SPEC §14).
+
+**Files:** Create `src/matcher/ingest/{__init__,detect,pdf,docx,ocr,normalize_text,quality,language}.py`;
+`tests/fixtures/edge/make_edge_fixtures.py` (deterministic generator: reportlab, pymupdf,
+python-docx, Pillow) and its committed outputs (total < 3 MB); Test `tests/test_edge_ingest.py`,
+`tests/test_normalize_text.py`, `tests/test_language.py`.
+Modify: `src/matcher/config.py` `IngestConfig` + `config/scoring.yaml` `ingest:` — add
+`max_pages: 100` and `resume_likelihood_threshold: 0.5` (nothing else in config).
+
+**Interfaces (Produces):**
+```python
+class TextLine(Frozen): text: str; page: int; x0: float; y0: float; x1: float; y1: float
+    size: float = 0.0; bold: bool = False; column: int = 0
+class IngestResult(Frozen):
+    ok: bool; text: str; lines: tuple[TextLine, ...]; tier: ParseTier; language: Optional[str]
+    languages: dict[str, float]          # share of lines per detected language
+    flags: tuple[Flag, ...]; reasons: tuple[Flag, ...]   # reasons non-empty exactly when ok is False
+    page_count: int; ocr_confidence: Optional[float]; resume_likelihood: float
+def ingest_bytes(data: bytes, filename: str = "", *, config: EngineConfig) -> IngestResult
+def ingest_text(text: str, *, config: EngineConfig) -> IngestResult
+def normalize_text(text: str) -> str                        # normalize_text.py
+def detect_language(text: str) -> tuple[Optional[str], float]   # language.py; ISO 639-1 or None
+def resume_likelihood(text: str) -> float                   # quality.py, in [0, 1]
+SUPPORTED_LANGUAGES = ("en", "fr")
+```
+**Behaviour (one test per row, each with a fixture under `tests/fixtures/edge/`):**
+1. Type detection by magic bytes first, extension second: PDF, DOCX (zip with
+   `word/document.xml`), plain text (UTF-8, UTF-8 BOM, UTF-16 BOM, Windows-1252 fallback), images
+   (PNG/JPEG); anything else → NEEDS_REVIEW `CORRUPT`. Zero bytes → `CORRUPT`.
+2. Encrypted PDF that needs a password → `ENCRYPTED`. Truncated/garbled PDF or a bad DOCX zip →
+   `CORRUPT`.
+3. PDF text: PyMuPDF words/spans with coordinates (pdfplumber as fallback). Hidden text is
+   removed and flags `STUFFING_SUSPECTED`: white or near-white fill (all channels ≥ 0.95), opacity
+   0, invisible render mode (PyMuPDF `page.get_texttrace()` span `type == 3` or `opacity == 0`),
+   font size < 2 pt, text drawn outside the page box.
+4. Columns: cluster line x-starts per page; for 2+ columns read column by column; verify reading
+   order with a sentence-continuity heuristic (a line ending mid-sentence should continue in the
+   next line read); failure → tier B + `COLUMN_ORDER_UNCERTAIN`. Single column clean → tier A.
+5. Repeated headers/footers and page numbers ("Page 2 of 3", "2", "- 2 -") are removed by
+   cross-page repetition of normalised lines in the top/bottom 8 % of the page.
+6. DOCX: paragraphs, tables (row cells joined in order), text boxes (`w:txbxContent`), header and
+   footer parts once (not per page); hidden runs (`w:vanish`), white font colour, size < 2 pt →
+   removed + `STUFFING_SUSPECTED`. Text boxes present → tier B unless the order is unambiguous.
+7. Scanned / image-only PDF or image file: OCR via rapidocr-onnxruntime (pages rendered with
+   PyMuPDF at 300 dpi, single-threaded session for determinism) → tier C + `OCR_USED`; mean line
+   confidence < `ingest.ocr_min_confidence` (0.6) or OCR unavailable → `UNREADABLE`. An image with
+   no text → `NOT_A_RESUME`.
+8. More than `ingest.max_pages` pages: only the first `max_pages` are read, flag `TRUNCATED`
+   (the 40k-token experience cap is the parser's job, Task 6.4).
+9. `normalize_text`: NFKC (ligatures ﬁ ﬂ ﬀ), remove zero-width chars and soft hyphens, join a
+   word hyphenated across a line break, smart quotes → straight, bullet glyphs (• ▪ ◦ ● ‣ ∙ ➢ ✓ –
+   at line start) → "- ", non-breaking spaces → space, collapse runs of spaces, keep line breaks.
+10. Language: stop-word profiles (en, fr, es, de, pt, it, nl) + script detection (Arabic, Hebrew,
+    Cyrillic, CJK, Devanagari, Thai...). Document language = the majority of lines; `languages` =
+    shares; `MIXED_LANGUAGE` when two supported languages each hold ≥ 20 %; a document whose
+    majority language is outside `SUPPORTED_LANGUAGES` → `UNSUPPORTED_LANGUAGE` (RTL included:
+    Arabic and Hebrew fixtures extract in logical order and then route here).
+11. `resume_likelihood`: section markers (experience, education, skills, projects,
+    certifications, summary; en + fr), date ranges, bullet density raise it; cover-letter markers
+    ("Dear", "Sincerely", "I am writing to", "Hiring Manager") and transcript markers
+    ("Transcript", "Course Code", "Credits", "Term GPA", "Cumulative") lower it; below
+    `ingest.resume_likelihood_threshold` → `NOT_A_RESUME`.
+12. Every input in `tests/fixtures/edge/` and arbitrary bytes (Hypothesis) → an IngestResult, never
+    an exception; the same bytes twice → identical results.
+Fixtures (≥ 60): clean one-column PDF, two-column, three-column, Canva-like sidebar, repeated
+header/footer + page numbers, ligatures, zero-width chars, soft hyphens, smart quotes, white
+text, 1 pt text, invisible render mode, text off-page, encrypted, owner-password-only (openable →
+readable), truncated, random bytes, zero bytes, scanned 300 dpi (readable), scanned noisy 72 dpi
+(UNREADABLE), photo without text, a 90-page CV (read in full; its 40k-token experience cap is
+Task 6.4's) and a 120-page one (`TRUNCATED` at 100 pages), two-line résumé, cover letter, transcript, DOCX with tables / text boxes / header-footer /
+hidden text / white text / corrupt zip, UTF-8 / UTF-8 BOM / UTF-16 / cp1252 text, French résumé,
+Spanish résumé, German résumé, French headers with English bullets (MIXED_LANGUAGE), Arabic,
+Hebrew. Synthetic names/emails only (e.g. "Alex Example"), never real people.
+
+- [ ] Generator + fixtures + tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): ingest (SPEC §14.1)`
 ### Task 6.3: Sections, roles, education, scope — `parse/{sections,roles,education,scope}.py` (scope per ADVANCED §2.3, quoted)
 ### Task 6.4: Résumé assembly — `parse/resume.py` (`parse_resume_text`, `resume_from_document`), stuffing + pasted-posting tests
 ### Task 6.5: Postings — `parse/posting.py`, `tests/test_posting_pathologies.py` (every SPEC §14.4 row)

@@ -1,29 +1,53 @@
 # Verb-strength lexicon (SPEC §15.1). The multiplier replaces the coarse evidence term E of
 # §5.1 for ROLE_BULLET mentions; ROLE_BULLET_QUANTIFIED adds quantified_bonus, capped.
-# Matching is on lower-cased word forms; list every inflection you want matched.
+# Matching is on lower-cased word forms, so every inflection a résumé uses is listed: past
+# ("built"), base ("build"), third person ("builds") and gerund ("building").
 classes:
   OWNERSHIP:
     multiplier: 1.00
     # "found" (base of "founded") is left out: in bullets it is nearly always "find".
-    verbs: [architected, architect, designed, design, built, build, owned, own, led, lead,
-            founded, created, create, spearheaded, spearhead, established, establish,
-            pioneered, pioneer, drove, drive]
+    verbs: [architected, architect, architects, architecting,
+            designed, design, designs, designing,
+            built, build, builds, building,
+            owned, own, owns, owning,
+            led, lead, leads, leading,
+            founded, founding,
+            created, create, creates, creating,
+            spearheaded, spearhead, spearheads, spearheading,
+            established, establish, establishes, establishing,
+            pioneered, pioneer, pioneers, pioneering,
+            drove, drive, drives, driving]
   EXECUTION:
     multiplier: 0.85
-    verbs: [developed, develop, implemented, implement, engineered, engineer, delivered,
-            deliver, migrated, migrate, automated, automate, optimized, optimised, optimize,
-            optimise, deployed, deploy, maintained, maintain, scaled, scale]
+    verbs: [developed, develop, develops, developing,
+            implemented, implement, implements, implementing,
+            engineered, engineer, engineers, engineering,
+            delivered, deliver, delivers, delivering,
+            migrated, migrate, migrates, migrating,
+            automated, automate, automates, automating,
+            optimized, optimised, optimize, optimise, optimizes, optimises, optimizing, optimising,
+            deployed, deploy, deploys, deploying,
+            maintained, maintain, maintains, maintaining,
+            scaled, scale, scales, scaling]
   PARTICIPATION:
     multiplier: 0.65
-    verbs: [contributed, contribute, collaborated, collaborate, participated, participate,
-            worked, work, used, use, utilized, utilised, utilize, utilise]
+    verbs: [contributed, contribute, contributes, contributing,
+            collaborated, collaborate, collaborates, collaborating,
+            participated, participate, participates, participating,
+            worked, work, works, working,
+            used, use, uses, using,
+            utilized, utilised, utilize, utilise, utilizes, utilises, utilizing, utilising]
   ASSISTANCE:
     multiplier: 0.45
-    verbs: [assisted, assist, supported, support, helped, help, shadowed, shadow, observed,
-            observe]
+    verbs: [assisted, assist, assists, assisting,
+            supported, support, supports, supporting,
+            helped, help, helps, helping,
+            shadowed, shadow, shadows, shadowing,
+            observed, observe, observes, observing]
   EXPOSURE:
     multiplier: 0.30
-    verbs: [exposed, familiar, aware, "coursework in", "basic knowledge"]
+    verbs: [exposed, exposure, familiar, familiarity, aware, awareness, "coursework in",
+            "basic knowledge"]
 
 # Default when no verb attaches: neither rewarded nor punished (SPEC §15.1).
 no_verb_multiplier: 0.70
