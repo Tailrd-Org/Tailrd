@@ -1,9 +1,10 @@
 """§5.4 Seniority alignment (Task 3.3).
 
-SPEC §5.3 (over-qualification is never deducted), §5.4; DECISIONS D-38, D-39. Closed forms with
-the spec's step 0.28 and track-switch penalty 0.20, and D-38's offset 2 (M n sits level with
+SPEC §5.3 (over-qualification is never deducted), §5.4, §14.5; DECISIONS D-38, D-39. Closed forms
+with the spec's step 0.28 and track-switch penalty 0.20, and D-38's offset 2 (M n sits level with
 IC n+2): `max(0, 1 − 0.28 × gap − penalty)`, a gap below 0 (above the posting's level) counting
-as 0 and raising OVERQUALIFIED.
+as 0 and raising OVERQUALIFIED. The candidate's levels are those of the current roles, else of the
+roles that ended last; unknown when none of those carries one; each is scored, the best kept.
 """
 
 from __future__ import annotations
@@ -19,7 +20,7 @@ from matcher.config import load_config
 from matcher.errors import EngineFault, Flag
 from matcher.models import DimensionName, JobPosting, Resume, Role, SeniorityLevel, Track
 from matcher.score.dimensions import score_seniority
-from matcher.score.dimensions.seniority import candidate_level
+from matcher.score.dimensions.seniority import candidate_level, candidate_levels
 from matcher.score.prepare import prepare_resume
 from tests.builders import AS_OF, on, tiny_graph, with_scoring
 
@@ -110,46 +111,78 @@ def test_values_follow_the_config(small_graph, config) -> None:
     assert _close(_score([current("IC3")], "M2", small_graph, tuned).value, 1 - 0.10)  # IC3 ≈ M2 at offset 1
 
 
-# ─── The candidate's level (DECISIONS D-38) ──────────────────────────────────────────────
+# ─── The candidate's levels (DECISIONS D-38) ─────────────────────────────────────────────
 
 
-def test_candidate_level_is_the_highest_current_level() -> None:
+def _levels(*roles: Role) -> tuple[str, ...]:
+    return tuple(held.code for held in candidate_levels(Resume(roles=roles)))
+
+
+def test_the_current_roles_give_the_candidate_levels() -> None:
     roles = [current("IC2"), current("IC3"), ended("IC5", date(2021, 6, 30))]
     rng = random.Random(1)
     for _ in range(6):
         rng.shuffle(roles)
-        assert candidate_level(Resume(roles=tuple(roles))) == level("IC3")
+        assert _levels(*roles) == ("IC2", "IC3")  # every current level, never the older IC5
+        assert candidate_level(Resume(roles=tuple(roles)), cross_track_offset=OFFSET) == level("IC3")
 
 
-def test_without_a_current_role_the_most_recent_role_counts() -> None:
+def test_without_a_current_role_the_roles_with_the_latest_end_count() -> None:
     roles = (ended("IC4", date(2019, 6, 30)), ended("IC2", date(2023, 6, 30)))
-    assert candidate_level(Resume(roles=roles)) == level("IC2")  # the latest end, not the highest level
+    assert _levels(*roles) == ("IC2",)  # the latest end, not the highest level
     tie = (ended("IC2", date(2023, 6, 30)), ended("IC3", date(2023, 6, 30)), ended("IC5", date(2020, 1, 31)))
-    assert candidate_level(Resume(roles=tie)) == level("IC3")  # same end: the higher level
+    assert _levels(*tie) == ("IC2", "IC3")
+    assert candidate_level(Resume(roles=tie), cross_track_offset=OFFSET) == level("IC3")
 
 
-def test_only_roles_that_carry_a_seniority_count() -> None:
-    roles = (ended(None, date(2025, 6, 30)), ended("IC3", date(2022, 6, 30)))
-    assert candidate_level(Resume(roles=roles)) == level("IC3")
-    roles = (current(None), ended("IC2", date(2022, 6, 30)))
-    assert candidate_level(Resume(roles=roles)) == level("IC2")
-    assert candidate_level(Resume(roles=(current(None), ended(None, date(2020, 1, 31))))) is None
-    assert candidate_level(Resume()) is None
-    # A level with no end and no current flag cannot be placed in time.
-    assert candidate_level(Resume(roles=(Role(seniority=level("IC3")),))) is None
+def test_a_current_or_latest_role_without_a_level_means_the_level_is_unknown(small_graph, config) -> None:
+    # The review's probe: a current role the title mapper could not level, and an IC1 role that
+    # ended in 2021. Falling back to IC1 scored 0.44 against IC3; the honest answer is "unknown".
+    stale = [current(None), ended("IC1", date(2021, 6, 30))]
+    assert _levels(*stale) == () and candidate_level(Resume(roles=tuple(stale)), cross_track_offset=OFFSET) is None
+    dim = _score(stale, "IC3", small_graph, config)
+    assert dim.abstained and dim.abstain_reason is Flag.SENIORITY_UNKNOWN
+    # The same when the role that ended last carries no level.
+    assert _levels(ended(None, date(2025, 6, 30)), ended("IC3", date(2022, 6, 30))) == ()
+    assert _score([ended(None, date(2025, 6, 30)), ended("IC3", date(2022, 6, 30))], "IC3", small_graph,
+                  config).abstained
+    # Among the current roles (or those that ended last), the ones that carry a level count.
+    assert _levels(current(None), current("IC2"), ended("IC5", date(2021, 6, 30))) == ("IC2",)
+    assert _close(_score([current(None), current("IC2")], "IC3", small_graph, config).value, 1 - STEP)
+    assert _levels(ended(None, date(2023, 6, 30)), ended("IC2", date(2023, 6, 30))) == ("IC2",)
+    # Nothing to place in time: no roles, or levels on roles that neither end nor are current.
+    assert _levels() == () and _levels(Role(seniority=level("IC3"))) == ()
 
 
-def test_concurrent_roles_on_two_tracks_compare_after_alignment(small_graph, config) -> None:
-    roles = Resume(roles=(current("M2"), current("IC3")))
-    assert candidate_level(roles) == level("IC3")  # ladder index: 3 > 2
-    assert candidate_level(roles, cross_track_offset=OFFSET) == level("M2")  # M2 ≈ IC4 > IC3
+@pytest.mark.parametrize("roles,job,expected,held,above", [
+    # The review's three cross-track cases, each formerly 0.80 (the last also OVERQUALIFIED):
+    ([current("IC4"), current("M2")], "IC4", 1.0, "IC4", False),
+    ([current("IC3"), current("M1")], "IC3", 1.0, "IC3", False),
+    ([current("IC0"), current("M1")], "IC0", 1.0, "IC0", False),  # an internship and a club "lead" title
+    ([current("M2"), current("IC3")], "M2", 1.0, "M2", False),  # a manager is a manager for an M2 posting
+    ([current("M2"), current("IC3")], "IC3", 1.0, "IC3", False),
+    ([current("IC2"), current("IC1")], "IC3", 1 - STEP * 1, "IC2", False),  # 0.72 beats 0.44
+    ([current("IC5"), current("IC4")], "IC3", 1.0, "IC4", True),  # equal scores: the closest level
+    ([current("IC0"), current("IC1")], "M6", 0.0, "IC1", False),  # both 0.0: IC1 ≈ M(−1) is closer
+    ([ended("M1", date(2024, 6, 30)), ended("IC2", date(2024, 6, 30))], "M1", 1.0, "M1", False),
+])
+def test_every_held_level_is_scored_and_the_best_kept(small_graph, config, roles, job, expected, held,
+                                                      above) -> None:
+    roles, rng = list(roles), random.Random(2)
+    for _ in range(3):
+        rng.shuffle(roles)
+        dim = _score(roles, job, small_graph, config)
+        assert _close(dim.value, expected)
+        assert dim.facts[0].detail["candidate"] == held and ("OVERQUALIFIED" in _codes(dim)) is above
+
+
+def test_candidate_level_aligns_the_ladders_and_needs_the_offset() -> None:
+    both = Resume(roles=(current("M2"), current("IC3")))
+    assert candidate_level(both, cross_track_offset=OFFSET) == level("M2")  # M2 ≈ IC4 > IC3
     # A tie after alignment goes to the management level (M n ≥ IC n under any offset).
     assert candidate_level(Resume(roles=(current("IC3"), current("M1"))), cross_track_offset=OFFSET) == level("M1")
-    assert candidate_level(Resume(roles=(current("IC2"), current("M2")))) == level("M2")
-    # score_seniority aligns with the configured offset: a manager who also holds a senior IC role
-    # is a manager for a manager posting (raw indices would place them at IC3 ≈ M1: 0.52).
-    dim = _score([current("M2"), current("IC3")], "M2", small_graph, config)
-    assert dim.value == 1.0 and dim.facts[0].detail == {"candidate": "M2", "cross_track": False}
+    with pytest.raises(TypeError):
+        candidate_level(both)  # no default offset: raw ladder indices are never compared by accident
 
 
 # ─── Abstention, binding ─────────────────────────────────────────────────────────────────

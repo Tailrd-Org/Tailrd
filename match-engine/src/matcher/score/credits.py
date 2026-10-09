@@ -32,9 +32,8 @@ from matcher.config import EngineConfig
 from matcher.graph.model import SkillGraph
 from matcher.graph.traversal import ancestors, related_neighbors
 from matcher.models import RelationKind
-
-# One definition of the relation order and of "provisional", shared with requirement matching.
-from matcher.score.coverage import NO_CREDIT, _KIND_ORDER, _provisional
+from matcher.score._shared import KIND_ORDER, is_provisional
+from matcher.score.coverage import NO_CREDIT
 from matcher.score.numeric import clamp01, finite, tie_key
 
 __all__ = ["Credit", "RelationTargets", "best_credit"]
@@ -45,7 +44,7 @@ Credit = tuple[float, RelationKind, str]  # (bare credit, relation, the held id 
 def _order(credit: Credit) -> tuple[float, int, str]:
     """Smaller is better: the higher credit at tie precision, then the relation order, then the
     smaller held id."""
-    return (-tie_key(credit[0]), _KIND_ORDER[credit[1]], credit[2])
+    return (-tie_key(credit[0]), KIND_ORDER[credit[1]], credit[2])
 
 
 class RelationTargets:
@@ -69,7 +68,7 @@ class RelationTargets:
         found: dict[str, Credit] = {}
 
         def offer(want: str, credit: float, kind: RelationKind, via: str) -> None:
-            if _provisional(graph, want) or _provisional(graph, via):
+            if is_provisional(graph, want) or is_provisional(graph, via):
                 credit *= relations.provisional_multiplier
             candidate = (clamp01(credit), kind, via)
             current = found.get(want)

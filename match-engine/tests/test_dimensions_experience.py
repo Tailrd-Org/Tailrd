@@ -345,6 +345,9 @@ def test_current_roles_end_at_as_of_and_future_ends_are_clamped(small_graph, con
     assert _close(_months(future_end, post, small_graph, config), (AS_OF - date(2025, 10, 8)).days / DAYS_PER_MONTH)
     not_started = Resume(roles=(job(on(date(2026, 12, 1)), on(date(2027, 6, 30)), *PYTHON),))
     assert _months(not_started, post, small_graph, config) == 0.0
+    # Dated, but with no time before as_of: no months and no ROLE_RELEVANCE fact.
+    dim = _score(not_started, wants(req("skill.python"), years=1.0), small_graph, config)
+    assert dim.value == 0.0 and [f.code for f in dim.facts] == ["RELEVANT_MONTHS"]
 
 
 def test_undated_roles_and_projects_add_no_months(small_graph, config) -> None:

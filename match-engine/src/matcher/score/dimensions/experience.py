@@ -33,8 +33,9 @@ reason the coverage dimensions give for the same posting).
 Facts, in order: RELEVANT_MONTHS (value = months; subject = where the minimum came from:
 POSTING_YEARS, REQUIREMENT_YEARS or SENIORITY_DEFAULT; detail = the minimum in months and the
 skill or level that set it), MIN_YEARS_DEFAULTED or NO_WORK_EXPERIENCE when they apply, then one
-ROLE_RELEVANCE per dated role (subject = its canonical title; detail = its index on the résumé,
-whether it is an internship and its sweep weight). No fact carries a role's own duration.
+ROLE_RELEVANCE per dated role that has time before `as_of` (a role dated entirely after it adds no
+months and gets none; subject = its canonical title; detail = its index on the résumé, whether it
+is an internship and its sweep weight). No fact carries a role's own duration.
 """
 
 from __future__ import annotations
@@ -48,9 +49,9 @@ from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph
 from matcher.models import DimensionName, DimensionScore, Fact, JobPosting, Necessity, Polarity, Role
-from matcher.score.coverage import NO_WEIGHT, _idf  # one IDF rule for every dimension (D-21)
+from matcher.score._shared import abstain, requirement_idf, scored
+from matcher.score.coverage import NO_WEIGHT
 from matcher.score.credits import Credit, RelationTargets
-from matcher.score.dimensions._common import abstain, scored
 from matcher.score.numeric import clamp01, finite
 from matcher.score.prepare import PreparedResume, ensure_bound
 
@@ -91,7 +92,7 @@ class _Span(NamedTuple):
 
 def _requirement_space(posting: JobPosting, graph: SkillGraph, config: EngineConfig) -> _Space:
     ids = sorted({requirement.skill_id for requirement in posting.requirements})
-    return tuple((skill_id, _idf(graph, skill_id, config)) for skill_id in ids)
+    return tuple((skill_id, requirement_idf(graph, skill_id, config)) for skill_id in ids)
 
 
 def _norm(components: Iterable[float]) -> float:

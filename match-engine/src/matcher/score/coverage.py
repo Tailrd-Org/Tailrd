@@ -55,6 +55,7 @@ from matcher.models import (
     Necessity,
     RelationKind,
 )
+from matcher.score._shared import KIND_ORDER, abstain, is_provisional, requirement_idf
 from matcher.score.numeric import clamp01, finite, tie_key
 from matcher.score.prepare import PreparedResume, ensure_bound
 
@@ -81,13 +82,6 @@ MATCH_FROM = 0.5
 NO_CREDIT = 1e-12  # a credit below this is no match at all
 NO_WEIGHT = 1e-12  # Σ(idf × wm) at or below this: nothing to divide by (SPEC §13)
 
-_KIND_ORDER = {
-    RelationKind.EXACT: 0,
-    RelationKind.CHILD: 1,
-    RelationKind.SIBLING: 2,
-    RelationKind.PARENT: 3,
-    RelationKind.NONE: 4,
-}
 _NECESSITY_ORDER = {Necessity.REQUIRED: 0, Necessity.PREFERRED: 1, Necessity.IMPLIED: 2}
 _NO_MATCH: tuple[float, RelationKind, Optional[str]] = (0.0, RelationKind.NONE, None)
 _OR_GROUP, _LONE_SKILL = 0, 1  # group-key namespaces: (label, namespace)
@@ -108,11 +102,6 @@ class RequirementMatch(Frozen):
     critical: bool
 
 
-def _provisional(graph: SkillGraph, skill_id: str) -> bool:
-    node = graph.node(skill_id)
-    return node is not None and node.provisional
-
-
 def match_skill(
     prepared: PreparedResume, requirement_id: str, graph: SkillGraph, config: EngineConfig
 ) -> tuple[float, RelationKind, Optional[str]]:
@@ -126,11 +115,11 @@ def _match_skill(
 ) -> tuple[float, RelationKind, Optional[str]]:
     relations = config.scoring.relations
     best = prepared.best
-    wanted_provisional = _provisional(graph, requirement_id)
+    wanted_provisional = is_provisional(graph, requirement_id)
     candidates: list[tuple[float, RelationKind, str]] = []  # (credit, relation, via)
 
     def offer(credit: float, kind: RelationKind, via: str) -> None:
-        if wanted_provisional or _provisional(graph, via):
+        if wanted_provisional or is_provisional(graph, via):
             credit *= relations.provisional_multiplier
         candidates.append((clamp01(credit), kind, via))
 
@@ -161,17 +150,10 @@ def _match_skill(
     if not candidates:
         return _NO_MATCH
     # Highest credit at tie precision; equal credits by relation order, then the smaller via id.
-    credit, kind, via = min(candidates, key=lambda c: (-tie_key(c[0]), _KIND_ORDER[c[1]], c[2]))
+    credit, kind, via = min(candidates, key=lambda c: (-tie_key(c[0]), KIND_ORDER[c[1]], c[2]))
     if credit < NO_CREDIT:
         return _NO_MATCH
     return credit, kind, via
-
-
-def _idf(graph: SkillGraph, skill_id: str, config: EngineConfig) -> float:
-    unseen = config.scoring.idf.unseen_default
-    if skill_id not in graph:
-        return clamp01(unseen)
-    return clamp01(graph.idf_of(skill_id, unseen))
 
 
 def match_requirements(
@@ -205,10 +187,10 @@ def _match_requirements(
         members = tuple(sorted({requirement.skill_id for requirement in group}))
         found = {member: _match_skill(prepared, member, graph, config) for member in members}
         best_member = min(
-            members, key=lambda member: (-tie_key(found[member][0]), _KIND_ORDER[found[member][1]], member)
+            members, key=lambda member: (-tie_key(found[member][0]), KIND_ORDER[found[member][1]], member)
         )
         m, relation, via = found[best_member]
-        idf = max(_idf(graph, member, config) for member in members)
+        idf = max(requirement_idf(graph, member, config) for member in members)
         necessity = min((Necessity(r.necessity) for r in group), key=_NECESSITY_ORDER.__getitem__)
         matches.append(
             RequirementMatch(
@@ -276,18 +258,6 @@ def requirement_facts(matches: Sequence[RequirementMatch]) -> tuple[Fact, ...]:
     return tuple(facts)
 
 
-def _abstain(name: DimensionName, weight: float, reason: Flag) -> DimensionScore:
-    return DimensionScore(
-        name=name,
-        value=None,
-        weight=weight,
-        effective_weight=0.0,
-        contribution=0.0,
-        abstained=True,
-        abstain_reason=reason,
-    )
-
-
 def score_coverage(
     prepared: PreparedResume,
     posting: JobPosting,
@@ -305,11 +275,11 @@ def score_coverage(
     weight = config.weights.of(name)
     requirements = [requirement for requirement in posting.requirements if requirement.necessity == necessity]
     if not requirements:
-        return _abstain(name, weight, absent)
+        return abstain(name, config, absent)
     matches = _match_requirements(prepared, requirements, graph, config)
     value = coverage_value(matches)
     if value is None:
-        return _abstain(name, weight, Flag.NO_REQUIREMENTS_RESOLVED)
+        return abstain(name, config, Flag.NO_REQUIREMENTS_RESOLVED)
     return DimensionScore(
         name=name,
         value=value,
