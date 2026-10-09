@@ -1,0 +1,4 @@
+# The committed data files are the generator's byte-for-byte output (a test compares them): git must
+# never rewrite their line endings (core.autocrlf would turn LF into CRLF on a Windows checkout).
+traces.jsonl -text
+demographics.csv -text
