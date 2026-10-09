@@ -206,7 +206,11 @@ mode.
 against that posting". With few users the chain is: posting (n ≥ 30) → job family (n ≥ 30) →
 all postings (n ≥ 30) → the shipped reference panel (synthetic profiles scored offline). The
 `basis` sentence names the reference actually used; it never claims "applicants" when it is a
-panel. Percentile = `(below + 0.5 × equal) / n`, rounded to an integer in [0, 100].
+panel. Percentile = `(below + 0.5 × equal) / n`, rounded to an integer in [0, 100]. The n ≥ 30
+rule counts DISTINCT candidates (people), not (candidate, posting) pairs: "applicants" are people,
+and five users × 2,000 jobs would otherwise pass the threshold while really comparing a user
+mostly with themselves. With Tailrd's current handful of résumés, every score therefore uses the
+panel until 30 people have scored résumés.
 
 **D-51 Phase 2** (isotonic, pure-Python PAVA at runtime, fitted offline) is built and versioned
 but stays off until `calibration.isotonic.min_labels` (500) outcome labels exist. Today there are
