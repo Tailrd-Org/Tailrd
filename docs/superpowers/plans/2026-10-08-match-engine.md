@@ -1677,16 +1677,23 @@ Test `backend/tests/test_fit_engine_adapter.py`.
 5. Storage (additive migration, idempotent, works on SQLite and Postgres): `job_match_scores`
    gains `raw_score FLOAT`, `band VARCHAR(20)`, `outcome VARCHAR(30)`, `confidence FLOAT`,
    `engine_version VARCHAR(20)`, `config_hash VARCHAR(20)` (all nullable); new `match_traces`
-   (user_id, job_id unique pair, trace JSON from `audit.build_trace`, input_digest,
-   engine_version, config_hash, scored_at) — written beside every banked score and never selected
-   by feed queries (egress); new `match_calibration` (scope, key, n_candidates, n_pairs, samples
+   (subject_id = `audit.trace.opaque_id(str(user_id), salt)`, job_id unique pair, trace JSON from
+   `audit.build_trace`, `trace_digest`, engine_version, config_hash, scored_at), keyed by the
+   opaque id, never by user_id, as `docs/compliance.md` requires; the salt comes from a new env var
+   `FIT_TRACE_SALT` (>= 16 bytes, read only by the two trace writers: banking and account deletion,
+   which recomputes the subject_id to delete a user's traces); written beside every banked score
+   and never selected by feed queries (egress); new `match_calibration` (scope, key, n_candidates, n_pairs, samples
    JSON, version, created_at) holding the per-family/global references built from banked raw
    scores by `refresh_calibration(db)` (distinct résumé fingerprints count as candidates; < 30 →
    the panel stays in charge, D-50).
 6. `bank_scores(db, user_id, profile, job_ids) -> dict[int, MatchResult]`: score every job without
    a current row (one prepared résumé, many postings), store `score` = calibrated int (sorting),
    raw/band/outcome/confidence/version/hash, and the trace; GATE_FAIL and NEEDS_REVIEW rows store
-   `score` NULL-equivalent (choose a sentinel that sorts last, documented) so they never rank high.
+   `score` NULL (the migration makes the column nullable if it is not; never a numeric sentinel,
+   which could leak into a display, an average or a threshold). A missing score is not a low score:
+   match-sorted queries put NULL scores after every scored row with an explicit, dialect-portable
+   ordering, the UI labels them ("Not scored" / "Not eligible"), and no count, alert or "strong"
+   filter ever treats them as low or as matches. Record this as a DECISIONS entry.
 7. `explain_job(db, user, job) -> dict`: one full result with explanation, interval and
    counterfactual for the detail view.
 
@@ -1715,7 +1722,9 @@ as structured items, `to_improve`, `notes`, `interval`), `backend/schemas/jobs.p
 **Behaviour:** feed overlay, `sort=match`, `strong=1` (= band Strong, outcome SCORED), sidebar
 counts and `GAP_POOL` (Good or better), upload pre-score (newest 300 visible jobs), the cron sweep
 (no LLM call of any kind; alerts only for SCORED Strong matches; `refresh_calibration` once per
-sweep; drift alarms from `audit.drift_alarms` in the summary), `/ai/match-breakdown` (engine
+sweep; the drift report from `audit.evaluate_drift` in the summary, passing both PSI sample
+sizes: below 200 scores on either side the PSI check is skipped and the skip is listed in the
+summary, never silently dropped), `/ai/match-breakdown` (engine
 explanation, never charges the AI daily limit), `/ai/batch-score` and `/ai/analyze-fit` removed
 (404) — all read/write engine fingerprints only. Old rows are never shown:
 `test_stale_fingerprints_are_never_served` seeds AI and `local1:` rows and asserts the feed,
@@ -1754,4 +1763,5 @@ Run `npx tsc --noEmit` and the touched vitest files locally (vitest is not in CI
 - [ ] Tests → FAIL → implement → PASS; commit
 ### Task 9.6: Docs + real-data dry run on the dev DB (latency, abstention rate, distribution, agreement with the old local scorer)
 Includes EVAL §6 hooks: optional shadow scoring (`FIT_SHADOW_CONFIG` dir → score with both, persist
-only the live one, log the distribution diff) and the drift alarms wired to the sweep summary.
+only the live one, log the distribution diff) and the drift report (`audit.evaluate_drift`, alarms
+and skipped checks both shown) wired to the sweep summary.
