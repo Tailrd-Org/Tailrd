@@ -125,3 +125,5 @@ taxonomy:            # SPEC §3.2, §3.3, §16
 ingest:              # SPEC §14.1
   max_experience_tokens: 40000
   ocr_min_confidence: 0.60
+  max_pages: 100                     # a PDF's later pages are not read (flag TRUNCATED)
+  resume_likelihood_threshold: 0.5   # below it the document is NOT_A_RESUME
