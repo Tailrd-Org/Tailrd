@@ -1,0 +1,12 @@
+# Dimension weights (SPEC §5). Must sum to 1.0 (SPEC §6); each in [0.03, 0.45] (EVAL §5.1).
+#
+# Governance (CLAUDE.md): after Milestone 1 this file is never edited directly. A change is a
+# reviewed proposal under proposals/ with rationale.md and sensitivity.md (EVAL §5).
+dimensions:
+  required_skills: 0.35   # §5.1
+  preferred_skills: 0.10  # §5.2
+  experience: 0.15        # §5.3
+  seniority: 0.10         # §5.4
+  domain: 0.10            # §5.5
+  education: 0.10         # §5.6
+  tools: 0.10             # §5.7

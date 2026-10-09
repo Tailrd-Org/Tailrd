@@ -1,0 +1,127 @@
+# Every scoring constant that is not a dimension weight (SPEC §12: config over code).
+# Values are the spec's; where the spec is silent the DECISIONS.md entry is named.
+
+evidence:            # SPEC §5.1 E; ROLE_BULLET[_QUANTIFIED] are replaced by verbs.yaml (§15.1)
+  SKILLS_BLOB: 0.65
+  ROLE_BULLET: 0.85
+  ROLE_BULLET_QUANTIFIED: 1.00
+  ROLE_TITLE: 1.00
+  CERTIFICATION: 1.00
+
+recency:             # SPEC §5.1 R = max(floor, exp(-decay_per_year × years))
+  decay_per_year: 0.15
+  floor: 0.55
+
+relations:           # SPEC §5.1 match table; DECISIONS D-23, D-24
+  exact: 1.00
+  child: 0.85
+  parent: 0.40
+  sibling_min: 0.40
+  sibling_max: 0.80
+  max_depth: 3
+  provisional_multiplier: 0.80
+
+critical_miss:       # SPEC §5.1; DECISIONS D-43
+  idf_threshold: 0.70
+  m_threshold: 0.20
+  cap_one: 0.70
+  cap_two_or_more: 0.55
+
+experience:          # SPEC §5.3; DECISIONS D-35..D-37
+  knee_ratio: 0.5
+  value_at_knee: 0.60
+  internship_weight: 0.5
+  default_min_months:
+    IC0: 6
+    IC1: 12
+    IC2: 36
+    IC3: 60
+    IC4: 96
+    IC5: 120
+    IC6: 144
+    M1: 60
+    M2: 84
+    M3: 108
+    M4: 144
+    M5: 180
+    M6: 216
+
+seniority:           # SPEC §5.4; DECISIONS D-38, D-39
+  step: 0.28
+  cross_track_penalty: 0.20
+  cross_track_offset: 2
+  penalize_overqualification: false
+
+domain:              # SPEC §5.5; DECISIONS D-40
+  exact: 1.00
+  same_3digit: 0.70
+  same_2digit: 0.40
+  unrelated: 0.15
+  sector_groups:
+    - ["31", "32", "33"]
+    - ["44", "45"]
+    - ["48", "49"]
+
+education:           # SPEC §5.6; DECISIONS D-41
+  meets: 1.00
+  one_below: 0.55
+  two_or_more_below: 0.20
+  no_requirement: 1.00
+  field_multiplier_min: 0.70
+  cert_bonus_each: 0.10
+  cert_bonus_cap: 0.30
+
+idf:                 # SPEC §3.1; DECISIONS D-21
+  unseen_default: 0.75
+
+posting:             # SPEC §14.4
+  max_weighted_requirements: 25
+  overflow_weight_multiplier: 0.50
+
+redistribution:      # SPEC §14.5; DECISIONS D-42
+  required_to_preferred_when_no_required: true
+
+confidence:          # SPEC §17; DECISIONS D-44
+  weights:
+    parse_quality: 1.0
+    taxonomy_coverage: 1.0
+    evidence_density: 1.0
+    temporal_completeness: 1.0
+    requirement_count: 1.0
+    dimension_coverage: 1.0
+  parse_quality:
+    A: 1.00
+    B: 0.80
+    C: 0.55
+  requirement_count_curve:   # piecewise linear, saturating
+    - [1, 0.40]
+    - [5, 0.85]
+    - [10, 1.00]
+  scored_threshold: 0.80
+  low_confidence_threshold: 0.60
+  component_floor: 1.0e-6
+  # A component below this is named in the reasons of a low-confidence result.
+  weak_component: 0.70
+
+intervals:           # SPEC §17.3; DECISIONS D-45
+  display_spread: 6
+  unresolved_token_idf: 0.50
+
+calibration:         # SPEC §7; DECISIONS D-50, D-51
+  min_reference_n: 30
+  isotonic_min_labels: 500
+
+taxonomy:            # SPEC §3.2, §3.3, §16
+  fuzzy_max_distance: 2
+  fuzzy_min_token_length: 6
+  pmi_threshold: 0.40
+  pmi_min_cooccurrence: 5
+  max_out_degree: 20
+  coverage_alert_threshold: 0.92
+  auto_promote_min_postings: 50
+  auto_promote_window_days: 30
+  review_queue_size: 50
+
+ingest:              # SPEC §14.1
+  max_experience_tokens: 40000
+  ocr_min_confidence: 0.60

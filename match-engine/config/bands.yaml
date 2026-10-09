@@ -1,0 +1,23 @@
+# Display bands on the calibrated integer score (SPEC §7). Ordered high to low.
+bands:
+  - band: Strong match
+    min: 85
+  - band: Good match
+    min: 70
+  - band: Partial match
+    min: 55
+  - band: Limited match
+    min: 0
+
+display:
+  # "Fit score: 76", never "76% match" (SPEC §7 Naming). Integers only.
+  label: Fit score
+
+# The `basis` sentence names the reference group actually used (DECISIONS D-50). It never says
+# "applicants" because Tailrd candidates are scored, not applicants to the posting.
+basis:
+  posting: Better fit than {score}% of candidates scored for this posting
+  family: Better fit than {score}% of candidates scored for similar roles
+  global: Better fit than {score}% of candidates scored across all roles
+  panel: Better fit than {score}% of a reference group of candidate profiles
+  test: Test calibration

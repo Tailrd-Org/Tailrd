@@ -1,0 +1,43 @@
+# Verb-strength lexicon (SPEC §15.1). The multiplier replaces the coarse evidence term E of
+# §5.1 for ROLE_BULLET mentions; ROLE_BULLET_QUANTIFIED adds quantified_bonus, capped.
+# Matching is on lower-cased word forms; list every inflection you want matched.
+classes:
+  OWNERSHIP:
+    multiplier: 1.00
+    # "found" (base of "founded") is left out: in bullets it is nearly always "find".
+    verbs: [architected, architect, designed, design, built, build, owned, own, led, lead,
+            founded, created, create, spearheaded, spearhead, established, establish,
+            pioneered, pioneer, drove, drive]
+  EXECUTION:
+    multiplier: 0.85
+    verbs: [developed, develop, implemented, implement, engineered, engineer, delivered,
+            deliver, migrated, migrate, automated, automate, optimized, optimised, optimize,
+            optimise, deployed, deploy, maintained, maintain, scaled, scale]
+  PARTICIPATION:
+    multiplier: 0.65
+    verbs: [contributed, contribute, collaborated, collaborate, participated, participate,
+            worked, work, used, use, utilized, utilised, utilize, utilise]
+  ASSISTANCE:
+    multiplier: 0.45
+    verbs: [assisted, assist, supported, support, helped, help, shadowed, shadow, observed,
+            observe]
+  EXPOSURE:
+    multiplier: 0.30
+    verbs: [exposed, familiar, aware, "coursework in", "basic knowledge"]
+
+# Default when no verb attaches: neither rewarded nor punished (SPEC §15.1).
+no_verb_multiplier: 0.70
+
+# Quantified-outcome bonus, a separate multiplier capped at 1.0 (SPEC §15.1).
+quantified_bonus: 1.15
+quantified_cap: 1.00
+
+# Clause boundaries (SPEC §15.1): punctuation plus coordinating conjunctions. "for" is left out
+# on purpose: in résumé bullets it is a preposition ("built dashboards for the sales team using
+# Tableau"), and splitting there would detach the tool from its verb (DECISIONS D-34a).
+clause_punctuation: [".", ";", ","]
+coordinating_conjunctions: [and, but, or, nor, yet, so]
+
+# A clause holding only skill mentions and list words ("React, Redux and D3") continues the
+# previous clause's list and inherits its verb (DECISIONS D-34a).
+list_continuation_inherits_verb: true

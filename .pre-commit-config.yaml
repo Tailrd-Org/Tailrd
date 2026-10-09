@@ -1,0 +1,10 @@
+# Repository hooks. Install once with: pip install pre-commit && pre-commit install
+repos:
+  - repo: local
+    hooks:
+      # match-engine EVAL.md §0: the holdout corpus is never committed through normal commits.
+      - id: match-engine-holdout-guard
+        name: block commits touching match-engine/eval/corpora/holdout/
+        entry: python match-engine/scripts/guard_holdout.py
+        language: system
+        files: ^match-engine/eval/corpora/holdout/

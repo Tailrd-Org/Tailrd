@@ -1,0 +1,14 @@
+# Negation and aspiration (SPEC §15.2). Scan the window of tokens before a skill mention,
+# never crossing a clause boundary (verbs.yaml clause rules). Terms are quoted on purpose:
+# YAML 1.1 would read a bare `no` as the boolean false.
+window_tokens: 6
+
+hard_negation:
+  m: 0.0
+  terms: ["not", "no", "without", "lacking", "never", "no experience"]
+
+aspirational:
+  # Interest is not experience.
+  m: 0.15
+  terms: ["seeking", "aspiring", "looking to", "interested in", "eager to learn",
+          "currently learning", "studying", "hope to", "want to"]

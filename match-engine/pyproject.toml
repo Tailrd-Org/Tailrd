@@ -1,0 +1,55 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tailrd-matcher"
+version = "1.0.0"
+description = "Deterministic, explainable resume-to-job match scoring (no model inference)"
+requires-python = ">=3.11"
+# Runtime: the scoring path needs only these two (DECISIONS D-02). Pinned to production's
+# versions (api/requirements.txt pins pydantic 2.11.7).
+dependencies = [
+  "pydantic==2.11.7",
+  "pydantic-core==2.33.2",
+  "PyYAML==6.0.2",
+]
+
+[project.optional-dependencies]
+# File ingestion (SPEC §14.1); imported lazily inside matcher.ingest.
+ingest = [
+  "pdfplumber==0.11.10",
+  "python-docx==1.2.0",
+  "pymupdf==1.28.2",
+  "rapidocr-onnxruntime==1.2.3",
+]
+# Offline evaluation, corpus statistics and tuning (EVAL.md). Never imported by score/.
+eval = [
+  "numpy==2.5.3",
+  "scikit-learn==1.9.1",
+  "optuna==5.0.0",
+  "reportlab==4.2.5",
+  "Jinja2==3.1.6",
+  "cryptography==50.0.2",
+  "pillow==12.3.0",
+]
+dev = [
+  "pytest==9.1.1",
+  "hypothesis==6.168.5",
+  "ruff==0.15.0",
+]
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
+markers = [
+  "slow: long-running checks (50k-input totality, 1,000-run determinism); `make eval-fast` runs them",
+]
+
+[tool.ruff]
+line-length = 110
+target-version = "py311"

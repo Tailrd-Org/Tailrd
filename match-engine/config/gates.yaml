@@ -1,0 +1,36 @@
+# Gates are eligibility, never fit: they are evaluated before scoring and never enter the
+# weighted sum (SPEC §4). Tailrd policy for unknown or ambiguous cases: DECISIONS D-60.
+work_authorization:
+  enabled: true
+  # The candidate's status is unknown: never fail, warn so they can check.
+  unknown_status: WARN
+
+license:
+  enabled: true
+  # Professional licences: a posting that requires one the résumé doesn't show is a FAIL.
+  # Any other required credential the résumé doesn't show is a WARN (LICENSE_UNVERIFIED).
+  # These ids are curated CREDENTIAL nodes in the taxonomy (built in Milestone 2).
+  professional_credential_ids:
+    - cred.registered_nurse
+    - cred.licensed_practical_nurse
+    - cred.cpa
+    - cred.commercial_drivers_license
+    - cred.professional_engineer
+    - cred.bar_admission
+    - cred.medical_license
+    - cred.pharmacist_license
+    - cred.teaching_license
+    - cred.electrician_license
+    - cred.paramedic_license
+
+security_clearance:
+  enabled: true
+  # "Must be able to obtain" a clearance: warn (eligibility depends on facts we don't hold).
+  obtainable_status: WARN
+  # An *active* clearance required and none on the résumé: fail.
+  active_missing_status: FAIL
+
+location:
+  enabled: true
+  # Soft by design: people relocate (SPEC §4).
+  mismatch_status: WARN

@@ -4,6 +4,8 @@
 data/
 !backend/data/
 !backend/data/**
+!match-engine/data/
+!match-engine/data/**
 __pycache__/
 *.pyc
 .pytest_cache/

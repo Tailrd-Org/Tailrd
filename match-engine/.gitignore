@@ -1,0 +1,21 @@
+.venv/
+*.egg-info/
+.ruff_cache/
+.hypothesis/
+
+# Raw downloads (ESCO, O*NET) and corpus pulls: large, and the corpus is scraped text
+# (DECISIONS D-04). Only derived artifacts under data/taxonomy/ are committed.
+data/raw/
+
+# Generated evaluation material.
+reports/
+eval/corpora/synthetic/
+
+# Real-data corpora never enter this public repository; only their READMEs do.
+eval/corpora/golden/*
+!eval/corpora/golden/README.md
+eval/corpora/dev/*
+!eval/corpora/dev/README.md
+
+# Review logs written by the resolver and the title normaliser (SPEC §3.3, §5.4).
+logs/
