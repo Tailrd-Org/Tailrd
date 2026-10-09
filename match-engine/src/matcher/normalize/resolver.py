@@ -14,16 +14,24 @@ required casing ("Go") and resolves only under these rules:
   another part that is a non-ambiguous skill ("Python/R", never "A/R" or "Spring/Summer"), the
   first part keeping the token's position; inside a hyphen token only a "<key>-<suffix>"
   compound with a known suffix matches ("Go-based", never "Go-Live"; DECISIONS D-25).
-- `extract`, list: any casing, any position; the slash and hyphen rules still hold.
+- `extract`, list: any casing, any position; the slash and hyphen rules still hold. Only the
+  curated ambiguous keys get this leniency: the automatic `cased` keys (one-word product and tool
+  names, DECISIONS D-26) keep their casing in lists too.
 
 An ambiguous key is never a fuzzy target: a near miss cannot have the required casing.
+
+`extract` also (DECISIONS D-27): skips fields of study (`field.*` nodes) unless
+`include_fields=True`; lets a blocked phrase ("American Express", "Sous Chef", "Vitamin C") consume
+its words without a mention; never reads a season word followed by a year or a term word, or next
+to another season ("Spring 2024", "Fall and Spring"), nor a person's initial ("John R. Smith",
+"Mary C Jones"), as a skill; and, like `resolve`, reads past a French elision ("d'Excel" -> Excel).
 """
 
 from __future__ import annotations
 
 import re
 from types import MappingProxyType
-from typing import Literal, Mapping, NamedTuple, Optional
+from typing import Iterable, Literal, Mapping, NamedTuple, Optional
 
 from pydantic import Field, model_validator
 
@@ -59,12 +67,27 @@ _SENTENCE_BREAK = frozenset(".!?\u2026") | _LINE_BREAKS
 _JOIN_MARKS = frozenset(":\u00ae\u2122\u2120\u00a9")  # : ® ™ ℠ ©
 _DASH_CHARS = frozenset("-" + DASHES)
 _DASH_RUN_RE = re.compile(rf"[\-{DASHES}]+")
+_ABBREVIATION_GAP = re.compile(r"\.[ \t]+")  # "P.Eng. candidate": the period closes the abbreviation
 _POSSESSIVE = frozenset("'\u2019")  # "React's", also with a curly apostrophe
 # The only hyphen compounds in which an ambiguous key may match, as "<key>-<suffix>" (D-25).
 _HYPHEN_SUFFIXES = frozenset(
     {"based", "powered", "driven", "backed", "first", "centric", "enabled", "native", "heavy", "only"}
 )
 _MAX_WINDOW = 8  # tokens
+# Seasons: "Spring 2024", "Spring term", "Fall and Spring" are dates, never the framework (D-27).
+_SEASONS = frozenset({"spring", "summer", "fall", "autumn", "winter"})
+_TERM_WORDS = frozenset(
+    {"term", "terms", "semester", "semesters", "session", "co-op", "coop", "co-ops", "coops"}
+)
+_SEASON_LINKS = frozenset({"and", "or", "&", "to", "through", "until"})
+_NEAR_MARKS = frozenset(",/&" + DASHES + "-" + APOSTROPHES)  # what may stand between a season and its year
+_YEAR_RE = re.compile(r"(?:19|20)\d\d|\d\d")
+# A leading French elision ("d'Excel", "l'apprentissage", "qu'AWS"): the word after it is looked up.
+_ELISION_RE = re.compile(rf"(?:qu|[ldjnscmt])[{APOSTROPHES}](?=\w)", re.IGNORECASE)
+# Initials (D-27): what may stand around a one-letter capital that is a person's initial.
+_NAME_INNER = frozenset("-" + APOSTROPHES)  # "Smith-Jones", "O'Neil"
+_TITLES = frozenset({"dr", "mr", "mrs", "ms", "mx", "prof"})
+_FIELD_PREFIX = "field."  # fields of study: extract reports them only with include_fields=True
 
 
 class Resolution(Frozen):
@@ -100,6 +123,10 @@ class _Token(NamedTuple):
     forms: tuple[tuple[int, str], ...]  # (end, normalized): the token, then without a possessive 's
     joined: bool  # a window may span the gap before it (see _joinable)
     sentence_start: bool  # first token of the text, or the gap before it ends a sentence
+    # As a window's first word the token reads past a French elision ("d'Excel" -> Excel, D-27);
+    # inside a window it keeps it, as labels do ("gestion de l'information").
+    lead_start: int
+    lead_forms: tuple[tuple[int, str], ...]
 
     @property
     def norm(self) -> str:
@@ -122,18 +149,25 @@ class Resolver:
         config: EngineConfig,
         *,
         ambiguous: Mapping[str, str] = _NO_AMBIGUOUS,
+        cased: Mapping[str, str] = _NO_AMBIGUOUS,
+        blocked_phrases: Iterable[str] = (),
         fuzzy_log: Optional[FuzzyLog] = None,
     ) -> None:
-        """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}."""
+        """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
+        lists waive it. `cased` keys (automatic, D-26) need their casing in lists too.
+        `blocked_phrases` are non-skill phrases ("American Express") whose words never yield a
+        mention."""
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
         self._fuzzy_log = fuzzy_log
-        self._label_key = {node_id: normalize_surface(node.label) for node_id, node in graph.nodes.items()}
+        self._label_key = {
+            node_id: normalize_surface(_without_elision(node.label)) for node_id, node in graph.nodes.items()
+        }
         self._index = _build_index(graph)
 
         self._ambiguous: dict[str, str] = {}
-        for key, casing in ambiguous.items():
+        for key, casing in (*ambiguous.items(), *cased.items()):
             normalized = normalize_surface(key)
             required = normalize_keep_case(casing)
             if normalize_surface(required) != normalized:
@@ -141,6 +175,12 @@ class Resolver:
             if self._ambiguous.get(normalized, required) != required:
                 raise ValueError(f"ambiguous key {normalized!r} given two casings")
             self._ambiguous[normalized] = required
+        self._lenient = frozenset(normalize_surface(key) for key in ambiguous) - {
+            normalize_surface(key) for key in cased
+        }
+        self._blocked = frozenset(
+            variant for phrase in blocked_phrases for variant in surface_variants(normalize_surface(phrase))
+        )
 
         buckets: dict[int, list[str]] = {}
         for key in self._index:
@@ -153,15 +193,20 @@ class Resolver:
 
     def resolve(self, surface: str) -> Resolution:
         """Exact or alias match over the surface's variants; else a bounded fuzzy match for a
-        single long token (logged); else NONE."""
-        normalized = normalize_surface(surface)
+        single long token (logged); else NONE. A leading French elision is read past ("d'Excel");
+        a blocked phrase is NONE."""
+        body = _without_elision(surface)
+        normalized = normalize_surface(body)
+        variants = surface_variants(normalized)
+        if any(key in self._blocked for key in variants):
+            return Resolution(surface=surface, canonical_id=None, method="NONE")
         exact_key_seen = False
-        for key in surface_variants(normalized):
+        for key in variants:
             node_id = self._index.get(key)
             if node_id is None:
                 continue
             exact_key_seen = True
-            if not self._ambiguity_ok(key, surface, check_case=True, sentence_start=False):
+            if not self._ambiguity_ok(key, body, context="resolve", sentence_start=False):
                 continue
             return Resolution(surface=surface, canonical_id=node_id, method=self._method(key, node_id))
         if not exact_key_seen:  # a known word that failed its casing is not a typo
@@ -206,12 +251,17 @@ class Resolver:
 
     # ─── free text ────────────────────────────────────────────────────────────────────────
 
-    def extract(self, text: str, *, context: Literal["prose", "list"] = "prose") -> tuple[Mention, ...]:
+    def extract(
+        self, text: str, *, context: Literal["prose", "list"] = "prose", include_fields: bool = False
+    ) -> tuple[Mention, ...]:
         """Every skill mention in `text`, by greedy longest match over up to 8 tokens.
 
         A matched span consumes its tokens. A window continues across whitespace, standalone
-        dashes, the (R)/TM/SM/(C) marks and ":" (credential names), never across other punctuation
-        or a line break. A word ending in "'s" also tries its form without the suffix. A token
+        dashes, the (R)/TM/SM/(C) marks, ":" (credential names) and the period closing a dotted
+        abbreviation ("P.Eng. candidate", D-28), never across other punctuation or a line
+        break. A word ending in "'s" also tries its form without the suffix, and a
+        window's first word is read past a French elision ("d'Excel"). A blocked phrase, and a
+        field of study unless `include_fields`, consumes its span without a mention. A token
         holding "/" or "-" that matches nothing is retried as its parts ("React/Redux" -> React,
         Redux). Offsets index the original text; sorted by start.
         """
@@ -221,35 +271,88 @@ class Resolver:
         mentions: list[Mention] = []
         i = 0
         while i < len(tokens):
-            matched = self._match_window(text, tokens, i, context)
+            matched = self._match_window(text, tokens, i, context, include_fields)
             if matched is not None:
                 width, mention = matched
-                mentions.append(mention)
+                if mention is not None:
+                    mentions.append(mention)
                 i += width
                 continue
-            mentions.extend(self._match_parts(text, tokens[i], context))
+            mentions.extend(self._match_parts(text, tokens[i], context, include_fields))
             i += 1
         return tuple(sorted(mentions, key=lambda mention: (mention.start, mention.end)))
 
     def _match_window(
-        self, text: str, tokens: list[_Token], i: int, context: str
-    ) -> Optional[tuple[int, Mention]]:
-        """The longest window starting at token i that is a key, as (tokens consumed, mention)."""
+        self, text: str, tokens: list[_Token], i: int, context: str, include_fields: bool
+    ) -> Optional[tuple[int, Optional[Mention]]]:
+        """The longest window starting at token i that is a key or a blocked phrase, as (tokens
+        consumed, mention). The mention is None when the window is a blocked phrase or a field of
+        study the caller left out: the span is consumed all the same. At equal width a blocked
+        phrase wins ("R&D"). A one-token match on a season that dates something ("Spring 2024")
+        or on a person's initial ("John R. Smith") is no match."""
         last = i
         while last + 1 < len(tokens) and last + 1 - i < _MAX_WINDOW and tokens[last + 1].joined:
             last += 1
         first = tokens[i]
+        start = first.lead_start
         for j in range(last, i - 1, -1):
-            head = [token.norm for token in tokens[i:j]]
-            for end, form in tokens[j].forms:  # the last word as written, then without a possessive
-                phrase = " ".join([*head, form])
-                original = text[first.start : end]
-                hit = self._lookup(phrase, original, context, sentence_start=first.sentence_start)
-                if hit is not None:
-                    return j - i + 1, self._mention(text, first.start, end, *hit)
+            if j == i:
+                head, forms = [], first.lead_forms
+            else:
+                head = [first.lead_forms[0][1], *(token.norm for token in tokens[i + 1 : j])]
+                forms = tokens[j].forms
+            for end, form in forms:  # the last word as written, then without a possessive
+                variants = surface_variants(" ".join([*head, form]))
+                if any(key in self._blocked for key in variants):
+                    return j - i + 1, None
+                original = text[start:end]
+                hit = self._lookup(variants, original, context, sentence_start=first.sentence_start)
+                if hit is None:
+                    continue
+                node_id, key = hit
+                if node_id.startswith(_FIELD_PREFIX) and not include_fields:
+                    return j - i + 1, None
+                if j == i and (
+                    (key in _SEASONS and _dates_a_season(text, tokens, i))
+                    or (len(key) == 1 and self._is_initial(text, tokens, i, start, end))
+                ):
+                    continue
+                return j - i + 1, self._mention(text, start, end, node_id, key)
         return None
 
-    def _match_parts(self, text: str, token: _Token, context: str) -> list[Mention]:
+    def _is_initial(self, text: str, tokens: list[_Token], i: int, start: int, end: int) -> bool:
+        """Whether text[start:end], a one-letter match on token i, is a person's initial (D-27): a
+        capital letter between two capitalised words that are not skills ("Mary C Jones"), or
+        followed by a period between such words ("John R. Smith", "Dr. Mary C. Jones"). The
+        word before may be a title or another initial, then with its period ("Dr. R. Smith",
+        "J. R. R. Tolkien"); all on one line. "Wrote firmware in C." keeps its C."""
+        if end - start != 1 or not text[start].isupper() or i == 0 or i + 1 == len(tokens):
+            return False
+        before, after = tokens[i - 1], tokens[i + 1]
+        gap_before, gap_after = text[before.end : start], text[end : after.start]
+        if any(ch in _LINE_BREAKS for ch in gap_before + gap_after):
+            return False
+        if gap_after.strip() not in ("", "."):
+            return False
+        if gap_before.strip() == "." and not _title_or_initial(text, before):
+            return False
+        if gap_before.strip() not in ("", "."):
+            return False
+        return self._name_word(text, before) and self._name_word(text, after)
+
+    def _name_word(self, text: str, token: _Token) -> bool:
+        """A capitalised word that is not a key ("Smith", "O'Neil", "McDonald"), or an initial."""
+        word = text[token.start : token.end]
+        if len(word) == 1:
+            return word.isupper()
+        return (
+            word[0].isupper()
+            and any(ch.islower() for ch in word)
+            and all(ch.isalpha() or ch in _NAME_INNER for ch in word)
+            and token.norm not in self._index
+        )
+
+    def _match_parts(self, text: str, token: _Token, context: str, include_fields: bool) -> list[Mention]:
         """Each "/"- or "-"-separated part of an unmatched token, looked up on its own (D-25).
 
         An ambiguous key may match as a slash part only when another part of the token is a
@@ -259,10 +362,13 @@ class Resolver:
         """
         if "/" not in token.norm and "-" not in token.norm:
             return []
-        parts = _split_parts(text, token)
+        parts = _split_parts(text, token.lead_start, token.end)
         # Which parts are non-ambiguous skills on their own (the companions a slash part needs).
         plain = [
-            self._match_part(text, part, context, sentence_start=False, ambiguous_allowed=False) is not None
+            self._match_part(
+                text, part, context, include_fields, sentence_start=False, ambiguous_allowed=False
+            )
+            is not None
             for part in parts
         ]
         found = []
@@ -275,6 +381,7 @@ class Resolver:
                 text,
                 part,
                 context,
+                include_fields,
                 sentence_start=token.sentence_start and k == 0,
                 ambiguous_allowed=ambiguous_allowed,
             )
@@ -283,50 +390,72 @@ class Resolver:
         return found
 
     def _match_part(
-        self, text: str, part: _Part, context: str, *, sentence_start: bool, ambiguous_allowed: bool
+        self,
+        text: str,
+        part: _Part,
+        context: str,
+        include_fields: bool,
+        *,
+        sentence_start: bool,
+        ambiguous_allowed: bool,
     ) -> Optional[Mention]:
-        """The part as written, then without a possessive "'s", through the same lookup."""
+        """The part as written, then without a possessive "'s", through the same lookup. A blocked
+        part, or a field of study the caller left out, yields nothing."""
         for end, form in _forms(text, part.start, part.end):
+            variants = surface_variants(form)
+            if any(key in self._blocked for key in variants):
+                return None
             original = text[part.start : end]
             hit = self._lookup(
-                form, original, context, sentence_start=sentence_start, ambiguous_allowed=ambiguous_allowed
+                variants,
+                original,
+                context,
+                sentence_start=sentence_start,
+                ambiguous_allowed=ambiguous_allowed,
             )
             if hit is not None:
+                if hit[0].startswith(_FIELD_PREFIX) and not include_fields:
+                    return None
                 return self._mention(text, part.start, end, *hit)
         return None
 
     def _lookup(
         self,
-        normalized: str,
+        variants: tuple[str, ...],
         original: str,
         context: str,
         *,
         sentence_start: bool,
         ambiguous_allowed: bool = True,
     ) -> Optional[tuple[str, str]]:
-        """(node id, matched key) for the first variant that is a key and may stand at this
-        position, else None. `ambiguous_allowed=False` rules out every ambiguous key."""
-        check_case = context == "prose"
-        for key in surface_variants(normalized):
+        """(node id, matched key) for the first of a form's `surface_variants` that is a key and
+        may stand at this position, else None. `ambiguous_allowed=False` rules out every
+        ambiguous key."""
+        for key in variants:
             node_id = self._index.get(key)
             if node_id is None:
                 continue
             if key in self._ambiguous and not (
                 ambiguous_allowed
-                and self._ambiguity_ok(key, original, check_case=check_case, sentence_start=sentence_start)
+                and self._ambiguity_ok(key, original, context=context, sentence_start=sentence_start)
             ):
                 continue
             return node_id, key
         return None
 
-    def _ambiguity_ok(self, key: str, original: str, *, check_case: bool, sentence_start: bool) -> bool:
-        """The casing rule for ambiguous keys, in one place: a match on an ambiguous key stands only
-        when `original` has the required casing and does not open a sentence. `check_case=False`
-        (list context) waives both. Other keys always stand."""
+    def _ambiguity_ok(self, key: str, original: str, *, context: str, sentence_start: bool) -> bool:
+        """The casing rule for ambiguous keys, in one place. `resolve`: `original` has the required
+        casing. Prose: the required casing, and not opening a sentence. List: a curated key stands
+        in any casing at any position; an automatic `cased` key still needs its casing. Other keys
+        always stand."""
         required = self._ambiguous.get(key)
-        if required is None or not check_case:
+        if required is None:
             return True
-        return not sentence_start and normalize_keep_case(original) == required
+        if context == "list" and key in self._lenient:
+            return True
+        if context == "prose" and sentence_start:
+            return False
+        return normalize_keep_case(original) == required
 
     def _mention(self, text: str, start: int, end: int, node_id: str, key: str) -> Mention:
         method = self._method(key, node_id)
@@ -336,15 +465,28 @@ class Resolver:
         return "EXACT" if key == self._label_key[node_id] else "ALIAS"
 
 
+def _without_elision(surface: str) -> str:
+    """`surface` past a leading French elision ("d'Excel" -> "Excel", D-27), else unchanged."""
+    for apostrophe in APOSTROPHES:
+        if apostrophe in surface:
+            break
+    else:  # no apostrophe at all: the common case, kept cheap (the index runs this per alias)
+        return surface
+    stripped = surface.lstrip()
+    elision = _ELISION_RE.match(stripped)
+    return surface if elision is None else stripped[elision.end() :]
+
+
 def _build_index(graph: SkillGraph) -> dict[str, str]:
     """key -> node id. A key claimed by several nodes goes to the curated node, then to a node
     that lists it outright over one that reaches it only through a hyphen variant, then to the
-    smallest id. The rank is a total order, so node order never matters."""
+    smallest id. The rank is a total order, so node order never matters. A surface opening with
+    a French elision is indexed past it ("s'adapter ..."), as lookups read it."""
     claims: dict[str, tuple[int, int, str]] = {}
     for node_id, node in graph.nodes.items():
         curated = 0 if node.source == "curated" else 1
         for surface in (node.label, *node.aliases):
-            for position, key in enumerate(surface_variants(normalize_surface(surface))):
+            for position, key in enumerate(surface_variants(normalize_surface(_without_elision(surface)))):
                 rank = (curated, 0 if position == 0 else 1, node_id)
                 if key not in claims or rank < claims[key]:
                     claims[key] = rank
@@ -398,14 +540,49 @@ def _joinable(gap: str) -> bool:
     return True
 
 
-def _split_parts(text: str, token: _Token) -> list[_Part]:
+def _split_parts(text: str, token_start: int, token_end: int) -> list[_Part]:
     parts = []
-    for match in _PART_RE.finditer(text, token.start, token.end):
-        before = text[match.start() - 1] if match.start() > token.start else ""
-        after = text[match.end()] if match.end() < token.end else ""
+    for match in _PART_RE.finditer(text, token_start, token_end):
+        before = text[match.start() - 1] if match.start() > token_start else ""
+        after = text[match.end()] if match.end() < token_end else ""
         start, end = _trim(text, match.start(), match.end())
         parts.append(_Part(start, end, before, after))
     return parts
+
+
+def _near(text: str, left: _Token, right: _Token) -> bool:
+    """Two tokens on one line with only spaces, commas, slashes, "&", dashes or apostrophes ("'24")
+    between them."""
+    return all(
+        (ch.isspace() and ch not in _LINE_BREAKS) or ch in _NEAR_MARKS for ch in text[left.end : right.start]
+    )
+
+
+def _dates_a_season(text: str, tokens: list[_Token], i: int) -> bool:
+    """Whether token i, a season word, dates something (D-27): a year or a term word follows it
+    ("Spring 2024", "Spring '24", "Spring term", "Spring co-op"), or another season stands next to
+    it, perhaps across one link word ("Fall and Spring", "Summer, Fall, Spring")."""
+    if i + 1 < len(tokens) and _near(text, tokens[i], tokens[i + 1]):
+        after = tokens[i + 1].norm
+        if _YEAR_RE.fullmatch(after) or after in _TERM_WORDS:
+            return True
+    for step in (-1, 1):
+        near, k = i, i + step
+        while 0 <= k < len(tokens) and _near(text, tokens[min(near, k)], tokens[max(near, k)]):
+            word = tokens[k].norm
+            if word in _SEASONS:
+                return True
+            if word not in _SEASON_LINKS or near != i:
+                break
+            near, k = k, k + step
+    return False
+
+
+def _title_or_initial(text: str, token: _Token) -> bool:
+    """A one-letter capital or a personal title, the words a period may follow before an
+    initial ("J. R. R. Tolkien", "Dr. R. Smith")."""
+    word = text[token.start : token.end]
+    return (len(word) == 1 and word.isupper()) or token.norm in _TITLES
 
 
 def _suffix_compound(text: str, parts: list[_Part], k: int) -> bool:
@@ -421,18 +598,27 @@ def _suffix_compound(text: str, parts: list[_Part], k: int) -> bool:
 
 def _tokenize(text: str) -> list[_Token]:
     tokens: list[_Token] = []
-    previous_end: Optional[int] = None
+    previous_start = previous_end = 0
     for match in _TOKEN_RE.finditer(text):
         start, end = _trim(text, match.start(), match.end())
         forms = _forms(text, start, end)
         if not forms:
             continue
-        if previous_end is None:
+        if not tokens:
             joined, sentence_start = False, True
         else:
             gap = text[previous_end:start]
-            joined = _joinable(gap)
+            # The closing period of a dotted abbreviation does not end a window: "P.Eng. candidate",
+            # "C.P.A. candidate" (D-28). A plain word's period still does ("Smith. Candidate").
+            joined = _joinable(gap) or (
+                _ABBREVIATION_GAP.fullmatch(gap) is not None and "." in text[previous_start:previous_end]
+            )
             sentence_start = any(ch in _SENTENCE_BREAK for ch in gap)
-        tokens.append(_Token(start, end, forms, joined, sentence_start))
-        previous_end = end
+        lead_start, lead_forms = start, forms
+        elision = _ELISION_RE.match(text, start, end)  # "d'Excel": a window starts at "Excel"
+        if elision is not None:
+            lead_start = elision.end()
+            lead_forms = _forms(text, lead_start, end) or forms
+        tokens.append(_Token(start, end, forms, joined, sentence_start, lead_start, lead_forms))
+        previous_start, previous_end = start, end
     return tokens

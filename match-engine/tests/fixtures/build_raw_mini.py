@@ -53,6 +53,12 @@ CONCEPTS = (
      ["coding", "software programming"], [], "programmation informatique", []),
     ("00000000-0000-4000-8000-000000000014", "skill/competence", "cross-sector", "think critically",
      ["critical thinking", "synergy"], [], "faire preuve d'esprit critique", ["pensée critique"]),
+    # A one-word French preferred label that is an ordinary French word, unlike the English one.
+    ("00000000-0000-4000-8000-000000000015", "knowledge", "cross-sector", "morality",
+     ["moral standards"], [], "morale", ["principes moraux"]),
+    # A programming language ESCO files as knowledge under "computer programming".
+    ("00000000-0000-4000-8000-000000000016", "knowledge", "sector-specific", "Common Lisp",
+     ["CL programming"], [], "Common Lisp", []),
 )
 
 # (code, uuid or isced uri suffix, preferred en, preferred fr)
@@ -94,6 +100,7 @@ BROADER = (
     (_c("000000000004"), _GROUP_URI["0613"]),
     (_c("000000000005"), _GROUP_URI["0613"]),
     (_c("000000000013"), _GROUP_URI["0613"]),
+    (_c("000000000016"), _c("000000000013")),  # Common Lisp -> computer programming
     (_c("000000000009"), _GROUP_URI["06"]),
     (_c("000000000011"), _GROUP_URI["0541"]),
     (_c("000000000006"), _GROUP_URI["T4.3"]),
@@ -181,11 +188,13 @@ ALTERNATE_TITLES = (  # soc, title, short title
     ("11-9199.00", "Program Manager", "n/a"),
     ("17-2141.00", "Mechanical Design Engineer", "n/a"),
     ("15-1299.00", "Software Developers", "n/a"),  # another SOC's primary title: the primary wins
+    ("15-1252.00", "Intern", "n/a"),  # generic: names no occupation
 )
 
 REPORTED_TITLES = (  # soc, title
     ("15-1252.00", "Software Developer"),
     ("11-1011.00", "CEO (Chief Executive Officer)"),
+    ("17-2141.00", "Co-op"),  # generic
 )
 
 JOB_ZONES = (

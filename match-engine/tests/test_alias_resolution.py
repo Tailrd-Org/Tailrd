@@ -531,3 +531,149 @@ def test_resolution_is_deterministic_across_node_order(small_graph, config, reso
     assert resolver.extract(TEXT) == resolver.extract(TEXT) == other.extract(TEXT)
     for surface in ("React", "front end", "kubernets", "Golang", "go", "Excel", "AWS SAA", "nothing at all"):
         assert resolver.resolve(surface) == other.resolve(surface), surface
+
+
+# ─── extraction precision rules (DECISIONS D-27) ────────────────────────────────────────────
+
+
+def _ids(r: Resolver, text: str, **kwargs) -> list[str]:
+    return [m.canonical_id for m in r.extract(text, **kwargs)]
+
+
+def test_fields_of_study_are_left_out_of_extraction_unless_asked_for(config) -> None:
+    r = Resolver(_graph(_node("field.computer_science", "Computer science", "CS"), _node("skill.computer", "Computer"),
+                        _node("field.physics", "Physics"), _node("skill.python", "Python")), config)
+    text = "Studied computer science and physics with Python."
+    assert _ids(r, text) == ["skill.python"]
+    # The field consumes its words: "computer" alone does not surface instead.
+    assert _ids(r, text, include_fields=True) == ["field.computer_science", "field.physics", "skill.python"]
+    assert _ids(r, "Physics/Python", context="list") == ["skill.python"]  # a slash part too
+    assert _ids(r, "Physics/Python", context="list", include_fields=True) == ["field.physics", "skill.python"]
+    assert r.resolve("Computer science").canonical_id == "field.computer_science"  # resolve is unchanged
+
+
+def test_blocked_phrases_consume_their_words_without_a_mention(config) -> None:
+    graph = _graph(_node("skill.express", "Express.js", "Express"), _node("skill.c", "C"),
+                   _node("skill.go", "Go"), _node("skill.express_entry_tool", "Express Entry Builder"))
+    r = Resolver(graph, config, ambiguous={"express": "Express", "c": "C", "go": "Go"},
+                 blocked_phrases=["American Express", "Express Entry", "Vitamin C", "Go-Live", "R&D"])
+    assert _ids(r, "Analyst at American Express, Summer 2024") == []
+    assert _ids(r, "Took Vitamin C daily.") == []
+    assert _ids(r, "Led the Go Live of SAP.") == []  # hyphen variants of a blocked phrase are blocked too
+    assert _ids(r, "Applied through Express Entry in 2023.") == []
+    # The longest match wins: a longer skill name beats the blocked phrase inside it.
+    assert _ids(r, "Used the Express Entry Builder daily.") == ["skill.express_entry_tool"]
+    assert _ids(r, "Built the API with Express and C.") == ["skill.express", "skill.c"]
+    assert _ids(r, "Express, American Express", context="list") == ["skill.express"]
+    assert r.resolve("American Express").method == "NONE"
+    assert r.resolve("R&D").method == "NONE"
+    assert r.resolve("Express").canonical_id == "skill.express"
+
+
+def test_a_blocked_phrase_wins_a_tie_with_a_key(config) -> None:
+    r = Resolver(_graph(_node("skill.rnd", "Research and development", "R&D")), config, blocked_phrases=["R&D"])
+    assert _ids(r, "Managed the R&D budget.") == []
+    assert _ids(r, "Led research and development.") == ["skill.rnd"]
+
+
+def test_automatic_cased_keys_keep_their_casing_in_lists(config) -> None:
+    graph = _graph(_node("cat.tables", "Tables"), _node("skill.excel", "Excel"), _node("skill.pivot", "Pivot tables"))
+    r = Resolver(graph, config, ambiguous={"excel": "Excel"}, cased={"tables": "Tables"})
+    assert _ids(r, "Excel (pivot tables, VLOOKUP)", context="list") == ["skill.excel", "skill.pivot"]
+    assert _ids(r, "excel, tables", context="list") == ["skill.excel"]  # curated: any casing; cased: not
+    assert _ids(r, "Excel, Tables", context="list") == ["skill.excel", "cat.tables"]
+    assert r.resolve("tables").method == "NONE"
+    assert r.resolve("Tables").canonical_id == "cat.tables"
+    # A key in both maps keeps the stricter rule.
+    both = Resolver(graph, config, ambiguous={"tables": "Tables"}, cased={"tables": "Tables"})
+    assert _ids(both, "tables", context="list") == []
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Dean's List, Fall 2023 and Spring 2024.", []),
+        ("Software Developer Intern, Spring 2024 (Shopify)", []),
+        ("Co-op terms: Fall and Spring", []),
+        ("Available Summer, Fall, Spring", []),
+        ("Completed a Spring '24 co-op.", []),
+        ("Starting a Spring term at Waterloo.", []),
+        ("Hired for a Spring co-op.", []),
+        ("Fall & Spring semesters", []),
+        ("Built REST APIs with Spring and Hibernate.", ["skill.spring", "skill.hibernate"]),
+        ("Migrated to Spring Boot in 2024.", ["skill.spring_boot"]),
+        ("Used Spring, 2 years.", ["skill.spring"]),  # the comma: not "Spring <year>"
+    ],
+)
+def test_a_season_that_dates_something_is_never_a_skill(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.spring", "Spring"), _node("skill.spring_boot", "Spring Boot"),
+                   _node("skill.hibernate", "Hibernate"), _node("skill.summer", "Summer"))
+    r = Resolver(graph, config, ambiguous={"spring": "Spring", "summer": "Summer"})
+    assert _ids(r, text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("John R. Smith | Toronto, ON", []),
+        ("Dr. Mary C. Jones", []),
+        ("Mary C Jones, Analyst", []),
+        ("Dr. R. Smith", []),
+        ("J. R. R. Tolkien", []),
+        ("Wrote firmware in C.", ["skill.c"]),
+        ("Analysed data in R and Python.", ["skill.r", "skill.python"]),
+        ("Wrote Python C Java daily", ["skill.python", "skill.c", "skill.java"]),  # neighbours are skills
+        ("Programmed in C. Then moved to Java.", ["skill.c", "skill.java"]),  # "in" is no name
+        ("Learned C.", ["skill.c"]),  # nothing follows: not between two names
+    ],
+)
+def test_a_persons_initial_is_never_a_skill(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.c", "C"), _node("skill.r", "R"), _node("skill.python", "Python"),
+                   _node("skill.java", "Java"))
+    r = Resolver(graph, config, ambiguous={"c": "C", "r": "R"})
+    assert _ids(r, text) == expected
+
+
+def test_a_leading_french_elision_is_read_past(config) -> None:
+    graph = _graph(_node("skill.excel", "Excel"), _node("skill.aws", "AWS"), _node("skill.ml", "Machine learning",
+                   "apprentissage automatique"), _node("skill.info", "Gestion de l'information"),
+                   _node("skill.adapt", "Adapt to change", "s’adapter au changement"), _node("skill.dart", "Dart"))
+    r = Resolver(graph, config, ambiguous={"excel": "Excel", "dart": "Dart"})
+    text = "Maîtrise d'Excel et connaissance d’AWS; projets en l'apprentissage automatique."
+    mentions = r.extract(text)
+    assert _found(mentions) == [
+        ("skill.excel", "Excel", "EXACT"),
+        ("skill.aws", "AWS", "EXACT"),
+        ("skill.ml", "apprentissage automatique", "ALIAS"),
+    ]
+    assert all(text[m.start:m.end] == m.surface for m in mentions)  # offsets point past the elision
+    assert r.resolve("d'Excel").canonical_id == "skill.excel"
+    assert r.resolve("L’apprentissage automatique").canonical_id == "skill.ml"
+    assert r.resolve("qu'AWS").canonical_id == "skill.aws"
+    assert r.resolve("d'excel").method == "NONE"  # the word after the elision keeps its casing rule
+    # An elision inside a window stays, as labels have it; a label opening with one is reached either way.
+    assert _ids(r, "Bonne gestion de l'information.") == ["skill.info"]
+    assert _ids(r, "Capable de s'adapter au changement.") == ["skill.adapt"]
+    assert r.resolve("adapter au changement").canonical_id == "skill.adapt"
+    assert _ids(r, "Des objets d'art.") == []  # "d'art" is not read as Dart
+    assert _ids(r, "O'Reilly books") == []  # not an elision
+
+
+def test_a_dotted_abbreviations_period_does_not_end_a_window(config) -> None:
+    # D-28: "P.Eng. candidate" must reach the in-progress node, never the licence "P.Eng".
+    r = Resolver(_graph(_node("cred.peng", "Professional Engineer", "P.Eng"),
+                        _node("cred.eit", "Engineer in Training", "P.Eng candidate")), config)
+    assert _ids(r, "P.Eng. candidate with 4 years of experience.") == ["cred.eit"]
+    assert _ids(r, "Licensed P.Eng. Leads the design team.") == ["cred.peng"]
+    assert _ids(r, "Reports to the engineer. Candidate pool grew.") == []  # a plain word's period ends it
+
+
+def test_new_settings_are_deterministic_across_input_order(config) -> None:
+    graph = _graph(_node("skill.c", "C"), _node("skill.express", "Express.js", "Express"))
+    a = Resolver(graph, config, ambiguous={"c": "C"}, cased={"express": "Express"},
+                 blocked_phrases=["Vitamin C", "American Express"])
+    b = Resolver(graph, config, ambiguous={"c": "C"}, cased={"express": "Express"},
+                 blocked_phrases=["American Express", "Vitamin C"])
+    text = "Vitamin C, American Express, Express and C."
+    assert a.extract(text) == b.extract(text)
+    assert _ids(a, text) == ["skill.express", "skill.c"]

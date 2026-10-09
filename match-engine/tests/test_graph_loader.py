@@ -12,6 +12,7 @@ from pathlib import Path
 
 import pytest
 
+from matcher.graph import loader as loader_module
 from matcher.graph.idf import normalize_idf
 from matcher.graph.loader import (
     ArtifactError,
@@ -243,7 +244,7 @@ def test_extra_json_artifacts_are_written_and_hash_pinned(tmp_path: Path) -> Non
                                              "titles.json"]
     assert load_json_artifact(tmp_path, "titles.json") == TITLES_DOC
     assert load_resolver_settings(tmp_path) == RESOLVER_DOC
-    load_graph(tmp_path)  # extra artifacts are verified, not interpreted
+    load_graph(tmp_path)  # the graph does not read the extra artifacts
     # Writing again without extras removes the ones the previous build left behind.
     _write(tmp_path)
     assert sorted(_manifest(tmp_path)["artifacts"]) == ["idf.json", "nodes.json.gz", "pmi_edges.json"]
@@ -294,6 +295,91 @@ def test_load_resolver_builds_the_graph_and_the_ambiguous_map_in_one_call(tmp_pa
     assert resolver.resolve("Go").canonical_id == "skill.go"
     assert resolver.resolve("go").method == "NONE"
     assert resolver.resolve("ReactJS").canonical_id == "skill.react"
+
+
+def test_load_graph_verifies_only_the_files_it_reads(tmp_path: Path) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": RESOLVER_DOC, "titles.json": TITLES_DOC})
+    version = load_graph(tmp_path).version
+    path = tmp_path / "titles.json"
+    path.write_bytes(path.read_bytes().replace(b"15-1252.00", b"15-1252.01"))
+    assert load_graph(tmp_path).version == version  # cold start never hashes what it does not use
+    with pytest.raises(ArtifactError, match="titles.json"):
+        load_json_artifact(tmp_path, "titles.json")  # its own reader still refuses it
+
+
+def test_load_resolver_reads_the_manifest_once(tmp_path: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": RESOLVER_DOC, "titles.json": TITLES_DOC})
+    reads: list[str] = []
+    original = loader_module._read
+
+    def counting(root: Path, name: str) -> bytes:
+        reads.append(name)
+        return original(root, name)
+
+    monkeypatch.setattr(loader_module, "_read", counting)
+    load_resolver(tmp_path, config)
+    assert sorted(reads) == ["MANIFEST.json", "idf.json", "nodes.json.gz", "pmi_edges.json", "resolver.json"]
+
+
+@pytest.mark.parametrize(
+    "settings, message",
+    [
+        ({"format": 1}, "ambiguous"),
+        ({"format": 1, "ambiguous": {}, "cased": ["Go"]}, "cased"),
+        ({"format": 1, "ambiguous": {}, "cased": {"go": 1}}, "cased"),
+        ({"format": 1, "ambiguous": {}, "blocked_phrases": "R&D"}, "blocked_phrases"),
+        ({"format": 1, "ambiguous": {}, "blocked_phrases": ["R&D", ""]}, "blocked_phrases"),
+    ],
+)
+def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, message: str) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings})
+    with pytest.raises(ArtifactError, match=message):
+        load_resolver_settings(tmp_path)
+
+
+def test_load_resolver_applies_cased_keys_and_blocked_phrases(tmp_path: Path, config) -> None:
+    settings = {"format": 1, "ambiguous": {"go": "Go"}, "cased": {"react": "React"}, "blocked_phrases": ["Go-Live"]}
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings})
+    resolver = load_resolver(tmp_path, config)
+    assert [m.canonical_id for m in resolver.extract("go, react, React", context="list")] == ["skill.go", "skill.react"]
+    assert resolver.resolve("Go-Live").method == "NONE"
+    mentions = resolver.extract("Led the Go Live of the Go service.")  # "Go Live": a variant of the phrase
+    assert [(m.canonical_id, m.surface) for m in mentions] == [("skill.go", "Go")]
+
+
+# ─── the fast node path (cold start) and its fallback ──────────────────────────────────────
+
+
+def test_the_fast_node_path_holds_on_this_pydantic() -> None:
+    assert loader_module._fast_nodes_hold() is True
+
+
+def test_the_fast_node_path_steps_aside_when_pydantic_internals_differ(monkeypatch: pytest.MonkeyPatch) -> None:
+    class Wider(SkillNode):
+        note: str = ""
+
+    monkeypatch.setattr(loader_module, "SkillNode", Wider)
+    assert loader_module._fast_nodes_hold() is False  # another field set: never guess the layout
+
+    def broken(values):
+        raise AttributeError("__pydantic_fields_set__")
+
+    monkeypatch.setattr(loader_module, "SkillNode", SkillNode)
+    monkeypatch.setattr(loader_module, "_fast_node", broken)
+    assert loader_module._fast_nodes_hold() is False  # internals that refuse the shortcut
+
+
+def test_nodes_built_by_model_construct_load_the_same_graph(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    _write(tmp_path)
+    fast = load_graph(tmp_path)
+    monkeypatch.setattr(loader_module, "_FAST_NODES", False)
+    slow = load_graph(tmp_path)
+    assert dict(fast.nodes) == dict(slow.nodes)
+    assert all(node.model_dump() == slow.nodes[node.id].model_dump() for node in fast.nodes.values())
 
 
 # ─── the committed fixture ─────────────────────────────────────────────────────────────────

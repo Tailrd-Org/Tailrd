@@ -107,6 +107,72 @@ token it matches only in a two-part `<key>-<suffix>` compound with suffix based,
 backed, first, centric, enabled, native, heavy or only: "Go-based" yields Go; "Go-Live" and
 "Go-to-market" yield nothing. Both rules hold in prose and in skills lists.
 
+**D-26 Taxonomy build rules (Task 2.2). [Tailrd]** `scripts/build_taxonomy.py` seeds the graph from
+ESCO and O*NET under `config/curated_taxonomy.yaml`. A source concept merges into a curated node by
+its full name, its vendor-free name or an acronym expansion, never by a bare acronym or a "<word>
+software" remainder. A merged ESCO concept brings its preferred labels only (English; French when
+two words or more), never its alternative or hidden labels: those too often name a neighbour of the
+curated sense ("web design" under computer programming, "software design" under computer
+engineering, "make business decisions" under marketing). A one-word French preferred label stays
+only when it is the English one: otherwise it is often an ordinary French word ("morale",
+"saisie"). One-word names with a capital on nodes that are not curated are automatic `cased` keys
+in `resolver.json`: they need their casing everywhere, skills lists included ("Excel (pivot
+tables)" never yields the O*NET class "Tables"); only the curated `ambiguous` keys get the
+skills-list leniency of SPEC §3.3. ESCO programming languages (labelled "(computer programming)" or
+filed under computer programming) are TECHNOLOGY. Generic titles (curated `generic_titles`:
+intern, co-op, student, trainee, apprentice, volunteer, engineer, analyst, ...) name no occupation
+and stay out of `titles.json`. Each reader verifies what it reads: `load_graph` hashes the nodes,
+IDF and edges; `load_json_artifact` the document it returns, so a cold start never hashes the 11 MB
+of titles and military codes it does not use.
+
+**D-27 Extraction precision. [Tailrd]** `extract`: (1) leaves fields of study (`field.*`) out
+unless `include_fields=True` (education lines, posting education requirements); a field still
+consumes its words, so no shorter skill surfaces inside "Computer Science". (2) Reads the curated
+`blocked_phrases` as non-skills that consume their words: American Express, Express Entry, Sous
+Chef, Vitamin C, Building A-Z, Swift Current, Spring Break, Go-Live, Go/No-Go, R&D, ... The longest
+match wins and a blocked phrase wins a tie; `resolve` gives NONE. (3) Never reads a season word as
+a skill when a year or a term word follows it ("Spring 2024", "Spring '24", "Spring term",
+"Spring co-op") or another season stands next to it, across at most one link word ("Fall and
+Spring", "Summer, Fall, Spring"). (4) Never reads one capital letter as a skill when it stands
+between two capitalised words that are not skills ("Mary C Jones") or is followed by a period
+between such words ("John R. Smith", "Dr. Mary C. Jones"); the word before may be a title or an
+initial with its own period ("Dr. R. Smith", "J. R. R. Tolkien"). "Wrote firmware in C." keeps C.
+(5) Like `resolve`, reads past a leading French elision (l' d' qu' j' n' s' c' m' t', straight or
+curly apostrophe, any case): "d'Excel" gives Excel, the mention starting at "Excel". Inside a
+window the elision stays, as labels have it ("gestion de l'information"); a label that opens with
+one is indexed past it. Curated one-word aliases with an ordinary other sense are gone (ml,
+networking, containers, trades, regression, black/green/yellow belt, cloud, selling, prospecting,
+presenting, mills, mentor, paie, vérification) or need their casing (ML, BEd, AI as in "j'ai", BI
+as in "bi-weekly", OS as in French "os", MIS, Maven, Tailwind, AJAX as in "Ajax, ON", Ruby, Elixir,
+Bash, Hibernate, Anaconda, Solidity, Initiative, Reliability, Final Cut, Lambda functions). Agile
+matches in lower case. Rejected: a technology mention required in the same sentence, and a
+capitalised neighbour read as a proper noun; both cost recall ("Built backend services in Go.",
+"Advanced Excel").
+
+**D-28 Licences in progress are not licences. [Tailrd]** "CPA candidate", "CPA PEP Core 2",
+"writing the CFE", "CFA Level II", "RN student", "P.Eng. candidate", "articling student", "309A
+apprentice", "teacher candidate" are credentials of their own: `cred.cpa_in_progress`,
+`cred.cfa_candidate`, `cred.nursing_student`, `cred.articling_student`,
+`cred.electrician_apprentice`, `cred.teacher_candidate`, `cred.medical_student`,
+`cred.pharmacy_student`, `cred.paramedic_student`, `cred.cdl_trainee`; `cred.eit` holds "P.Eng
+candidate". Each is related (0.5-0.7) to its licence and its field and is never in
+`gates.license.professional_credential_ids`; the longest match takes the words away from the
+licence, so a CPA-required posting never passes on "CPA candidate". The licence gate matches the
+licence id itself, never through a related edge. A dotted abbreviation's closing period does not
+end an extraction window ("P.Eng. candidate", "C.P.A. candidate"). Not handled here: a status
+written apart from the credential ("CPA (in progress)", "P.Eng., expected 2027") is for the
+licence gate's own parsing (§4).
+
+**D-29 Military crosswalk skills. [Spec §14.3: clarified]** A code's `skill_ids` come only from
+the O*NET occupations it maps to: their hot or in-demand technologies and top five knowledge areas
+(importance >= 3). Never a sibling occupation's skills (the earlier "All Other" family union gave
+25B, IT Specialist, Epic, AutoCAD and Marketo), never a field of study, never a knowledge area more
+than 25 % of all codes would get (`common_knowledge_left_out`: English, customer service,
+mechanics, management principles). An entry without skills carries a `note` saying why; most map
+only to military-specific occupations (SOC 55) or to civilian "All Other" catch-alls O*NET
+publishes no skill data for (counts in `data/taxonomy/SOURCES.md`). SPEC §14.3 calls veterans a
+legally sensitive population: an empty list with its reason is honest, an inferred one is not.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores

@@ -7,3 +7,4 @@ O*NET-SOC Code	Alternate Title	Short Title	Source(s)
 11-9199.00	Program Manager	n/a	08
 17-2141.00	Mechanical Design Engineer	n/a	08
 15-1299.00	Software Developers	n/a	08
+15-1252.00	Intern	n/a	08

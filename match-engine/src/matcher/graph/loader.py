@@ -8,11 +8,13 @@ Formats (all UTF-8 JSON carrying `"format": 1`):
 - `MANIFEST.json`: `{"format":1,"artifacts":{"<file name>":"<sha256 of the file bytes>"},"sources":{...}}`
 - extra JSON documents (`resolver.json`, `titles.json`, ...): any `{"format":1, ...}` object, written
   next to the graph by `write_artifacts(extra=...)` and pinned in the same MANIFEST. The resolver
-  settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"}}`.
+  settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"},
+  "cased":{"<key>":"<required casing>"},"blocked_phrases":["<phrase>", ...]}`.
 
-`load_graph` refuses any listed artifact whose bytes do not match the manifest. The graph version
-is derived from the artifact hashes only (sources excluded), so rebuilding identical artifacts
-yields the identical version that every score is persisted with (SPEC §0.4).
+Every reader refuses an artifact whose bytes do not match the manifest: `load_graph` checks the
+three graph files it reads, `load_json_artifact` the document it is asked for. The graph version
+is derived from the hashes of every listed artifact (sources excluded), so rebuilding identical
+artifacts yields the identical version that every score is persisted with (SPEC §0.4).
 """
 
 from __future__ import annotations
@@ -184,21 +186,24 @@ def _sha256(data: bytes) -> str:
 
 
 def load_graph(taxonomy_dir: str | Path) -> SkillGraph:
-    """Verify every artifact the MANIFEST lists, then build the graph from them.
+    """Verify the artifacts the graph is built from (nodes, idf, edges), then build it.
 
+    Other listed documents (`titles.json`, ...) are verified by `load_json_artifact` when read.
     Raises ArtifactError on a missing file, a hash mismatch, an unknown format, a malformed
     document or an invalid graph.
     """
     root = Path(taxonomy_dir)
-    artifacts = _manifest_artifacts(root)
-    blobs = {name: _verified(root, name, artifacts) for name in sorted(artifacts)}
+    return _load_graph(root, _manifest_artifacts(root))
 
-    if NODES_GZ in blobs and NODES_JSON in blobs:
+
+def _load_graph(root: Path, artifacts: Mapping[str, str]) -> SkillGraph:
+    if NODES_GZ in artifacts and NODES_JSON in artifacts:
         raise ArtifactError(f"{MANIFEST_JSON} lists both {NODES_GZ} and {NODES_JSON}")
-    nodes_name = NODES_GZ if NODES_GZ in blobs else NODES_JSON
+    nodes_name = NODES_GZ if NODES_GZ in artifacts else NODES_JSON
     for required in (nodes_name, IDF_JSON, EDGES_JSON):
-        if required not in blobs:
+        if required not in artifacts:
             raise ArtifactError(f"{MANIFEST_JSON} does not list {required}")
+    blobs = {name: _verified(root, name, artifacts) for name in (nodes_name, IDF_JSON, EDGES_JSON)}
 
     nodes_bytes = blobs[nodes_name]
     if nodes_name == NODES_GZ:
@@ -231,32 +236,56 @@ def load_json_artifact(taxonomy_dir: str | Path, name: str) -> dict[str, Any]:
     malformed.
     """
     root = Path(taxonomy_dir)
-    artifacts = _manifest_artifacts(root)
+    return _json_artifact(root, name, _manifest_artifacts(root))
+
+
+def _json_artifact(root: Path, name: str, artifacts: Mapping[str, str]) -> dict[str, Any]:
     if name not in artifacts:
         raise ArtifactError(f"{MANIFEST_JSON} in {root} does not list {name}")
     return _decode(_verified(root, name, artifacts), name)
 
 
 def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
-    """The hash-verified `resolver.json`: `{"format": 1, "ambiguous": {key: required casing}}`."""
-    settings = load_json_artifact(taxonomy_dir, RESOLVER_JSON)
-    ambiguous = settings.get("ambiguous")
-    if not isinstance(ambiguous, dict) or not all(
-        isinstance(key, str) and isinstance(casing, str) for key, casing in ambiguous.items()
-    ):
-        raise ArtifactError(f"{RESOLVER_JSON}: 'ambiguous' must map keys to their required casing")
+    """The hash-verified `resolver.json`: `{"format": 1, "ambiguous": {key: required casing},
+    "cased": {key: required casing}, "blocked_phrases": [phrase, ...]}`. `ambiguous` holds the
+    curated keys, `cased` the automatic ones (D-26); the last two may be absent (empty)."""
+    root = Path(taxonomy_dir)
+    return _resolver_settings(root, _manifest_artifacts(root))
+
+
+def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, Any]:
+    settings = _json_artifact(root, RESOLVER_JSON, artifacts)
+    if "ambiguous" not in settings:
+        raise ArtifactError(f"{RESOLVER_JSON}: 'ambiguous' is missing")
+    for name in ("ambiguous", "cased"):
+        casings = settings.get(name, {})
+        if not isinstance(casings, dict) or not all(
+            isinstance(key, str) and isinstance(casing, str) for key, casing in casings.items()
+        ):
+            raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map keys to their required casing")
+    phrases = settings.get("blocked_phrases", [])
+    if not isinstance(phrases, list) or not all(isinstance(phrase, str) and phrase for phrase in phrases):
+        raise ArtifactError(f"{RESOLVER_JSON}: 'blocked_phrases' must be a list of phrases")
     return settings
 
 
 def load_resolver(
     taxonomy_dir: str | Path, config: "EngineConfig", *, fuzzy_log: Optional["FuzzyLog"] = None
 ) -> "Resolver":
-    """The graph and its resolver settings in one call: a ready `Resolver` over the taxonomy."""
+    """The graph and its resolver settings in one call (one MANIFEST read): a ready `Resolver`."""
     from matcher.normalize.resolver import Resolver
 
-    graph = load_graph(taxonomy_dir)
-    settings = load_resolver_settings(taxonomy_dir)
-    return Resolver(graph, config, ambiguous=settings["ambiguous"], fuzzy_log=fuzzy_log)
+    root = Path(taxonomy_dir)
+    artifacts = _manifest_artifacts(root)
+    settings = _resolver_settings(root, artifacts)
+    return Resolver(
+        _load_graph(root, artifacts),
+        config,
+        ambiguous=settings["ambiguous"],
+        cased=settings.get("cased", {}),
+        blocked_phrases=settings.get("blocked_phrases", ()),
+        fuzzy_log=fuzzy_log,
+    )
 
 
 def _manifest_artifacts(root: Path) -> dict[str, str]:
@@ -281,15 +310,6 @@ def _verified(root: Path, name: str, artifacts: Mapping[str, str]) -> bytes:
 
 _NODE_FIELDS = ("id", "label", "kind", "parents", "aliases", "release_year", "provisional", "source")
 _set_attribute = object.__setattr__
-# What `SkillNode.model_construct` stores for a record that supplies every field, without its
-# generic per-field loop (a taxonomy holds tens of thousands of nodes; cold start counts). Only
-# while SkillNode keeps the shape this relies on; otherwise the public constructor runs.
-_FAST_NODES = (
-    tuple(SkillNode.__pydantic_fields__) == _NODE_FIELDS
-    and SkillNode.__pydantic_post_init__ is None
-    and not SkillNode.__private_attributes__
-    and not SkillNode.__pydantic_root_model__
-)
 
 
 def _node_from_record(record: Mapping[str, Any]) -> SkillNode:
@@ -307,12 +327,56 @@ def _node_from_record(record: Mapping[str, Any]) -> SkillNode:
     }
     if not _FAST_NODES:
         return SkillNode.model_construct(**values)
+    return _fast_node(values)
+
+
+def _fast_node(values: dict[str, Any]) -> SkillNode:
+    """What `SkillNode.model_construct` stores for values that supply every field, without its
+    generic per-field loop (a taxonomy holds tens of thousands of nodes; cold start counts)."""
     node = SkillNode.__new__(SkillNode)
     _set_attribute(node, "__dict__", values)
     _set_attribute(node, "__pydantic_fields_set__", set(_NODE_FIELDS))
     _set_attribute(node, "__pydantic_extra__", None)
     _set_attribute(node, "__pydantic_private__", None)
     return node
+
+
+def _fast_nodes_hold() -> bool:
+    """Whether `_fast_node` is safe on the installed pydantic: SkillNode still has the plain shape
+    it relies on (read through getattr: the private names vary across pydantic 2.x releases), and a
+    sample node built both ways is the same. Otherwise every node goes through model_construct."""
+    fields = getattr(SkillNode, "__pydantic_fields__", None) or getattr(SkillNode, "model_fields", None)
+    if (
+        not isinstance(fields, Mapping)
+        or tuple(fields) != _NODE_FIELDS
+        or getattr(SkillNode, "__pydantic_post_init__", None) is not None
+        or getattr(SkillNode, "__private_attributes__", None)
+        or getattr(SkillNode, "__pydantic_root_model__", False)
+    ):
+        return False
+    sample = {
+        "id": "skill.sample",
+        "label": "Sample",
+        "kind": SkillKind.TECHNOLOGY,
+        "parents": ("skill.parent",),
+        "aliases": ("sample alias",),
+        "release_year": 2020,
+        "provisional": True,
+        "source": "curated",
+    }
+    try:
+        fast, built = _fast_node(dict(sample)), SkillNode.model_construct(**sample)
+        return (
+            fast == built
+            and fast.model_dump() == built.model_dump()
+            and fast.model_fields_set == built.model_fields_set
+            and hash(fast) == hash(built)
+        )
+    except Exception:  # any internals mismatch: take the public constructor
+        return False
+
+
+_FAST_NODES = _fast_nodes_hold()
 
 
 def _version(artifacts: Mapping[str, str]) -> str:

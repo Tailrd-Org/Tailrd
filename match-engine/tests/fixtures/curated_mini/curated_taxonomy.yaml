@@ -18,6 +18,7 @@ skills:
   - {id: skill.machine_learning, label: Machine learning, kind: DOMAIN, aliases: [ML]}
   - {id: skill.go, label: Go, kind: TECHNOLOGY, aliases: [Golang], release_year: 2009}
   - {id: skill.forklift, label: Forklift, kind: TOOL, aliases: [forklift operation]}
+  - {id: skill.programming, label: Computer programming, kind: DOMAIN}
 
 credentials:
   - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN]}
@@ -30,6 +31,10 @@ ambiguous:
   go: Go
 
 blocked_aliases: [Scratch, synergy, Analytics]
+
+blocked_phrases: [American Express, "Building [A-Z]"]
+
+generic_titles: [intern, co-op]
 
 onet_vendor_prefixes: [Microsoft, Atlassian, Autodesk, Amazon, Google]
 

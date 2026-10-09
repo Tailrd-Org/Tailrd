@@ -7,7 +7,7 @@ DECISIONS D-04) and the hand-curated config into the hash-pinned artifacts of da
     nodes.json.gz       every node (graph.loader format)
     idf.json            empty until Task 2.3 computes IDF from the posting corpus
     pmi_edges.json      the curated related edges (Task 2.3 adds the mined ones)
-    resolver.json       ambiguous keys and the casing each one requires
+    resolver.json       ambiguous and cased keys with the casing each requires; blocked phrases
     titles.json         normalised job title -> O*NET-SOC code, SOC major group, job zone
     mos_crosswalk.json  military occupation code -> branch, title, O*NET-SOC codes, skill ids
     naics.json          NAICS 2022 code -> title
@@ -26,12 +26,14 @@ bytes. Rules, in the order they apply:
    exempt from every alias filter.
 2. An ESCO concept or skill group, an O*NET commodity class or an O*NET example whose name
    normalises (`normalize_surface`, hyphen variants included) to a curated node's label or alias
-   MERGES into that node: its labels become the node's aliases, its parents are inherited only
-   when the curated node declares no `parents` key, and every reference to it points at the node.
+   MERGES into that node: its names become the node's aliases (of an ESCO concept, its preferred
+   labels only), its parents are inherited only when the curated node declares no `parents` key,
+   and every reference to it points at the node.
 3. Other ESCO concepts become `esco.<slug of the preferred label>` (a slug shared by several
    concepts gets `_` + the first 6 hex of each concept's UUID), skill groups `esco.group.<code>`
    (the four pillar roots are not nodes). Kinds: the transversal skills collection -> SOFT,
-   knowledge -> DOMAIN, skill/competence -> METHODOLOGY. Parents: ESCO broader relations.
+   programming languages -> TECHNOLOGY, other knowledge -> DOMAIN, skill/competence -> METHODOLOGY.
+   Parents: ESCO broader relations.
 4. Other O*NET examples become `skill.<slug>` (Technology Skills: TECHNOLOGY or TOOL by commodity
    class, see TECHNOLOGY_COMMODITIES; Tools Used: TOOL), parented by `cat.<commodity code>`. An
    example named like its own commodity class is that class's node.
@@ -39,7 +41,8 @@ bytes. Rules, in the order they apply:
    label without its trailing parenthetical, O*NET names without a vendor prefix or a trailing
    "software", and the two halves of a trailing acronym ("Structured query language SQL").
    Dropped: single-word ESCO alternative/hidden labels (unless they are the node's own preferred
-   label), anything under `blocked_aliases`, and non-curated aliases of two characters or fewer.
+   label), one-word French preferred labels unlike the English one, anything under
+   `blocked_aliases`, and non-curated aliases of two characters or fewer.
    A non-curated node whose own label is blocked or that short is dropped; its children take its
    parents. When nodes claim the same key: a curated alias wins, then a node's own label, then
    the strongest claim (name > derived name > alternative label > hidden label > French
@@ -84,6 +87,8 @@ MAX_SLUG = 100
 KNOWLEDGE_MIN_IMPORTANCE = 3.0  # O*NET importance scale 1-5; 3 = "important"
 KNOWLEDGE_TOP = 5  # knowledge areas per occupation that feed a military code's skill ids
 COMMON_WORD_MIN_COUNT = 2  # lower-case occurrences in the source prose that make a word "common"
+MOS_COMMON_KNOWLEDGE_SHARE = 0.25  # a knowledge area in more military codes than this says nothing
+PROGRAMMING_ID = "skill.programming"  # curated "Computer programming": ESCO languages sit under it
 GITATTRIBUTES = (
     "# These files are hash-pinned by MANIFEST.json: git must never rewrite their line endings\n"
     "# (core.autocrlf would turn LF into CRLF on a Windows checkout and break every sha256).\n"
@@ -374,6 +379,22 @@ class Curated:
     vendors: tuple[str, ...]  # longest first
     onet_knowledge: dict[str, str]
     no_merge: frozenset[str]
+    blocked_phrases: tuple[str, ...] = ()  # as written, "[A-Z]" expanded (resolver.json)
+    generic_titles: frozenset[str] = frozenset()  # title keys that name no occupation
+
+
+_LETTER_SLOT = "[A-Z]"  # in a blocked phrase: one phrase per capital letter ("Building [A-Z]")
+
+
+def _expand_phrases(phrases: Iterable[str]) -> tuple[str, ...]:
+    out = []
+    for phrase in phrases:
+        phrase = " ".join(phrase.split())
+        if _LETTER_SLOT in phrase:
+            out.extend(phrase.replace(_LETTER_SLOT, chr(code)) for code in range(ord("A"), ord("Z") + 1))
+        else:
+            out.append(phrase)
+    return tuple(sorted(set(out), key=lambda p: (normalize_surface(p), p)))
 
 
 def _strings(value: Any, where: str) -> list[str]:
@@ -429,6 +450,13 @@ def load_curated(path: Path) -> Curated:
                                                   for k, v in knowledge.items()):
         raise BuildError(f"{path.name}: onet_knowledge must map O*NET knowledge areas to node ids")
     vendors = _strings(doc.get("onet_vendor_prefixes"), f"{path.name}: onet_vendor_prefixes")
+    phrases = _expand_phrases(_strings(doc.get("blocked_phrases"), f"{path.name}: blocked_phrases"))
+    curated_keys = {key for node in nodes for surface in (node.label, *node.aliases) for key in _keys(surface)}
+    for phrase in phrases:
+        clash = set(_keys(phrase)) & curated_keys
+        if clash:
+            raise BuildError(f"{path.name}: blocked phrase {phrase!r} is also a curated label or alias")
+    generic = _strings(doc.get("generic_titles"), f"{path.name}: generic_titles")
     return Curated(
         nodes=nodes,
         ambiguous={normalize_surface(key): normalize_keep_case(casing) for key, casing in ambiguous.items()},
@@ -436,6 +464,8 @@ def load_curated(path: Path) -> Curated:
         vendors=tuple(sorted(set(vendors), key=lambda v: (-len(v), v))),
         onet_knowledge=dict(knowledge),
         no_merge=frozenset(_strings(doc.get("no_merge"), f"{path.name}: no_merge")),
+        blocked_phrases=phrases,
+        generic_titles=frozenset(key for title in generic for key in _keys(title)),
     )
 
 
@@ -720,7 +750,7 @@ class Assembler:
                 target = self._curated_target(concept.pref, [bare] if bare else [])
             if target is not None:
                 self.uri_map[uri] = target
-                self._esco_claims(self.drafts[target], concept)
+                self._esco_claims(self.drafts[target], concept, merged=True)
                 self.drafts[target].parent_refs.update(("uri", b) for b in raw.broader.get(uri, ()))
                 self.report.merges.append(("esco", concept.pref, target))
             elif concept.is_group:
@@ -749,14 +779,29 @@ class Assembler:
         for root in raw.roots:
             self.uri_map[root] = ""
 
-    def _esco_claims(self, draft: Draft, concept: EscoConcept) -> None:
+    def _esco_claims(self, draft: Draft, concept: EscoConcept, *, merged: bool = False) -> None:
+        """The concept's labels as claims on `draft` (DECISIONS D-26). A one-word French preferred
+        label stays only when it is the English one ("Python"): otherwise it is often an ordinary
+        French word ("morale", "saisie"). A concept merged into a curated node brings its preferred
+        labels only: its alternative and hidden labels too often name a neighbour of the curated
+        sense ("web design" under computer programming, "make business decisions" under marketing)."""
         group = self._next_group()
+        english = {normalize_surface(concept.pref)}
         for pref, strength in ((concept.pref, NAME), (concept.pref_fr, FR_NAME)):
-            if pref:
-                self._claim(draft, pref, strength, group, own=True)
-                bare = strip_parenthetical(pref)
-                if bare:
-                    self._claim(draft, bare, strength, group, own=True, derived=True)
+            if not pref:
+                continue
+            bare = strip_parenthetical(pref)
+            for surface, derived in ((pref, False), (bare, True)):
+                if not surface:
+                    continue
+                key = normalize_surface(surface)
+                if strength == NAME:
+                    english.add(key)
+                elif " " not in key and key not in english:
+                    continue
+                self._claim(draft, surface, strength, group, own=True, derived=derived)
+        if merged:
+            return
         for labels, strength in ((concept.alt, ALT), (concept.hidden, HIDDEN), (concept.alt_fr, FR_ALT),
                                  (concept.hidden_fr, FR_ALT)):
             for label in labels:
@@ -860,14 +905,35 @@ class Assembler:
             parents[draft.id] = tuple(sorted(resolved))
 
         aliases = self._settle_aliases(dropped)
+        languages = self._programming_languages(parents)
         nodes = []
         for node_id in sorted(parents):
             draft = self.drafts[node_id]
             nodes.append(SkillNode(
-                id=node_id, label=draft.label, kind=draft.kind, parents=parents[node_id],
+                id=node_id, label=draft.label, parents=parents[node_id],
+                kind=SkillKind.TECHNOLOGY if node_id in languages else draft.kind,
                 aliases=aliases.get(node_id, ()), release_year=draft.release_year, source=draft.source,
             ))
         return nodes
+
+    def _programming_languages(self, parents: Mapping[str, tuple[str, ...]]) -> set[str]:
+        """ESCO concepts that are programming languages, which ESCO files as knowledge: labelled
+        "... (computer programming)", or under computer programming (PROGRAMMING_ID) or under such a
+        language ("Common Lisp" under "Lisp"). They are TECHNOLOGY, like the curated languages."""
+        found: set[str] = set()
+        candidates = sorted(node_id for node_id, draft in self.drafts.items()
+                            if node_id in parents and draft.source == "esco" and not node_id.startswith("esco.group."))
+        changed = True
+        while changed:
+            changed = False
+            for node_id in candidates:
+                if node_id in found:
+                    continue
+                if self.drafts[node_id].label.endswith("(computer programming)") or any(
+                        parent == PROGRAMMING_ID or parent in found for parent in parents[node_id]):
+                    found.add(node_id)
+                    changed = True
+        return found
 
     def _raw_parents(self, draft: Draft) -> set[str]:
         out = set()
@@ -1013,10 +1079,12 @@ def _title_keys(title: str) -> list[str]:
     return [key for key in (normalize_surface(part) for part in parts) if key]
 
 
-def build_titles(raw: Raw) -> dict[str, Any]:
+def build_titles(raw: Raw, generic: Iterable[str] = ()) -> dict[str, Any]:
     """Normalised title -> {soc, family, job_zone}. A primary O*NET title wins; otherwise the
     title's candidate occupations vote per SOC major group (ties: the smaller group code) and the
-    smallest code of the winning group is kept."""
+    smallest code of the winning group is kept. A generic title ("intern", "student", "engineer":
+    curated `generic_titles`) names no occupation and is left out (DECISIONS D-26)."""
+    left_out = frozenset(generic)
     primary: dict[str, set[str]] = defaultdict(set)
     others: dict[str, set[str]] = defaultdict(set)
     for row in raw.occupations:
@@ -1032,7 +1100,7 @@ def build_titles(raw: Raw) -> dict[str, Any]:
         for key in _title_keys(row["Reported Job Title"]):
             others[key].add(row["O*NET-SOC Code"])
     titles = {}
-    for key in sorted(set(primary) | set(others)):
+    for key in sorted((set(primary) | set(others)) - left_out):
         candidates = primary.get(key) or others[key]
         votes: dict[str, int] = defaultdict(int)
         for soc in candidates:
@@ -1043,14 +1111,27 @@ def build_titles(raw: Raw) -> dict[str, Any]:
     return {"format": 1, "titles": titles}
 
 
-def _occupation_skills(raw: Raw, assembler: Assembler, knowledge_map: Mapping[str, str]) -> dict[str, set[str]]:
-    """O*NET-SOC code -> ids of its hot or in-demand technologies and its top knowledge areas."""
-    out: dict[str, set[str]] = defaultdict(set)
+@dataclass
+class OccupationSkills:
+    """Per O*NET-SOC code: ids of its hot or in-demand technologies, and of its top knowledge areas."""
+
+    technologies: dict[str, set[str]]
+    knowledge: dict[str, set[str]]
+
+    def of(self, socs: Iterable[str]) -> tuple[set[str], set[str]]:
+        socs = list(socs)
+        return (set().union(*(self.technologies.get(soc, set()) for soc in socs)),
+                set().union(*(self.knowledge.get(soc, set()) for soc in socs)))
+
+
+def _occupation_skills(raw: Raw, assembler: Assembler, knowledge_map: Mapping[str, str]) -> OccupationSkills:
+    technologies: dict[str, set[str]] = defaultdict(set)
     for row in raw.tech:
         if row.get("Hot Technology") == "Y" or row.get("In Demand") == "Y":
             node_id = assembler.example_map.get(row["Example"].strip())
             if node_id is not None and node_id in assembler.final_ids:
-                out[row["O*NET-SOC Code"]].add(node_id)
+                technologies[row["O*NET-SOC Code"]].add(node_id)
+    knowledge: dict[str, set[str]] = defaultdict(set)
     ratings: dict[str, list[tuple[float, str, str]]] = defaultdict(list)
     for row in raw.knowledge:
         if row.get("Scale ID") != "IM":
@@ -1065,12 +1146,17 @@ def _occupation_skills(raw: Raw, assembler: Assembler, knowledge_map: Mapping[st
         for _, _, name in sorted(entries)[:KNOWLEDGE_TOP]:
             node_id = knowledge_map.get(name)
             if node_id is not None:
-                out[soc].add(node_id)
-    return out
+                knowledge[soc].add(node_id)
+    return OccupationSkills(dict(technologies), dict(knowledge))
 
 
-def build_mos(raw: Raw, occupation_skills: Mapping[str, set[str]]) -> dict[str, Any]:
-    """Active primary military occupation codes that map to at least one O*NET-SOC occupation."""
+def build_mos(raw: Raw, occupation_skills: OccupationSkills) -> dict[str, Any]:
+    """Active primary military occupation codes that map to at least one O*NET-SOC occupation.
+
+    A code's `skill_ids` come only from the occupations it maps to (DECISIONS D-29): their hot or
+    in-demand technologies and top knowledge areas, never fields of study (`field.*`) and never a
+    knowledge area that more than MOS_COMMON_KNOWLEDGE_SHARE of all codes would get (English, ...).
+    An entry left without skills carries a `note` saying why."""
     per_code: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)  # code -> branch -> entry
     mpc_rank = {"E": 0, "W": 1, "O": 2}
     for row in raw.military:
@@ -1102,14 +1188,27 @@ def build_mos(raw: Raw, occupation_skills: Mapping[str, set[str]]) -> dict[str, 
             else:
                 entry["soc"].update(socs)
 
+    def areas(socs: Iterable[str]) -> set[str]:
+        return {skill for skill in occupation_skills.of(socs)[1] if not skill.startswith("field.")}
+
+    entries = {code: sorted(per_code[code], key=BRANCH_ORDER.index) for code in sorted(per_code)}
+    counts: dict[str, int] = defaultdict(int)  # knowledge area -> codes that would get it
+    for code, branches in entries.items():
+        for skill in set().union(*(areas(per_code[code][branch]["soc"]) for branch in branches)):
+            counts[skill] += 1
+    common = {skill for skill, count in counts.items() if count > MOS_COMMON_KNOWLEDGE_SHARE * len(entries)}
+
     def describe(branch: str, entry: Mapping[str, Any]) -> dict[str, Any]:
         socs = sorted(entry["soc"])
-        skills = sorted(set().union(*(_skills_of(soc, occupation_skills) for soc in socs)))
-        return {"branch": branch, "title": entry["title"], "soc": socs, "skill_ids": skills}
+        technologies = {skill for skill in occupation_skills.of(socs)[0] if not skill.startswith("field.")}
+        value = {"branch": branch, "title": entry["title"], "soc": socs,
+                 "skill_ids": sorted(technologies | (areas(socs) - common))}
+        if not value["skill_ids"]:
+            value["note"] = _mos_note(socs, occupation_skills)
+        return value
 
     codes = {}
-    for code in sorted(per_code):
-        branches = sorted(per_code[code], key=BRANCH_ORDER.index)
+    for code, branches in entries.items():
         first = describe(branches[0], per_code[code][branches[0]])
         value = {**first, "branches": branches}
         alternatives = []
@@ -1120,22 +1219,17 @@ def build_mos(raw: Raw, occupation_skills: Mapping[str, set[str]]) -> dict[str, 
         if alternatives:
             value["alternatives"] = alternatives
         codes[code] = value
-    return {"format": 1, "codes": codes}
+    return {"format": 1, "codes": codes, "common_knowledge_left_out": sorted(common)}
 
 
-def _skills_of(soc: str, occupation_skills: Mapping[str, set[str]]) -> set[str]:
-    """An occupation's skill ids; for one without data of its own (O*NET's "All Other" catch-alls,
-    15-1299.00), the ids that at least two detailed occupations of its family (15-1299.01, ...)
-    share. Military-specific occupations (55-xxxx) have no O*NET data at all and stay empty."""
-    own = occupation_skills.get(soc)
-    if own:
-        return own
-    counts: dict[str, int] = defaultdict(int)
-    for other, skills in occupation_skills.items():
-        if other != soc and other[:7] == soc[:7]:
-            for skill in skills:
-                counts[skill] += 1
-    return {skill for skill, count in counts.items() if count >= 2}
+def _mos_note(socs: Sequence[str], occupation_skills: OccupationSkills) -> str:
+    """Why an entry has no skill ids (never filled from sibling occupations: D-29)."""
+    listed = ", ".join(socs)
+    if any(occupation_skills.of(socs)):
+        return f"{listed}: only fields of study or knowledge areas most codes share (left out)"
+    if all(soc.startswith("55-") for soc in socs):
+        return f"{listed}: military-specific occupation(s); O*NET publishes no skill data for them"
+    return f"{listed}: O*NET publishes no skill data for the occupation(s) (e.g. \"All Other\" catch-alls)"
 
 
 def build_naics(raw: Raw) -> dict[str, Any]:
@@ -1177,6 +1271,23 @@ def manifest_sources(raw: Raw, curated_path: Path, edges_path: Path) -> dict[str
     return sources
 
 
+def _mos_empty_summary(mos: Mapping[str, Any]) -> str:
+    """How many codes have no skill ids, by reason (the `note` of their primary entry)."""
+    reasons = {"military-specific": 0, "no data": 0, "left out": 0}
+    for value in mos["codes"].values():
+        note = value.get("note")
+        if note is None:
+            continue
+        key = ("military-specific" if "military-specific" in note
+               else "left out" if "left out" in note else "no data")
+        reasons[key] += 1
+    empty = sum(reasons.values())
+    return (f"Codes without skill ids: {empty:,} of {len(mos['codes']):,} codes have none:"
+            f" {reasons['military-specific']:,} map only to military-specific occupations (SOC 55-xxxx),"
+            f" {reasons['no data']:,} to civilian occupations O*NET publishes no skill data for (\"All Other\""
+            f" catch-alls and the like), {reasons['left out']:,} to occupations whose only data was left out.")
+
+
 def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extras: Mapping[str, Any],
                      edges: int, ambiguous: int) -> str:
     lines = [
@@ -1213,9 +1324,11 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "",
         "- ESCO: skills, skill groups (pillar roots excluded), broader relations, the transversal skills",
         f"  collection. French labels: {'yes' if raw.french else 'NO (not fetched; English only)'}.",
-        "  Occupations and occupation-skill relations are downloaded but not used by this build.",
+        "  Occupations: their descriptions only, as part of the common-word corpus (below); the",
+        "  occupation-skill relations are downloaded but not used.",
         "- O*NET: Technology Skills, Tools Used (examples and their UNSPSC commodity classes), Occupation Data,",
-        "  Alternate Titles, Sample of Reported Titles, Job Zones, Knowledge.",
+        "  Alternate Titles, Sample of Reported Titles, Job Zones, Knowledge; Task Statements only as part of",
+        "  the common-word corpus.",
         "- Military crosswalk: " + ("active primary codes (Army, Marine Corps, Navy, Air Force, Space Force,"
                                    " Coast Guard) mapped to O*NET-SOC; enlisted AFSCs also under their skill-level-X"
                                    " form (3D052 -> 3D0X2)." if raw.military else "NOT FETCHED: mos_crosswalk.json"
@@ -1225,23 +1338,34 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "",
         "## Rules worth knowing when reading the artifacts",
         "",
+        "- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels",
+        "  only, never its alternative or hidden labels; a one-word French preferred label is kept only when",
+        "  it is the English label. ESCO programming languages (labelled \"(computer programming)\" or under",
+        "  computer programming) are TECHNOLOGY.",
         "- titles.json: a primary O*NET title maps to its occupation; an alternate or reported title claimed",
         "  by several occupations goes to the SOC major group most of them share (ties: the smaller group",
         "  code), then to that group's smallest code. Trailing parentheticals give two keys",
         "  (`CEO (Chief Executive Officer)` -> `ceo`, `chief executive officer`). Job zone null: O*NET has none.",
+        "  Generic titles (curated `generic_titles`: intern, co-op, student, trainee, apprentice, volunteer,",
+        "  engineer, analyst, ...) name no occupation and are left out.",
         "- mos_crosswalk.json: one entry per code; `branches` lists every service using it, `branch` is the",
         "  first in Army, Marine Corps, Navy, Air Force, Space Force, Coast Guard order, and `alternatives`",
-        "  holds a service whose use of the code maps elsewhere. `skill_ids` are the hot or in-demand",
-        "  technologies and the top five knowledge areas (importance >= 3) of the mapped occupations; an",
-        "  O*NET \"All Other\" occupation without data takes what two or more detailed occupations of its",
-        "  family share. Military-specific occupations (SOC 55-xxxx) have no O*NET data: empty skill_ids.",
-        f"- Common words: lower-case words used at least {COMMON_WORD_MIN_COUNT} times in the ESCO and O*NET",
-        "  descriptions and task statements. A shortened source name (vendor-free, without \"software\", a",
-        "  bare label, an acronym half) that is one such word is not an alias (`Microsoft Paint` keeps no",
-        "  `Paint`).",
-        "- resolver.json: the curated ambiguous keys plus, automatically, every one-word name with a capital",
-        "  on a node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as",
-        "  written: lower-case prose never resolves to them and the fuzzy fallback never targets them.",
+        "  holds a service whose use of the code maps elsewhere. `skill_ids` (DECISIONS D-29) come only from",
+        "  the occupations a code maps to: their hot or in-demand technologies and top five knowledge areas",
+        "  (importance >= 3), never fields of study and never a knowledge area more than "
+        f"{MOS_COMMON_KNOWLEDGE_SHARE:.0%}",
+        "  of all codes would get (`common_knowledge_left_out`). An entry without skills carries a `note`.",
+        "- " + _mos_empty_summary(extras["mos_crosswalk.json"]),
+        f"- Common words: lower-case words used at least {COMMON_WORD_MIN_COUNT} times in the ESCO skill and",
+        "  occupation descriptions and the O*NET occupation descriptions and task statements. A shortened",
+        "  source name (vendor-free, without \"software\", a bare label, an acronym half) that is one such",
+        "  word is not an alias (`Microsoft Paint` keeps no `Paint`).",
+        "- resolver.json (DECISIONS D-26, D-27): `ambiguous` holds the curated keys that need their casing",
+        "  (a skills list waives it); `cased` holds, automatically, every one-word name with a capital on a",
+        "  node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as written",
+        "  everywhere: lower-case text never resolves to them and the fuzzy fallback never targets them.",
+        "  `blocked_phrases` (\"American Express\", \"Sous Chef\", \"Building C\") consume their words in",
+        "  extraction without a mention.",
         "",
         "## Counts",
         "",
@@ -1263,8 +1387,9 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
     lines += [
         "",
         f"- Total: {len(nodes):,} nodes, {sum(len(n.aliases) for n in nodes):,} aliases; "
-        f"{edges:,} curated related edges; {ambiguous:,} curated and {len(report.auto_ambiguous):,} automatic "
-        "ambiguous keys (one-word names with a capital on nodes that are not curated, cased as written).",
+        f"{edges:,} curated related edges; {ambiguous:,} curated ambiguous keys and "
+        f"{len(report.auto_ambiguous):,} automatic cased keys (one-word names with a capital on nodes that are "
+        f"not curated, cased as written); {len(extras['resolver.json']['blocked_phrases']):,} blocked phrases.",
         f"- Merged into curated nodes: {len(report.merges):,} source concepts; dropped nodes: "
         f"{len(report.dropped_nodes):,}; keys dropped as ambiguous between nodes: {len(report.ambiguous_keys):,};"
         f" label ties left to the resolver: {len(report.label_ties):,}.",
@@ -1325,10 +1450,15 @@ def build(
     edges = build_edges({}, {}, 1, threshold=1.0, min_cooccurrence=1, max_out_degree=0, curated=curated_map)
 
     report.auto_ambiguous = auto_ambiguous(nodes, curated.ambiguous)
-    ambiguous = {**report.auto_ambiguous, **curated.ambiguous}
+    resolver_settings = {
+        "format": 1,
+        "ambiguous": dict(sorted(curated.ambiguous.items())),
+        "cased": dict(sorted(report.auto_ambiguous.items())),
+        "blocked_phrases": list(curated.blocked_phrases),
+    }
     extras = {
-        "resolver.json": {"format": 1, "ambiguous": dict(sorted(ambiguous.items()))},
-        "titles.json": build_titles(raw),
+        "resolver.json": resolver_settings,
+        "titles.json": build_titles(raw, curated.generic_titles),
         "mos_crosswalk.json": build_mos(raw, _occupation_skills(raw, assembler, curated.onet_knowledge)),
         "naics.json": build_naics(raw),
     }
@@ -1365,9 +1495,14 @@ def main(argv: Optional[list[str]] = None) -> int:
     parser.add_argument("--curated", type=Path, default=DEFAULT_CURATED)
     parser.add_argument("--edges", type=Path, default=DEFAULT_EDGES)
     parser.add_argument("--review", type=Path, default=None, help="write curation review TSVs here")
+    parser.add_argument("--required", nargs="*", default=None, metavar="ID",
+                        help="credential ids the taxonomy must hold (default: the professional credential ids "
+                             "of config/gates.yaml; give the flag alone for none)")
     args = parser.parse_args(argv)
-    gates = yaml.safe_load(DEFAULT_GATES.read_text(encoding="utf-8"))
-    required = gates["license"]["professional_credential_ids"]
+    required = args.required
+    if required is None:
+        gates = yaml.safe_load(DEFAULT_GATES.read_text(encoding="utf-8"))
+        required = gates["license"]["professional_credential_ids"]
     report = build(args.raw, args.out, curated_path=args.curated, edges_path=args.edges, required_ids=required)
     if args.review is not None:
         _write_review(report, args.review)

@@ -2416,11 +2416,6 @@
    "job_zone":2,
    "soc":"43-6014.00"
   },
-  "administrator":{
-   "family":"Computer and Mathematical Occupations",
-   "job_zone":4,
-   "soc":"15-1242.00"
-  },
   "administrator pastor":{
    "family":"Community and Social Service Occupations",
    "job_zone":5,
@@ -3730,11 +3725,6 @@
    "family":"Office and Administrative Support Occupations",
    "job_zone":2,
    "soc":"43-9041.00"
-  },
-  "agent":{
-   "family":"Business and Financial Operations Occupations",
-   "job_zone":4,
-   "soc":"13-1011.00"
   },
   "agent contract clerk":{
    "family":"Transportation and Material Moving Occupations",
@@ -7161,11 +7151,6 @@
    "job_zone":3,
    "soc":"17-3026.00"
   },
-  "analyst":{
-   "family":"Business and Financial Operations Occupations",
-   "job_zone":4,
-   "soc":"13-1051.00"
-  },
   "analyst programmer":{
    "family":"Computer and Mathematical Occupations",
    "job_zone":4,
@@ -9245,11 +9230,6 @@
    "family":"Business and Financial Operations Occupations",
    "job_zone":4,
    "soc":"13-2022.00"
-  },
-  "apprentice":{
-   "family":"Construction and Extraction Occupations",
-   "job_zone":2,
-   "soc":"47-3013.00"
   },
   "apprentice instrument technician":{
    "family":"Installation, Maintenance, and Repair Occupations",
@@ -43601,11 +43581,6 @@
    "job_zone":2,
    "soc":"53-7065.00"
   },
-  "clerk":{
-   "family":"Office and Administrative Support Occupations",
-   "job_zone":2,
-   "soc":"43-4071.00"
-  },
   "clerk analyst":{
    "family":"Office and Administrative Support Occupations",
    "job_zone":3,
@@ -45735,11 +45710,6 @@
    "family":"Healthcare Practitioners and Technical Occupations",
    "job_zone":5,
    "soc":"29-1299.02"
-  },
-  "co op":{
-   "family":"Office and Administrative Support Occupations",
-   "job_zone":2,
-   "soc":"43-2021.00"
   },
   "co worker":{
    "family":"Installation, Maintenance, and Repair Occupations",
@@ -67436,11 +67406,6 @@
    "job_zone":3,
    "soc":"17-3011.00"
   },
-  "director":{
-   "family":"Arts, Design, Entertainment, Sports, and Media Occupations",
-   "job_zone":4,
-   "soc":"27-2012.00"
-  },
   "director engineering":{
    "family":"Architecture and Engineering Occupations",
    "job_zone":null,
@@ -79290,11 +79255,6 @@
    "family":"Transportation and Material Moving Occupations",
    "job_zone":2,
    "soc":"53-7061.00"
-  },
-  "engineer":{
-   "family":"Architecture and Engineering Occupations",
-   "job_zone":4,
-   "soc":"17-2011.00"
   },
   "engineer assistant":{
    "family":"Architecture and Engineering Occupations",
@@ -109811,11 +109771,6 @@
    "job_zone":3,
    "soc":"15-1232.00"
   },
-  "helper":{
-   "family":"Construction and Extraction Occupations",
-   "job_zone":2,
-   "soc":"47-3012.00"
-  },
   "helper teacher":{
    "family":"Educational Instruction and Library Occupations",
    "job_zone":3,
@@ -120526,11 +120481,6 @@
    "job_zone":2,
    "soc":"43-5011.00"
   },
-  "intern":{
-   "family":"Healthcare Practitioners and Technical Occupations",
-   "job_zone":null,
-   "soc":"29-1229.00"
-  },
   "internal affairs investigator":{
    "family":"Protective Service Occupations",
    "job_zone":3,
@@ -125640,11 +125590,6 @@
    "family":"Life, Physical, and Social Science Occupations",
    "job_zone":4,
    "soc":"19-4021.00"
-  },
-  "laborer":{
-   "family":"Farming, Fishing, and Forestry Occupations",
-   "job_zone":null,
-   "soc":"45-2099.00"
   },
   "laborers and freight stock and material movers hand":{
    "family":"Transportation and Material Moving Occupations",
@@ -155491,11 +155436,6 @@
    "job_zone":2,
    "soc":"43-9061.00"
   },
-  "officer":{
-   "family":"Protective Service Occupations",
-   "job_zone":3,
-   "soc":"33-3051.00"
-  },
   "officer in charge aviation unit or detachment":{
    "family":"Military Specific Occupations",
    "job_zone":null,
@@ -157115,11 +157055,6 @@
    "family":"Management Occupations",
    "job_zone":5,
    "soc":"11-1011.00"
-  },
-  "operator":{
-   "family":"Production Occupations",
-   "job_zone":2,
-   "soc":"51-4035.00"
   },
   "operator engineer":{
    "family":"Transportation and Material Moving Occupations",
@@ -159830,11 +159765,6 @@
    "family":"Community and Social Service Occupations",
    "job_zone":5,
    "soc":"21-1012.00"
-  },
-  "owner":{
-   "family":"Healthcare Practitioners and Technical Occupations",
-   "job_zone":5,
-   "soc":"29-1229.03"
   },
   "oxidation engineer":{
    "family":"Architecture and Engineering Occupations",
@@ -189616,11 +189546,6 @@
    "job_zone":2,
    "soc":"43-3011.00"
   },
-  "representative":{
-   "family":"Management Occupations",
-   "job_zone":4,
-   "soc":"11-1031.00"
-  },
   "reproducer":{
    "family":"Production Occupations",
    "job_zone":2,
@@ -190275,11 +190200,6 @@
    "family":"Personal Care and Service Occupations",
    "job_zone":3,
    "soc":"39-9041.00"
-  },
-  "resident":{
-   "family":"Healthcare Practitioners and Technical Occupations",
-   "job_zone":null,
-   "soc":"29-1229.00"
   },
   "resident advisor":{
    "family":"Personal Care and Service Occupations",
@@ -219536,11 +219456,6 @@
    "job_zone":3,
    "soc":"33-1021.00"
   },
-  "supervisor":{
-   "family":"Community and Social Service Occupations",
-   "job_zone":null,
-   "soc":"21-1029.00"
-  },
   "supervisor of communications":{
    "family":"Management Occupations",
    "job_zone":null,
@@ -223971,11 +223886,6 @@
    "job_zone":4,
    "soc":"27-3042.00"
   },
-  "technician":{
-   "family":"Architecture and Engineering Occupations",
-   "job_zone":3,
-   "soc":"17-3023.00"
-  },
   "technician biological health":{
    "family":"Healthcare Practitioners and Technical Occupations",
    "job_zone":null,
@@ -223995,11 +223905,6 @@
    "family":"Installation, Maintenance, and Repair Occupations",
    "job_zone":2,
    "soc":"49-9098.00"
-  },
-  "technologist":{
-   "family":"Architecture and Engineering Occupations",
-   "job_zone":3,
-   "soc":"17-3023.00"
   },
   "technology analyst":{
    "family":"Computer and Mathematical Occupations",

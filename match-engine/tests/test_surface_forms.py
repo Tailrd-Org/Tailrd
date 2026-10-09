@@ -148,10 +148,52 @@ def test_extra_artifacts_load_and_carry_their_examples() -> None:
     titles = load_json_artifact(TAXONOMY, "titles.json")["titles"]
     assert titles["software developers"]["soc"] == "15-1252.00"
     assert titles["software developers"]["family"] == "Computer and Mathematical Occupations"
-    codes = load_json_artifact(TAXONOMY, "mos_crosswalk.json")["codes"]
-    assert codes["25B"]["branch"] == "army" and "skill.python" in codes["25B"]["skill_ids"]
+    assert not {"intern", "co-op", "co op", "student", "trainee", "apprentice", "volunteer"} & set(titles)
+    mos = load_json_artifact(TAXONOMY, "mos_crosswalk.json")
+    codes = mos["codes"]
+    # D-29: skill ids come only from the occupations a code maps to. 25B maps to "Computer
+    # Occupations, All Other" alone, for which O*NET publishes no skill data: no skills, a note.
+    assert codes["25B"]["branch"] == "army" and codes["25B"]["skill_ids"] == []
+    assert codes["25B"]["note"].startswith("15-1299.00: O*NET publishes no skill data")
+    assert {"skill.active_directory", "skill.linux"} <= set(codes["17C"]["skill_ids"])  # Cyber Operations
+    assert "esco.english" in mos["common_knowledge_left_out"]
+    for code, value in codes.items():
+        for entry in (value, *value.get("alternatives", ())):
+            assert not any(skill.startswith("field.") for skill in entry["skill_ids"]), code
+            assert not set(entry["skill_ids"]) & set(mos["common_knowledge_left_out"]), code
+            assert bool(entry["skill_ids"]) != ("note" in entry), code
     naics = load_json_artifact(TAXONOMY, "naics.json")["codes"]
     assert naics["513210"] == "Software Publishers" and naics["31"] == naics["33"] == "Manufacturing"
+
+
+def test_resolver_settings_hold_the_rounds_rules() -> None:
+    settings = load_json_artifact(TAXONOMY, "resolver.json")
+    assert "agile" not in settings["ambiguous"] and settings["ambiguous"]["ml"] == "ML"
+    assert settings["ambiguous"]["bed"] == "BEd" and settings["cased"]["tables"] == "Tables"
+    assert not set(settings["ambiguous"]) & set(settings["cased"])
+    for phrase in ("American Express", "Express Entry", "Express Scripts", "Sous Chef", "Chef de partie",
+                   "Executive Chef", "Pastry Chef", "Vitamin C", "Vitamin D", "Building A", "Building C",
+                   "Building Z", "Swift Current", "Spring Break", "Spring Term", "Spring Semester", "Go-Live",
+                   "Go-to-market", "Go/No-Go", "R&D"):
+        assert phrase in settings["blocked_phrases"], phrase
+
+
+IN_PROGRESS = {
+    "cred.cpa_in_progress": "cred.cpa", "cred.cfa_candidate": "cred.cfa",
+    "cred.nursing_student": "cred.registered_nurse", "cred.articling_student": "cred.bar_admission",
+    "cred.electrician_apprentice": "cred.electrician_license", "cred.teacher_candidate": "cred.teaching_license",
+    "cred.medical_student": "cred.medical_license", "cred.pharmacy_student": "cred.pharmacist_license",
+    "cred.paramedic_student": "cred.paramedic_license", "cred.cdl_trainee": "cred.commercial_drivers_license",
+}
+
+
+def test_licences_in_progress_are_related_credentials_not_licences(graph, config) -> None:
+    licences = set(config.gates.license.professional_credential_ids)
+    for node_id, licence in IN_PROGRESS.items():
+        assert graph.nodes[node_id].kind is SkillKind.CREDENTIAL, node_id
+        assert node_id not in licences, node_id
+        assert licence in licences or licence == "cred.cfa", node_id  # the CFA charter is not a gated licence
+        assert 0.4 <= graph.related_weight(node_id, licence) <= 0.8, node_id
 
 
 def test_artifacts_stay_small() -> None:

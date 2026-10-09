@@ -29,50 +29,62 @@ as downloaded.
 
 - ESCO: skills, skill groups (pillar roots excluded), broader relations, the transversal skills
   collection. French labels: yes.
-  Occupations and occupation-skill relations are downloaded but not used by this build.
+  Occupations: their descriptions only, as part of the common-word corpus (below); the
+  occupation-skill relations are downloaded but not used.
 - O*NET: Technology Skills, Tools Used (examples and their UNSPSC commodity classes), Occupation Data,
-  Alternate Titles, Sample of Reported Titles, Job Zones, Knowledge.
+  Alternate Titles, Sample of Reported Titles, Job Zones, Knowledge; Task Statements only as part of
+  the common-word corpus.
 - Military crosswalk: active primary codes (Army, Marine Corps, Navy, Air Force, Space Force, Coast Guard) mapped to O*NET-SOC; enlisted AFSCs also under their skill-level-X form (3D052 -> 3D0X2).
 - NAICS 2022: 2-6 digit codes; the sector ranges 31-33, 44-45 and 48-49 are expanded to each code.
 - IDF is empty and related edges are the curated ones only: Task 2.3 computes both from the corpus.
 
 ## Rules worth knowing when reading the artifacts
 
+- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels
+  only, never its alternative or hidden labels; a one-word French preferred label is kept only when
+  it is the English label. ESCO programming languages (labelled "(computer programming)" or under
+  computer programming) are TECHNOLOGY.
 - titles.json: a primary O*NET title maps to its occupation; an alternate or reported title claimed
   by several occupations goes to the SOC major group most of them share (ties: the smaller group
   code), then to that group's smallest code. Trailing parentheticals give two keys
   (`CEO (Chief Executive Officer)` -> `ceo`, `chief executive officer`). Job zone null: O*NET has none.
+  Generic titles (curated `generic_titles`: intern, co-op, student, trainee, apprentice, volunteer,
+  engineer, analyst, ...) name no occupation and are left out.
 - mos_crosswalk.json: one entry per code; `branches` lists every service using it, `branch` is the
   first in Army, Marine Corps, Navy, Air Force, Space Force, Coast Guard order, and `alternatives`
-  holds a service whose use of the code maps elsewhere. `skill_ids` are the hot or in-demand
-  technologies and the top five knowledge areas (importance >= 3) of the mapped occupations; an
-  O*NET "All Other" occupation without data takes what two or more detailed occupations of its
-  family share. Military-specific occupations (SOC 55-xxxx) have no O*NET data: empty skill_ids.
-- Common words: lower-case words used at least 2 times in the ESCO and O*NET
-  descriptions and task statements. A shortened source name (vendor-free, without "software", a
-  bare label, an acronym half) that is one such word is not an alias (`Microsoft Paint` keeps no
-  `Paint`).
-- resolver.json: the curated ambiguous keys plus, automatically, every one-word name with a capital
-  on a node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as
-  written: lower-case prose never resolves to them and the fuzzy fallback never targets them.
+  holds a service whose use of the code maps elsewhere. `skill_ids` (DECISIONS D-29) come only from
+  the occupations a code maps to: their hot or in-demand technologies and top five knowledge areas
+  (importance >= 3), never fields of study and never a knowledge area more than 25%
+  of all codes would get (`common_knowledge_left_out`). An entry without skills carries a `note`.
+- Codes without skill ids: 1,827 of 8,385 codes have none: 1,023 map only to military-specific occupations (SOC 55-xxxx), 804 to civilian occupations O*NET publishes no skill data for ("All Other" catch-alls and the like), 0 to occupations whose only data was left out.
+- Common words: lower-case words used at least 2 times in the ESCO skill and
+  occupation descriptions and the O*NET occupation descriptions and task statements. A shortened
+  source name (vendor-free, without "software", a bare label, an acronym half) that is one such
+  word is not an alias (`Microsoft Paint` keeps no `Paint`).
+- resolver.json (DECISIONS D-26, D-27): `ambiguous` holds the curated keys that need their casing
+  (a skills list waives it); `cased` holds, automatically, every one-word name with a capital on a
+  node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as written
+  everywhere: lower-case text never resolves to them and the fuzzy fallback never targets them.
+  `blocked_phrases` ("American Express", "Sous Chef", "Building C") consume their words in
+  extraction without a mention.
 
 ## Counts
 
 | Kind | Nodes |
 |---|---|
-| TECHNOLOGY | 2,192 |
-| METHODOLOGY | 11,113 |
-| DOMAIN | 3,320 |
-| TOOL | 27,888 |
+| TECHNOLOGY | 2,201 |
+| METHODOLOGY | 11,120 |
+| DOMAIN | 3,307 |
+| TOOL | 27,896 |
 | SOFT | 134 |
-| CREDENTIAL | 69 |
+| CREDENTIAL | 79 |
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 661 | 3,515 |
-| esco | 14,300 | 103,214 |
-| onet | 29,755 | 1,994 |
+| curated | 695 | 2,674 |
+| esco | 14,297 | 102,830 |
+| onet | 29,745 | 1,990 |
 
-- Total: 44,716 nodes, 108,723 aliases; 121 curated related edges; 68 curated and 2,655 automatic ambiguous keys (one-word names with a capital on nodes that are not curated, cased as written).
-- Merged into curated nodes: 607 source concepts; dropped nodes: 25; keys dropped as ambiguous between nodes: 634; label ties left to the resolver: 108.
-- titles.json: 49,679 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
+- Total: 44,737 nodes, 107,494 aliases; 142 curated related edges; 86 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 75 blocked phrases.
+- Merged into curated nodes: 620 source concepts; dropped nodes: 25; keys dropped as ambiguous between nodes: 603; label ties left to the resolver: 108.
+- titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.

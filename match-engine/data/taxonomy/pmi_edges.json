@@ -3,6 +3,10 @@
   "cred.acls":{
    "esco.resuscitation":0.7
   },
+  "cred.articling_student":{
+   "cred.bar_admission":0.6,
+   "field.law":0.7
+  },
   "cred.aws_cloud_practitioner":{
    "skill.aws":0.6
   },
@@ -28,6 +32,7 @@
    "skill.azure":0.6
   },
   "cred.bar_admission":{
+   "cred.articling_student":0.6,
    "field.law":0.8
   },
   "cred.bls":{
@@ -42,11 +47,20 @@
   "cred.ccnp":{
    "skill.networking":0.8
   },
+  "cred.cdl_trainee":{
+   "cred.commercial_drivers_license":0.6,
+   "esco.manoeuvre_heavy_trucks":0.5
+  },
   "cred.ceh":{
    "skill.penetration_testing":0.8
   },
   "cred.cfa":{
+   "cred.cfa_candidate":0.6,
    "skill.financial_analysis":0.8
+  },
+  "cred.cfa_candidate":{
+   "cred.cfa":0.6,
+   "skill.financial_analysis":0.7
   },
   "cred.chrl":{
    "skill.human_resource_management":0.8
@@ -70,6 +84,7 @@
    "field.accounting":0.7
   },
   "cred.commercial_drivers_license":{
+   "cred.cdl_trainee":0.6,
    "esco.manoeuvre_heavy_trucks":0.8
   },
   "cred.comptia_a_plus":{
@@ -82,7 +97,12 @@
    "skill.cybersecurity":0.7
   },
   "cred.cpa":{
+   "cred.cpa_in_progress":0.6,
    "field.accounting":0.8
+  },
+  "cred.cpa_in_progress":{
+   "cred.cpa":0.6,
+   "field.accounting":0.7
   },
   "cred.cpr":{
    "esco.provide_first_aid":0.6,
@@ -103,7 +123,12 @@
   "cred.eit":{
    "field.engineering":0.6
   },
+  "cred.electrician_apprentice":{
+   "cred.electrician_license":0.6,
+   "skill.electrical_wiring":0.7
+  },
   "cred.electrician_license":{
+   "cred.electrician_apprentice":0.6,
    "skill.electrical_wiring":0.8
   },
   "cred.first_aid":{
@@ -138,10 +163,21 @@
    "esco.green_building_practices":0.8
   },
   "cred.licensed_practical_nurse":{
+   "cred.nursing_student":0.5,
    "field.nursing":0.7
   },
   "cred.medical_license":{
+   "cred.medical_student":0.6,
    "esco.group.0912":0.8
+  },
+  "cred.medical_student":{
+   "cred.medical_license":0.6,
+   "esco.group.0912":0.6
+  },
+  "cred.nursing_student":{
+   "cred.licensed_practical_nurse":0.5,
+   "cred.registered_nurse":0.6,
+   "field.nursing":0.7
   },
   "cred.oscp":{
    "skill.penetration_testing":0.8
@@ -150,10 +186,20 @@
    "esco.resuscitation":0.7
   },
   "cred.paramedic_license":{
+   "cred.paramedic_student":0.6,
    "esco.principles_of_paramedic_practice":0.8
   },
+  "cred.paramedic_student":{
+   "cred.paramedic_license":0.6,
+   "esco.principles_of_paramedic_practice":0.6
+  },
   "cred.pharmacist_license":{
+   "cred.pharmacy_student":0.6,
    "field.pharmacy":0.8
+  },
+  "cred.pharmacy_student":{
+   "cred.pharmacist_license":0.6,
+   "field.pharmacy":0.7
   },
   "cred.pmp":{
    "skill.project_management":0.8
@@ -171,6 +217,7 @@
    "skill.skilled_trades":0.7
   },
   "cred.registered_nurse":{
+   "cred.nursing_student":0.6,
    "field.nursing":0.8
   },
   "cred.salesforce_admin":{
@@ -191,7 +238,12 @@
   "cred.smart_serve":{
    "esco.apply_regulations_regarding_the_sale_of_alcoholic_beverages":0.8
   },
+  "cred.teacher_candidate":{
+   "cred.teaching_license":0.6,
+   "field.education":0.7
+  },
   "cred.teaching_license":{
+   "cred.teacher_candidate":0.6,
    "field.education":0.8
   },
   "cred.tensorflow_developer":{
@@ -222,16 +274,19 @@
    "cred.leed":0.8
   },
   "esco.group.0912":{
-   "cred.medical_license":0.8
+   "cred.medical_license":0.8,
+   "cred.medical_student":0.6
   },
   "esco.manoeuvre_heavy_trucks":{
+   "cred.cdl_trainee":0.5,
    "cred.commercial_drivers_license":0.8
   },
   "esco.perform_security_checks":{
    "cred.security_guard_license":0.6
   },
   "esco.principles_of_paramedic_practice":{
-   "cred.paramedic_license":0.8
+   "cred.paramedic_license":0.8,
+   "cred.paramedic_student":0.6
   },
   "esco.provide_first_aid":{
    "cred.cpr":0.6,
@@ -246,6 +301,7 @@
   "field.accounting":{
    "cred.cma":0.7,
    "cred.cpa":0.8,
+   "cred.cpa_in_progress":0.7,
    "field.commerce":0.5,
    "field.finance":0.6
   },
@@ -308,6 +364,7 @@
    "field.political_science":0.4
   },
   "field.education":{
+   "cred.teacher_candidate":0.7,
    "cred.teaching_license":0.8,
    "cred.tesol":0.5
   },
@@ -340,6 +397,7 @@
    "field.information_systems":0.7
   },
   "field.law":{
+   "cred.articling_student":0.7,
    "cred.bar_admission":0.8
   },
   "field.marketing":{
@@ -360,11 +418,13 @@
   },
   "field.nursing":{
    "cred.licensed_practical_nurse":0.7,
+   "cred.nursing_student":0.7,
    "cred.registered_nurse":0.8,
    "field.public_health":0.5
   },
   "field.pharmacy":{
-   "cred.pharmacist_license":0.8
+   "cred.pharmacist_license":0.8,
+   "cred.pharmacy_student":0.7
   },
   "field.physics":{
    "field.mathematics":0.6
@@ -435,6 +495,7 @@
    "cred.ece_registration":0.8
   },
   "skill.electrical_wiring":{
+   "cred.electrician_apprentice":0.7,
    "cred.electrician_license":0.8
   },
   "skill.figma":{
@@ -442,7 +503,8 @@
    "skill.sketch":0.7
   },
   "skill.financial_analysis":{
-   "cred.cfa":0.8
+   "cred.cfa":0.8,
+   "cred.cfa_candidate":0.7
   },
   "skill.food_safety":{
    "cred.food_handler":0.8
