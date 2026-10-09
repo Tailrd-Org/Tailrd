@@ -1326,7 +1326,10 @@ def extract_scope(bullets: Sequence[str]) -> ScopeFeatures
    ROLE_BULLET or ROLE_BULLET_QUANTIFIED refs with verb_class/polarity, source ROLE,
    first_used = start, last_used = end (as_of when current); an MOS/MOC code found in the title or
    bullets (e.g. "25B", "0311") adds the crosswalk's skills as ROLE_TITLE refs (SPEC §14.3).
-6. `parse_education`: degree level en/fr (BSc, B.Sc., BA, BEng, BASc, BCom, B.Comm, Bachelor,
+6. `parse_education` (from Task 2.2: field-of-study nodes match only with
+   `resolver.extract(text, include_fields=True)` / `resolver.resolve(text, prefer_fields=True)`;
+   eight words such as "accounting", "statistics", "design" are both a skill and a field — in
+   education lines the FIELD wins, in prose the skill): degree level en/fr (BSc, B.Sc., BA, BEng, BASc, BCom, B.Comm, Bachelor,
    Baccalauréat → BACHELOR; MSc, MEng, MASc, MBA, Master, Maîtrise → MASTER; PhD, Doctorate,
    Doctorat → DOCTORATE; Diploma, Associate, College diploma, DEC, AEC → ASSOCIATE; High school,
    Secondary, DES → HIGH_SCHOOL); fields = `field.*` ids extracted from the degree line;
@@ -1389,6 +1392,12 @@ def resume_from_document(doc: Mapping[str, Any], *, as_of, resolver, config, par
    into the matching in-progress node (e.g. `cred.cpa_in_progress`; taxonomy DECISIONS D-28) or,
    when none exists, drop the credential ref; "Pursuing a CPA designation" and "CPA (in progress)"
    must never yield `cred.cpa` (the licence gate would pass an unlicensed candidate, SPEC §4).
+   The taxonomy resolves the licence CONCEPT for these (Task 2.2 round-3 re-ruling: status is
+   context); test at least: "Registered Nurse (RN) candidate awaiting the NCLEX.", "Primary
+   Care Paramedic (PCP) student at Humber College.", "Construction and Maintenance Electrician
+   (309A) Apprentice", "Professional Engineer (P.Eng.) candidate", "CPA, in progress", "RN
+   (pending NCLEX)", "CDL-A trainee", "RN students", "R.N. (in progress)", "Primary Care
+   Paramedic Diploma, Centennial College (expected 2026)" → never licence evidence.
 6. Adversarial (SPEC §10): white-text stuffing is stripped at ingest and flagged; a résumé that IS
    a pasted job posting (the posting's text, end to end through `parse_resume_text` →
    `score`) scores raw < 0.85 against that posting; one skill listed 50 times == once.
