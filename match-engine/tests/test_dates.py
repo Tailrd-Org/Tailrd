@@ -287,12 +287,6 @@ Y2021 = dv(D(2021, 7, 1), D(2021, 1, 1), D(2021, 12, 31), YEAR)
             (IMPRECISE,),
         ),
         ("Jan '20 – Mar '21", JAN_2020_START, MAR_2021_END, (TWO_DIGIT,)),
-        (  # month + two digits reads as a year when the other side of a range is a date too
-            "Jun 18 – Aug 18",
-            dv(D(2018, 6, 1), D(2018, 6, 1), D(2018, 6, 30), MONTH),
-            dv(D(2018, 8, 31), D(2018, 8, 1), D(2018, 8, 31), MONTH),
-            (TWO_DIGIT,),
-        ),
         (
             "Summer 2019 – Fall 2020",
             dv(D(2019, 8, 16), D(2019, 7, 1), D(2019, 9, 30), SEASON),
@@ -573,6 +567,20 @@ def test_degree_abbreviation_is_not_a_calendar_marker() -> None:
     assert parse_date("B.E. 2019", as_of=AS_OF) == (None, ())  # a degree and a year, not 1476
 
 
+@pytest.mark.parametrize("marker", ["SH", "AH"])
+def test_a_gregorian_year_beside_a_hijri_marker_is_not_converted(marker: str) -> None:
+    # 2019 is no Solar Hijri or Hijri year (those run near 1400 now), so the marker is not read:
+    # the number stays the Gregorian year it plainly is, with no UNSUPPORTED_CALENDAR review.
+    assert parse_date(f"2019 {marker}", as_of=AS_OF) == (None, ())
+    assert parse_range(f"Analyst, 2019 {marker}", as_of=AS_OF) == DateRange(
+        start=dv(D(2019, 1, 1), D(2019, 1, 1), D(2019, 7, 1), YEAR),
+        end=dv(D(2019, 12, 31), D(2019, 7, 1), D(2019, 12, 31), YEAR),
+        is_current=False,
+        flags=(IMPRECISE,),
+        raw="2019",
+    )
+
+
 def test_a_clock_time_is_not_a_calendar_date() -> None:
     # "1000 AM" would convert from the Hebrew calendar to year −2760; it is a time, so no flag.
     assert parse_date("1000 AM", as_of=AS_OF) == (None, ())
@@ -756,14 +764,43 @@ def test_month_and_day_before_present_is_no_date() -> None:
     assert find_date_ranges("Lifeguard, May 15 – Present", as_of=AS_OF) == ()
 
 
-@pytest.mark.parametrize("text", ["Jan 19 – Mar 21", "Jan 19 – Mar '21"])
-def test_two_digit_year_reading_needs_two_digit_years_on_both_sides(text: str) -> None:
-    assert parse_range(text, as_of=AS_OF) == DateRange(
+def test_two_digit_years_after_a_month_need_an_apostrophe() -> None:
+    assert parse_range("Jan '19 – Mar '21", as_of=AS_OF) == DateRange(
         start=dv(D(2019, 1, 1), D(2019, 1, 1), D(2019, 1, 31), MONTH),
         end=MAR_2021_END,
         is_current=False,
         flags=(TWO_DIGIT,),
-        raw=text,
+        raw="Jan '19 – Mar '21",
+    )
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "June 15 – August 30",  # not 2015 – 2030 clamped to today: about 11 invented years
+        "Jan 19 – Mar 21",
+        "Jun 18 – Aug 18",
+        "Jan 5 – Mar 21",
+        "Jun 18th – Aug 18",
+        "Jan 98",  # a month and two digits without an apostrophe is never a year
+    ],
+)
+def test_month_and_number_without_a_four_digit_year_is_no_date(text: str) -> None:
+    assert parse_range(text, as_of=AS_OF) is None
+    assert find_date_ranges(f"Camp staff, {text}", as_of=AS_OF) == ()
+    assert parse_date(text, as_of=AS_OF) == (None, ())
+
+
+@pytest.mark.parametrize("text", ["Jan 5 – Mar '21", "Jan 19 – Mar '21"])
+def test_month_and_day_beside_an_apostrophe_year_leaves_that_month_alone(text: str) -> None:
+    # The day side has no four-digit year to take, so it gives nothing: never a day of 2021, never
+    # 2005 or 2019. The apostrophe side stands alone as March 2021.
+    assert parse_range(text, as_of=AS_OF) == DateRange(
+        start=dv(D(2021, 3, 1), D(2021, 3, 1), D(2021, 3, 31), MONTH),
+        end=MAR_2021_END,
+        is_current=False,
+        flags=(TWO_DIGIT,),
+        raw="Mar '21",
     )
 
 

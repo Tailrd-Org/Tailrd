@@ -19,9 +19,9 @@ Interpretations beyond the SPEC table (pinned by tests): month and season names 
 both languages whatever `lang` says (mixed-language résumés, SPEC §14.1; `lang` only orders an
 ambiguous 03/04/2020); "2018-19" is an academic year like "2018/19", while "2011/12" reads as
 December 2011 because a valid month wins; "Mon D(D)" never invents a year: beside a four-digit
-year it is a day in that year ("June 15 – August 15, 2020"), it is a two-digit year only when both
-ends are written with two digits ("Jun 18 – Aug 18"), and alone or before "Present" it is no
-date ("May 15"); an imprecise start whose period contains `as_of`
+year it is a day in that year ("June 15 – August 15, 2020"), and with no four-digit year beside
+it, it is no date ("May 15", "June 15 – August 30", "May 15 – Present"), because after a month
+two digits are a year only with an apostrophe ("Jan '19"); an imprecise start whose period contains `as_of`
 ("Fall 2026 – Present" in October 2026) has begun and is kept inside [earliest, as_of]; no bound
 of a returned range lies after `as_of`; a dropped range carries only the reason it was dropped.
 
@@ -166,11 +166,11 @@ _RX_MONTH_DAY = re.compile(rf"{_MON}\s*(?P<d>[0-9]{{1,2}}){_NA}(?:st|nd|rd|th)?{
 _RX_DAY_MONTH = re.compile(
     rf"{_NB}(?P<d>[0-9]{{1,2}}){_NA}(?:st|nd|rd|th|er)?(?:-|\s*){_MON}(?:-|,?\s*){_Y4}", _I
 )
-_RX_NAMED_MONTH = re.compile(
-    rf"{_MON}(?:[-/]|,?\s*)(?:{_Y4}|{_YA}|(?P<yn>3[2-9]|[4-9][0-9]){_NA})", _I
-)  # a two-digit year without an apostrophe only when it cannot be a day (32..99)
-# "Mon D(D)": a day or a two-digit year; only the other end of a range can say which (_read_weak).
-_RX_WEAK_MONTH = re.compile(rf"{_MON}\s++(?P<d>[0-2]?[0-9]|3[01]){_NA}(?P<sfx>st|nd|rd|th)?{_LA}", _I)
+# After a month, two digits are a year only with an apostrophe ("Jan '19"): "Jan 19" may be a
+# day, and a wrong year would invent years of experience.
+_RX_NAMED_MONTH = re.compile(rf"{_MON}(?:[-/]|,?\s*)(?:{_Y4}|{_YA})", _I)
+# "Mon D(D)": a day whose year only a four-digit year at the other end of its range can give.
+_RX_WEAK_MONTH = re.compile(rf"{_MON}\s++(?P<d>[0-2]?[0-9]|3[01]){_NA}(?:st|nd|rd|th)?{_LA}", _I)
 _RX_SEASON = re.compile(rf"{_SEA}\s*(?:of\s+)?(?:[-/,]\s*)?(?:{_Y4}|{_YA}|(?P<yn>[0-9]{{2}}){_NA})", _I)
 _RX_QUARTER_FIRST = re.compile(rf"{_LB}Q(?P<q>[1-4])\s*(?:[-/,]\s*)?(?:{_Y4}|{_YA})", _I)
 _RX_QUARTER_LAST = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s*+(?:[-/]\s*+)?Q(?P<q>[1-4]){_NA}{_LA}", _I)
@@ -308,7 +308,6 @@ class _Atom:
     two_digit: bool = False
     bare_two: bool = False  # a lone two-digit number (whole-text reading only)
     own_sep: bool = False  # a present marker that carries its separator ("to date")
-    short_year: Optional[int] = None  # _WEAK only: the year its two digits would name
 
 
 _Handler = Callable[[re.Match[str], dt.date, str], Optional[_Atom]]
@@ -373,14 +372,11 @@ def _named_month(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]
 
 
 def _weak_month(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]:
-    """A day with no year yet (year 0) that `_read_weak` settles beside its range partner.
-    Two digits with no ordinal suffix could also be a two-digit year ("Jun 18")."""
+    """A day with no year yet (year 0); `_read_weak` gives it its range partner's year."""
     month = _month_of(m)
     if not month:
         return None
-    short = _two_digit_year(m["d"], as_of) if len(m["d"]) == 2 and not m["sfx"] else None
-    period = _Period(DatePrecision.DAY, 0, month, int(m["d"]))
-    return _Atom(m.start(), m.end(), _WEAK, period, two_digit=short is not None, short_year=short)
+    return _Atom(m.start(), m.end(), _WEAK, _Period(DatePrecision.DAY, 0, month, int(m["d"])))
 
 
 def _season(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]:
@@ -589,25 +585,18 @@ def _linked(text: str, a: _Atom, b: _Atom) -> bool:
     return not ((a.bare_two and not b.two_digit) or (b.bare_two and not a.two_digit))
 
 
-def _read_weak(weak: _Atom, partner: _Atom, *, before: bool) -> Optional[tuple[_Period, tuple[Flag, ...]]]:
-    """Read "Mon D(D)" from the other end of its range; None when that cannot settle it.
+def _read_weak(weak: _Atom, partner: _Atom, *, before: bool) -> Optional[_Period]:
+    """Read "Mon D(D)" from the other end of its range, or None: it is no date.
 
     Beside a four-digit year it is a day in that year, by `_inherit`'s month-order rule
-    ("June 15 – August 15, 2020"; "Dec 15 – Jan 2021" starts in 2020). It is a month in a
-    two-digit year only when the other end is written with two digits too ("Jun 18 – Aug 18").
-    Never otherwise: a wrong year would invent years of experience.
+    ("June 15 – August 15, 2020"; "Dec 15 – Jan 2021" starts in 2020). Beside anything else
+    (another "Mon D(D)", an apostrophe year, Present) it is nothing: written without an
+    apostrophe it is never a two-digit year, since "June 15 – August 30" read as 2015 – 2030
+    would invent years of experience.
     """
-    if weak.period is None:
+    if weak.period is None or partner.kind != _POINT or partner.period is None or partner.two_digit:
         return None
-    if partner.two_digit:
-        if weak.short_year is None:
-            return None
-        month = _Period(DatePrecision.MONTH, weak.short_year, weak.period.month)
-        return (month, (Flag.TWO_DIGIT_YEAR,)) if _bounds(month) is not None else None
-    if partner.kind != _POINT or partner.period is None:
-        return None
-    day = _inherit(weak.period, partner.period, before=before)
-    return (day, ()) if day is not None else None
+    return _inherit(weak.period, partner.period, before=before)
 
 
 def _pair(a: _Atom, b: _Atom) -> Optional[_Group]:
@@ -621,15 +610,9 @@ def _pair(a: _Atom, b: _Atom) -> Optional[_Group]:
     if last is None:
         return None
     if a.kind == _WEAK:
-        reading = _read_weak(a, b, before=True)
-        if reading is None:
-            return None
-        first, flags = reading[0], flags + reading[1]
+        first = _read_weak(a, b, before=True)
     if b.kind == _WEAK:
-        reading = _read_weak(b, a, before=False)
-        if reading is None:
-            return None
-        last, flags = reading[0], flags + reading[1]
+        last = _read_weak(b, a, before=False)
     if a.kind == _NOYEAR:
         first = _inherit(first, last, before=True)
     elif b.kind == _NOYEAR:
