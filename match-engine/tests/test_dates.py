@@ -782,13 +782,33 @@ def test_two_digit_years_after_a_month_need_an_apostrophe() -> None:
         "Jun 18 – Aug 18",
         "Jan 5 – Mar 21",
         "Jun 18th – Aug 18",
-        "Jan 98",  # a month and two digits without an apostrophe is never a year
     ],
 )
 def test_month_and_number_without_a_four_digit_year_is_no_date(text: str) -> None:
     assert parse_range(text, as_of=AS_OF) is None
     assert find_date_ranges(f"Camp staff, {text}", as_of=AS_OF) == ()
     assert parse_date(text, as_of=AS_OF) == (None, ())
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [  # two digits that cannot be a day (00, 32–99) are a two-digit year even without an apostrophe
+        ("Jan 98", dv(D(1998, 1, 1), D(1998, 1, 1), D(1998, 1, 31), MONTH)),
+        ("Mar 00", dv(D(2000, 3, 1), D(2000, 3, 1), D(2000, 3, 31), MONTH)),
+    ],
+)
+def test_month_and_number_that_cannot_be_a_day_is_a_two_digit_year(text: str, expected: DateValue) -> None:
+    assert parse_date(text, as_of=AS_OF) == (expected, (TWO_DIGIT,))
+
+
+def test_range_of_months_with_unambiguous_two_digit_years() -> None:
+    assert parse_range("Jan 98 – Mar 99", as_of=AS_OF) == DateRange(
+        start=dv(D(1998, 1, 1), D(1998, 1, 1), D(1998, 1, 31), MONTH),
+        end=dv(D(1999, 3, 31), D(1999, 3, 1), D(1999, 3, 31), MONTH),
+        is_current=False,
+        flags=(TWO_DIGIT,),
+        raw="Jan 98 – Mar 99",
+    )
 
 
 @pytest.mark.parametrize("text", ["Jan 5 – Mar '21", "Jan 19 – Mar '21"])

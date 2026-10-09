@@ -21,7 +21,8 @@ ambiguous 03/04/2020); "2018-19" is an academic year like "2018/19", while "2011
 December 2011 because a valid month wins; "Mon D(D)" never invents a year: beside a four-digit
 year it is a day in that year ("June 15 – August 15, 2020"), and with no four-digit year beside
 it, it is no date ("May 15", "June 15 – August 30", "May 15 – Present"), because after a month
-two digits are a year only with an apostrophe ("Jan '19"); an imprecise start whose period contains `as_of`
+two digits are a year only with an apostrophe ("Jan '19") or when they cannot be a day (00 and
+32–99: "Jan 98"); an imprecise start whose period contains `as_of`
 ("Fall 2026 – Present" in October 2026) has begun and is kept inside [earliest, as_of]; no bound
 of a returned range lies after `as_of`; a dropped range carries only the reason it was dropped.
 
@@ -166,9 +167,11 @@ _RX_MONTH_DAY = re.compile(rf"{_MON}\s*(?P<d>[0-9]{{1,2}}){_NA}(?:st|nd|rd|th)?{
 _RX_DAY_MONTH = re.compile(
     rf"{_NB}(?P<d>[0-9]{{1,2}}){_NA}(?:st|nd|rd|th|er)?(?:-|\s*){_MON}(?:-|,?\s*){_Y4}", _I
 )
-# After a month, two digits are a year only with an apostrophe ("Jan '19"): "Jan 19" may be a
-# day, and a wrong year would invent years of experience.
-_RX_NAMED_MONTH = re.compile(rf"{_MON}(?:[-/]|,?\s*)(?:{_Y4}|{_YA})", _I)
+# After a month, two digits are a year with an apostrophe ("Jan '19") or when they cannot be a day
+# (00, 32–99: "Jan 98"). "Jan 19" may be a day, and a wrong year would invent years of experience.
+_RX_NAMED_MONTH = re.compile(
+    rf"{_MON}(?:[-/]|,?\s*)(?:{_Y4}|{_YA}|(?P<yn>00|3[2-9]|[4-9][0-9]){_NA})", _I
+)
 # "Mon D(D)": a day whose year only a four-digit year at the other end of its range can give.
 _RX_WEAK_MONTH = re.compile(rf"{_MON}\s++(?P<d>[0-2]?[0-9]|3[01]){_NA}(?:st|nd|rd|th)?{_LA}", _I)
 _RX_SEASON = re.compile(rf"{_SEA}\s*(?:of\s+)?(?:[-/,]\s*)?(?:{_Y4}|{_YA}|(?P<yn>[0-9]{{2}}){_NA})", _I)
