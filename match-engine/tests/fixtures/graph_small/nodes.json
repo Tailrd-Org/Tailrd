@@ -16,6 +16,18 @@
   },
   {
    "aliases":[
+    "AZ-900"
+   ],
+   "id":"cred.azure_fundamentals",
+   "kind":"CREDENTIAL",
+   "label":"Microsoft Certified: Azure Fundamentals",
+   "parents":[],
+   "provisional":false,
+   "release_year":null,
+   "source":"curated"
+  },
+  {
+   "aliases":[
     "RN"
    ],
    "id":"cred.registered_nurse",
@@ -236,6 +248,26 @@
    "source":"esco"
   },
   {
+   "aliases":[],
+   "id":"skill.graphql",
+   "kind":"TECHNOLOGY",
+   "label":"GraphQL",
+   "parents":[],
+   "provisional":false,
+   "release_year":2015,
+   "source":"esco"
+  },
+  {
+   "aliases":[],
+   "id":"skill.java",
+   "kind":"TECHNOLOGY",
+   "label":"Java",
+   "parents":[],
+   "provisional":false,
+   "release_year":1995,
+   "source":"esco"
+  },
+  {
    "aliases":[
     "JS",
     "ECMAScript"
@@ -429,6 +461,18 @@
   },
   {
    "aliases":[
+    "REST API"
+   ],
+   "id":"skill.rest",
+   "kind":"METHODOLOGY",
+   "label":"REST",
+   "parents":[],
+   "provisional":false,
+   "release_year":null,
+   "source":"esco"
+  },
+  {
+   "aliases":[
     "sklearn"
    ],
    "id":"skill.scikit_learn",
@@ -448,6 +492,20 @@
    "label":"Scrum",
    "parents":[
     "skill.agile"
+   ],
+   "provisional":false,
+   "release_year":null,
+   "source":"esco"
+  },
+  {
+   "aliases":[
+    "Spring Framework"
+   ],
+   "id":"skill.spring",
+   "kind":"TECHNOLOGY",
+   "label":"Spring",
+   "parents":[
+    "skill.java"
    ],
    "provisional":false,
    "release_year":null,

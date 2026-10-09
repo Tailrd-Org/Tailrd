@@ -23,6 +23,7 @@ import io
 import json
 import os
 import re
+import zlib
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
 
@@ -203,7 +204,7 @@ def load_graph(taxonomy_dir: str | Path) -> SkillGraph:
     if nodes_name == NODES_GZ:
         try:
             nodes_bytes = gzip.decompress(nodes_bytes)
-        except (OSError, EOFError) as exc:
+        except (OSError, EOFError, zlib.error) as exc:  # bad header / cut short / corrupt deflate data
             raise ArtifactError(f"{NODES_GZ} is not valid gzip: {exc}") from exc
     nodes_doc = _decode(nodes_bytes, nodes_name)
     idf_doc = _decode(blobs[IDF_JSON], IDF_JSON)

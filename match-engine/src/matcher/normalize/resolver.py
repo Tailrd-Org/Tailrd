@@ -9,9 +9,12 @@ Ambiguous keys ("go", "r", "rest", ...) are common words as well as skills. Each
 required casing ("Go") and resolves only under these rules:
 
 - `resolve` (one standalone surface): the surface must have the required casing.
-- `extract`, prose: the required casing, not the first word of the text or of a sentence (after
-  `.`, `!`, `?` or a line break), and never a fragment of a hyphen/slash token ("Go-Live").
-- `extract`, list: any casing, any position.
+- `extract`, prose: the required casing, and not the first word of the text or of a sentence
+  (after `.`, `!`, `?` or a line break). Inside a slash token an ambiguous part also needs
+  another part that is a non-ambiguous skill ("Python/R", never "A/R" or "Spring/Summer"), the
+  first part keeping the token's position; inside a hyphen token only a "<key>-<suffix>"
+  compound with a known suffix matches ("Go-based", never "Go-Live"; DECISIONS D-25).
+- `extract`, list: any casing, any position; the slash and hyphen rules still hold.
 
 An ambiguous key is never a fuzzy target: a near miss cannot have the required casing.
 """
@@ -39,15 +42,28 @@ from matcher.normalize.fuzzy import FuzzyHit, FuzzyLog, bounded_levenshtein
 
 _NO_AMBIGUOUS: Mapping[str, str] = MappingProxyType({})
 
-# Tokens: maximal runs of word characters (any script) and the in-word punctuation of skill names
-# (c++, c#, .net, node.js, ci/cd, scikit-learn, o'reilly). "&" keeps R&D / AT&T in one piece;
+# Tokens: maximal runs of word characters (any script; combining marks too, so NFD text, where an
+# accent is a separate mark after its letter, stays one word) and the in-word punctuation of skill
+# names (c++, c#, .net, node.js, ci/cd, scikit-learn, o'reilly). "&" keeps R&D / AT&T in one piece;
 # invisible characters and Unicode dashes stay inside the word, as normalize_surface treats them.
-_TOKEN_RE = re.compile(rf"[\w+#./&\-{APOSTROPHES}{DASHES}{INVISIBLE}]+")
+_COMBINING_MARKS = "\u0300-\u036f"  # a character-class range
+_TOKEN_RE = re.compile(rf"[\w{_COMBINING_MARKS}+#./&\-{APOSTROPHES}{DASHES}{INVISIBLE}]+")
 _PART_RE = re.compile(rf"[^/\-{DASHES}]+")  # the pieces of "React/Redux" or "React-based"
 # Edge characters normalize_surface would strip; trimming them keeps mention offsets tight.
 _EDGE_LEAD = frozenset("-/_" + APOSTROPHES + DASHES + INVISIBLE)
 _EDGE_TRAIL = _EDGE_LEAD | {"."}
-_SENTENCE_BREAK = frozenset(".!?\n\r\u2026\u2028\u2029")
+_LINE_BREAKS = frozenset("\n\r\x0b\x0c\x1c\x1d\x1e\x85\u2028\u2029")  # what str.splitlines() splits on
+_SENTENCE_BREAK = frozenset(".!?\u2026") | _LINE_BREAKS
+# A window may continue across these (credential names, DECISIONS D-13): "Microsoft Certified:
+# Azure Fundamentals", "Microsoft® Office", and dash runs standing alone between spaces.
+_JOIN_MARKS = frozenset(":\u00ae\u2122\u2120\u00a9")  # : ® ™ ℠ ©
+_DASH_CHARS = frozenset("-" + DASHES)
+_DASH_RUN_RE = re.compile(rf"[\-{DASHES}]+")
+_POSSESSIVE = frozenset("'\u2019")  # "React's", also with a curly apostrophe
+# The only hyphen compounds in which an ambiguous key may match, as "<key>-<suffix>" (D-25).
+_HYPHEN_SUFFIXES = frozenset(
+    {"based", "powered", "driven", "backed", "first", "centric", "enabled", "native", "heavy", "only"}
+)
 _MAX_WINDOW = 8  # tokens
 
 
@@ -81,9 +97,22 @@ class Mention(Frozen):
 class _Token(NamedTuple):
     start: int
     end: int
-    norm: str
-    joined: bool  # only whitespace separates it from the previous token
-    sentence_start: bool  # first token of the text, or the previous gap ends a sentence
+    forms: tuple[tuple[int, str], ...]  # (end, normalized): the token, then without a possessive 's
+    joined: bool  # a window may span the gap before it (see _joinable)
+    sentence_start: bool  # first token of the text, or the gap before it ends a sentence
+
+    @property
+    def norm(self) -> str:
+        return self.forms[0][1]
+
+
+class _Part(NamedTuple):
+    """A "/"- or "-"-separated piece of a token, with the separators around it."""
+
+    start: int
+    end: int
+    before: str  # the separator before it, "" at the token's start
+    after: str  # the separator after it, "" at the token's end
 
 
 class Resolver:
@@ -132,8 +161,7 @@ class Resolver:
             if node_id is None:
                 continue
             exact_key_seen = True
-            required = self._ambiguous.get(key)
-            if required is not None and normalize_keep_case(surface) != required:
+            if not self._ambiguity_ok(key, surface, check_case=True, sentence_start=False):
                 continue
             return Resolution(surface=surface, canonical_id=node_id, method=self._method(key, node_id))
         if not exact_key_seen:  # a known word that failed its casing is not a typo
@@ -181,9 +209,11 @@ class Resolver:
     def extract(self, text: str, *, context: Literal["prose", "list"] = "prose") -> tuple[Mention, ...]:
         """Every skill mention in `text`, by greedy longest match over up to 8 tokens.
 
-        A matched span consumes its tokens. Windows never cross punctuation (only whitespace may
-        separate their tokens). A token holding "/" or "-" that matches nothing is retried as its
-        parts ("React/Redux" -> React, Redux). Offsets index the original text; sorted by start.
+        A matched span consumes its tokens. A window continues across whitespace, standalone
+        dashes, the (R)/TM/SM/(C) marks and ":" (credential names), never across other punctuation
+        or a line break. A word ending in "'s" also tries its form without the suffix. A token
+        holding "/" or "-" that matches nothing is retried as its parts ("React/Redux" -> React,
+        Redux). Offsets index the original text; sorted by start.
         """
         if context not in ("prose", "list"):
             raise ValueError(f"unknown context {context!r} (expected 'prose' or 'list')")
@@ -210,44 +240,93 @@ class Resolver:
             last += 1
         first = tokens[i]
         for j in range(last, i - 1, -1):
-            phrase = " ".join(token.norm for token in tokens[i : j + 1])
-            original = text[first.start : tokens[j].end]
-            hit = self._lookup(phrase, original, context, sentence_start=first.sentence_start, fragment=False)
-            if hit is not None:
-                node_id, key = hit
-                return j - i + 1, self._mention(text, first.start, tokens[j].end, node_id, key)
+            head = [token.norm for token in tokens[i:j]]
+            for end, form in tokens[j].forms:  # the last word as written, then without a possessive
+                phrase = " ".join([*head, form])
+                original = text[first.start : end]
+                hit = self._lookup(phrase, original, context, sentence_start=first.sentence_start)
+                if hit is not None:
+                    return j - i + 1, self._mention(text, first.start, end, *hit)
         return None
 
     def _match_parts(self, text: str, token: _Token, context: str) -> list[Mention]:
-        """Each "/"- or "-"-separated part of an unmatched token, looked up on its own."""
+        """Each "/"- or "-"-separated part of an unmatched token, looked up on its own (D-25).
+
+        An ambiguous key may match as a slash part only when another part of the token is a
+        non-ambiguous skill, and then under the usual rules, the first part having the token's
+        position: "Python/R" yields R, "A/R", "Go/No-Go" and "Spring/Summer" yield nothing. As a
+        hyphen part it needs a "<key>-<suffix>" compound ("Go-based"). Other keys match freely.
+        """
         if "/" not in token.norm and "-" not in token.norm:
             return []
+        parts = _split_parts(text, token)
+        # Which parts are non-ambiguous skills on their own (the companions a slash part needs).
+        plain = [
+            self._match_part(text, part, context, sentence_start=False, ambiguous_allowed=False) is not None
+            for part in parts
+        ]
         found = []
-        for part in _PART_RE.finditer(text, token.start, token.end):
-            start, end = _trim(text, part.start(), part.end())
-            normalized = normalize_surface(text[start:end]) if start < end else ""
-            if not normalized:
-                continue
-            hit = self._lookup(normalized, text[start:end], context, sentence_start=False, fragment=True)
-            if hit is not None:
-                found.append(self._mention(text, start, end, *hit))
+        for k, part in enumerate(parts):
+            if part.before in _DASH_CHARS or part.after in _DASH_CHARS:
+                ambiguous_allowed = _suffix_compound(text, parts, k)
+            else:
+                ambiguous_allowed = any(plain[m] for m in range(len(parts)) if m != k)
+            mention = self._match_part(
+                text,
+                part,
+                context,
+                sentence_start=token.sentence_start and k == 0,
+                ambiguous_allowed=ambiguous_allowed,
+            )
+            if mention is not None:
+                found.append(mention)
         return found
 
+    def _match_part(
+        self, text: str, part: _Part, context: str, *, sentence_start: bool, ambiguous_allowed: bool
+    ) -> Optional[Mention]:
+        """The part as written, then without a possessive "'s", through the same lookup."""
+        for end, form in _forms(text, part.start, part.end):
+            original = text[part.start : end]
+            hit = self._lookup(
+                form, original, context, sentence_start=sentence_start, ambiguous_allowed=ambiguous_allowed
+            )
+            if hit is not None:
+                return self._mention(text, part.start, end, *hit)
+        return None
+
     def _lookup(
-        self, normalized: str, original: str, context: str, *, sentence_start: bool, fragment: bool
+        self,
+        normalized: str,
+        original: str,
+        context: str,
+        *,
+        sentence_start: bool,
+        ambiguous_allowed: bool = True,
     ) -> Optional[tuple[str, str]]:
-        """(node id, matched key) for the first variant that is a key and passes the ambiguity
-        rules for this position, else None."""
+        """(node id, matched key) for the first variant that is a key and may stand at this
+        position, else None. `ambiguous_allowed=False` rules out every ambiguous key."""
+        check_case = context == "prose"
         for key in surface_variants(normalized):
             node_id = self._index.get(key)
             if node_id is None:
                 continue
-            required = self._ambiguous.get(key)
-            if required is not None and context == "prose":
-                if fragment or sentence_start or normalize_keep_case(original) != required:
-                    continue
+            if key in self._ambiguous and not (
+                ambiguous_allowed
+                and self._ambiguity_ok(key, original, check_case=check_case, sentence_start=sentence_start)
+            ):
+                continue
             return node_id, key
         return None
+
+    def _ambiguity_ok(self, key: str, original: str, *, check_case: bool, sentence_start: bool) -> bool:
+        """The casing rule for ambiguous keys, in one place: a match on an ambiguous key stands only
+        when `original` has the required casing and does not open a sentence. `check_case=False`
+        (list context) waives both. Other keys always stand."""
+        required = self._ambiguous.get(key)
+        if required is None or not check_case:
+            return True
+        return not sentence_start and normalize_keep_case(original) == required
 
     def _mention(self, text: str, start: int, end: int, node_id: str, key: str) -> Mention:
         method = self._method(key, node_id)
@@ -289,22 +368,71 @@ def _trim(text: str, start: int, end: int) -> tuple[int, int]:
     return start, end
 
 
+def _forms(text: str, start: int, end: int) -> tuple[tuple[int, str], ...]:
+    """(end, normalized form) of a span: the span itself, then the span without a possessive "'s"
+    (straight or curly apostrophe; "React's" -> React), so a mention never includes the suffix."""
+    normalized = normalize_surface(text[start:end]) if start < end else ""
+    if not normalized:
+        return ()
+    if end - start > 2 and text[end - 2] in _POSSESSIVE and text[end - 1] in "sS":
+        bare_start, bare_end = _trim(text, start, end - 2)
+        bare = normalize_surface(text[bare_start:bare_end]) if bare_start < bare_end else ""
+        if bare:
+            return (end, normalized), (bare_end, bare)
+    return ((end, normalized),)
+
+
+def _joinable(gap: str) -> bool:
+    """Whether one window may span this gap between two tokens: only whitespace without a line
+    break, invisible characters, the (R)/TM/SM/(C) marks, ":" and dash runs standing alone between
+    spaces ("Architect - Associate"). Any other punctuation or a line break ends the window."""
+    for ch in gap:
+        if ch in _LINE_BREAKS:
+            return False
+        if not (ch.isspace() or ch in INVISIBLE or ch in _JOIN_MARKS or ch in _DASH_CHARS):
+            return False
+    for run in _DASH_RUN_RE.finditer(gap):
+        start, end = run.start(), run.end()
+        if start == 0 or end == len(gap) or not (gap[start - 1].isspace() and gap[end].isspace()):
+            return False  # attached to a word ("Architect -Associate"), not standing alone
+    return True
+
+
+def _split_parts(text: str, token: _Token) -> list[_Part]:
+    parts = []
+    for match in _PART_RE.finditer(text, token.start, token.end):
+        before = text[match.start() - 1] if match.start() > token.start else ""
+        after = text[match.end()] if match.end() < token.end else ""
+        start, end = _trim(text, match.start(), match.end())
+        parts.append(_Part(start, end, before, after))
+    return parts
+
+
+def _suffix_compound(text: str, parts: list[_Part], k: int) -> bool:
+    """Part k and the next part form exactly "<part>-<suffix>" with a known suffix ("Go-based")."""
+    part = parts[k]
+    if part.before in _DASH_CHARS or part.after not in _DASH_CHARS or k + 1 == len(parts):
+        return False
+    suffix = parts[k + 1]
+    if suffix.after in _DASH_CHARS:
+        return False
+    return normalize_surface(text[suffix.start : suffix.end]) in _HYPHEN_SUFFIXES
+
+
 def _tokenize(text: str) -> list[_Token]:
     tokens: list[_Token] = []
     previous_end: Optional[int] = None
     for match in _TOKEN_RE.finditer(text):
         start, end = _trim(text, match.start(), match.end())
-        if start >= end:
-            continue
-        normalized = normalize_surface(text[start:end])
-        if not normalized:
+        forms = _forms(text, start, end)
+        if not forms:
             continue
         if previous_end is None:
             joined, sentence_start = False, True
         else:
             gap = text[previous_end:start]
-            joined = all(ch.isspace() or ch in INVISIBLE for ch in gap)
+            joined = _joinable(gap)
             sentence_start = any(ch in _SENTENCE_BREAK for ch in gap)
-        tokens.append(_Token(start, end, normalized, joined, sentence_start))
+        tokens.append(_Token(start, end, forms, joined, sentence_start))
         previous_end = end
     return tokens

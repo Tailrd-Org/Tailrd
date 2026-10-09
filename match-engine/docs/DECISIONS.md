@@ -97,6 +97,16 @@ equals a skill listed once.
 
 **D-24 Provisional nodes** (§16) multiply the credit by 0.8 until confirmed.
 
+**D-25 Ambiguous skill words inside slash/hyphen tokens. [Spec: clarified]** In extraction, an
+ambiguous key ("Go", "R", "REST", "Spring") that is one part of a slash token matches only when
+another part of the same token resolves to a non-ambiguous skill, and then under the usual rules
+(exact casing; in prose not the first word of a sentence, the token's first part taking the
+token's position): "Python/R" and "Java/Spring" yield both skills, while "A/R", "Go/No-Go", "R/W",
+"Excel/Word" and "Spring/Summer 2027" (a co-op term) yield no ambiguous skill. As part of a hyphen
+token it matches only in a two-part `<key>-<suffix>` compound with suffix based, powered, driven,
+backed, first, centric, enabled, native, heavy or only: "Go-based" yields Go; "Go-Live" and
+"Go-to-market" yield nothing. Both rules hold in prose and in skills lists.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores
@@ -196,7 +206,11 @@ mode.
 against that posting". With few users the chain is: posting (n ≥ 30) → job family (n ≥ 30) →
 all postings (n ≥ 30) → the shipped reference panel (synthetic profiles scored offline). The
 `basis` sentence names the reference actually used; it never claims "applicants" when it is a
-panel. Percentile = `(below + 0.5 × equal) / n`, rounded to an integer in [0, 100].
+panel. Percentile = `(below + 0.5 × equal) / n`, rounded to an integer in [0, 100]. The n ≥ 30
+rule counts DISTINCT candidates (people), not (candidate, posting) pairs: "applicants" are people,
+and five users × 2,000 jobs would otherwise pass the threshold while really comparing a user
+mostly with themselves. With Tailrd's current handful of résumés, every score therefore uses the
+panel until 30 people have scored résumés.
 
 **D-51 Phase 2** (isotonic, pure-Python PAVA at runtime, fitted offline) is built and versioned
 but stays off until `calibration.isotonic.min_labels` (500) outcome labels exist. Today there are

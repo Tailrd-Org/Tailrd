@@ -1003,7 +1003,64 @@ on constructed data.
 - [ ] Write the tests → run → FAIL; implement → PASS; full suite once; ruff clean
 - [ ] Commit by explicit paths: `git add match-engine/eval match-engine/tests/eval`
 ### Task 5.3: Suites, report, run, baseline — `eval/suites/{properties,synthetic,mutations}.py`, `eval/{report,run,baseline}.py`, Makefile targets
-**Gate:** `make eval-fast` < 2 min; 500 synthetic profiles generated.
+
+Paths relative to `match-engine/`. Read EVAL.md §1–§4 and §7 first. Builds on: `matcher.score.engine.score`
+(+ `calibrate.base.FixedCalibrator` until Milestone 7 lands), `eval.metrics` (import `PairScore`
+from `eval.metrics`; NEVER create `tests/eval/__init__.py`), `eval.generate` (Task 5.1:
+`generate_postings`, `generate_profiles`, `expected_resume`, `render`, `TEMPLATES`, `FORMATS`).
+Consumer notes from Task 5.2's review: pass `min_effect` per metric (0.01 is the NDCG guard;
+band off-by-two uses 0.005); a delta with `point is None` and `four_fifths` with `min_ratio is
+None` render as "not assessed", never green; `band_accuracy` may return None values; report
+the abstention rate next to P@10.
+
+**Files:** Create `eval/suites/{__init__,properties,closed_form,synthetic,mutations,golden}.py`,
+`eval/report.py`, `eval/run.py`, `eval/baseline.py`, `eval/baselines/main/` (committed baseline:
+metrics.json + per-pair scores of the synthetic corpus — synthetic, so no PII),
+`eval/corpora/golden/README.md` (labelling format + dual-labelling protocol), `eval/corpora/dev/README.md`;
+Modify `Makefile` only if a target needs a flag; Test `tests/eval/test_suites.py`, `tests/eval/test_report.py`.
+
+**Behaviour:**
+1. Layer 1 (`properties.py`, < 30 s): fixed-seed checks over generated pairs — boundedness,
+   monotonicity (add a matching skill never lowers raw; remove a required skill never raises it),
+   gate precedence, determinism (1,000 runs of a sample → identical sha256), totality (0
+   exceptions over 50,000 fuzzed inputs in `make eval`, 5,000 in `eval-fast`), latency p95 per pair
+   (< 150 ms guardrail).
+2. Layer 2 (`synthetic.py`): (a) analytic correctness — `closed_form.py` re-implements the SPEC §5
+   arithmetic independently (no imports from `matcher.score` beyond models/config) for synthetic
+   pairs constructed with exact matches only (known evidence/verb/recency, non-overlapping dated
+   roles, known seniority/education/industry), and asserts `isclose(engine raw, closed form,
+   abs_tol=0.001)` (EVAL §2.2 "the strongest test"); (b) ranking over the corpus with
+   `fit_level` as graded relevance: NDCG@10, P@10, AUC (advanced = fit ≥ 2), band accuracy,
+   ECE (calibrated/100 vs fit ≥ 2), abstention rate/precision, all with bootstrap CIs over
+   postings; (c) parser fidelity and format invariance with an injected `parse(bytes, filename)`
+   callable: recovered skills ≥ 95 %, date error ≤ 1 month, and max − min raw over the 48
+   renderings ≤ 0.02 (p99 guardrail). Until the real parser exists (Milestone 6), (c) reports
+   "skipped: parser not available"; `eval-fast` samples 10 profiles × 48 renderings, `eval` runs all.
+3. `mutations.py`: one parametrised case per EVAL §2.3 row on constructed pairs whose arithmetic
+   makes the stated range exact (e.g. four REQUIRED skills of equal idf 0.8, so removing one drops
+   required coverage by 0.25 → raw by 0.35 × 0.25 = 0.0875 ∈ [0.06, 0.12]): remove one required
+   skill; remove two high-idf required skills (cap ≤ 0.55); shift all dates back 4 years
+   (0.02–0.06); "architected" → "assisted" (the mention's multiplier ratio 0.45/1.00); add 40
+   irrelevant skills (|Δ| ≤ 0.01); swap an IC3 title for M2 (cross-track penalty visible); blank
+   all dates (experience abstains, weight redistributes, no silent zero). The module docstring
+   says: add a case for every bug fixed.
+4. Layer 3 (`golden.py`): runs when `eval/corpora/golden/labels.jsonl` exists (Kendall τ vs
+   human ordering, band accuracy incl. off-by-two alarm, inter-rater agreement when dual
+   labels exist); otherwise prints `GOLDEN: skipped (no labels)`. Layer 4 prints
+   `HOLDOUT: skipped (no key)` unless Task 8.1's tooling finds the key.
+5. `report.py` writes `reports/<UTC timestamp>/{summary.md, metrics.json, regressions.md,
+   failures/<case>.json (full feature trace, reproducible), config_hash.txt}`; `summary.md`
+   exactly in EVAL §4's table format (Metric | Baseline | Current | Δ | 95% CI | Verdict) with
+   PASS / NOISE / FAIL / not assessed, a guardrail section (any guardrail failure → **FAIL**
+   section, exit code 1), and the top regressions (pairs that got worse vs baseline, worst first).
+6. `baseline.py`: `--save-baseline NAME` writes `eval/baselines/NAME/`; `--baseline NAME` diffs
+   against it (per-pair deltas feed regressions.md; metric deltas use `bootstrap_delta`).
+7. `run.py`: `python -m eval.run --layers 1,2[,3,4] [--baseline main] [--save-baseline main]
+   [--sample N]`; `make eval-fast` must finish in < 2 minutes on this machine (report the time).
+
+**Gate (BUILD Milestone 5):** `make eval-fast` < 2 min; 500 synthetic profiles generated.
+
+- [ ] Tests → FAIL; implement → PASS; run `make eval-fast` and `make eval`; save the `main` baseline; full suite; ruff; commit `feat(match-engine): eval harness layers 1-3, report, baselines`
 
 ## Milestone 6 — Parsing (largest milestone)
 ### Task 6.1 ∥: Dates — `parse/dates.py`, `tests/test_dates.py` (every SPEC §14.2 row)
@@ -1157,28 +1214,463 @@ Spanish résumé, German résumé, French headers with English bullets (MIXED_LA
 Hebrew. Synthetic names/emails only (e.g. "Alex Example"), never real people.
 
 - [ ] Generator + fixtures + tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): ingest (SPEC §14.1)`
-### Task 6.3: Sections, roles, education, scope — `parse/{sections,roles,education,scope}.py` (scope per ADVANCED §2.3, quoted)
-### Task 6.4: Résumé assembly — `parse/resume.py` (`parse_resume_text`, `resume_from_document`), stuffing + pasted-posting tests
-### Task 6.5: Postings — `parse/posting.py`, `tests/test_posting_pathologies.py` (every SPEC §14.4 row)
+**Common to Tasks 6.3–6.5** (paths relative to `match-engine/`): read SPEC §14.3, §14.4, §15,
+DECISIONS D-12, D-14, D-25, D-34a, D-37, D-60, D-70, D-80. Parsing is deterministic and never
+raises (any input → a result or a reason). It uses: `parse.dates` (`parse_range`,
+`find_date_ranges` — call it on HEADER lines only: it has known in-line false positives such as
+"Microsoft Office 2019", "ISO 9001:2015", street numbers), `normalize.resolver.Resolver`
+(`extract(text, context="prose"|"list")`; ambiguous keys need exact casing in `resolve()`;
+a newline is a hard break, so unwrap soft-wrapped lines inside one bullet before extracting),
+`score.evidence` (`analyze_bullet`, `is_quantified` — the only `score` import allowed),
+`graph.loader` (taxonomy dir: `titles.json`, `naics.json`, `mos_crosswalk.json` formats are in
+Task 2.2). Parse-time configuration lives in `config/parse/*.yaml`, loaded by
+`parse/config.py` (NOT part of `EngineConfig`; its content hash is recorded in diagnostics).
+Unit tests use the `graph_small` fixture plus small fixture copies of the extra taxonomy files;
+synthetic people and invented employers only. Free text never reaches `score/` except through
+canonical ids (D-14): institution names, graduation dates, addresses are never put in a model.
+
+### Task 6.3: Sections, roles, education, scope, industry, title seniority
+
+**Files:** Create `src/matcher/parse/{config,taxonomy_extras,sections,seniority,industry,roles,education,scope}.py`,
+`config/parse/{sections.yaml,seniority.yaml,industries.yaml}`; Test `tests/test_taxonomy_extras.py`, `tests/test_sections.py`,
+`tests/test_parse_seniority.py`, `tests/test_industry.py`, `tests/test_roles.py`,
+`tests/test_education.py`, `tests/test_scope.py`, `tests/fixtures/parse_taxonomy/` (tiny
+titles/naics/mos files).
+
+**Interfaces (Produces):**
+```python
+class ParseConfig(Frozen): version: str  # + typed sections/seniority/industries tables
+def load_parse_config(config_dir: str | Path | None = None) -> ParseConfig
+# parse/taxonomy_extras.py — the hash-pinned extra artifacts of Task 2.2
+class TitleInfo(Frozen): soc: str; family: str; job_zone: Optional[int]
+class TitleIndex:   # normalised title → TitleInfo; lookup tries the full title, then without seniority modifiers
+    def lookup(self, title: str) -> Optional[TitleInfo]
+    def canonical_id(self, title: str) -> Optional[str]       # "title.<soc>"
+class MosIndex:
+    def find(self, text: str) -> tuple[tuple[str, tuple[str, ...]], ...]   # (code, skill_ids) found in text
+def load_title_index(taxonomy_dir: str | Path) -> TitleIndex
+def load_mos_index(taxonomy_dir: str | Path) -> MosIndex
+class SectionKind(str, Enum): CONTACT, SUMMARY, EXPERIENCE, EDUCATION, SKILLS, PROJECTS,
+    CERTIFICATIONS, COURSEWORK, PUBLICATIONS, AWARDS, VOLUNTEER, LANGUAGES, INTERESTS, REFERENCES, OTHER
+class Section(Frozen): kind: SectionKind; header: str; lines: tuple[str, ...]; start_line: int; language: Optional[str]
+def segment(lines: Sequence[str], *, parse_config: ParseConfig, layout: Sequence[TextLine] | None = None) -> tuple[tuple[Section, ...], tuple[Flag, ...]]
+def title_seniority(title: str, parse_config: ParseConfig, *, meta_level: str | None = None) -> Optional[SeniorityLevel]
+def classify_industry(name: str, context: str, parse_config: ParseConfig) -> tuple[str, ...]   # NAICS codes
+class RoleDraft(Frozen): title_raw: str; employer: str; location: str; date_range: Optional[DateRange]; bullets: tuple[str, ...]
+def split_roles(section: Section, *, as_of: date, lang: str = "en") -> tuple[RoleDraft, ...]
+def build_role(draft: RoleDraft, *, as_of: date, resolver: Resolver, titles: TitleIndex, mos: MosIndex,
+               parse_config: ParseConfig, config: EngineConfig) -> Role
+def parse_education(section: Section, *, resolver: Resolver, parse_config: ParseConfig) -> tuple[Education, ...]
+class ScopeFeatures(Frozen): scale_tier: Optional[Literal["personal","team","org","internet"]]; people_managed: Optional[int]
+    budget_usd: Optional[float]; evidence: tuple[str, ...]
+def extract_scope(bullets: Sequence[str]) -> ScopeFeatures
+```
+**Behaviour:**
+1. `segment`: a header is a short line (≤ 6 words, no final period) that matches the en/fr synonym
+   table (case/punctuation-insensitive, trailing ":" ignored; creative headers included: "Where
+   I've Been" → EXPERIENCE, "My Toolkit" → SKILLS, "Expérience professionnelle", "Compétences",
+   "Formation"), or is styled as a header (ALL CAPS / bold / larger font when `layout` is given)
+   and is followed by content. No header anywhere → `NO_SECTIONS` and the date-anchored fallback
+   (SPEC §14.3): lines whose header contains a date range open role blocks (EXPERIENCE); the rest
+   is OTHER.
+2. `title_seniority` (SPEC §5.4 rules table in `config/parse/seniority.yaml`): intern / co-op /
+   student / stagiaire / apprentice → IC0; junior, jr, entry-level, associate, graduate, new grad,
+   "I", "1", L3, SDE I → IC1; II, 2, intermediate, L4, SDE II → IC2; senior, sr, III, 3, L5, SDE III
+   → IC3; staff, L6 → IC4; principal, L7, L8 → IC5; distinguished, fellow → IC6; "tech lead", "lead
+   engineer/developer" → IC4; "team lead", "lead" alone, supervisor → M1; manager → M2; senior
+   manager → M3; director, head of → M4; VP, vice president → M5; chief/CxO, president → M6.
+   No modifier → `meta_level` (posting metadata: internship → IC0, new_grad → IC1) or None.
+3. `classify_industry`: curated company → NAICS table first (normalised names; include the ~100
+   employers most frequent in Tailrd's catalogue and well-known Canadian/US employers), then
+   keyword rules over name + context (bank → 5221, software/SaaS → 5112/5415, hospital → 6221,
+   university/college → 6113, government/ministry/federal → 92, consulting → 5416, insurance →
+   5241, telecom → 517, retail/store → 44-45, restaurant → 7225, construction → 23, automotive →
+   3361, aerospace → 3364, pharma/biotech → 3254/5417, energy/utilities → 22/211, nonprofit →
+   8133, media/news → 5111/5161, logistics → 4931/4841, accounting firm → 5412, law firm → 5411,
+   school board → 6111, ...). Unknown → `()`.
+4. `split_roles`: header lines carry the date (via `find_date_ranges` on that line only);
+   patterns "Title — Employer, Location | dates", "Employer \n Title \n dates", "Title, Employer
+   (dates)", "Employer (dates) \n Title"; bullets are the following lines (bullet glyph or
+   indentation) until the next header. Several titles with their own dates under one employer →
+   one draft each (promotions, SPEC §14.3). Consecutive same-employer drafts with a similar title
+   and < 60 days between them → merged (contract-to-hire chains). Founder/self-employed → a
+   normal role. A dropped/future range keeps the role with no dates.
+5. `build_role`: `title_canonical` from the titles index; seniority from `title_seniority`;
+   industry from `classify_industry(employer, first bullet)`; `is_internship` from the title or
+   date-range text (intern, co-op, stage, stagiaire); skills: `extract(title)` → ROLE_TITLE refs;
+   each bullet (soft-wraps joined) → `extract` + `analyze_bullet` + `is_quantified` →
+   ROLE_BULLET or ROLE_BULLET_QUANTIFIED refs with verb_class/polarity, source ROLE,
+   first_used = start, last_used = end (as_of when current); an MOS/MOC code found in the title or
+   bullets (e.g. "25B", "0311") adds the crosswalk's skills as ROLE_TITLE refs (SPEC §14.3).
+6. `parse_education`: degree level en/fr (BSc, B.Sc., BA, BEng, BASc, BCom, B.Comm, Bachelor,
+   Baccalauréat → BACHELOR; MSc, MEng, MASc, MBA, Master, Maîtrise → MASTER; PhD, Doctorate,
+   Doctorat → DOCTORATE; Diploma, Associate, College diploma, DEC, AEC → ASSOCIATE; High school,
+   Secondary, DES → HIGH_SCHOOL); fields = `field.*` ids extracted from the degree line;
+   `in_progress` from "expected", "candidate", "in progress", "present", "current"; never the
+   institution or any date in the output.
+7. `extract_scope` (ADVANCED §2.3, quoted here — do not open ADVANCED.md): "QUANTITY PATTERNS →
+   normalized scope features: '40k req/s', '2M users', '$12M budget', 'team of 14', 'petabyte'
+   → scale_tier ∈ {personal, team, org, internet} (log-bucketed); people_managed: int;
+   budget_managed: normalized currency". Log buckets: users/requests < 1e3 personal, < 1e5 team,
+   < 1e7 org, ≥ 1e7 or petabyte-scale internet. Extraction only: scope is reported in parse
+   diagnostics and is NOT used by scoring.
+
+- [ ] Tests (realistic student/co-op/promotion/French/military/academic examples) → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): résumé sections, roles, education, scope`
+
+### Task 6.4: Résumé assembly (`parse/resume.py`), adversarial checks
+
+**Files:** Create `src/matcher/parse/resume.py`; Test `tests/test_parse_resume.py`,
+`tests/test_resume_document.py`, `tests/test_adversarial_resume.py`.
+
+**Interfaces (Produces):**
+```python
+class ParsedResume(Frozen): resume: Optional[Resume]; reasons: tuple[Flag, ...]; flags: tuple[Flag, ...]
+    unresolved_tokens: tuple[str, ...]; unmapped_titles: tuple[str, ...]; scope: tuple[ScopeFeatures, ...]
+    sections: tuple[SectionKind, ...]; parse_config_version: str
+def parse_resume_text(text: str, *, as_of: date, resolver: Resolver, config: EngineConfig, parse_config: ParseConfig,
+                      lines: Sequence[TextLine] | None = None, tier: ParseTier = ParseTier.A,
+                      language: str | None = None, flags: Sequence[Flag] = ()) -> ParsedResume
+def parse_resume_bytes(data: bytes, filename: str, *, as_of, resolver, config, parse_config) -> ParsedResume
+def resume_from_document(doc: Mapping[str, Any], *, as_of, resolver, config, parse_config,
+                         raw_text: str | None = None) -> ParsedResume
+```
+**Behaviour:**
+1. Text path: `segment` → EXPERIENCE (and VOLUNTEER) → roles; PROJECTS → `Project`s (name line +
+   bullets, ROLE_BULLET[_QUANTIFIED] refs with verbs, source PROJECT); SKILLS → `extract(...,
+   context="list")` → SKILLS_BLOB refs; CERTIFICATIONS → credential refs (CERTIFICATION);
+   EDUCATION → `parse_education`, plus coursework lines → ROLE_BULLET refs with verb EXPOSURE
+   (source EDUCATION); SUMMARY → SKILLS_BLOB refs with polarity from `analyze_bullet`
+   ("seeking a role in machine learning" → ASPIRATIONAL); PUBLICATIONS, INTERESTS, REFERENCES
+   ignored for skills; text outside any recognised section → SKILLS_BLOB only. Roles are created
+   ONLY from experience-like sections or date-anchored blocks — never from unstructured text.
+2. Experience text beyond `ingest.max_experience_tokens` (40,000 whitespace tokens) is cut,
+   flag `TRUNCATED`. `FUNCTIONAL_RESUME` when the résumé has skills/summary content and
+   experience entries but no dated role (or "Summary of Qualifications"/"Areas of Expertise"
+   dominate with no chronology). `total_experience_months` = union of dated role intervals.
+   Locations: city/region/country only from contact lines; work-authorisation phrases
+   ("Canadian citizen", "permanent resident", "open work permit", "US citizen", "require
+   sponsorship") → `WorkAuth`. Unsupported language (ingest) → `reasons=(UNSUPPORTED_LANGUAGE,)`.
+3. `parse_resume_bytes` = `ingest_bytes` + `parse_resume_text` (ingest failure → its reasons).
+4. `resume_from_document` (D-80, Tailrd's stored résumé document): keys `experience[{company,
+   title, location, start_date, end_date, bullets}]`, `education[{school, degree, location,
+   start_date, end_date, gpa, achievements, coursework}]` (school, gpa, dates ignored),
+   `projects[{name, link, organization, location, start_date, end_date, bullets}]`,
+   `skills[str]`, `technologies{category: [str]}`, `custom_sections[{title, kind, text, bullets,
+   items}]` (certification-like titles → credentials; others → SKILLS_BLOB), `summary`
+   (`summary_title` is a heading — ignored). Dates: `parse_range(f"{start} – {end}")`. A document
+   with no experience/education/projects/skills content and a `raw_text` → `parse_resume_text(raw_text)`.
+5. Adversarial (SPEC §10): white-text stuffing is stripped at ingest and flagged; a résumé that IS
+   a pasted job posting (the posting's text, end to end through `parse_resume_text` →
+   `score`) scores raw < 0.85 against that posting; one skill listed 50 times == once.
+
+- [ ] Tests (incl. the Review Focus #2 end-to-end pasted-posting test and a `resume_from_document` round trip from a realistic Tailrd-shaped document) → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): résumé assembly from text, files and stored documents`
+
+### Task 6.5: Postings (`parse/posting.py`) and every §14.4 pathology
+
+**Files:** Create `src/matcher/parse/posting.py`, `config/parse/posting.yaml` (section and modal
+phrase tables en/fr, gate phrase tables); Test `tests/test_parse_posting.py`,
+`tests/test_posting_pathologies.py`.
+
+**Interfaces (Produces):**
+```python
+class PostingMeta(Frozen): company: str = ""; company_description: str = ""; locations: tuple[Location, ...] = ()
+    work_type: Literal["remote","hybrid","onsite",""] = ""; employment_type: str = ""
+    experience_level: str = ""; job_family: Optional[str] = None
+def parse_posting(title: str, description: str, *, meta: PostingMeta, as_of: date, resolver: Resolver,
+                  graph: SkillGraph, config: EngineConfig, parse_config: ParseConfig, titles: TitleIndex) -> JobPosting
+```
+**Behaviour (one test per SPEC §14.4 row, plus the rest):**
+1. Sections: requirements / qualifications / what you'll need / must have / basic or minimum
+   qualifications (fr: exigences, qualifications requises) → REQUIRED context; preferred / nice to
+   have / bonus / pluses / assets (Canadian "assets", fr: atouts) → PREFERRED; responsibilities /
+   what you'll do / the role → IMPLIED unless a modal phrase says otherwise; about us / benefits /
+   perks / EEO / how to apply → ignored. Prose with no sections: sentences with must / required /
+   minimum / you have / you'll need → REQUIRED, nice to have / bonus / preferred / plus / asset →
+   PREFERRED, other mentions → IMPLIED (a prose-only posting is scorable — Review Focus #5).
+2. Clause-split bullets; every skill mention → a requirement with its context's necessity; the
+   same skill in several contexts keeps the strongest (REQUIRED > PREFERRED > IMPLIED).
+3. OR-groups: "X or Y", "X/Y" (both resolving), "one of X, Y, Z", "such as X, Y or Z" → one
+   `or_group`; "X or equivalent" → one-member group with `or_equivalent`.
+4. Years: "3+ years of Python" → that requirement's `min_years`; "3+ years of experience" /
+   "minimum 2 years" / "at least 5 years" / "1-2 years" (→ 1) with no skill → `min_years_total`;
+   `min_years` above (as_of.year − node.release_year) → clamped to that span, flag
+   `UNREALISTIC_REQUIREMENT`.
+5. Education requirement (degree level + `field.*` ids; "or equivalent experience" →
+   `or_equivalent`; "currently pursuing/enrolled" → the level, in progress allowed; "Master's
+   preferred" → PREFERRED necessity). Credentials in REQUIRED context → `certifications_required`
+   (+ a `LicenseGate`); PREFERRED → `certifications_preferred`.
+6. Gates: "must be legally authorized to work in <country>", "no sponsorship", "unable to
+   sponsor", "citizenship required", "Canadian citizen or permanent resident" → `WorkAuthGate`;
+   "Secret/Top Secret clearance required", "active clearance" (active_required) vs "able to obtain"
+   → `ClearanceGate`; `meta.work_type == "onsite"` with locations → `LocationGate`.
+7. Seniority = `title_seniority(title, meta_level=meta.experience_level)`; `is_internship` from
+   meta/title; `job_family` = meta.job_family or the titles index family; `industry_codes` =
+   `classify_industry(meta.company, meta.company_description)`; `remote_policy` from work_type.
+8. More than `posting.max_weighted_requirements` (25) → keep the top 25 by IDF (ties by id), the
+   rest become IMPLIED with `overflow_weight_multiplier`, flag `REQUIREMENTS_TRUNCATED`.
+   Contradiction (IC0/IC1 title with ≥ 5 years required) → `CONTRADICTORY_REQUIREMENTS` (both
+   facts kept; nothing averaged). No resolvable requirement → empty requirements +
+   `POSTING_UNSCORABLE`; < 3 requirements and mostly boilerplate → `BOILERPLATE_ONLY`.
+9. `requirement_token_count` and `unresolved_requirement_tokens`: noun phrases in REQUIRED and
+   PREFERRED clauses after "experience with/in", "knowledge of", "proficiency in", "familiarity
+   with", plus capitalised tech-looking tokens, that did not resolve (SPEC §16 coverage input).
+
+- [ ] Tests → FAIL; implement → PASS; full suite; ruff; commit `feat(match-engine): job posting parser with §14.4 pathologies`
+
+**Milestone 6 gate:** format invariance ≤ 0.02 spread across the 48 renderings (run by Task 5.3's
+synthetic suite with the real parser injected).
 **Gate:** format invariance ≤ 0.02 spread across all 48 renderings.
 
 ## Milestone 7 — Calibration & audit
 ### Task 7.1: `calibrate/{percentile,isotonic}.py` (D-50, D-51), reference-panel builder `scripts/build_reference_panel.py`
+
+Paths relative to `match-engine/`. Read SPEC §7 and DECISIONS D-50..D-52 first. Runtime code is
+pure Python (no numpy). Builds on `calibrate/base.py` (`Calibrator` protocol: `calibrate(raw) ->
+(int, CalibrationInfo)`).
+
+**Files:** Create `src/matcher/calibrate/{reference,percentile,isotonic}.py`,
+`scripts/build_reference_panel.py`, `data/calibration/{panel.json,MANIFEST.json}` (+ `* -text`
+`.gitattributes`); Test `tests/test_percentile.py`, `tests/test_isotonic.py`, `tests/test_panel.py`.
+
+**Interfaces:**
+```python
+class ReferenceDistribution(Frozen): scope: Literal["posting","family","global","panel"]; key: str
+    n_candidates: int; n_pairs: int; samples: tuple[float, ...]   # sorted raw scores, ≤ 5,000 (deterministic quantile downsample)
+    version: str
+def build_reference(scope, key, raw_scores: Sequence[float], candidate_ids: Sequence[str], version: str) -> ReferenceDistribution
+def percentile(raw: float, ref: ReferenceDistribution) -> int      # round(100 × (below + 0.5 × equal)/n), clamped
+class PercentileCalibrator:
+    def __init__(self, references: Iterable[ReferenceDistribution], *, min_reference_n: int)
+    def bind(self, *, posting_key: str | None, family: str | None) -> Calibrator   # chain posting → family → global → panel
+class IsotonicCurve(Frozen): xs: tuple[float, ...]; ys: tuple[float, ...]; version: str; n_labels: int; previous: Optional[str]
+def fit_isotonic(pairs: Sequence[tuple[float, bool]], version: str) -> IsotonicCurve   # PAVA, offline
+class IsotonicCalibrator: ...   # implements Calibrator; refuses (ValueError) a curve with n_labels < isotonic_min_labels
+def load_panel(path) -> tuple[ReferenceDistribution, ...]
+```
+**Behaviour:** the chain uses the first reference whose `n_candidates` (DISTINCT people, not pairs —
+"applicants" are people) ≥ `calibration.min_reference_n` (30); the result's `CalibrationInfo.scope`
+names it so `bands.basis[scope]` tells the truth; percentile is monotone non-decreasing in raw.
+Isotonic: pool-adjacent-violators on (raw, advanced) pairs → step function; `apply` interpolates
+monotonically; every curve versioned with `previous` kept for rollback; inactive below 500 labels
+(D-51). `build_reference_panel.py`: for each job family in the corpus (`data/raw/corpus`,
+`role_category`), sample up to 60 postings (seeded), parse them with `parse_posting`, generate
+panel profiles targeted at each posting with fit levels spread uniformly (Task 5.1's generator,
+`vocabulary_from_graph`), score them, and write per-family + global `ReferenceDistribution`s
+(n_candidates = distinct panel profiles) to `data/calibration/panel.json` — aggregates of
+synthetic scores only.
+
+- [ ] Tests (hand-computed percentiles incl. ties; chain fallback order; PAVA on a textbook
+      example; monotonicity property) → FAIL; implement → PASS; build the panel; commit `feat(match-engine): percentile and isotonic calibration, reference panel`
 ### Task 7.2: `audit/{trace,fairness,drift}.py`, `scripts/refresh_taxonomy.py` (SPEC §16 coverage metric + provisional nodes)
 Plus `scripts/bias_audit.py` (annual audit artifacts generated from persisted traces, SPEC §9) and
 `docs/compliance.md` (the documented human-review path: the score ranks, never rejects;
 NEEDS_REVIEW routes to a person with its reason codes; demographic data lives outside the
 scorer, keyed by opaque id).
 
+Paths relative to `match-engine/`. Read SPEC §0.4, §9, §16 and EVAL §6 first. `audit/` is runtime
+code: pure Python (no numpy; do not import `eval`).
+
+**Files:** Create `src/matcher/audit/{__init__,trace,fairness,drift}.py`, `scripts/refresh_taxonomy.py`,
+`scripts/bias_audit.py`, `docs/compliance.md`; Test `tests/test_audit_trace.py`,
+`tests/test_audit_fairness.py`, `tests/test_drift.py`, `tests/test_refresh_taxonomy.py`.
+
+**Interfaces:**
+```python
+def build_trace(result: MatchResult) -> dict          # compact, JSON-safe: outcome, raw, calibrated, band, dims
+    # (value, weight, effective_weight, abstain_reason), caps, gates, confidence components,
+    # per-requirement [skill_id, necessity, m, relation], flags, reasons, engine_version,
+    # config_hash, input_digest, as_of — never free text (D-14)
+def trace_digest(trace: dict) -> str                  # sha256 of canonical JSON, 16 hex
+def opaque_id(user_key: str, salt: bytes) -> str      # HMAC-SHA256, 24 hex; demographics are joined on this, never on user ids
+def four_fifths(records: Iterable[tuple[str, str, bool]], *, min_group_n: int = 100) -> FairnessReport  # (opaque_id, group, selected); exact Fractions vs 4/5
+def psi(reference: Sequence[float], current: Sequence[float], *, bins: int = 10) -> float
+class DriftAlarm(Frozen): code: str; value: float; threshold: float; message: str
+def drift_alarms(*, coverage: float | None, abstention_rate: float | None, abstention_baseline: float | None,
+                 psi_value: float | None, min_fairness_ratio: float | None, p95_latency_ms: float | None) -> tuple[DriftAlarm, ...]
+```
+**Behaviour:** EVAL §6 thresholds — coverage < 0.92; abstention > 20 % or > 2× the 30-day
+baseline; PSI > 0.25; any four-fifths ratio < 0.80; p95 latency > 300 ms — each an alarm with a
+plain message. `refresh_taxonomy.py` (SPEC §16): from a corpus file (`data/raw/corpus/...`, each
+posting with `first_seen_at`), parse postings, collect `unresolved_requirement_tokens`, rank by
+frequency × recency-weighted growth; tokens in > `auto_promote_min_postings` (50) distinct postings
+within `auto_promote_window_days` (30) become provisional nodes (`provisional=True`,
+`source="provisional"`, parent = the existing node with the highest PMI against the token's
+co-mentions) → rebuild artifacts; write the top `review_queue_size` (50) remaining to
+`data/taxonomy/review_queue.csv`; print and write the coverage metric (% of requirement tokens
+resolved) to `reports/taxonomy/<date>.json` and exit non-zero below 0.92. `bias_audit.py`: inputs
+= persisted traces (JSONL) + a separate demographics file keyed by opaque id (never user ids) →
+markdown + JSON: selection rates per group per band threshold, four-fifths ratios, score
+distributions per group, abstention per group. `docs/compliance.md`: the human-review path
+(Tailrd: the candidate sees their own score; NEEDS_REVIEW shows "we couldn't score this" with the
+reason and is logged for a person to check; the score never hides or rejects a job), what is
+persisted per score (trace, config hash, engine version), where demographics live and who can
+join them, the annual audit procedure, and the SPEC §9 caveat that an employment attorney should
+review before any employer-facing use.
+
+- [ ] Tests → FAIL; implement → PASS; run refresh_taxonomy once on the corpus (report coverage); commit `feat(match-engine): audit trace, fairness and drift monitoring, taxonomy freshness`
+
 ## Milestone 8 — Tuning
 ### Task 8.1: `eval/tune/{search,constraints,proposal}.py`, holdout encryption tooling, `.github/workflows/match-engine-eval.yml`, `docs/evaluation_budget.md`
 
+Paths relative to `match-engine/` (the workflow file lives at the repo root). Read EVAL.md §0,
+§5, §7 and SPEC §10 (sensitivity analysis) first. CLAUDE.md hard rules apply verbatim: never
+write `config/weights.yaml`; never read/decrypt `eval/corpora/holdout/` outside the CI path; a
+fairness guardrail failure is terminal (never tuned around, never re-thresholded).
+
+**Files:** Create `eval/tune/{__init__,search,constraints,proposal,sensitivity}.py`,
+`eval/holdout.py`, `docs/evaluation_budget.md`, `docs/evaluation_budget.ledger.csv`,
+`eval/HOLDOUT.md` (the holdout format and procedure; nothing is ever committed under
+`eval/corpora/holdout/`, and the commit guard is never bypassed),
+`.github/workflows/match-engine-eval.yml`; Test `tests/eval/test_tune.py`, `tests/eval/test_holdout.py`.
+
+**Behaviour:**
+1. `search.py`: Optuna TPE (seeded) over the 7-weight simplex (sample in a transformed space,
+   normalise to sum exactly 1.0, reject any weight outside [0.03, 0.45]); objective NDCG@10 on the
+   chosen split (`dev` when labels exist, else `synthetic` with the proposal clearly marked
+   "synthetic-only: do not adopt"); constraints: fairness ratio ≥ 0.80 where assessable
+   (infeasible otherwise), abstention rate ≤ 0.15; `--budget` trials.
+2. `proposal.py` writes `proposals/<date>-tune/{weights.diff, rationale.md, report.md,
+   sensitivity.md}` — the diff shows current vs proposed `weights.yaml`; rationale lists which
+   dimensions moved, which cases improved and which broke (from the eval regressions); it never
+   writes `config/`. Accept rules from EVAL §5.3 (improvement CI excludes 0 and point > +0.01
+   NDCG; dev gain > 2× holdout gain → `OVERFIT_SUSPECTED`, reject) are evaluated and printed.
+3. `sensitivity.py` (SPEC §10): for each weight, ±20 % (renormalised), report the band-change rate
+   on the evaluation pairs; > 15 % → flag that dimension as over-leveraged.
+4. `holdout.py`: AES-GCM encrypt/decrypt of `labels.enc` with a key from env `MATCH_HOLDOUT_KEY`;
+   without the key `make eval-holdout` prints `HOLDOUT: skipped (no key)` and exits 0; every
+   decrypting run appends a row to `docs/evaluation_budget.ledger.csv` (date, ref, purpose) and
+   refuses past 10 looks in the current quarter.
+5. Workflow: on pull requests touching `match-engine/**` run `make test` and `make eval-fast`
+   (Ubuntu, Python 3.11 and 3.12 matrix, pinned deps); on `release/**` branches additionally
+   `make eval-holdout` with `MATCH_HOLDOUT_KEY` from secrets.
+6. Run `make tune BUDGET=50` once on the synthetic split and leave the resulting proposal
+   (marked synthetic-only) in `proposals/`.
+
+- [ ] Tests (constraint enforcement, simplex normalisation, proposal never touches config, holdout skip/ledger/refusal, sensitivity arithmetic on a toy) → FAIL; implement → PASS; commit `feat(match-engine): constrained tuning, proposals, holdout tooling, CI workflow`
+
 ## Milestone 9 — Tailrd integration (beyond BUILD.md; the reason this exists)
-### Task 9.1: Adapter `backend/services/fit_engine.py` (engine singleton, résumé/posting conversion per D-80/D-84, fingerprints D-82)
-### Task 9.2: Storage — migration adding `job_match_scores.{raw_score,band,outcome,engine_version,config_hash}`, tables `match_traces`, `match_calibration`
-### Task 9.3: Replace every producer (feed overlay, breakdown, upload pre-score, sweep, sidebar) and delete the AI scoring paths (D-83); tests incl. `test_stale_fingerprints_are_never_served`
-### Task 9.4: Tailoring scores from the engine (D-83)
-### Task 9.5: Web app — bands/labels from the engine (D-85), full breakdown (strengths, gaps, to-improve, basis, confidence note, interval)
+**Common to Milestone 9** (paths relative to the REPO root): read DECISIONS D-80..D-85 and
+`docs/ai-cost-controls.md`. Backend tests run from an isolated CWD with
+`DATABASE_URL=sqlite:///./ci_test.db JWT_SECRET=test` exported (never against Neon — the app
+lifespan would migrate whatever database `DATABASE_URL` names); e.g.
+`cd <scratch dir> && DATABASE_URL=sqlite:///./ci_test.db JWT_SECRET=test PYTHONPATH=<worktree> python -m pytest <worktree>/backend/tests/<file> -q`
+with the system Python that has the backend requirements. Integration map (from the codebase
+survey; verify line numbers, they drift): producers `backend/services/local_match.py` (whole
+file), `jobs_sidebar.py:42-43,73-125`, `routers/jobs.py:73-98,154-342 (strong/sort 287-339),
+1029-1030, 1089-1100`, `routers/ai.py:126-221 (breakdown), 373-387 (analyze-fit), 397-480
+(job-analysis/custom-resume/rewrite), 483-537 (batch-score), 662-675 (cron-match-alerts)`,
+`routers/resumes.py:449-537`, `services/match_notifier.py:65-135,182-209,402-510,513-818`,
+`services/match_engine.py:90-102,190-358`, `services/openai_service.py:665-708`,
+`services/resume_tailor.py:150-162`, `routers/tailor.py:46-118`; schemas `schemas/match.py:8-24`,
+`schemas/jobs.py:11-72`, `schemas/ai.py:35-74`, `schemas/tailor.py:18-26`; storage
+`db/models.py:197-200,298-322`, `migrations/add_job_match_terms.py`, `main.py:60-117`; cron
+`routers/github_sources.py:810-932`; email `services/email_service.py:209-285`; web
+`frontend/src/pages/Jobs.tsx`, `components/JobDetailView.tsx`, `components/JobsSidebar.tsx`,
+`components/CustomResumeModal.tsx`, `lib/skillLabel.ts`; extension `chrome-extension/src/content/tailorCard.ts`.
+
+### Task 9.1: Adapter, storage and calibration references
+
+**Files:** Create `backend/services/fit_engine.py`, `backend/migrations/add_fit_engine.py`;
+Modify `backend/db/models.py` (new columns/tables), `backend/main.py` (register the migration),
+`api/requirements.txt` (+ `PyYAML==6.0.2`), `vercel.json` (`excludeFiles` also excludes
+`match-engine/{tests,eval,scripts,proposals,reports,docs}/**` and `match-engine/data/raw/**`);
+Test `backend/tests/test_fit_engine_adapter.py`.
+
+**Behaviour:**
+1. `fit_engine.py` puts `match-engine/src` on `sys.path` (D-01) and exposes a lazily built,
+   process-wide `FitEngine` (config, graph, resolver, parse config, title/MOS indexes, panel
+   references, combined hash); measure and report cold build time.
+2. `resume_for_profile(profile, settings) -> ParsedResume` per D-80: the stored document when it has
+   experience/education/projects/skills content, else `raw_text`; work authorisation and location
+   from the user's saved answers/settings (find where `needs_sponsorship` and the location live;
+   unknown stays None).
+3. `posting_for_job(job) -> JobPosting` per D-84: cached in `scraped_jobs.match_terms` as
+   `{"v": "<engine posting-parser version>", "dl": <len(description)>, "posting": <canonical JSON>}`,
+   recomputed when `v` differs or `dl` differs from `length(description)` selected in SQL (the
+   description is fetched only when recomputing); `PostingMeta` from the job's columns (company,
+   company_description, locations_json, work_type, employment_type, experience_level,
+   role_category as job family).
+4. Fingerprint per D-82: `"fit" + major + ":" + sha256(canonical Resume JSON + combined hash)`
+   truncated to 64 chars. `current_fingerprints()` returns ONLY this (old AI and `local1:` rows
+   become stale everywhere).
+5. Storage (additive migration, idempotent, works on SQLite and Postgres): `job_match_scores`
+   gains `raw_score FLOAT`, `band VARCHAR(20)`, `outcome VARCHAR(30)`, `confidence FLOAT`,
+   `engine_version VARCHAR(20)`, `config_hash VARCHAR(20)` (all nullable); new `match_traces`
+   (user_id, job_id unique pair, trace JSON from `audit.build_trace`, input_digest,
+   engine_version, config_hash, scored_at) — written beside every banked score and never selected
+   by feed queries (egress); new `match_calibration` (scope, key, n_candidates, n_pairs, samples
+   JSON, version, created_at) holding the per-family/global references built from banked raw
+   scores by `refresh_calibration(db)` (distinct résumé fingerprints count as candidates; < 30 →
+   the panel stays in charge, D-50).
+6. `bank_scores(db, user_id, profile, job_ids) -> dict[int, MatchResult]`: score every job without
+   a current row (one prepared résumé, many postings), store `score` = calibrated int (sorting),
+   raw/band/outcome/confidence/version/hash, and the trace; GATE_FAIL and NEEDS_REVIEW rows store
+   `score` NULL-equivalent (choose a sentinel that sorts last, documented) so they never rank high.
+7. `explain_job(db, user, job) -> dict`: one full result with explanation, interval and
+   counterfactual for the detail view.
+
+- [ ] Tests (sqlite): conversion from a Tailrd-shaped document and from raw text, posting cache
+      hit/miss/invalidation by length, fingerprint changes on résumé edit and on config change,
+      banking writes scores + traces, calibration refresh uses distinct candidates → FAIL → implement → PASS; commit
+
+### Task 9.2: Every producer switched; every AI scoring path removed (D-83, D-85)
+
+**Files:** Modify `backend/services/jobs_sidebar.py`, `backend/routers/jobs.py`,
+`backend/routers/ai.py`, `backend/routers/resumes.py`, `backend/services/match_notifier.py`,
+`backend/routers/github_sources.py` (sweep summary fields), `backend/services/email_service.py`
+(subject/body naming: "Strong match: <title> · fit score 88", never "88% match"),
+`backend/services/match_engine.py` (delete `compute_breakdown`, `analyze_fit`, `queue_analysis`;
+keep what tailoring still needs), `backend/services/openai_service.py` (delete `match_job`,
+`extract_experience_years`), `backend/schemas/match.py` (MatchBreakdown keeps its old fields for
+compatibility and gains `band`, `headline`, `basis`, `outcome`, `display_score`, `strengths`/`gaps`
+as structured items, `to_improve`, `notes`, `interval`), `backend/schemas/jobs.py` (`match_band`,
+`match_outcome` overlaid like `match_score`), `docs/ai-cost-controls.md`; Delete
+`backend/services/local_match.py` (move `display_skill` where its callers need it) and the
+`MATCH_SCORING` / `MATCH_AI_DAILY_PER_USER` / `MATCH_AI_CONFIRM_MIN` settings; Test: rewrite
+`test_local_match.py` → `test_fit_scoring_paths.py`, update `test_jobs_sidebar.py`,
+`test_match_notifier.py`, `test_match_sweep_cost.py`, `test_ai_router.py`,
+`test_match_engine_basic.py`, `test_ai_web_flow.py`, `test_jobs_properties.py`.
+
+**Behaviour:** feed overlay, `sort=match`, `strong=1` (= band Strong, outcome SCORED), sidebar
+counts and `GAP_POOL` (Good or better), upload pre-score (newest 300 visible jobs), the cron sweep
+(no LLM call of any kind; alerts only for SCORED Strong matches; `refresh_calibration` once per
+sweep; drift alarms from `audit.drift_alarms` in the summary), `/ai/match-breakdown` (engine
+explanation, never charges the AI daily limit), `/ai/batch-score` and `/ai/analyze-fit` removed
+(404) — all read/write engine fingerprints only. Old rows are never shown:
+`test_stale_fingerprints_are_never_served` seeds AI and `local1:` rows and asserts the feed,
+sidebar, breakdown and alerts ignore them. A grep in the tests asserts no scoring module calls
+OpenAI (`op="match.score"`, `"match.fit"` gone).
+
+- [ ] Tests → FAIL → implement → PASS (all touched suites + the full backend suite once, isolated); commit
+
+### Task 9.3: Tailoring shows engine scores (D-83)
+
+**Files:** Modify `backend/services/resume_tailor.py`, `backend/routers/tailor.py`,
+`backend/routers/ai.py` (job-analysis / custom-resume-analysis / rewrite / custom-resume),
+`backend/services/match_engine.py` (`analyze_job` no longer produces scores or keyword lists with
+the LLM); Test the tailoring suites (`test_tailor_api.py`, `test_tailor_document.py`,
+`test_resume_rewrite_regression.py`, `test_analysis_memo.py`).
+**Behaviour:** `overall_score`, `ats_score` (= the engine's calibrated score; documented),
+`match_label` (band), `keyword_coverage` (required+preferred coverage), `matched_keywords` /
+`missing_keywords` (engine facts, display labels) and before/after scores come from scoring the
+original and the tailored document with the engine; the LLM is used only for the rewrite text
+itself, fed the engine's gaps where it used to be fed its own analysis. Response shapes unchanged
+(the extension's tailor card keeps working on the same 0–100 scale).
+
+- [ ] Tests → FAIL → implement → PASS; commit
+
+### Task 9.4: Web app shows the engine's result (D-52, D-85)
+
+**Files:** Modify `frontend/src/pages/Jobs.tsx`, `frontend/src/components/JobDetailView.tsx`,
+`frontend/src/components/JobsSidebar.tsx`, `frontend/src/components/CustomResumeModal.tsx`, their
+tests. **Behaviour:** card badge = band from the API with "Fit 76" (no "%" and no hard-coded
+80/60); low confidence shows the band only; GATE_FAIL shows "Not eligible" with the reason;
+NEEDS_REVIEW shows nothing scary ("Not scored"). The detail view ALWAYS requests the breakdown
+(it is free now) and renders headline, basis, strengths and gaps with impacts, "to improve"
+suggestions, notes, and the interval when displayed. Sidebar copy follows the 85/70/55 bands.
+Run `npx tsc --noEmit` and the touched vitest files locally (vitest is not in CI).
+
+- [ ] Tests → FAIL → implement → PASS; commit
 ### Task 9.6: Docs + real-data dry run on the dev DB (latency, abstention rate, distribution, agreement with the old local scorer)
 Includes EVAL §6 hooks: optional shadow scoring (`FIT_SHADOW_CONFIG` dir → score with both, persist
 only the live one, log the distribution diff) and the drift alarms wired to the sweep summary.
