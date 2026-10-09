@@ -211,24 +211,45 @@ A résumé that simply lists no employment scores 0 here (they have none; it is 
 **D-38 Seniority (§5.4).** Levels: `IC0` intern/co-op/student **[Tailrd]**, `IC1`–`IC6`,
 `M1`–`M6`. Cross-track gaps align tracks by `seniority.cross_track_offset` (2: Lead≈Senior,
 Manager≈Staff, Director≈Distinguished) instead of comparing raw indices, which would call a
-Junior and a Lead the same level. Candidate level = the highest level among current roles,
-else the most recent role. Unknown on either side → abstain.
+Junior and a Lead the same level. Candidate levels: when any role is current, the levels of the
+current roles; else those of the roles with the latest end. Only those roles count: when none of
+them carries a level the dimension abstains (`SENIORITY_UNKNOWN`) rather than fall back on an
+older role's level, which would be a known-wrong (usually lower) score for exactly the candidates
+whose current title the mapper missed (§14.5). Each candidate level is scored against the posting
+and the best score is kept (equal scores: the level closest to the posting's, then the same
+track, then the smaller code), so a current internship is not out-ranked by a concurrent club
+"lead" title and a manager who also holds an IC role meets a management posting as a manager.
+`candidate_level` (for display) is the highest of them with the tracks aligned; its offset is a
+required argument, so no caller compares raw indices. Unknown posting level → abstain.
 
 **D-39 Over-qualification. [Deviation]** §5.4's `|level_gap|` would deduct for being *above* the
 posting's level, which §5.3 explicitly forbids as an age proxy. Default
 `seniority.penalize_overqualification: false`: being above level counts as gap 0 and raises an
 `OVERQUALIFIED` flag in the explanation; the cross-track penalty still applies.
 
-**D-40 Domain (§5.5).** Candidate credit = max over roles of the NAICS partial credit against
-any posting code (exact 1.00, same 3-digit 0.70, same 2-digit sector 0.40 — with 31-33, 44-45,
-48-49 treated as one sector — else 0.15). Unknown on either side → abstain.
+**D-40 Domain (§5.5).** Candidate credit = max over roles (any role, dated or not) of the NAICS
+partial credit against any posting code: exact 1.00 when one code is a prefix of the other or
+one is a sector-level code (two digits, or hyphenated as NAICS writes 31-33) standing for the
+other's sector, with 31-33, 44-45 and 48-49 each treated as one sector (so 31, 32, 33 and 31-33
+all match 336 exactly, as 33 does); same 3-digit 0.70; same 2-digit sector 0.40 (two codes in one
+of those groups, such as 311 and 325, included); else 0.15. Blank codes are no codes. Unknown on
+either side → abstain.
 
 **D-41 Education (§5.6).** Levels NONE < HIGH_SCHOOL < ASSOCIATE (college diploma) < BACHELOR <
 MASTER < DOCTORATE. In-progress degrees count at their level (graduation dates are prohibited
-inputs, so completion timing is never inferred). Field multiplier `0.7 + 0.3 × best relation
-credit` between the candidate's fields and the required ones (1.0 when no field is required).
-Relevant credential +0.1 each, cap +0.3; value clamped to 1. "or equivalent" softens one tier
-(one below → 1.00, two below → 0.55).
+inputs, so completion timing is never inferred). Level and field pair per degree: value = the
+best, over the candidate's degrees (none listed: NONE with no field), of `level tier × that
+degree's field multiplier`, plus the credential bonus, clamped to 1. One degree's level is never
+combined with another's field: a History PhD and a Software Engineering diploma against a
+Bachelor's in CS score 1.00 × 0.70, not 1.00 × 0.955. Level tier: meets 1.00, one below 0.55,
+two or more below 0.20, no requirement 1.00; "or equivalent", or a requirement that is not
+REQUIRED (PREFERRED or IMPLIED), softens one tier, once (one below → 1.00, two or more below →
+0.55). Field multiplier `0.7 + 0.3 × best relation credit` from the degree's fields to the
+required ones (1.0 when no field is required). Relevant credential: an affirmed résumé credential
+related (exact, child, sibling or parent) to a posting requirement skill or to a credential the
+posting lists as required or preferred; relation to a listed credential, not only the listed id
+itself, is a deliberate widening. +0.1 each in id order, cap +0.3; each `CERT_BONUS` fact shows
+what that credential actually added after the cap.
 
 **D-42 Redistribution.** An abstaining dimension's weight goes proportionally to the dimensions
 that scored. Special case (§14.5): when §5.1 abstains because the posting has no REQUIRED
