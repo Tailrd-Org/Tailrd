@@ -710,7 +710,8 @@ None; every gate rule above.
 ### Task 3.5: Confidence, intervals, calibrator protocol, engine entry point (§13, §17)
 
 **Files:** Create `src/matcher/score/confidence.py`, `src/matcher/score/intervals.py`,
-`src/matcher/score/engine.py`, `src/matcher/calibrate/__init__.py`, `src/matcher/calibrate/base.py`;
+`src/matcher/score/engine.py` (`src/matcher/calibrate/__init__.py` and `calibrate/base.py` with the
+`Calibrator` protocol and `FixedCalibrator` already exist from Task 7.1 part A — reuse them);
 Test `tests/test_confidence.py`, `tests/test_intervals.py`, `tests/test_engine.py`.
 
 **Interfaces:**
