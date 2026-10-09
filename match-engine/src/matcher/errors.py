@@ -34,6 +34,7 @@ class Flag(str, Enum):
     DATE_RANGE_SWAPPED = "DATE_RANGE_SWAPPED"
     DATE_RANGE_DROPPED = "DATE_RANGE_DROPPED"
     FUTURE_END_CLAMPED = "FUTURE_END_CLAMPED"
+    FUTURE_START = "FUTURE_START"
     TWO_DIGIT_YEAR = "TWO_DIGIT_YEAR"
     NON_GREGORIAN_CONVERTED = "NON_GREGORIAN_CONVERTED"
 
@@ -131,6 +132,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.DATE_RANGE_SWAPPED: "A date range ended before it started; we swapped it.",
     Flag.DATE_RANGE_DROPPED: "A date range couldn't be made sense of and was left out.",
     Flag.FUTURE_END_CLAMPED: "An end date in the future was treated as today.",
+    Flag.FUTURE_START: "A role that starts in the future was left out.",
     Flag.TWO_DIGIT_YEAR: "Some years were written with two digits and were interpreted.",
     Flag.NON_GREGORIAN_CONVERTED: "Some dates were converted from another calendar.",
     Flag.POSTING_UNSCORABLE: "We couldn't find any requirements in this job posting.",
