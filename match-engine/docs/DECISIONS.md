@@ -31,7 +31,7 @@ is the "repo root" the docs talk about (`match-engine/src/matcher`, `match-engin
 
 **D-02 Dependencies.** Core modules (`models`, `errors`, `config`, `graph`, `normalize`, `score`,
 `explain`, `calibrate`, `parse`, `audit`) need only the standard library, pydantic v2 and PyYAML
-(both already deployable on Vercel). Heavy libraries (pdfplumber, python-docx, pymupdf,
+(pydantic is pinned in `api/requirements.txt`; PyYAML is not there yet and Task 9.1 adds it). Heavy libraries (pdfplumber, python-docx, pymupdf,
 rapidocr, numpy, scikit-learn, optuna, reportlab) are imported lazily, inside the functions of
 `ingest/`, `eval/` and `scripts/` that need them. Importing `matcher.score` must never import
 any of them.

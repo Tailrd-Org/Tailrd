@@ -1230,7 +1230,8 @@ raises (any input → a result or a reason). It uses: `parse.dates` (`parse_rang
 "Microsoft Office 2019", "ISO 9001:2015", street numbers), `normalize.resolver.Resolver`
 (`extract(text, context="prose"|"list")`; ambiguous keys need exact casing in `resolve()`;
 a newline is a hard break, so unwrap soft-wrapped lines inside one bullet before extracting),
-`score.evidence` (`analyze_bullet`, `is_quantified` — the only `score` import allowed),
+`score.evidence` (`analyze_bullet(text, mentions, config)`, `is_quantified(text, config)` — the
+only `score` import allowed),
 `graph.loader` (taxonomy dir: `titles.json`, `naics.json`, `mos_crosswalk.json` formats are in
 Task 2.2). Parse-time configuration lives in `config/parse/*.yaml`, loaded by
 `parse/config.py` (NOT part of `EngineConfig`; its content hash is recorded in diagnostics).
@@ -1576,6 +1577,43 @@ file), `jobs_sidebar.py:42-43,73-125`, `routers/jobs.py:73-98,154-342 (strong/so
 `routers/github_sources.py:810-932`; email `services/email_service.py:209-285`; web
 `frontend/src/pages/Jobs.tsx`, `components/JobDetailView.tsx`, `components/JobsSidebar.tsx`,
 `components/CustomResumeModal.tsx`, `lib/skillLabel.ts`; extension `chrome-extension/src/content/tailorCard.ts`.
+
+**Facts from the integration survey (verify line numbers):**
+- Work authorisation lives ONLY in `user_settings.prefilled_answers` (JSON, string values; blank =
+  unanswered, never "no"): `"Are you authorized to work in this country?"` (free text: "Yes",
+  "Canadian citizen", "Yes, I am legally authorized to work in Canada"), `"Do you now or in the
+  future require sponsorship?"` ("Yes"/"No"), `"Authorized to work in the US"` / `"...in Canada"`
+  ("Yes"/"No", the only per-country fields), `"Security clearance"` ("None" / "Active clearance" /
+  "Eligible / previously held"); wizard token key `work_authorization` (e.g. "needs_sponsorship");
+  harvested legacy keys containing "sponsor"/"authoriz"/"eligible" (see `_mine_screening`,
+  `routers/profile.py:291-324`). Port the TypeScript interpreter
+  `chrome-extension/src/content/profileFacts.ts` (`workAuthFacts`, `countriesIn`,
+  `applyExplicitCountries`, `authorizedIn`, `needsSponsorshipIn`) to Python for `WorkAuth`
+  (unscoped statements refer to the candidate's country of residence; explicit per-country
+  answers win; unknown stays None). `derived_facts.py` has no work-auth logic.
+- Candidate location (no canonical field): `address_city`+`address_state` → `settings.city` →
+  `resume_profiles.location`, parsed with `location_parser.parse_locations()`; country from the
+  parse, then `settings.country` (free text — normalise), then `settings.regions` (ISO "US"/"CA").
+  `settings.location` defaults to "United States" — never treat that default as a location.
+- Jobs: `country` is "US"/"CA"/"" ; `locations_json` items `{city, region, region_name, country
+  (full name)}` (may be NULL on old rows); `work_type` remote/hybrid/onsite but ATS rows can hold
+  "Remote"/"Hybrid"/"On Site" (normalise; "onsite" may also mean unknown); `employment_type`
+  full_time/part_time/contract/internship/""; `experience_level` internship/new_grad/"";
+  `visa_sponsorship` yes/no/unknown, and a list-sourced "no" may mean "U.S. citizenship required";
+  `company_description` / `company_size` are effectively never filled (ignore values starting with
+  "{"), so industry comes from the company name + posting text; `company_domain` is a hint.
+- Vercel runs Python 3.12 and installs `api/requirements.txt` (PyYAML is NOT there yet — add it).
+  `.vercelignore` exists and does not list `match-engine/.venv` (670 MB locally): add
+  `match-engine/.venv`, `match-engine/data/raw`, `match-engine/eval/corpora`, `match-engine/reports`.
+- The cron sweep is boxed by `asyncio.wait_for`, which cannot interrupt synchronous code: engine
+  scoring loops must check a deadline every N jobs and `await asyncio.sleep(0)` between users;
+  first-time posting parsing (thousands of postings) is incremental under the same deadline.
+  Sweep summary keys today: status, threshold, users_scanned, users_notified, jobs_notified,
+  jobs_scored, scoring_errors, scoring_budget_spent, scoring_mode, ai_confirmed (+ error) — replace
+  scoring_mode/ai_confirmed/llm_unavailable with engine fields (engine_version, config_hash,
+  outcomes histogram, drift alarms).
+- Résumé choice differs today (sweep: newest by created_at; application profile: primary first);
+  D-81 keeps the sweep's rule for scoring.
 
 ### Task 9.1: Adapter, storage and calibration references
 
