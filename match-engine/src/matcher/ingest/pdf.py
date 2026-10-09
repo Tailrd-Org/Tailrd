@@ -44,13 +44,16 @@ import io
 import math
 import re
 import statistics
-from bisect import bisect_right
+import threading
+from bisect import bisect_left, bisect_right
 from collections import Counter
+from contextlib import contextmanager
 from dataclasses import dataclass, replace
-from typing import Any, Callable, Iterable, Optional, Sequence
+from typing import Any, Callable, Iterable, Iterator, Optional, Sequence
 
 import matcher.ingest.ocr as ocr
 from matcher.errors import Flag
+from matcher.ingest.detect import internal_fault
 from matcher.ingest.normalize_text import BULLET_GLYPHS, normalize_line
 from matcher.ingest.quality import MIN_VISIBLE_SIZE_PT, digit_masked, is_near_white, is_page_number, to_rgb
 
@@ -64,6 +67,7 @@ WIDE_CROSSER = 0.45  # a line at least this wide (share of the page) may span a 
 MAX_CROSSERS = 0.10  # ... and at most this share of the page's lines may do so
 ANNOTATION_ALIGNED = 0.75  # share of a right-hand group sharing rows with left text (annotation)
 ANNOTATION_WIDTH = 0.20  # median width (share of the page) below which that group is narrow
+ANNOTATION_MAX_LINES = 60  # more lines than this on the right is a column, not dates beside titles
 RIGHT_ALIGN_TOL = 2.0  # pt; right edges this close are right-aligned
 ADJACENT_PITCH = 1.8  # consecutive lines closer than 1.8 x their height are adjacent (dense)
 ROW_OVERLAP = 0.5  # fragments overlapping by half the smaller height share a row
@@ -74,6 +78,11 @@ MAX_LAYOUT_FRAGMENTS = 2000  # beyond this a page is read as one column (cost gu
 SCAN_IMAGE_COVERAGE = 0.5  # images covering half the page + only invisible text = a scan's OCR layer
 MIN_FAILURES = 2  # continuity failures needed before the order is called uncertain
 OFFPAGE_TOL = 0.5  # pt
+# MuPDF messages that mean part of the file's data could not be decoded (a zeroed hole in a
+# compressed content stream, a file cut short and patched with %%EOF). Repairs and syntax
+# warnings alone are not here: real PDFs often have them and still read correctly.
+_DAMAGE_MARKERS = ("zlib error", "premature end of data", "read error", "flate")
+_MUPDF_LOCK = threading.Lock()
 _UNMAPPED = "\ufffd"
 _PAINTED = 16 | 32  # rawdict char_flags: FILLED | STROKED
 _INVISIBLE_TYPE = 3  # get_texttrace span "type" for render mode 3
@@ -307,10 +316,26 @@ def _sparse(group: Sequence[Fragment]) -> bool:
     return len(adjacent) < 0.5 * len(ordered)
 
 
+def _aligned(right: Sequence[Fragment], left: Sequence[Fragment]) -> int:
+    """How many right-hand fragments share a row with a left-hand one. Only left fragments that
+    start within one (tallest) line height above a right fragment can overlap it, so a sorted
+    window replaces the all-pairs scan."""
+    ordered = sorted(left, key=lambda f: f.y0)
+    starts = [f.y0 for f in ordered]
+    tallest = max((f.height for f in ordered), default=0.0)
+    count = 0
+    for fragment in right:
+        window = ordered[bisect_left(starts, fragment.y0 - tallest):bisect_right(starts, fragment.y1)]
+        if any(_same_row(fragment, other) for other in window):
+            count += 1
+    return count
+
+
 def _is_annotation(right: Sequence[Fragment], left: Sequence[Fragment], width: float) -> bool:
     """Dates or places beside titles: narrow, on the left text's rows, right-aligned or sparse."""
-    aligned = sum(1 for r in right if any(_same_row(r, other) for other in left))
-    if aligned < ANNOTATION_ALIGNED * len(right):
+    if len(right) > ANNOTATION_MAX_LINES:  # a handful per page; never hundreds (cost guard too)
+        return False
+    if _aligned(right, left) < ANNOTATION_ALIGNED * len(right):
         return False
     if statistics.median(r.x1 - r.x0 for r in right) >= ANNOTATION_WIDTH * width:
         return False
@@ -558,12 +583,16 @@ class _Background:
                 if path.get("fill") is None or (path.get("fill_opacity") or 0) <= 0:
                     continue
                 fills.append((path["rect"], to_rgb(path["fill"]), int(path.get("seqno", 0))))
-        except Exception:
+        except Exception as exc:  # unreadable vector graphics: assume a white page behind the text
+            if internal_fault(exc):
+                raise
             fills = []
         self._fills = sorted(fills, key=lambda item: -item[2])  # topmost first
         try:
             self._images = [info["bbox"] for info in self._page.get_image_info()]
-        except Exception:
+        except Exception as exc:
+            if internal_fault(exc):
+                raise
             self._images = []
 
     def light_under(self, bbox: Sequence[float], seqno: int) -> bool:
@@ -651,30 +680,62 @@ def _read_page_pymupdf(fitz: Any, page: Any, index: int) -> _PageRead:
     return _PageRead(index, rect.width, rect.height, fragments, hidden_glyphs > 0 and not scan_layer)
 
 
+@contextmanager
+def _quiet_mupdf(fitz: Any) -> Iterator[Callable[[], str]]:
+    """Own PyMuPDF for the duration (it is not thread-safe, and its message store is process-wide),
+    keep MuPDF's errors and warnings off stdout, and yield a reader of the messages it logged
+    meanwhile. The caller's display settings are restored; the message store is left empty."""
+    tools = fitz.TOOLS
+    with _MUPDF_LOCK:
+        show_errors, show_warnings = tools.mupdf_display_errors(), tools.mupdf_display_warnings()
+        tools.mupdf_display_errors(False)
+        tools.mupdf_display_warnings(False)
+        tools.reset_mupdf_warnings()
+        try:
+            yield lambda: tools.mupdf_warnings(reset=False)
+        finally:
+            tools.reset_mupdf_warnings()
+            tools.mupdf_display_errors(bool(show_errors))
+            tools.mupdf_display_warnings(bool(show_warnings))
+
+
+def damaged(messages: str) -> bool:
+    """MuPDF could not decode part of the file's data (a content stream lost mid-way)."""
+    lowered = messages.lower()
+    return any(marker in lowered for marker in _DAMAGE_MARKERS)
+
+
 def _extract_with_pymupdf(fitz: Any, data: bytes, max_pages: int, ocr_min_confidence: float) -> PdfResult:
-    try:
-        doc = fitz.open(stream=data, filetype="pdf")
-    except Exception:
-        return PdfResult.failed(Flag.CORRUPT)
-    try:
-        if doc.needs_pass:
-            return PdfResult.failed(Flag.ENCRYPTED)
-        page_count = doc.page_count
-        if page_count < 1:
+    with _quiet_mupdf(fitz) as messages:
+        try:
+            doc = fitz.open(stream=data, filetype="pdf")
+        except Exception as exc:
+            if internal_fault(exc):
+                raise
             return PdfResult.failed(Flag.CORRUPT)
-        reads = [_read_page_pymupdf(fitz, doc.load_page(i), i) for i in range(min(page_count, max_pages))]
+        try:
+            if doc.needs_pass:
+                return PdfResult.failed(Flag.ENCRYPTED)
+            page_count = doc.page_count
+            if page_count < 1:
+                return PdfResult.failed(Flag.CORRUPT)
+            reads = [_read_page_pymupdf(fitz, doc.load_page(i), i) for i in range(min(page_count, max_pages))]
+            if damaged(messages()):  # in-stream damage: what was read is incomplete
+                return PdfResult.failed(Flag.CORRUPT, page_count)
 
-        def has_ink(i: int) -> bool:
-            return ocr.page_has_ink(fitz, doc.load_page(i))
+            def has_ink(i: int) -> bool:
+                return ocr.page_has_ink(fitz, doc.load_page(i))
 
-        def render(i: int) -> Optional[tuple[Any, float]]:
-            return ocr.render_page(fitz, doc.load_page(i))
+            def render(i: int) -> Optional[tuple[Any, float]]:
+                return ocr.render_page(fitz, doc.load_page(i))
 
-        return _finish(reads, has_ink, render, page_count, max_pages, ocr_min_confidence)
-    except Exception:
-        return PdfResult.failed(Flag.CORRUPT)
-    finally:
-        doc.close()
+            return _finish(reads, has_ink, render, page_count, max_pages, ocr_min_confidence)
+        except Exception as exc:  # MuPDF gave up on a page
+            if internal_fault(exc):
+                raise
+            return PdfResult.failed(Flag.CORRUPT)
+        finally:
+            doc.close()
 
 
 # ─── pdfplumber (fallback) ───────────────────────────────────────────────────────────────────
@@ -760,6 +821,8 @@ def _extract_with_pdfplumber(data: bytes, max_pages: int, ocr_min_confidence: fl
     try:
         document = pdfplumber.open(io.BytesIO(data))
     except Exception as exc:
+        if internal_fault(exc):
+            raise
         return PdfResult.failed(Flag.ENCRYPTED if _password_error(exc) else Flag.CORRUPT)
     try:
         pages = document.pages
@@ -778,6 +841,8 @@ def _extract_with_pdfplumber(data: bytes, max_pages: int, ocr_min_confidence: fl
 
         return _finish(reads, has_ink, render, page_count, max_pages, ocr_min_confidence)
     except Exception as exc:
+        if internal_fault(exc):
+            raise
         return PdfResult.failed(Flag.ENCRYPTED if _password_error(exc) else Flag.CORRUPT)
     finally:
         document.close()

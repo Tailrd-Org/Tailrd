@@ -125,7 +125,24 @@ _RANGE_END = (rf"(?:(?:{_MONTH}\s*)?{_YEAR}|present|current|now|today|ongoing|da
               rf"actuel|actuellement|en cours|maintenant)")
 _DATE_RANGE = re.compile(rf"(?<!\d)(?:{_MONTH}\s*)?{_YEAR}\s*{_RANGE_SEPARATOR}\s*{_RANGE_END}(?!\w)",
                          re.IGNORECASE)
-_EMAIL = re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+# Checked per whitespace token with fullmatch and bounded parts, so a hostile 100 KB token costs
+# linear time (an unanchored `[\w.+-]+@...` search retries from every position: quadratic).
+_EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
+_EMAIL_SEPARATORS = re.compile(r"[:;,|<>()\[\]\"'/]")
+MAX_EMAIL_LENGTH = 254
+
+
+def _has_email(text: str) -> bool:
+    for token in text.split():
+        if "@" not in token:
+            continue
+        for piece in _EMAIL_SEPARATORS.split(token):
+            piece = piece.rstrip(".")
+            if "@" in piece and len(piece) <= MAX_EMAIL_LENGTH and _EMAIL.fullmatch(piece):
+                return True
+    return False
+
+
 # "555-0100", "(416) 555-0100", "+1 416 555 0100"; never a year range such as "2014-2018".
 _PHONE = re.compile(r"(?<!\d)(?:\+\d{1,3}[ .-]?)?(?:\(?\d{2,4}\)?[ .-]?)?\d{3}[ .-]\d{4}(?!\d)")
 _HEADING_PUNCT = re.compile(r"[^\w\s'&/-]")
@@ -166,7 +183,7 @@ def resume_likelihood(text: str) -> float:
     sections = {s for s in map(_section_of, lines) if s is not None}
     date_ranges = len(_DATE_RANGE.findall(text))
     bullet_share = sum(1 for line in lines if line.startswith("- ")) / len(lines) if lines else 0.0
-    contact = bool(_EMAIL.search(text) or _PHONE.search(text))
+    contact = _has_email(text) or _PHONE.search(text) is not None
     has_list = any(_is_list_line(line) for line in lines)
     cover = len(set(_COVER_RE.findall(lowered)))
     transcript = len(set(_TRANSCRIPT_RE.findall(lowered)))

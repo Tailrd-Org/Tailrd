@@ -85,6 +85,8 @@ EXPECTED: dict[str, Expect] = {
     "pdf_encrypted.pdf": review(Flag.ENCRYPTED, language=None),
     "pdf_owner_password_only.pdf": ok(),
     "pdf_truncated.pdf": review(Flag.CORRUPT, language=None),
+    "pdf_damaged_stream.pdf": review(Flag.CORRUPT, language=None),
+    "pdf_truncated_eof_appended.pdf": review(Flag.CORRUPT, language=None),
     "pdf_garbled.pdf": review(Flag.CORRUPT, language=None),
     "pdf_junk_prefix.pdf": ok(),
     # Scans, images, photos
@@ -185,6 +187,7 @@ def test_every_fixture_has_an_expectation() -> None:
 def test_fixture_outcome(ingested: _Cache, name: str) -> None:
     expect = EXPECTED[name]
     result = ingested(name)
+    assert Flag.INTERNAL_ERROR not in result.reasons  # no safety net fired
     assert result.ok is expect.ok, (result.reasons, result.text[:300])
     assert result.reasons == expect.reasons
     assert set(result.flags) == set(expect.flags)
@@ -252,7 +255,8 @@ def test_detection_rules() -> None:
     assert detect_kind(b"PK\x03\x04 not really a zip", "cv.docx") is Kind.UNKNOWN
     assert detect_kind(b"plain words", "scan.JPG") is Kind.IMAGE  # the extension decides when no magic matches
     assert detect_kind(b"plain words", "notes") is Kind.TEXT
-    assert decode_text("Résumé – café".encode("cp1252")) == "Résumé – café"
+    cp1252 = f"Résumé {chr(0x2013)} café"  # en dash: 0x96 in cp1252, invalid UTF-8
+    assert decode_text(cp1252.encode("cp1252")) == cp1252
     assert decode_text(b"\xff\xfe" + "Ångström".encode("utf-16-le")) == "Ångström"
     assert decode_text(b"Alex\x00Example") is None
     assert decode_text(b"Alex Example, data analyst. " * 20 + b"\x07") is not None  # one stray control byte
@@ -281,11 +285,37 @@ def test_owner_password_only_pdf_is_readable(ingested: _Cache) -> None:
     assert _lines(result) == _lines(ingested("pdf_clean_one_column.pdf"))
 
 
-@pytest.mark.parametrize("name", ["pdf_truncated.pdf", "pdf_garbled.pdf", "docx_corrupt_zip.docx",
+@pytest.mark.parametrize("name", ["pdf_truncated.pdf", "pdf_garbled.pdf", "pdf_damaged_stream.pdf",
+                                  "pdf_truncated_eof_appended.pdf", "docx_corrupt_zip.docx",
                                   "docx_zip_without_document.docx"])
 def test_damaged_files_are_corrupt(ingested: _Cache, name: str) -> None:
     result = ingested(name)
     assert result.reasons == (Flag.CORRUPT,) and result.lines == ()
+
+
+@pytest.mark.parametrize("name", ["pdf_damaged_stream.pdf", "pdf_truncated_eof_appended.pdf", "pdf_garbled.pdf",
+                                  "pdf_truncated.pdf", "pdf_encrypted.pdf", "pdf_clean_one_column.pdf"])
+def test_pdf_reading_is_silent_and_restores_mupdf_settings(config: EngineConfig, capfd: pytest.CaptureFixture,
+                                                           name: str) -> None:
+    import pymupdf
+
+    tools = pymupdf.TOOLS
+    errors_before, warnings_before = tools.mupdf_display_errors(), tools.mupdf_display_warnings()
+    capfd.readouterr()
+    result = ingest_bytes((EDGE / name).read_bytes(), name, config=config)
+    out, err = capfd.readouterr()
+    assert (out, err) == ("", ""), "MuPDF wrote to stdout/stderr"
+    assert result.reasons == EXPECTED[name].reasons
+    assert (tools.mupdf_display_errors(), tools.mupdf_display_warnings()) == (errors_before, warnings_before)
+
+
+def test_clean_pdfs_log_no_damage(config: EngineConfig) -> None:
+    from matcher.ingest.pdf import damaged
+
+    assert not damaged("")
+    assert not damaged("trying to repair broken xref\nrepairing PDF document")  # repairs alone read fine
+    assert damaged("library error: zlib error: invalid literal/lengths set")
+    assert damaged("premature end of data in flate filter")
 
 
 # ─── Row 3: hidden text is removed and flagged ───────────────────────────────────────────────
@@ -532,6 +562,42 @@ def test_ocr_unavailable_is_unreadable(config: EngineConfig, monkeypatch: pytest
     assert result.reasons == (Flag.UNREADABLE,) and result.ocr_confidence is None
 
 
+def test_ocr_engine_is_built_again_after_a_failure(monkeypatch: pytest.MonkeyPatch,
+                                                   caplog: pytest.LogCaptureFixture) -> None:
+    """A transient failure must not disable OCR until restart, and its reason must be kept."""
+    import matcher.ingest.ocr as ocr
+
+    monkeypatch.setattr(ocr, "_engine", None)
+    monkeypatch.setattr(ocr, "_engine_error", None)
+    built = object()
+    attempts: list[int] = []
+
+    def flaky():
+        attempts.append(1)
+        if len(attempts) == 1:
+            raise RuntimeError("model file locked")
+        return built
+
+    monkeypatch.setattr(ocr, "_build_engine", flaky)
+    with caplog.at_level("WARNING", logger="matcher.ingest.ocr"):
+        assert ocr.get_engine() is None
+    assert ocr.engine_error() == "RuntimeError: model file locked"
+    assert "model file locked" in caplog.text
+    assert ocr.get_engine() is built and ocr.engine_error() is None
+    assert ocr.get_engine() is built and len(attempts) == 2  # cached once built
+
+
+def test_ocr_sessions_are_single_threaded() -> None:
+    import matcher.ingest.ocr as ocr
+
+    engine = ocr.get_engine()
+    assert engine is not None, ocr.engine_error()
+    for session in (engine.text_detector.infer.session, engine.text_recognizer.session.session):
+        options = session.get_session_options()
+        assert (options.intra_op_num_threads, options.inter_op_num_threads) == (1, 1)
+    assert all(Path(path).is_file() for path in ocr._model_paths().values())
+
+
 # ─── Row 8: page cap ─────────────────────────────────────────────────────────────────────────
 
 
@@ -689,6 +755,15 @@ def test_resume_likelihood_signals() -> None:
     assert 0.0 <= resume_likelihood("x" * 10000) <= 1.0
 
 
+def test_contact_email_shapes() -> None:
+    from matcher.ingest.quality import _has_email
+
+    for text in ("alex.example@example.com", "Email:alex@example.com", "<alex@example.com>.", "x (a.b+c@d-e.co.uk)"):
+        assert _has_email(text), text
+    for text in ("a@a" * 100, "@" * 50, "alex@localhost", "user@", "@example.com", "a" * 300 + "@example.com"):
+        assert not _has_email(text), text
+
+
 def test_threshold_comes_from_config(config: EngineConfig) -> None:
     strict = _with(config, resume_likelihood_threshold=0.999)
     result = ingest_bytes((EDGE / "text_two_line_resume.txt").read_bytes(), "cv.txt", config=strict)
@@ -714,10 +789,12 @@ _NAMES = ["", "resume.pdf", "resume.docx", "cv.txt", "scan.png", "photo.jpg", "w
 @settings(max_examples=150)
 @given(st.sampled_from(_PREFIXES), st.binary(max_size=1500), st.sampled_from(_NAMES))
 def test_arbitrary_bytes_never_raise(config: EngineConfig, prefix: bytes, body: bytes, filename: str) -> None:
-    data = prefix + body
+    # A PDF-looking input ends with %%EOF so it passes the trailer check and reaches PyMuPDF.
+    data = prefix + body + (b"\n%%EOF" if prefix.startswith(b"%PDF") else b"")
     first = ingest_bytes(data, filename, config=config)
     assert isinstance(first, IngestResult)
     assert first.ok == (not first.reasons)
+    assert Flag.INTERNAL_ERROR not in first.reasons  # the catch-all safety net did not fire
     assert first == ingest_bytes(data, filename, config=config)
 
 
@@ -727,8 +804,142 @@ def test_arbitrary_text_never_raises(config: EngineConfig, text: str) -> None:
     first = ingest_text(text, config=config)
     assert isinstance(first, IngestResult) and first.tier is A
     assert first.ok == (not first.reasons)
+    assert Flag.INTERNAL_ERROR not in first.reasons
     assert first == ingest_text(text, config=config)
     assert 0.0 <= first.resume_likelihood <= 1.0
+
+
+# Scans and the scanned-image PDFs OCR every mutation (seconds each); everything else is mutated.
+_SLOW_TO_MUTATE = {"scan_300dpi.pdf", "scan_noisy_72dpi.pdf", "pdf_searchable_scan.pdf", "image_resume.png",
+                   "pdf_90_pages.pdf", "pdf_120_pages.pdf"}
+MUTATIONS = 200
+
+
+def _mutate(data: bytes, rng) -> bytes:
+    """One seeded mutation. A PDF keeps its last 64 bytes (its %%EOF trailer) so it is still read."""
+    out = bytearray(data)
+    keep_tail = 64 if data.startswith(b"%PDF") and len(data) > 128 else 0
+    span = max(1, len(out) - keep_tail)
+    kind = rng.choice(["flip", "zero", "splice", "cut"])
+    if kind == "flip":
+        for _ in range(rng.randint(1, 16)):
+            out[rng.randrange(span)] = rng.randrange(256)
+    elif kind == "zero":
+        start, length = rng.randrange(span), rng.randint(8, 256)
+        out[start:start + length] = bytes(len(out[start:start + length]))
+    elif kind == "splice":
+        start = rng.randrange(span)
+        out[start:start] = bytes(rng.randrange(256) for _ in range(rng.randint(1, 64)))
+    else:
+        out = out[: rng.randrange(1, span + 1)] + (b"\n%%EOF\n" if keep_tail else b"")
+    return bytes(out)
+
+
+_ODD_TEXTS = ["", " ", "\t\t", chr(0x00AD), chr(0x200B), "a" * 500, "x", "- bullet", "2019 - 2021",
+              "".join(chr(c) for c in (0x05E9, 0x05DC, 0x05D5, 0x05DD)), chr(0x2022) * 3]
+_ODD_VALUES = ["", "0", "1", "true", "off", "auto", "FFFFFF", "zz", "-5", "999999999", "Heading1", "missing-style"]
+
+
+def _mutate_docx_xml(content: bytes, rng) -> bytes:
+    """Well-formed but odd document.xml: text replaced, elements dropped, copied or moved,
+    attribute values set to nonsense. Byte flips would only make the XML ill-formed."""
+    import copy
+
+    from lxml import etree
+
+    root = etree.fromstring(content)
+    for _ in range(rng.randint(1, 6)):
+        elements = list(root.iter())
+        element = rng.choice(elements)
+        parent = element.getparent()
+        operation = rng.choice(["text", "drop", "copy", "attribute", "move"])
+        if operation == "text":
+            element.text = rng.choice(_ODD_TEXTS)
+        elif operation == "drop" and parent is not None:
+            parent.remove(element)
+        elif operation == "copy" and parent is not None:
+            parent.append(copy.deepcopy(element))
+        elif operation == "attribute":
+            keys = list(element.attrib) or ["{http://schemas.openxmlformats.org/wordprocessingml/2006/main}val"]
+            element.set(rng.choice(keys), rng.choice(_ODD_VALUES))
+        elif operation == "move" and parent is not None:
+            target = rng.choice(elements)
+            if target is not element and element not in list(target.iterancestors()):
+                target.append(element)
+    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+
+
+def _mutate_inside_docx(data: bytes, rng) -> bytes:
+    """Mutate word/document.xml inside the archive and zip it again: flipping bytes of the zip
+    itself only breaks a CRC, so python-docx would never reach the XML."""
+    import io
+    import zipfile
+
+    with zipfile.ZipFile(io.BytesIO(data)) as source:
+        members = [(info.filename, source.read(info.filename)) for info in source.infolist()]
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for filename, content in members:
+            if filename == "word/document.xml":
+                content = _mutate_docx_xml(content, rng)
+            target.writestr(zipfile.ZipInfo(filename, date_time=(2020, 1, 1, 0, 0, 0)), content)
+    return out.getvalue()
+
+
+def test_seeded_mutations_reach_every_reader_and_never_raise(config: EngineConfig,
+                                                             monkeypatch: pytest.MonkeyPatch) -> None:
+    import random
+
+    import matcher.ingest.docx as docx_reader
+    import matcher.ingest.ocr as ocr
+    import matcher.ingest.pdf as pdf
+
+    reached: dict[str, int] = {"pymupdf page": 0, "image decoded": 0, "docx xml": 0}
+
+    def spy(module, name: str, key: str) -> None:
+        real = getattr(module, name)
+
+        def counted(*args, **kwargs):
+            out = real(*args, **kwargs)
+            reached[key] += 1
+            return out
+
+        monkeypatch.setattr(module, name, counted)
+
+    spy(pdf, "_read_page_pymupdf", "pymupdf page")
+    spy(ocr, "image_to_array", "image decoded")
+    spy(docx_reader._Reader, "blocks", "docx xml")
+    names = sorted(n for n in EXPECTED if n not in _SLOW_TO_MUTATE and (EDGE / n).stat().st_size > 0)
+    rng = random.Random(20261009)
+    problems = []
+    for i in range(MUTATIONS):
+        name = names[i % len(names)]
+        original = (EDGE / name).read_bytes()
+        if name.endswith(".docx") and name != "docx_corrupt_zip.docx" and rng.random() < 0.75:
+            data = _mutate_inside_docx(original, rng) if b"word/document.xml" in original else _mutate(original, rng)
+        else:
+            data = _mutate(original, rng)
+        first = ingest_bytes(data, name, config=config)
+        if not isinstance(first, IngestResult) or first.ok == bool(first.reasons) \
+                or Flag.INTERNAL_ERROR in first.reasons or first != ingest_bytes(data, name, config=config):
+            problems.append((i, name, first.reasons if isinstance(first, IngestResult) else first))
+    assert not problems, problems[:5]
+    assert all(count > 0 for count in reached.values()), reached  # the mutations reach every reader
+
+
+@pytest.mark.parametrize("module_name,constant,fixture", [
+    ("matcher.ingest.pdf", "MIN_VISIBLE_SIZE_PT", "pdf_clean_one_column.pdf"),  # inside the PyMuPDF reader
+    ("matcher.ingest.docx", "MIN_VISIBLE_SIZE_PT", "docx_clean.docx"),  # inside the DOCX walker
+    ("matcher.ingest.ocr", "MAX_IMAGE_SIDE", "photo_no_text.jpg"),  # inside image decoding
+])
+def test_a_defect_in_a_reader_is_reported_as_internal_error(config: EngineConfig, monkeypatch: pytest.MonkeyPatch,
+                                                            module_name: str, constant: str, fixture: str) -> None:
+    """The readers' damage handlers must not disguise the engine's own bugs as damaged files."""
+    import importlib
+
+    monkeypatch.setattr(importlib.import_module(module_name), constant, None)  # comparisons now raise TypeError
+    result = ingest_bytes((EDGE / fixture).read_bytes(), fixture, config=config)
+    assert result.reasons == (Flag.INTERNAL_ERROR,)
 
 
 def test_ingest_text_matches_the_text_file(ingested: _Cache, config: EngineConfig) -> None:
@@ -740,6 +951,59 @@ def test_empty_text_is_not_a_resume(config: EngineConfig) -> None:
     for text in ("", "   \n\t\n"):
         result = ingest_text(text, config=config)
         assert result.reasons == (Flag.NOT_A_RESUME,) and result.lines == ()
+
+
+# Hostile shapes (SPEC §13): each 100 KB input must be ingested in well under a second. A regex that
+# retries an unbounded quantifier from every position turns these into minutes (fix round 1).
+HOSTILE_TEXT = {
+    "one 100 KB token": b"a" * 100_000,
+    "a run of @": b"@" * 100_000,
+    "a@a repeated on one line": b"a@a" * 33_334,
+    "dotted run": b"a." * 50_000,
+    "www. run": b"www." * 25_000,
+    "url-ish run": b"a://" * 25_000,
+    "hyphenated chain": b"a-\n" * 33_334,
+    "soft-hyphen chain": "a\u00ad\n".encode("utf-8") * 25_000,
+    "a year then spaces": b"2019" + b" " * 100_000,
+    "date ranges": b"Jan 2019 - " * 9_000,
+    "digits": b"5" * 100_000,
+    "bullets": "\u2022".encode("utf-8") * 33_000,
+}
+
+
+@pytest.mark.parametrize("name", sorted(HOSTILE_TEXT))
+def test_hostile_text_is_ingested_in_linear_time(config: EngineConfig, name: str) -> None:
+    import time
+
+    data = HOSTILE_TEXT[name]
+    start = time.perf_counter()
+    result = ingest_bytes(data, "cv.txt", config=config)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 1.0, f"{name}: {elapsed:.2f} s"
+    assert isinstance(result, IngestResult) and Flag.INTERNAL_ERROR not in result.reasons
+
+
+def test_dense_interleaved_columns_are_laid_out_quickly(config: EngineConfig) -> None:
+    """About 2,000 tiny fragments in 12 columns whose rows never line up with their neighbours: the
+    worst case for the column test (fix round 1 replaced an all-pairs row comparison)."""
+    import io
+    import time
+
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    page = canvas.Canvas(buf, pagesize=(612, 792), invariant=1)
+    page.setFont("Helvetica", 2.0)
+    for column in range(12):
+        for row in range(165):
+            page.drawString(10 + column * 50, 785 - (2 * row + column % 2) * 2.5, "2019")
+    page.showPage()
+    page.save()
+    start = time.perf_counter()
+    result = ingest_bytes(buf.getvalue(), "dense.pdf", config=config)
+    elapsed = time.perf_counter() - start
+    assert elapsed < 1.0, f"{elapsed:.2f} s"
+    assert Flag.INTERNAL_ERROR not in result.reasons
 
 
 # ─── Contracts ───────────────────────────────────────────────────────────────────────────────

@@ -13,17 +13,22 @@ Engine settings are fixed here, not in config:
 - every recognised line is returned (text_score 0), so the mean confidence reflects everything the
   engine saw; callers keep lines at or above KEEP_LINE_CONFIDENCE (rapidocr's own default
   text_score) as text.
-`get_engine()` returns None when OCR cannot run here (not installed, models missing, a session
-that cannot be made single-threaded); ingest then reports UNREADABLE.
+`get_engine()` returns None when OCR cannot run (not installed, models missing, a session that
+cannot be made single-threaded); ingest then reports UNREADABLE. The reason is kept in
+`engine_error()`, and the next call tries to build the engine again.
 """
 
 from __future__ import annotations
 
 import io
+import logging
 import math
 import threading
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any, Optional
+
+from matcher.ingest.detect import internal_fault
 
 RENDER_DPI = 300  # brief: scanned PDF pages are rendered at 300 dpi
 MAX_IMAGE_SIDE = 5000  # px; larger renders / images are scaled down first (memory, time)
@@ -47,10 +52,22 @@ class OcrLine:
 _ENGINE_LOCK = threading.Lock()
 _RUN_LOCK = threading.Lock()
 _engine: Any = None
-_engine_loaded = False
+_engine_error: Optional[str] = None
+_logger = logging.getLogger(__name__)
 
 
-def _single_threaded(ort: Any, session: Any) -> Any:
+def _model_paths() -> dict[str, str]:
+    """The detection and recognition model files, from rapidocr's own packaged config.yaml (the
+    same files RapidOCR loads), so no private attribute of a built session is read."""
+    import rapidocr_onnxruntime
+    import yaml
+
+    root = Path(rapidocr_onnxruntime.__file__).resolve().parent
+    settings = yaml.safe_load((root / "config.yaml").read_text(encoding="utf-8"))
+    return {section: str(root / settings[section]["model_path"]) for section in ("Det", "Rec")}
+
+
+def _single_threaded(ort: Any, model_path: str) -> Any:
     options = ort.SessionOptions()
     options.intra_op_num_threads = 1
     options.inter_op_num_threads = 1
@@ -58,31 +75,47 @@ def _single_threaded(ort: Any, session: Any) -> Any:
     options.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
     options.enable_cpu_mem_arena = False
     options.log_severity_level = 4
-    return ort.InferenceSession(session._model_path, sess_options=options, providers=["CPUExecutionProvider"])
+    return ort.InferenceSession(model_path, sess_options=options, providers=["CPUExecutionProvider"])
 
 
 def _build_engine() -> Any:
     import onnxruntime as ort
     from rapidocr_onnxruntime import RapidOCR
 
-    engine = RapidOCR(text_score=0.0, use_angle_cls=False, det_limit_type="max",
-                      det_limit_side_len=DET_LIMIT_SIDE, det_model_path=None)
-    for holder in (engine.text_detector.infer, engine.text_recognizer.session):
-        holder.session = _single_threaded(ort, holder.session)
+    paths = _model_paths()
+    engine = RapidOCR(text_score=0.0, use_angle_cls=False, det_limit_type="max", det_limit_side_len=DET_LIMIT_SIDE,
+                      det_model_path=paths["Det"], rec_model_path=paths["Rec"])
+    # rapidocr 1.2.3 has no thread setting: swap in single-threaded sessions on the same models.
+    engine.text_detector.infer.session = _single_threaded(ort, paths["Det"])
+    engine.text_recognizer.session.session = _single_threaded(ort, paths["Rec"])
     return engine
 
 
 def get_engine() -> Any:
-    """The shared single-threaded rapidocr engine, or None when OCR is unavailable."""
-    global _engine, _engine_loaded
+    """The shared single-threaded rapidocr engine, or None when OCR cannot run now.
+
+    The engine is cached only once it is built. A failure (package missing, model missing,
+    rapidocr internals changed) is remembered in `engine_error()` and logged once per distinct
+    reason, and the next call tries again, so a transient failure does not disable OCR until the
+    process restarts."""
+    global _engine, _engine_error
     with _ENGINE_LOCK:
-        if not _engine_loaded:
-            _engine_loaded = True
+        if _engine is None:
             try:
                 _engine = _build_engine()
-            except Exception:  # missing package, missing model, unexpected rapidocr internals
-                _engine = None
+            except Exception as exc:
+                reason = f"{type(exc).__name__}: {exc}"
+                if reason != _engine_error:
+                    _logger.warning("OCR engine unavailable: %s", reason)
+                _engine_error = reason
+                return None
+            _engine_error = None
         return _engine
+
+
+def engine_error() -> Optional[str]:
+    """Why the last attempt to build the OCR engine failed; None when it is built or untried."""
+    return _engine_error
 
 
 def run_ocr(rgb: Any) -> Optional[tuple[OcrLine, ...]]:
@@ -94,7 +127,9 @@ def run_ocr(rgb: Any) -> Optional[tuple[OcrLine, ...]]:
     try:
         with _RUN_LOCK:
             result, _ = engine(rgb)
-    except Exception:
+    except Exception as exc:  # the engine gave up on this image
+        if internal_fault(exc):
+            raise
         return None
     lines = []
     for box, text, score in result or ():

@@ -27,8 +27,15 @@ SUPPORTED_LANGUAGES = ("en", "fr")
 SCRIPT_SHARE = 0.30  # share of a line's letters a non-Latin script needs to name the line
 
 _WORD = re.compile(r"[^\W\d_]+")
-# E-mail addresses, URLs and dotted names carry no language ("example.com" is not Portuguese "com").
-_NOT_WORDS = re.compile(r"\S*(?:@|://|www\.)\S*|\S+\.[^\W\d_]\S*")
+_DOTTED = re.compile(r"\.[^\W\d_]")  # "example.com", "S.A."
+MAX_WORD_LENGTH = 64  # a longer whitespace token (a hash, a URL, base64) is not a word
+
+
+def _is_address(token: str) -> bool:
+    """E-mail addresses, URLs and dotted names carry no language ("example.com" is not
+    Portuguese "com"). Plain substring tests and one bounded search: linear in the token."""
+    return "@" in token or "://" in token or token[:4].lower() == "www." or _DOTTED.search(token) is not None
+
 
 _PROFILES: dict[str, frozenset[str]] = {
     "en": frozenset("""
@@ -122,15 +129,16 @@ def _script(char: str) -> Optional[str]:
 
 def detect_line_language(line: str) -> Optional[str]:
     """The language of one line, or None when the line carries no clear signal."""
-    line = _NOT_WORDS.sub(" ", line)
+    tokens = [token for token in line.split() if not _is_address(token)]
     scripts: Counter[str] = Counter()
     letters = 0
-    for char in line:
-        if char.isalpha():
-            letters += 1
-            script = _script(char)
-            if script is not None:
-                scripts[script] += 1
+    for token in tokens:
+        for char in token:
+            if char.isalpha():
+                letters += 1
+                script = _script(char)
+                if script is not None:
+                    scripts[script] += 1
     if not letters:
         return None
     if scripts["kana"]:  # Japanese writes kanji (Han) next to kana
@@ -138,7 +146,7 @@ def detect_line_language(line: str) -> Optional[str]:
     non_latin = {code: n for code, n in scripts.items() if code != "latin" and n > 0}
     if non_latin and sum(non_latin.values()) >= SCRIPT_SHARE * letters:
         return max(sorted(non_latin), key=lambda code: non_latin[code])
-    words = _WORD.findall(line.lower())
+    words = [word for token in tokens if len(token) <= MAX_WORD_LENGTH for word in _WORD.findall(token.lower())]
     hits = {code: sum(1 for w in words if w in profile) for code, profile in _PROFILES.items()}
     best = max(hits.values(), default=0)
     if best == 0:

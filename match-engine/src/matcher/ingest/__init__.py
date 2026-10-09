@@ -179,7 +179,9 @@ def _from_docx(data: bytes, config: EngineConfig) -> IngestResult:
 def _from_image(data: bytes, config: EngineConfig) -> IngestResult:
     try:
         array, points_per_pixel = ocr.image_to_array(data)
-    except Exception:  # not decodable: damaged, truncated, a bomb
+    except Exception as exc:  # not decodable: damaged, truncated, a bomb
+        if detect.internal_fault(exc):
+            raise
         return _failed(Flag.CORRUPT)
     lines = ocr.run_ocr(array)
     if lines is None:

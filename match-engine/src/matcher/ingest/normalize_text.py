@@ -93,28 +93,42 @@ def _joinable(current: str, following: str) -> bool:
             and first.islower())
 
 
+def _tail(pieces: Sequence[str]) -> str:
+    """The last two characters of "".join(pieces), without building the whole string."""
+    tail = ""
+    for piece in reversed(pieces):
+        tail = piece + tail
+        if len(tail) >= 2:
+            break
+    return tail[-2:]
+
+
 def join_hyphenated(lines: Sequence[str]) -> list[Optional[str]]:
     """Step 5 over already-normalised lines. One entry per input line: its text, or None when a
-    join moved all of it onto the previous line."""
+    join moved all of it onto the previous line. Linear time: a line that absorbs thousands of
+    continuations collects them as pieces and is joined once."""
     out: list[Optional[str]] = list(lines)
     for i in range(len(out)):
         current = out[i]
         if current is None:
             continue
+        pieces = [current]
         j = i + 1
         while j < len(out):
             following = out[j]
-            if following is None or not _joinable(current, following):
+            if following is None or not _joinable(_tail(pieces), following):
                 break
             word, _, rest = following.partition(" ")
-            current = current[:-1] + word
+            pieces[-1] = pieces[-1][:-1]  # drop the hyphen or soft hyphen
+            pieces.append(word)
             rest = normalize_line(rest)  # what is left now starts a line (it may start with a bullet)
             if rest:
                 out[j] = rest
             else:
                 out[j] = None
                 j += 1
-        out[i] = current.replace(SOFT_HYPHEN, "").rstrip(" ")  # a dropped final soft hyphen may expose a space
+        joined = pieces[0] if len(pieces) == 1 else "".join(pieces)
+        out[i] = joined.replace(SOFT_HYPHEN, "").rstrip(" ")  # a dropped final soft hyphen may expose a space
     return out
 
 

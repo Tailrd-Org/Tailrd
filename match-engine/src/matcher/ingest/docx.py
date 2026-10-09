@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from typing import Any, Iterator, Optional, Sequence
 
 from matcher.errors import Flag
+from matcher.ingest.detect import internal_fault
 from matcher.ingest.normalize_text import SOFT_HYPHEN
 from matcher.ingest.quality import MIN_VISIBLE_SIZE_PT, hex_to_rgb, is_near_white, is_page_number
 
@@ -320,7 +321,9 @@ def extract_docx(data: bytes) -> DocxResult:
         header = [line for part in _parts(document, _RT_HEADER) for line in reader.blocks(part.element)]
         body = reader.blocks(document.element.body)
         footer = [line for part in _parts(document, _RT_FOOTER) for line in reader.blocks(part.element)]
-    except Exception:  # bad zip, missing parts, not a Word document, malformed XML
+    except Exception as exc:  # bad zip, missing parts, not a Word document, malformed XML
+        if internal_fault(exc):  # a defect of this reader is not a damaged file
+            raise
         return DocxResult([], set(), Flag.CORRUPT)
     lines = [line for line in header if not is_page_number(line.text)] + body
     lines += [line for line in footer if not is_page_number(line.text)]

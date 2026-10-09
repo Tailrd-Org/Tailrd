@@ -13,6 +13,7 @@ from __future__ import annotations
 
 import codecs
 import io
+import os
 import zipfile
 from enum import Enum
 from typing import Optional
@@ -37,6 +38,25 @@ _OTHER_FORMATS = (
 _BY_EXTENSION = {"pdf": Kind.PDF, "docx": Kind.DOCX, "png": Kind.IMAGE, "jpg": Kind.IMAGE, "jpeg": Kind.IMAGE}
 MAX_CONTROL_SHARE = 0.01
 _ALLOWED_CONTROLS = frozenset("\t\n\r\x0b\x0c")
+
+
+_PACKAGE_DIR = os.path.dirname(os.path.abspath(__file__))
+_DEFECT_TYPES = (AssertionError, AttributeError, IndexError, KeyError, NameError, TypeError, ZeroDivisionError)
+
+
+def internal_fault(exc: BaseException) -> bool:
+    """Whether `exc` is a defect of matcher.ingest itself rather than a library giving up on a
+    damaged file: a programming-error type raised by a frame of this package. The readers' damage
+    handlers re-raise these, so the public entry points report INTERNAL_ERROR (the one sentinel
+    for "an unexpected exception was caught") instead of a plausible-looking CORRUPT."""
+    if not isinstance(exc, _DEFECT_TYPES):
+        return False
+    frame = exc.__traceback__
+    if frame is None:
+        return False
+    while frame.tb_next is not None:
+        frame = frame.tb_next
+    return os.path.dirname(os.path.abspath(frame.tb_frame.f_code.co_filename)) == _PACKAGE_DIR
 
 
 def _is_word_zip(data: bytes) -> bool:

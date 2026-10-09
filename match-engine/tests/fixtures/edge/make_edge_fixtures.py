@@ -743,6 +743,23 @@ def _pdf_truncated() -> bytes:
     return full[: int(len(full) * 0.6)]
 
 
+@fixture("pdf_damaged_stream.pdf")
+def _pdf_damaged_stream() -> bytes:
+    """A 200-byte hole of zeros in the middle of the file: the page's compressed content stream no
+    longer inflates (MuPDF: "zlib error"), though the file still opens."""
+    full = _simple_pdf(RESUME_EN)
+    middle = len(full) // 2
+    return full[:middle] + bytes(200) + full[middle + 200:]
+
+
+@fixture("pdf_truncated_eof_appended.pdf")
+def _pdf_truncated_eof_appended() -> bytes:
+    """Cut in half, then "%%EOF" appended so the trailer check passes: MuPDF repairs the xref and
+    the content stream ends early ("premature end of data in flate filter")."""
+    full = _simple_pdf(RESUME_EN)
+    return full[: len(full) // 2] + b"\n%%EOF\n"
+
+
 @fixture("pdf_garbled.pdf")
 def _pdf_garbled() -> bytes:
     rng = random.Random(20261008)
