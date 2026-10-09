@@ -18,8 +18,10 @@ future starts dropped, future ends clamped). Reading a whole text accepts a bare
 Interpretations beyond the SPEC table (pinned by tests): month and season names are read in
 both languages whatever `lang` says (mixed-language résumés, SPEC §14.1; `lang` only orders an
 ambiguous 03/04/2020); "2018-19" is an academic year like "2018/19", while "2011/12" reads as
-December 2011 because a valid month wins; "May 15" alone is a day, not May 2015, but "Jun 18 –
-Aug 18" is a range of two-digit years; an imprecise start whose period contains `as_of`
+December 2011 because a valid month wins; "Mon D(D)" never invents a year: beside a four-digit
+year it is a day in that year ("June 15 – August 15, 2020"), it is a two-digit year only when both
+ends are written with two digits ("Jun 18 – Aug 18"), and alone or before "Present" it is no
+date ("May 15"); an imprecise start whose period contains `as_of`
 ("Fall 2026 – Present" in October 2026) has begun and is kept inside [earliest, as_of]; no bound
 of a returned range lies after `as_of`; a dropped range carries only the reason it was dropped.
 
@@ -124,6 +126,10 @@ def _alternation(words: dict[str, int]) -> str:
     return "|".join(re.escape(w) for w in sorted(words, key=lambda w: (-len(w), w)))
 
 
+def _initials(words: dict[str, int]) -> str:
+    return "".join(sorted({w[0] for w in words}))
+
+
 _I = re.IGNORECASE
 _LB = r"(?<![^\W\d_])"  # not preceded by a letter
 _LA = r"(?![^\W\d_])"  # not followed by a letter
@@ -132,9 +138,13 @@ _NA = r"(?![0-9])"  # not followed by a digit
 _XB = r"(?<![^\W_])"  # not preceded by a letter or digit
 _XA = r"(?![^\W_])"  # not followed by a letter or digit
 _APOS = "['’‘`´]"
-_DASHES = "[–—‒―−‐‑~-]+"
-_MON = rf"{_LB}(?P<mon>{_alternation(_MONTHS)}){_LA}\.?"
-_SEA = rf"{_LB}(?P<sea>{_alternation(_SEASONS)}){_LA}"
+# A run of dashes, entered only at its first dash and never given back: a pattern retried at every
+# position of a long run ("-" * 8000 in an uploaded file) would otherwise take quadratic time.
+_DASHES = "(?<![–—‒―−‐‑~-])[–—‒―−‐‑~-]++"
+# Each name list is guarded by a lookahead on its first letters: one class test rejects almost
+# every position instead of trying ~45 case-insensitive alternatives there (the lexer's hot spot).
+_MON = rf"{_LB}(?=[{_initials(_MONTHS)}])(?P<mon>{_alternation(_MONTHS)}){_LA}\.?"
+_SEA = rf"{_LB}(?=[{_initials(_SEASONS)}])(?P<sea>{_alternation(_SEASONS)}){_LA}"
 _Y4 = rf"(?P<y>[0-9]{{4}}){_NA}"
 _YA = rf"(?P<ya>{_APOS}\s?[0-9]{{2}}){_NA}"
 _SEP = (
@@ -159,10 +169,11 @@ _RX_DAY_MONTH = re.compile(
 _RX_NAMED_MONTH = re.compile(
     rf"{_MON}(?:[-/]|,?\s*)(?:{_Y4}|{_YA}|(?P<yn>3[2-9]|[4-9][0-9]){_NA})", _I
 )  # a two-digit year without an apostrophe only when it cannot be a day (32..99)
-_RX_WEAK_MONTH = re.compile(rf"{_MON}\s+(?P<yn>[0-2][0-9]|3[01]){_NA}{_LA}", _I)
+# "Mon D(D)": a day or a two-digit year; only the other end of a range can say which (_read_weak).
+_RX_WEAK_MONTH = re.compile(rf"{_MON}\s++(?P<d>[0-2]?[0-9]|3[01]){_NA}(?P<sfx>st|nd|rd|th)?{_LA}", _I)
 _RX_SEASON = re.compile(rf"{_SEA}\s*(?:of\s+)?(?:[-/,]\s*)?(?:{_Y4}|{_YA}|(?P<yn>[0-9]{{2}}){_NA})", _I)
 _RX_QUARTER_FIRST = re.compile(rf"{_LB}Q(?P<q>[1-4])\s*(?:[-/,]\s*)?(?:{_Y4}|{_YA})", _I)
-_RX_QUARTER_LAST = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s*[-/]?\s*Q(?P<q>[1-4]){_NA}{_LA}", _I)
+_RX_QUARTER_LAST = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s*+(?:[-/]\s*+)?Q(?P<q>[1-4]){_NA}{_LA}", _I)
 _RX_ISO_MONTH = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})[-/](?P<m>0[1-9]|1[0-2]){_NA}")
 _RX_NUMERIC_MONTH = re.compile(rf"{_NB}(?P<m>0?[1-9]|1[0-2])[-/.]{_Y4}")
 _RX_SHORT_END = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s?[-/–—]\s?(?P<yy>[0-9]{{2}}){_NA}")
@@ -172,7 +183,10 @@ _RX_APOSTROPHE_YEAR = re.compile(rf"{_XB}{_APOS}(?P<yy>[0-9]{{2}}){_XA}")
 _RX_BARE_TWO = re.compile(rf"{_XB}(?P<yy>[0-9]{{2}}){_XA}")
 _RX_MONTH_ONLY = re.compile(_MON, _I)
 _RX_SEASON_ONLY = re.compile(_SEA, _I)
-_RX_PRESENT = re.compile(rf"(?:(?P<sep>{_SEP})\s*)?{_LB}(?P<p>{_PRESENT_CORE}){_LA}", _I)
+# The guard lists the first character of every separator and present marker above.
+_RX_PRESENT = re.compile(
+    rf"(?=[–—‒―−‐‑~jtuaàpcnodem-])(?:(?P<sep>{_SEP})\s*+)?{_LB}(?P<p>{_PRESENT_CORE}){_LA}", _I
+)
 _RX_CAL_AFTER = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s?{_LATIN_MARK}{_LA}")
 _RX_CAL_BEFORE = re.compile(rf"{_LB}{_LATIN_MARK}\s?(?P<y>[0-9]{{4}}){_NA}")
 _RX_THAI_BEFORE = re.compile(rf"พ\.?\s?ศ\.?\s?(?P<y>[0-9]{{4}}){_NA}")
@@ -182,8 +196,8 @@ _RX_SH_BEFORE = re.compile(rf"(?:هـ|ه)\s?\.?\s?ش\s?(?P<y>[0-9]{{4}}){_NA}")
 _RX_AH_AFTER = re.compile(rf"{_NB}(?P<y>[0-9]{{4}})\s?(?:هـ|ه)(?!\s?\.?\s?ش){_LA}")
 _RX_AH_BEFORE = re.compile(rf"{_LB}(?:هـ|ه)\s?(?P<y>[0-9]{{4}}){_NA}")
 
-_GAP = re.compile(rf"\s*(?:(?P<sep>{_SEP})\s*)?", _I)
-_DANGLING = re.compile(rf"[^\S\r\n]*(?P<dash>{_DASHES})(?=[^\S\r\n]*(?:$|\r?\n|[,;|)\]•·]))")
+_GAP = re.compile(rf"\s*+(?:(?P<sep>{_SEP})\s*+)?", _I)
+_DANGLING = re.compile(rf"[^\S\r\n]*+(?P<dash>{_DASHES})(?=[^\S\r\n]*+(?:$|\r?\n|[,;|)\]•·]))")
 _PREFIX = re.compile(rf"{_LB}(?P<p>since|depuis|dès|from|de|du)\s*$", _I)
 _NEXT_WORD = re.compile(r"\s+([^\W\d_]+)")
 _LEFT_NUMBER = re.compile(r"(?:[0-9][\s.,()/–—-]{0,2}|[$€£¥#+]\s?)$")
@@ -233,18 +247,26 @@ def _bounds(p: _Period) -> Optional[tuple[dt.date, dt.date, dt.date]]:
     return first, middle, last
 
 
-def _date_value(p: _Period, role: str) -> DateValue:
-    """Callers only pass periods `_bounds` accepted (atoms are validated when lexed)."""
-    earliest, middle, latest = _bounds(p) or (dt.date.min, dt.date.min, dt.date.min)
+# `_date_value` and `_spanning` return None only for a period the calendar cannot hold. That is
+# unreachable by construction (every period is checked by `_bounds` when it is lexed, inherited or
+# read), and the callers drop the range rather than invent a date if it ever happens.
+
+
+def _date_value(p: _Period, role: str) -> Optional[DateValue]:
+    bounds = _bounds(p)
+    if bounds is None:
+        return None
+    earliest, middle, latest = bounds
     value = latest if p.precision is DatePrecision.MONTH and role == "end" else middle
     return DateValue(value=value, earliest=earliest, latest=latest, precision=p.precision)
 
 
-def _spanning(p: _Period) -> tuple[DateValue, DateValue]:
+def _spanning(p: _Period) -> tuple[Optional[DateValue], Optional[DateValue]]:
     """Start and end of a role that spanned exactly one period ("Summer 2020"; brief row 4)."""
-    if p.precision not in _IMPRECISE:
+    bounds = _bounds(p)
+    if bounds is None or p.precision not in _IMPRECISE:
         return _date_value(p, "start"), _date_value(p, "end")
-    earliest, middle, latest = _bounds(p) or (dt.date.min, dt.date.min, dt.date.min)
+    earliest, middle, latest = bounds
     return (
         DateValue(value=earliest, earliest=earliest, latest=middle, precision=p.precision),
         DateValue(value=latest, earliest=middle, latest=latest, precision=p.precision),
@@ -277,7 +299,7 @@ _POINT, _NOYEAR, _WEAK, _PRESENT, _SPAN, _UNSUPPORTED = (
 class _Atom:
     start: int
     end: int
-    kind: str  # one of the six kinds above; _WEAK = month + two digits, a year only in a range
+    kind: str  # one of the six kinds above; _WEAK = "Mon D(D)", read only beside its range partner
     period: Optional[_Period] = None
     end_period: Optional[_Period] = None  # _SPAN only ("2018/19", "2015-19")
     flags: tuple[Flag, ...] = ()
@@ -286,6 +308,7 @@ class _Atom:
     two_digit: bool = False
     bare_two: bool = False  # a lone two-digit number (whole-text reading only)
     own_sep: bool = False  # a present marker that carries its separator ("to date")
+    short_year: Optional[int] = None  # _WEAK only: the year its two digits would name
 
 
 _Handler = Callable[[re.Match[str], dt.date, str], Optional[_Atom]]
@@ -350,8 +373,14 @@ def _named_month(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]
 
 
 def _weak_month(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]:
-    year = _two_digit_year(m["yn"], as_of)
-    return _point(m, DatePrecision.MONTH, year, _month_of(m), kind=_WEAK, two_digit=True)
+    """A day with no year yet (year 0) that `_read_weak` settles beside its range partner.
+    Two digits with no ordinal suffix could also be a two-digit year ("Jun 18")."""
+    month = _month_of(m)
+    if not month:
+        return None
+    short = _two_digit_year(m["d"], as_of) if len(m["d"]) == 2 and not m["sfx"] else None
+    period = _Period(DatePrecision.DAY, 0, month, int(m["d"]))
+    return _Atom(m.start(), m.end(), _WEAK, period, two_digit=short is not None, short_year=short)
 
 
 def _season(m: re.Match[str], as_of: dt.date, lang: str) -> Optional[_Atom]:
@@ -547,14 +576,38 @@ def _linked(text: str, a: _Atom, b: _Atom) -> bool:
     gap = _GAP.fullmatch(text, a.end, b.start)
     if gap is None:
         return False
-    if b.kind == _PRESENT:
-        return a.kind in (_POINT, _WEAK, _UNSUPPORTED) and (gap["sep"] is not None or b.own_sep)
+    if b.kind == _PRESENT:  # never a "Mon D(D)" start: "May 15 – Present" is not "since 2015"
+        return a.kind in (_POINT, _UNSUPPORTED) and (gap["sep"] is not None or b.own_sep)
     if gap["sep"] is None or b.kind not in (_POINT, _WEAK, _NOYEAR, _UNSUPPORTED):
         return False
-    if _NOYEAR in (a.kind, b.kind) and (a.kind == b.kind or _UNSUPPORTED in (a.kind, b.kind)):
+    kinds = (a.kind, b.kind)
+    if _NOYEAR in kinds and (a.kind == b.kind or _UNSUPPORTED in kinds or _WEAK in kinds):
+        return False
+    if _WEAK in kinds and _UNSUPPORTED in kinds:
         return False
     # A lone two-digit number is a year only beside another two-digit year ("98 - 02").
     return not ((a.bare_two and not b.two_digit) or (b.bare_two and not a.two_digit))
+
+
+def _read_weak(weak: _Atom, partner: _Atom, *, before: bool) -> Optional[tuple[_Period, tuple[Flag, ...]]]:
+    """Read "Mon D(D)" from the other end of its range; None when that cannot settle it.
+
+    Beside a four-digit year it is a day in that year, by `_inherit`'s month-order rule
+    ("June 15 – August 15, 2020"; "Dec 15 – Jan 2021" starts in 2020). It is a month in a
+    two-digit year only when the other end is written with two digits too ("Jun 18 – Aug 18").
+    Never otherwise: a wrong year would invent years of experience.
+    """
+    if weak.period is None:
+        return None
+    if partner.two_digit:
+        if weak.short_year is None:
+            return None
+        month = _Period(DatePrecision.MONTH, weak.short_year, weak.period.month)
+        return (month, (Flag.TWO_DIGIT_YEAR,)) if _bounds(month) is not None else None
+    if partner.kind != _POINT or partner.period is None:
+        return None
+    day = _inherit(weak.period, partner.period, before=before)
+    return (day, ()) if day is not None else None
 
 
 def _pair(a: _Atom, b: _Atom) -> Optional[_Group]:
@@ -564,16 +617,25 @@ def _pair(a: _Atom, b: _Atom) -> Optional[_Group]:
         return None
     if b.kind == _PRESENT:
         return _Group(a.start, b.end, (a, b), a.period, current=True, flags=a.flags)
-    first, last = a.period, b.period
+    first, last, flags = a.period, b.period, a.flags + b.flags
     if last is None:
         return None
+    if a.kind == _WEAK:
+        reading = _read_weak(a, b, before=True)
+        if reading is None:
+            return None
+        first, flags = reading[0], flags + reading[1]
+    if b.kind == _WEAK:
+        reading = _read_weak(b, a, before=False)
+        if reading is None:
+            return None
+        last, flags = reading[0], flags + reading[1]
     if a.kind == _NOYEAR:
         first = _inherit(first, last, before=True)
     elif b.kind == _NOYEAR:
         last = _inherit(last, first, before=False)
     if first is None or last is None:
         return None
-    flags = a.flags + b.flags
     if first == last and first.precision in _IMPRECISE:  # "2020 – 2020" is the one period
         return _Group(a.start, b.end, (a, b), first, single=True, flags=flags)
     return _Group(a.start, b.end, (a, b), first, last, flags=flags)
@@ -682,6 +744,8 @@ def _settle(group: _Group, as_of: dt.date, raw: str) -> DateRange:
     else:
         start = _date_value(group.first, "start")
         end = None if group.last is None else _date_value(group.last, "end")
+    if start is None or (end is None and (group.single or group.last is not None)):
+        return _dropped(Flag.DATE_RANGE_DROPPED, raw)  # an unholdable period: see _date_value
     if end is not None and group.last is not None and end.value < start.value:
         if start.earliest <= end.latest and end.earliest <= start.latest:
             # Imprecise ends that overlap ("Summer 2020 – 2020"): nothing was written backwards;
@@ -692,6 +756,8 @@ def _settle(group: _Group, as_of: dt.date, raw: str) -> DateRange:
             )
         else:
             start, end = _date_value(group.last, "start"), _date_value(group.first, "end")
+            if start is None or end is None:
+                return _dropped(Flag.DATE_RANGE_DROPPED, raw)  # an unholdable period: see _date_value
             too_old = start.value < _shift_years(as_of, -_YEARS_BACK)
             if too_old or end.value > _shift_years(start.value, _MAX_RANGE_YEARS):
                 return _dropped(Flag.DATE_RANGE_DROPPED, raw)
@@ -741,9 +807,8 @@ def parse_date(
         return DateValue.exact(as_of, DatePrecision.DAY), ()
     if atom.kind == _UNSUPPORTED:
         return None, (Flag.UNSUPPORTED_CALENDAR,)
-    if atom.kind != _POINT or atom.period is None:
-        return None, ()
-    return _date_value(atom.period, role), _ordered(atom.flags)
+    value = _date_value(atom.period, role) if atom.kind == _POINT and atom.period is not None else None
+    return (value, _ordered(atom.flags)) if value is not None else (None, ())
 
 
 def find_date_ranges(

@@ -7,6 +7,7 @@ Quarter midpoints: Q1 Feb 15, Q2 May 16, Q3 Aug 16, Q4 Nov 16 (bare year: Jul 1)
 from __future__ import annotations
 
 import datetime as dt
+import time
 
 import pytest
 from hypothesis import given
@@ -562,7 +563,21 @@ def test_degree_abbreviation_is_not_a_calendar_marker() -> None:
     got = parse_range("BE Computer Engineering, 2015 – 2019", as_of=AS_OF)
     assert got is not None and got.start is not None and got.end is not None
     assert (got.start.value, got.end.value, got.flags) == (D(2015, 7, 1), D(2019, 7, 1), (IMPRECISE,))
-    assert parse_range("Engineer, BE 2019", as_of=AS_OF) is not None
+    assert parse_range("Engineer, BE 2019", as_of=AS_OF) == DateRange(
+        start=dv(D(2019, 1, 1), D(2019, 1, 1), D(2019, 7, 1), YEAR),
+        end=dv(D(2019, 12, 31), D(2019, 7, 1), D(2019, 12, 31), YEAR),
+        is_current=False,
+        flags=(IMPRECISE,),
+        raw="2019",
+    )
+    assert parse_date("B.E. 2019", as_of=AS_OF) == (None, ())  # a degree and a year, not 1476
+
+
+def test_a_clock_time_is_not_a_calendar_date() -> None:
+    # "1000 AM" would convert from the Hebrew calendar to year −2760; it is a time, so no flag.
+    assert parse_date("1000 AM", as_of=AS_OF) == (None, ())
+    assert parse_range("1000 AM", as_of=AS_OF) is None
+    assert find_date_ranges("Daily stand-up at 1000 AM", as_of=AS_OF) == ()
 
 
 # ─── Row 11: what is not a date ───────────────────────────────────────────────────────────────
@@ -694,6 +709,83 @@ def test_date_range_rejects_inverted_or_current_with_end() -> None:
 )
 def test_every_date_flag_has_candidate_text(flag: Flag) -> None:
     assert FLAG_TEXT[flag]
+
+
+# ─── "Mon D(D)" never invents a year (review fix round 1) ───────────────────────────────────
+
+
+def day(y: int, m: int, d: int) -> DateValue:
+    return dv(D(y, m, d), D(y, m, d), D(y, m, d), DAY)
+
+
+@pytest.mark.parametrize(
+    "text, start, end",
+    [
+        ("June 15 – August 15, 2020", day(2020, 6, 15), day(2020, 8, 15)),
+        ("June 1 – August 31, 2020", day(2020, 6, 1), day(2020, 8, 31)),
+        ("June 1st – August 31st, 2020", day(2020, 6, 1), day(2020, 8, 31)),
+        ("May 10 – Aug 20, 2023", day(2023, 5, 10), day(2023, 8, 20)),
+        ("Sep 30 – Dec 15, 2025", day(2025, 9, 30), day(2025, 12, 15)),
+        ("Sept 2023 – Dec 12", dv(D(2023, 9, 1), D(2023, 9, 1), D(2023, 9, 30), MONTH), day(2023, 12, 12)),
+        ("Jan 2020 – Mar 15", JAN_2020_START, day(2020, 3, 15)),
+        ("Jan 2020 – Mar 21", JAN_2020_START, day(2020, 3, 21)),
+        (  # the month-order rule: a December start before a January end is the year before
+            "Dec 15 – Jan 2021",
+            day(2020, 12, 15),
+            dv(D(2021, 1, 31), D(2021, 1, 1), D(2021, 1, 31), MONTH),
+        ),
+    ],
+)
+def test_month_and_day_beside_a_four_digit_year_is_a_day_in_that_year(
+    text: str, start: DateValue, end: DateValue
+) -> None:
+    assert parse_range(text, as_of=AS_OF) == DateRange(start=start, end=end, is_current=False, raw=text)
+
+
+def test_month_and_day_inside_a_header_line() -> None:
+    line = "Camp Counsellor, Camp Ahmek — June 20 – August 25, 2023"
+    found = DateRange(
+        start=day(2023, 6, 20), end=day(2023, 8, 25), is_current=False, raw="June 20 – August 25, 2023"
+    )
+    assert find_date_ranges(line, as_of=AS_OF) == ((line.index("June"), len(line), found),)
+
+
+def test_month_and_day_before_present_is_no_date() -> None:
+    # "May 15 – Present" is no more datable than "May 15" alone: never "since 2015".
+    assert parse_range("May 15 – Present", as_of=AS_OF) is None
+    assert find_date_ranges("Lifeguard, May 15 – Present", as_of=AS_OF) == ()
+
+
+@pytest.mark.parametrize("text", ["Jan 19 – Mar 21", "Jan 19 – Mar '21"])
+def test_two_digit_year_reading_needs_two_digit_years_on_both_sides(text: str) -> None:
+    assert parse_range(text, as_of=AS_OF) == DateRange(
+        start=dv(D(2019, 1, 1), D(2019, 1, 1), D(2019, 1, 31), MONTH),
+        end=MAR_2021_END,
+        is_current=False,
+        flags=(TWO_DIGIT,),
+        raw=text,
+    )
+
+
+# ─── Linear time on long runs (review fix round 1) ───────────────────────────────────────────
+
+LONG_RUNS = {
+    "dashes": "-" * 20_000,
+    "en dashes then present": "–" * 20_000 + " Present",
+    "spaces": " " * 20_000,
+    "spaces after a year": "2020" + " " * 20_000 + "x",
+    "spaces after a month": "Jan" + " " * 20_000 + "x",
+    "spaces after a separator": "to" + " " * 20_000 + "x",
+    "dash space pairs": "- " * 10_000,
+}
+
+
+@pytest.mark.parametrize("text", list(LONG_RUNS.values()), ids=list(LONG_RUNS))
+def test_long_runs_parse_in_linear_time(text: str) -> None:
+    for parse in (parse_date, parse_range, find_date_ranges):
+        began = time.perf_counter()
+        parse(text, as_of=AS_OF)
+        assert time.perf_counter() - began < 0.5, parse.__name__
 
 
 # ─── Row 12: totality ─────────────────────────────────────────────────────────────────────────
