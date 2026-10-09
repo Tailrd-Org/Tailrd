@@ -1,0 +1,55 @@
+{
+ "downloads": {
+  "esco_en": {
+   "bytes": 1,
+   "extracted_to": "esco/v1.2.1/en",
+   "fetched": "2026-01-01",
+   "file": "esco/en.zip",
+   "licence": "test fixture",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "title": "ESCO v1.2.1 classification, English, CSV",
+   "url": "https://example.invalid/esco/en.zip"
+  },
+  "esco_fr": {
+   "bytes": 1,
+   "extracted_to": "esco/v1.2.1/fr",
+   "fetched": "2026-01-01",
+   "file": "esco/fr.zip",
+   "licence": "test fixture",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "title": "ESCO v1.2.1 classification, French, CSV",
+   "url": "https://example.invalid/esco/fr.zip"
+  },
+  "naics_2022": {
+   "bytes": 1,
+   "converted_to": "naics/naics_2022_codes.tsv",
+   "fetched": "2026-01-01",
+   "file": "naics/codes.xlsx",
+   "licence": "test fixture",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "title": "NAICS 2022 codes",
+   "url": "https://example.invalid/naics/codes.xlsx"
+  },
+  "onet_db": {
+   "bytes": 1,
+   "extracted_to": "onet",
+   "fetched": "2026-01-01",
+   "file": "onet/db_30_0_text.zip",
+   "licence": "test fixture",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "title": "O*NET 30.0 database, text files",
+   "url": "https://example.invalid/onet/db_30_0_text.zip"
+  },
+  "onet_military": {
+   "bytes": 1,
+   "extracted_to": "onet/military_crosswalk",
+   "fetched": "2026-01-01",
+   "file": "onet/military_crosswalk.zip",
+   "licence": "test fixture",
+   "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+   "title": "O*NET military crosswalk",
+   "url": "https://example.invalid/onet/military_crosswalk.zip"
+  }
+ },
+ "format": 1
+}

@@ -12,7 +12,14 @@ from pathlib import Path
 import pytest
 
 from matcher.graph.idf import normalize_idf
-from matcher.graph.loader import ArtifactError, load_graph, write_artifacts
+from matcher.graph.loader import (
+    ArtifactError,
+    load_graph,
+    load_json_artifact,
+    load_resolver,
+    load_resolver_settings,
+    write_artifacts,
+)
 from matcher.graph.model import SkillNode
 from matcher.models import SkillKind
 from tests.fixtures.build_graph_small import DF, EDGES, FIXTURE_DIR, N_POSTINGS, NODES, SOURCES, build
@@ -22,8 +29,9 @@ IDF = normalize_idf(DF, N_POSTINGS)
 
 
 def _write(target: Path, *, nodes=NODES, idf=IDF, edges=EDGES, n_postings=N_POSTINGS, sources=SOURCES,
-           compress: bool = True) -> None:
-    write_artifacts(target, nodes, idf, edges, n_postings=n_postings, sources=sources, compress=compress)
+           compress: bool = True, extra=None) -> None:
+    write_artifacts(target, nodes, idf, edges, n_postings=n_postings, sources=sources, compress=compress,
+                    extra=extra)
 
 
 def _canonical(value) -> str:
@@ -49,6 +57,18 @@ def test_round_trip_compressed(tmp_path: Path) -> None:
     assert react.kind is SkillKind.TECHNOLOGY
     assert isinstance(react.parents, tuple) and isinstance(react.aliases, tuple)
     assert graph.nodes["skill.svelte"].provisional is True
+
+
+def test_loaded_nodes_are_indistinguishable_from_validated_ones(tmp_path: Path) -> None:
+    _write(tmp_path)
+    graph = load_graph(tmp_path)
+    for node in NODES:
+        loaded = graph.nodes[node.id]
+        assert loaded == node and hash(loaded) == hash(node)
+        assert loaded.model_dump(mode="json") == node.model_dump(mode="json")
+        assert type(loaded.kind) is SkillKind and isinstance(loaded.parents, tuple)
+        with pytest.raises(Exception):  # still frozen
+            loaded.label = "changed"
 
 
 def test_round_trip_uncompressed(tmp_path: Path) -> None:
@@ -187,6 +207,74 @@ def test_version_changes_with_content(tmp_path: Path) -> None:
     changed["skill.react"] = 0.5
     _write(tmp_path / "changed", idf=changed)
     assert load_graph(tmp_path / "base").version != load_graph(tmp_path / "changed").version
+
+
+# ─── extra JSON artifacts and the resolver settings (Task 2.2) ─────────────────────────────
+
+RESOLVER_DOC = {"format": 1, "ambiguous": {"go": "Go", "r": "R"}}
+TITLES_DOC = {"format": 1, "titles": {"software engineer": {"soc": "15-1252.00", "family": "x", "job_zone": 4}}}
+
+
+def test_extra_json_artifacts_are_written_and_hash_pinned(tmp_path: Path) -> None:
+    _write(tmp_path)
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": RESOLVER_DOC, "titles.json": TITLES_DOC})
+    manifest = _manifest(tmp_path)
+    assert sorted(manifest["artifacts"]) == ["idf.json", "nodes.json.gz", "pmi_edges.json", "resolver.json",
+                                             "titles.json"]
+    assert load_json_artifact(tmp_path, "titles.json") == TITLES_DOC
+    assert load_resolver_settings(tmp_path) == RESOLVER_DOC
+    load_graph(tmp_path)  # extra artifacts are verified, not interpreted
+    # Writing again without extras removes the ones the previous build left behind.
+    _write(tmp_path)
+    assert sorted(_manifest(tmp_path)["artifacts"]) == ["idf.json", "nodes.json.gz", "pmi_edges.json"]
+    assert not (tmp_path / "titles.json").exists()
+
+
+@pytest.mark.parametrize(
+    "extra, message",
+    [
+        ({"nodes.json.gz": {"format": 1}}, "reserved"),
+        ({"MANIFEST.json": {"format": 1}}, "reserved"),
+        ({"../titles.json": {"format": 1}}, "invalid"),
+        ({"titles.txt": {"format": 1}}, "invalid"),
+        ({"titles.json": {"titles": {}}}, "format"),
+    ],
+)
+def test_bad_extra_artifacts_are_refused(tmp_path: Path, extra: dict, message: str) -> None:
+    with pytest.raises(ArtifactError, match=message):
+        _write(tmp_path, extra=extra)
+    assert not (tmp_path / "MANIFEST.json").exists()
+
+
+def test_a_tampered_or_unlisted_json_artifact_is_refused(tmp_path: Path) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": RESOLVER_DOC})
+    with pytest.raises(ArtifactError, match="titles.json"):
+        load_json_artifact(tmp_path, "titles.json")
+    path = tmp_path / "resolver.json"
+    path.write_bytes(path.read_bytes().replace(b'"Go"', b'"GO"'))
+    with pytest.raises(ArtifactError, match="resolver.json"):
+        load_resolver_settings(tmp_path)
+
+
+def test_resolver_settings_are_required_and_validated(tmp_path: Path, config) -> None:
+    _write(tmp_path)
+    with pytest.raises(ArtifactError, match="resolver.json"):
+        load_resolver(tmp_path, config)
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": {"format": 1, "ambiguous": ["go"]}})
+    with pytest.raises(ArtifactError, match="ambiguous"):
+        load_resolver_settings(tmp_path)
+
+
+def test_load_resolver_builds_the_graph_and_the_ambiguous_map_in_one_call(tmp_path: Path, config) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": RESOLVER_DOC})
+    resolver = load_resolver(tmp_path, config)
+    assert resolver.resolve("Go").canonical_id == "skill.go"
+    assert resolver.resolve("go").method == "NONE"
+    assert resolver.resolve("ReactJS").canonical_id == "skill.react"
 
 
 # ─── the committed fixture ─────────────────────────────────────────────────────────────────

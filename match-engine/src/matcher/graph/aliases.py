@@ -31,11 +31,26 @@ _TABLE = str.maketrans(
 _LEAD = "-/_"
 _TRAIL = "-/_."  # trailing dots go too ("Node.js." -> "node.js"); a leading dot stays (".net")
 
+# ASCII fast path (the taxonomy loads ~200k surfaces per cold start): NFKC leaves ASCII unchanged,
+# `_BEFORE_NFKC` maps no ASCII character and casefold() is lower() on ASCII, so for ASCII text the
+# pipeline is one byte-level translate with the ASCII part of `_TABLE`: the apostrophe goes, the
+# ASCII characters of `_TO_SPACE` become spaces. Same result, a fraction of the cost.
+_ASCII_TO_SPACE = "".join(ch for ch in _TO_SPACE if ch.isascii()).encode("ascii")
+_ASCII_TABLE = bytes.maketrans(_ASCII_TO_SPACE, b" " * len(_ASCII_TO_SPACE))
+_ASCII_DELETE = "".join(ch for ch in APOSTROPHES if ch.isascii()).encode("ascii")
+
 
 def _normalize(text: str, fold: bool) -> str:
-    text = unicodedata.normalize("NFKC", text.translate(_BEFORE_NFKC)).translate(_TABLE)
-    if fold:
-        text = text.casefold()
+    if text.isascii():
+        text = text.encode("ascii").translate(_ASCII_TABLE, _ASCII_DELETE).decode("ascii")
+        if fold:
+            text = text.lower()
+    else:
+        text = unicodedata.normalize("NFKC", text.translate(_BEFORE_NFKC)).translate(_TABLE)
+        if fold:
+            text = text.casefold()
+    if "-" not in text and "/" not in text and "_" not in text and "." not in text:
+        return " ".join(text.split())  # nothing to strip from any token: the same result, cheaper
     tokens = (token.lstrip(_LEAD).rstrip(_TRAIL) for token in text.split())
     return " ".join(token for token in tokens if token)
 

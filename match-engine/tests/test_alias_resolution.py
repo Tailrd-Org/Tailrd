@@ -79,6 +79,27 @@ def test_normalize_surface_is_idempotent_and_tidy(text: str) -> None:
     assert once == " ".join(once.split())
 
 
+def _reference_normalize(text: str, fold: bool) -> str:
+    """The Unicode pipeline the ASCII fast path in graph.aliases must agree with."""
+    import unicodedata
+
+    from matcher.graph import aliases
+
+    text = unicodedata.normalize("NFKC", text.translate(aliases._BEFORE_NFKC)).translate(aliases._TABLE)
+    if fold:
+        text = text.casefold()
+    tokens = (token.lstrip(aliases._LEAD).rstrip(aliases._TRAIL) for token in text.split())
+    return " ".join(token for token in tokens if token)
+
+
+@given(st.text(alphabet=string.printable + _ALPHABET, max_size=60))
+def test_the_fast_paths_agree_with_the_unicode_pipeline(text: str) -> None:
+    from matcher.graph.aliases import normalize_keep_case
+
+    assert normalize_surface(text) == _reference_normalize(text, fold=True)
+    assert normalize_keep_case(text) == _reference_normalize(text, fold=False)
+
+
 def test_surface_variants() -> None:
     assert surface_variants("front-end") == ("front-end", "front end", "frontend")
     assert surface_variants("front-end developer") == ("front-end developer", "front end developer",

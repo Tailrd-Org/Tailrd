@@ -1,0 +1,3 @@
+conceptType,conceptUri,skillType,reuseLevel,preferredLabel,status,altLabels,description,broaderConceptUri,broaderConceptPT
+KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000006,skill/competence,transversal,work in teams,released,,,,
+KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000014,skill/competence,cross-sector,think critically,released,,,,

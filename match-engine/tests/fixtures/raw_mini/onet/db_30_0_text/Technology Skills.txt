@@ -1,0 +1,23 @@
+O*NET-SOC Code	Example	Commodity Code	Commodity Title	Hot Technology	In Demand
+15-1252.00	Python	43232405	Object or component oriented development software	Y	Y
+15-1252.00	Microsoft Excel	43232110	Spreadsheet software	Y	N
+15-1252.00	Atlassian Confluence	43232201	Content workflow software	Y	N
+15-1252.00	Amazon Web Services AWS software	43233513	Cloud-based data access and sharing software	Y	Y
+15-1252.00	Structured query language SQL	43232306	Data base user interface and query software	Y	Y
+15-1252.00	Google Analytics	43232306	Data base user interface and query software	N	N
+15-1252.00	J	43232405	Object or component oriented development software	N	N
+15-1252.00	Advanced Weather System AWS	43232605	Analytical or scientific software	N	N
+53-7051.00	Forklift software	43231508	Inventory management software	N	N
+43-3021.00	Billing software	43231601	Accounting software	N	N
+27-1024.00	Microsoft Paint	43232102	Graphics or photo imaging software	N	N
+15-2041.00	Analyze	43232605	Analytical or scientific software	N	N
+17-2141.00	Autodesk AutoCAD	43232604	Computer aided design CAD software	Y	N
+17-2141.00	Computer aided design CAD software	43232604	Computer aided design CAD software	N	N
+17-2141.00	Microsoft Excel	43232110	Spreadsheet software	Y	N
+15-1299.00	Microsoft Excel	43232110	Spreadsheet software	Y	N
+15-1299.00	Python	43232405	Object or component oriented development software	N	N
+15-1299.00	Atlassian Confluence	43232201	Content workflow software	N	Y
+29-2043.00	Epic Systems	43232610	Medical software	Y	N
+17-2199.01	Autodesk AutoCAD	43232604	Computer aided design CAD software	Y	N
+17-2199.02	Autodesk AutoCAD	43232604	Computer aided design CAD software	Y	N
+17-2199.02	Python	43232405	Object or component oriented development software	Y	N

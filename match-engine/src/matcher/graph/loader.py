@@ -6,6 +6,9 @@ Formats (all UTF-8 JSON carrying `"format": 1`):
 - `idf.json`: `{"format":1,"n_postings":<int>,"idf":{"<id>":<float in [0,1]>}}`
 - `pmi_edges.json`: `{"format":1,"edges":{"<id>":{"<id>":<float in [0,1]>}}}`
 - `MANIFEST.json`: `{"format":1,"artifacts":{"<file name>":"<sha256 of the file bytes>"},"sources":{...}}`
+- extra JSON documents (`resolver.json`, `titles.json`, ...): any `{"format":1, ...}` object, written
+  next to the graph by `write_artifacts(extra=...)` and pinned in the same MANIFEST. The resolver
+  settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"}}`.
 
 `load_graph` refuses any listed artifact whose bytes do not match the manifest. The graph version
 is derived from the artifact hashes only (sources excluded), so rebuilding identical artifacts
@@ -19,11 +22,17 @@ import hashlib
 import io
 import json
 import os
+import re
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import TYPE_CHECKING, Any, Iterable, Mapping, Optional
 
 from matcher.graph.model import SkillGraph, SkillNode
 from matcher.models import SkillKind
+
+if TYPE_CHECKING:  # imported lazily at call time: graph/ must not need normalize/ to load
+    from matcher.config import EngineConfig
+    from matcher.normalize.fuzzy import FuzzyLog
+    from matcher.normalize.resolver import Resolver
 
 FORMAT = 1
 NODES_GZ = "nodes.json.gz"
@@ -31,6 +40,9 @@ NODES_JSON = "nodes.json"
 IDF_JSON = "idf.json"
 EDGES_JSON = "pmi_edges.json"
 MANIFEST_JSON = "MANIFEST.json"
+RESOLVER_JSON = "resolver.json"
+_RESERVED = frozenset({NODES_GZ, NODES_JSON, IDF_JSON, EDGES_JSON, MANIFEST_JSON})
+_EXTRA_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\.json")
 
 
 class ArtifactError(ValueError):
@@ -49,14 +61,18 @@ def write_artifacts(
     n_postings: int,
     sources: Mapping[str, str],
     compress: bool = True,
+    extra: Optional[Mapping[str, Mapping[str, Any]]] = None,
 ) -> None:
     """Validate the graph, then write its artifacts and MANIFEST (last) into `taxonomy_dir`.
 
     Output bytes depend only on the content (sorted keys, gzip without a timestamp), so identical
     inputs give identical files and the identical graph version. `compress=False` writes
     `nodes.json` instead of `nodes.json.gz` (small, diff-friendly fixtures); the other form is
-    removed if a previous build left it behind.
+    removed if a previous build left it behind. `extra` maps further `*.json` file names to
+    documents carrying `"format": 1`; they are pinned in the MANIFEST like the graph files, and
+    an extra file the previous MANIFEST listed but this call does not write is removed.
     """
+    extra_payloads = _encode_extra(extra or {})
     ordered = sorted(nodes, key=lambda node: node.id)
     by_id: dict[str, SkillNode] = {}
     for node in ordered:
@@ -89,6 +105,7 @@ def write_artifacts(
                 },
             }
         ),
+        **extra_payloads,
     }
     manifest = {
         "format": FORMAT,
@@ -98,12 +115,43 @@ def write_artifacts(
 
     root = Path(taxonomy_dir)
     root.mkdir(parents=True, exist_ok=True)
+    previous = _previously_listed(root)
     for name, data in payloads.items():
         _write_atomic(root / name, data)
     _write_atomic(root / MANIFEST_JSON, _encode(manifest))
-    stale = root / (NODES_JSON if compress else NODES_GZ)
-    if stale.exists():
-        stale.unlink()
+    for name in sorted(previous | {NODES_JSON if compress else NODES_GZ}):
+        stale = root / name
+        if name not in payloads and name != MANIFEST_JSON and stale.exists():
+            stale.unlink()
+
+
+def _encode_extra(extra: Mapping[str, Mapping[str, Any]]) -> dict[str, bytes]:
+    payloads = {}
+    for name in sorted(extra):
+        if name in _RESERVED:
+            raise ArtifactError(f"{name} is a reserved artifact name")
+        if not isinstance(name, str) or not _EXTRA_NAME.fullmatch(name):
+            raise ArtifactError(f"invalid extra artifact name {name!r} (a plain *.json file name)")
+        document = extra[name]
+        if not isinstance(document, Mapping) or document.get("format") != FORMAT:
+            raise ArtifactError(f"{name}: an extra artifact must be an object with \"format\": {FORMAT}")
+        payloads[name] = _encode(document)
+    return payloads
+
+
+def _previously_listed(root: Path) -> set[str]:
+    """File names the MANIFEST already in `root` lists (plain names only), or none."""
+    try:
+        artifacts = json.loads((root / MANIFEST_JSON).read_text(encoding="utf-8")).get("artifacts", {})
+    except (OSError, ValueError, AttributeError):
+        return set()
+    if not isinstance(artifacts, dict):
+        return set()
+    return {name for name in artifacts if isinstance(name, str) and _is_plain_name(name)}
+
+
+def _is_plain_name(name: str) -> bool:
+    return name not in ("", ".", "..") and Path(name).name == name and "\\" not in name and "/" not in name
 
 
 def _encode(document: Mapping[str, Any]) -> bytes:
@@ -141,21 +189,8 @@ def load_graph(taxonomy_dir: str | Path) -> SkillGraph:
     document or an invalid graph.
     """
     root = Path(taxonomy_dir)
-    manifest = _decode(_read(root, MANIFEST_JSON), MANIFEST_JSON)
-    artifacts = manifest.get("artifacts")
-    if not isinstance(artifacts, dict) or not all(
-        isinstance(name, str) and isinstance(digest, str) for name, digest in artifacts.items()
-    ):
-        raise ArtifactError(f"{MANIFEST_JSON}: 'artifacts' must map file names to sha256 hex digests")
-
-    blobs: dict[str, bytes] = {}
-    for name in sorted(artifacts):
-        if name in ("", ".", "..", MANIFEST_JSON) or Path(name).name != name or "\\" in name:
-            raise ArtifactError(f"{MANIFEST_JSON}: invalid artifact name {name!r}")
-        data = _read(root, name)
-        if _sha256(data) != artifacts[name]:
-            raise ArtifactError(f"{name} does not match its {MANIFEST_JSON} hash (tampered or stale)")
-        blobs[name] = data
+    artifacts = _manifest_artifacts(root)
+    blobs = {name: _verified(root, name, artifacts) for name in sorted(artifacts)}
 
     if NODES_GZ in blobs and NODES_JSON in blobs:
         raise ArtifactError(f"{MANIFEST_JSON} lists both {NODES_GZ} and {NODES_JSON}")
@@ -188,19 +223,95 @@ def load_graph(taxonomy_dir: str | Path) -> SkillGraph:
         raise ArtifactError(f"malformed graph artifacts in {root}: {exc!r}") from exc
 
 
+def load_json_artifact(taxonomy_dir: str | Path, name: str) -> dict[str, Any]:
+    """One JSON artifact the MANIFEST lists, hash-verified and decoded (`"format": 1` checked).
+
+    Raises ArtifactError when the MANIFEST does not list it, or it is missing, tampered with or
+    malformed.
+    """
+    root = Path(taxonomy_dir)
+    artifacts = _manifest_artifacts(root)
+    if name not in artifacts:
+        raise ArtifactError(f"{MANIFEST_JSON} in {root} does not list {name}")
+    return _decode(_verified(root, name, artifacts), name)
+
+
+def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
+    """The hash-verified `resolver.json`: `{"format": 1, "ambiguous": {key: required casing}}`."""
+    settings = load_json_artifact(taxonomy_dir, RESOLVER_JSON)
+    ambiguous = settings.get("ambiguous")
+    if not isinstance(ambiguous, dict) or not all(
+        isinstance(key, str) and isinstance(casing, str) for key, casing in ambiguous.items()
+    ):
+        raise ArtifactError(f"{RESOLVER_JSON}: 'ambiguous' must map keys to their required casing")
+    return settings
+
+
+def load_resolver(
+    taxonomy_dir: str | Path, config: "EngineConfig", *, fuzzy_log: Optional["FuzzyLog"] = None
+) -> "Resolver":
+    """The graph and its resolver settings in one call: a ready `Resolver` over the taxonomy."""
+    from matcher.normalize.resolver import Resolver
+
+    graph = load_graph(taxonomy_dir)
+    settings = load_resolver_settings(taxonomy_dir)
+    return Resolver(graph, config, ambiguous=settings["ambiguous"], fuzzy_log=fuzzy_log)
+
+
+def _manifest_artifacts(root: Path) -> dict[str, str]:
+    manifest = _decode(_read(root, MANIFEST_JSON), MANIFEST_JSON)
+    artifacts = manifest.get("artifacts")
+    if not isinstance(artifacts, dict) or not all(
+        isinstance(name, str) and isinstance(digest, str) for name, digest in artifacts.items()
+    ):
+        raise ArtifactError(f"{MANIFEST_JSON}: 'artifacts' must map file names to sha256 hex digests")
+    for name in artifacts:
+        if name == MANIFEST_JSON or not _is_plain_name(name):
+            raise ArtifactError(f"{MANIFEST_JSON}: invalid artifact name {name!r}")
+    return artifacts
+
+
+def _verified(root: Path, name: str, artifacts: Mapping[str, str]) -> bytes:
+    data = _read(root, name)
+    if _sha256(data) != artifacts[name]:
+        raise ArtifactError(f"{name} does not match its {MANIFEST_JSON} hash (tampered or stale)")
+    return data
+
+
+_NODE_FIELDS = ("id", "label", "kind", "parents", "aliases", "release_year", "provisional", "source")
+_set_attribute = object.__setattr__
+# What `SkillNode.model_construct` stores for a record that supplies every field, without its
+# generic per-field loop (a taxonomy holds tens of thousands of nodes; cold start counts). Only
+# while SkillNode keeps the shape this relies on; otherwise the public constructor runs.
+_FAST_NODES = (
+    tuple(SkillNode.__pydantic_fields__) == _NODE_FIELDS
+    and SkillNode.__pydantic_post_init__ is None
+    and not SkillNode.__private_attributes__
+    and not SkillNode.__pydantic_root_model__
+)
+
+
 def _node_from_record(record: Mapping[str, Any]) -> SkillNode:
     # The records were validated by write_artifacts and are pinned by their hash, so skip
     # re-validation (cold-start time) but restore the types validation would have produced.
-    return SkillNode.model_construct(
-        id=record["id"],
-        label=record["label"],
-        kind=SkillKind(record["kind"]),
-        parents=tuple(record.get("parents", ())),
-        aliases=tuple(record.get("aliases", ())),
-        release_year=record.get("release_year"),
-        provisional=bool(record.get("provisional", False)),
-        source=record.get("source", ""),
-    )
+    values = {
+        "id": record["id"],
+        "label": record["label"],
+        "kind": SkillKind(record["kind"]),
+        "parents": tuple(record.get("parents", ())),
+        "aliases": tuple(record.get("aliases", ())),
+        "release_year": record.get("release_year"),
+        "provisional": bool(record.get("provisional", False)),
+        "source": record.get("source", ""),
+    }
+    if not _FAST_NODES:
+        return SkillNode.model_construct(**values)
+    node = SkillNode.__new__(SkillNode)
+    _set_attribute(node, "__dict__", values)
+    _set_attribute(node, "__pydantic_fields_set__", set(_NODE_FIELDS))
+    _set_attribute(node, "__pydantic_extra__", None)
+    _set_attribute(node, "__pydantic_private__", None)
+    return node
 
 
 def _version(artifacts: Mapping[str, str]) -> str:

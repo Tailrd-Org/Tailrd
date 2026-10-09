@@ -1,0 +1,13 @@
+conceptType,conceptUri,preferredLabel,altLabels,hiddenLabels,status,modifiedDate,scopeNote,inScheme,description,code
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f1,savoirs,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,K
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f2,aptitudes,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f3,aptitudes et compétences transversales,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f4,aptitudes et connaissances linguistiques,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,L
+SkillGroup,http://data.europa.eu/esco/isced-f/06,technologies de l'information et de la communication (TIC),,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,06
+SkillGroup,http://data.europa.eu/esco/isced-f/0613,conception et analyse de logiciels et d'applications,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,0613
+SkillGroup,http://data.europa.eu/esco/isced-f/0541,mathématiques,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,0541
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f5,aptitudes sociales et de communication,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T4
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f6,collaborer au sein d'équipes et de réseaux,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T4.3
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f7,travailler avec des ordinateurs,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S5
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f8,travailler avec des machines et des équipements spécialisés,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S8
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f9,langues,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,L1

@@ -1,0 +1,20 @@
+{
+ "artifacts":{
+  "idf.json":"f9e6b0934118b314197043c2483213f6a055a9f3a19d62015a7aaeb1bc166019",
+  "mos_crosswalk.json":"7f3b9b138ab3a4115249c27c7dcf4f18033e045db293ef3d2edeaf4caee8cc15",
+  "naics.json":"45cba4f2c7d3dc39012dab982bbba5a86fe2a2b7bcfaf1d06216c3fa76ba8fdc",
+  "nodes.json.gz":"da61451322c6ceff18b88ddeb7a9e8417987740c7416c45974aa69819887c4f1",
+  "pmi_edges.json":"61c6eaccfae756f5b67656a3d5584b553d00050175c9394f169fea2e120904c8",
+  "resolver.json":"35040cf7738ea3896ec40c897fa1998bc0b6cd6983d336d7f00c19928e24625c",
+  "titles.json":"330b5eb8bdd3ef9385d5a930c23628d040ef137ddfc773cf76bf864eae4ab47e"
+ },
+ "format":1,
+ "sources":{
+  "curated":"config/curated_taxonomy.yaml sha256 278c5bf22dd1a670790f6bf2d4df3e2204c70c1ec2ca38f2b3f2d41fa1a22981; config/curated_edges.yaml sha256 747179716992f9ef237b3bad44a1782df26c2087c768dd77be00ae0ba240aca7",
+  "esco_en":"ESCO v1.2.1 classification, English, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20en%20-%20csv.zip; sha256 f9761b0b52be1828b38a3e5e0ae59a93a7b0ce358bc800f52f57a8b002adeb3e",
+  "esco_fr":"ESCO v1.2.1 classification, French, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20fr%20-%20csv.zip; sha256 84fe49774fad90bdfd27d080440ffb1fdef1fbd62939f6436d2fc21f4d58d4e8",
+  "naics_2022":"NAICS 2022, 2-6 digit codes and titles (U.S. Census Bureau); https://www.census.gov/naics/2022NAICS/2-6%20digit_2022_Codes.xlsx; sha256 be12ba41002803359f49181c9bf33a03fbd08578f4f4a4c0bbad7aadaaea0316",
+  "onet_db":"O*NET 30.0 database, text files; https://www.onetcenter.org/dl_files/database/db_30_0_text.zip; sha256 b7388aadeb3edef2a59fd292ac4e9b72d3e9266c65a136b7b8cc42b23003ce5a",
+  "onet_military":"O*NET Military Occupational Classification (MOC) crosswalk, updated August 2024; https://www.onetcenter.org/dl_files/2019/military_crosswalk.zip; sha256 ee7381411644fd39adaf93e7f3a8814773b28f4e8a5b2c00c7ad6b775b01d747"
+ }
+}

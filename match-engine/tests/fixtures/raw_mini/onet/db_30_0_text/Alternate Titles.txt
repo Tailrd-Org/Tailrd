@@ -1,0 +1,9 @@
+O*NET-SOC Code	Alternate Title	Short Title	Source(s)
+15-1252.00	Software Engineer	n/a	08
+15-1252.00	Application Developer (App Developer)	App Developer	08
+11-1021.00	Office Manager	n/a	08
+43-1011.00	Office Manager	n/a	08
+11-1021.00	Program Manager	n/a	08
+11-9199.00	Program Manager	n/a	08
+17-2141.00	Mechanical Design Engineer	n/a	08
+15-1299.00	Software Developers	n/a	08
