@@ -1,0 +1,15 @@
+{# Functional: no chronology. Skills grouped by theme, employers listed without dates, no
+   accomplishments tied to a role and no years anywhere (SPEC 14.3). #}
+{% import "_macros.j2" as m %}
+{{ m.header(p) }}
+{{ m.summary(p, "Summary of Qualifications") }}
+@section skills || Areas of Expertise
+{% for theme, items in p.skill_groups %}
+@group {{ theme }} || {{ items | join(", ") }}
+{% endfor %}
+@section experience || Employment History
+{% for r in p.roles %}
+@entry {{ r.title }} || {{ r.employer }} || || {{ r.place }}
+{% endfor %}
+{{ m.education(p, years=false) }}
+{{ m.certifications(p) }}

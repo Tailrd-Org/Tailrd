@@ -1,0 +1,16 @@
+{# Designer: icons on the contact lines and headings, creative section names, a sidebar with the
+   skills drawn as bars. #}
+{% import "_macros.j2" as m %}
+{% set star = p.icons.section %}
+{{ m.header(p, icons=true) }}
+@side
+@section skills || My Toolkit || {{ star }}
+{% for label, level in p.bars %}
+@bar {{ label }} || {{ level }}
+{% endfor %}
+{{ m.certifications(p, "Badges", star) }}
+@endside
+{{ m.summary(p, "About Me", star) }}
+{{ m.experience(p, "Where I've Worked", star) }}
+{{ m.projects(p, "Side Projects", star) }}
+{{ m.education(p, "Learning", star) }}

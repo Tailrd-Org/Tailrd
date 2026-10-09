@@ -1,0 +1,15 @@
+{# Military to civilian: an MOS with its civilian translation ahead of the civilian record. The
+   service block carries no dates and no skills of the vocabulary. #}
+{% import "_macros.j2" as m %}
+{{ m.header(p) }}
+{{ m.summary(p, "Summary") }}
+@section military || Military Service
+@kv Branch || {{ p.military.branch }}
+@kv Rank at separation || {{ p.military.rank }}
+@kv MOS || {{ p.military.code }} - {{ p.military.title }}
+@kv Civilian translation || {{ p.military.translation }}
+{{ m.experience(p, "Civilian Work Experience") }}
+{{ m.projects(p) }}
+{{ m.education(p) }}
+{{ m.certifications(p) }}
+{{ m.skills(p, "Core Competencies") }}

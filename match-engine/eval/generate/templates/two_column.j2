@@ -1,0 +1,11 @@
+{# Two columns: skills, education and credentials in the left column, the story on the right. #}
+{% import "_macros.j2" as m %}
+{{ m.header(p) }}
+@side
+{{ m.skills(p, "Core Skills") }}
+{{ m.education(p) }}
+{{ m.certifications(p) }}
+@endside
+{{ m.summary(p, "About") }}
+{{ m.experience(p, "Work Experience") }}
+{{ m.projects(p) }}

@@ -1,0 +1,18 @@
+{# Academic CV: education first, then research and work, publications and teaching. The
+   publications are not work history and add no skills (SPEC 14.3). #}
+{% import "_macros.j2" as m %}
+{{ m.header(p) }}
+{{ m.education(p) }}
+{{ m.summary(p, "Research Profile") }}
+{{ m.experience(p, "Research and Professional Experience") }}
+@section publications || Publications
+{% for line in p.publications %}
+@bullet {{ line }}
+{% endfor %}
+@section teaching || Teaching
+{% for line in p.teaching %}
+@bullet {{ line }}
+{% endfor %}
+{{ m.projects(p, "Selected Projects") }}
+{{ m.skills(p, "Technical Skills") }}
+{{ m.certifications(p, "Certifications and Training") }}
