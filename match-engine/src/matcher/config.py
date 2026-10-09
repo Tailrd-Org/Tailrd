@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import math
+import re
 from functools import cached_property
 from pathlib import Path
 from typing import Literal, Optional, Union
@@ -68,12 +69,52 @@ class WorkAuthGateConfig(Frozen):
 class LicenseGateConfig(Frozen):
     enabled: bool = True
     professional_credential_ids: tuple[str, ...] = ()
+    # Formal designations on the way to a licence (taxonomy DECISIONS D-28): never licence evidence
+    # through the graph. An explicit list: an id's spelling decides nothing.
+    in_progress_credential_ids: tuple[str, ...] = ()
+
+    @model_validator(mode="after")
+    def _disjoint(self) -> "LicenseGateConfig":
+        both = sorted(set(self.professional_credential_ids) & set(self.in_progress_credential_ids))
+        if both:
+            raise ValueError(f"listed both as professional licences and as in-progress designations: {both}")
+        return self
+
+
+_LADDER_TOKEN = re.compile(r"[A-Z]{2}(?:_[A-Z0-9]+)+")  # <CC>_<LEVEL>
+_RESERVED_TOKEN = re.compile(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*")
 
 
 class ClearanceGateConfig(Frozen):
     enabled: bool = True
     obtainable_status: Literal["PASS", "WARN", "FAIL"] = "WARN"
     active_missing_status: Literal["PASS", "WARN", "FAIL"] = "FAIL"
+    # Ladders, lowest level first, one country each (DECISIONS D-63): a held token at or above the
+    # gate's level on the same ladder meets it; a token on no ladder matches exactly.
+    ladders: tuple[tuple[str, ...], ...] = ()
+    # The token for an active clearance of unknown country and level. Named here only.
+    unknown_level_token: str
+
+    @model_validator(mode="after")
+    def _tokens(self) -> "ClearanceGateConfig":
+        seen: set[str] = set()
+        for ladder in self.ladders:
+            if not ladder:
+                raise ValueError("a clearance ladder is empty")
+            for token in ladder:
+                if not _LADDER_TOKEN.fullmatch(token):
+                    raise ValueError(f"clearance token is not <CC>_<LEVEL>: {token!r}")
+                if token in seen:
+                    raise ValueError(f"clearance token listed twice: {token}")
+                seen.add(token)
+            if len({token[:2] for token in ladder}) > 1:
+                raise ValueError(f"a clearance ladder spans more than one country: {list(ladder)}")
+        token = self.unknown_level_token
+        if not _RESERVED_TOKEN.fullmatch(token):
+            raise ValueError(f"the unknown-level token is not an upper-case token: {token!r}")
+        if token in seen:
+            raise ValueError(f"the unknown-level token is on a ladder: {token}")
+        return self
 
 
 class LocationGateConfig(Frozen):

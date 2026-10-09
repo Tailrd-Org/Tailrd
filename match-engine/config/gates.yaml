@@ -22,6 +22,24 @@ license:
     - cred.teaching_license
     - cred.electrician_license
     - cred.paramedic_license
+  # Formal designations on the way to a licence (taxonomy DECISIONS D-28, D-62): a nursing student
+  # is not a registered nurse. Neither they nor anything below them shows a licence through the
+  # graph, even placed below it; they count only for a gate that lists them itself ("P.Eng. or
+  # EIT"). Listed here explicitly, never guessed from an id; tests/test_gates.py checks this list
+  # covers every in-progress node the taxonomy marks (data/taxonomy/resolver.json "in_progress"
+  # values) once the taxonomy is built.
+  in_progress_credential_ids:
+    - cred.cpa_in_progress
+    - cred.nursing_student
+    - cred.eit
+    - cred.articling_student
+    - cred.cfa_candidate
+    - cred.cdl_trainee
+    - cred.medical_student
+    - cred.pharmacy_student
+    - cred.teacher_candidate
+    - cred.electrician_apprentice
+    - cred.paramedic_student
 
 security_clearance:
   enabled: true
@@ -29,6 +47,16 @@ security_clearance:
   obtainable_status: WARN
   # An *active* clearance required and none on the résumé: fail.
   active_missing_status: FAIL
+  # Ladders, lowest level first, one country each (DECISIONS D-63). A held clearance at or above
+  # the gate's level on the same ladder meets it ("Top Secret" meets "Secret"); a token on no
+  # ladder matches only itself. Tokens are <CC>_<LEVEL>.
+  ladders:
+    - [CA_RELIABILITY, CA_ENHANCED_RELIABILITY, CA_SECRET, CA_TOP_SECRET]
+    - [US_PUBLIC_TRUST, US_CONFIDENTIAL, US_SECRET, US_TOP_SECRET, US_TS_SCI]
+  # Tailrd stores only "Active clearance: yes", country and level unknown. Held against an active
+  # clearance of a stated level it warns (unknown, D-60), never fails; it meets an "able to obtain"
+  # gate and an active gate that states no level.
+  unknown_level_token: ACTIVE_UNKNOWN_LEVEL
 
 location:
   enabled: true
