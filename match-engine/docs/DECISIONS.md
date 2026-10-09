@@ -325,10 +325,12 @@ and `as_of`. Three fields go beyond the task brief: `trace_version`, `gate_statu
 Never free text (D-14). The defence is structural: the trace reads only fields that hold canonical
 ids, enums, numbers and dates (the scorer writes the ids) and refuses explanations, improvements,
 intervals, fact details and gate details. As a backstop, an id-position string that is not
-`[A-Za-z0-9][A-Za-z0-9._:/+#-]{0,199}` becomes `<redacted>` (`<redacted:1>`, `<redacted:2>` where
-keys would collide), so a stray string shows up in the record instead of being copied; that is a
-backstop, not a proof. `audit/` imports nothing from `score/`: the requirement fact codes are
-duplicated and a test pins them to `score/coverage.py`.
+`[A-Za-z0-9][A-Za-z0-9._:/+#-]{0,199}` becomes `<redacted>`, and every confidence component name
+that is not safe gets a numbered placeholder instead (`<redacted:1>`, `<redacted:2>`, numbered
+over the sorted original names, so a lone one is `<redacted:1>`), so two never merge into one key.
+A stray string thus shows up in the record instead of being copied; that is a backstop, not a
+proof. `audit/` imports nothing from `score/`: the requirement fact codes are duplicated and a
+test pins them to `score/coverage.py`.
 
 **D-91 Opaque ids.** `opaque_id(user_key, salt)` is HMAC-SHA256 of the user key under the salt,
 first 24 hex characters. Demographic data is joined to traces on this id only (SPEC §9), never on
@@ -390,13 +392,17 @@ summary line, because each could hide a violation; a floor above 100 is refused 
 reason (a fairness failure is terminal: nobody tunes around it or drops the failing group).
 
 **D-97 Compliance document: facts versus owner decisions.** `docs/compliance.md` opens with
-"Status and owner decisions": what this package provides, what the Tailrd integration must still
-build (display rules, review log, demographics form and store, trace export, scheduled
-monitoring), and the policy calls and the product premise that are only PROPOSED until the owner
-confirms them: candidate-facing only, a missing score never hides a job, a named person reads the
-review log weekly, autofill EEO answers are not an audit source, who may join demographics,
-retention, cadence. The attorney trigger is not one of them: it is SPEC §9's own, review before
-launch.
+"Status and owner decisions": what this package provides; what the Tailrd integration must still
+build, keeping apart what Milestone 9 of the plan schedules (trace storage, the web display, the
+drift report) and what it does not (the review log, the demographics form and store and the salt
+on that side, the audit export, the scheduled four-fifths job: building those, in particular
+collecting demographics, needs the owner's decision first); and the policy calls and the product
+premise that are only PROPOSED until the owner confirms them: candidate-facing only, a missing
+score never hides a job, a named person reads the review log weekly, a candidate may ask a person
+to look at any score, no hand edits to a score, autofill EEO answers are not an audit source, who
+may join demographics, retention, cadence. Not proposals: "The score ranks; it never
+auto-rejects." and "Get an employment attorney to review before launch." are SPEC §9's own
+sentences.
 
 ## Language
 

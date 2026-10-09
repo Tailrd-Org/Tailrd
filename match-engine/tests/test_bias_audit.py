@@ -822,3 +822,26 @@ def test_prefer_not_to_say_is_not_a_group(bias_audit, tmp_path) -> None:
         encoding="utf-8"
     )
     assert "prefer" not in blob.lower()
+
+
+# --- follow-up (minors): the report quotes SPEC section 9 and states the outcome rule ------------
+
+SPEC_9_ATTORNEY = "Get an employment attorney to review before launch."
+
+
+def test_the_report_footer_quotes_spec_9_exactly(audit) -> None:
+    spec = " ".join((ENGINE_ROOT / "SPEC.md").read_text(encoding="utf-8").split())
+    assert SPEC_9_ATTORNEY in spec  # SPEC's own sentence: this pins the report to its source
+    text = audit[2]
+    footer = text.split("\n## Limits and review\n", 1)[1]
+    # Verbatim and contiguous: a paraphrase, a narrowed trigger or a line wrap in the sentence fails.
+    assert SPEC_9_ATTORNEY in footer
+    assert "employer-facing" not in text
+
+
+def test_the_method_text_states_the_outcome_rule_of_the_selection(audit) -> None:
+    method = audit[2].split("\n## Method\n", 1)[1].split("\n## ", 1)[0]
+    flat = " ".join(method.split())
+    assert "its outcome is SCORED or SCORED_LOW_CONFIDENCE and its calibrated score >= T" in flat
+    assert "never selected, whatever calibrated score it carries" in flat
+    assert "stays in its group's denominator" in flat

@@ -19,12 +19,14 @@ kind each statement is, and every proposal is marked "(proposed, owner to confir
 the confidence thresholds and the calibration are specified in SPEC and built by other tasks; this
 document relies on them and does not claim more than they provide.
 
-**(b) Still to be built by the Tailrd integration (none of it exists yet; Task 9.x).** What the
-candidate is shown for each outcome (section 2); the review log and the weekly reading of it
-(section 2); writing one trace line for every score (section 3); the voluntary demographics form,
-the separate store and the salt that keys it (section 4); the scheduled job that runs the monitoring
-(section 5); and the export that feeds the audit (section 6). Where this document says "must", it is
-a requirement on that work.
+**(b) Still to be built by the Tailrd integration (none of it exists yet).** Milestone 9 of the
+current build plan covers part of this: storing traces keyed by opaque id (Task 9.1), the web
+display of the engine's result (Task 9.4) and the drift report in the cron sweep (Tasks 9.2 and
+9.6). It has no task for the rest, so none of it is scheduled in the current plan: the review log
+and the weekly reading of it (section 2); the voluntary demographics form, the separate store and
+the salt on that side (section 4); the export that feeds the audit (section 6); and the scheduled
+four-fifths job (section 5). Building these needs the owner's decision first, in particular
+collecting demographic data. Where this document says "must", it is a requirement on that work.
 
 **(c) Policy calls and a product premise. Nothing below has been decided by the owner.** Each is a
 proposal, and each is repeated, marked, where it is used.
@@ -46,17 +48,22 @@ proposal, and each is repeated, marked, where it is used.
 7. Cadence: the monitoring runs at least weekly, and the full audit runs once a year and after any
    release that changes weights, the skill graph or the parser (proposed, owner to confirm).
    Sections 5 and 6.
+8. A candidate can ask for a person to look at any score or any non-score, and the reviewer answers
+   in plain language (proposed, owner to confirm). Section 2.
+9. A score is never overwritten by hand; a wrong score is fixed at its cause and recomputed
+   (proposed, owner to confirm). SPEC, EVAL and DECISIONS are silent on it. Section 2.
 
-Not a proposal: the attorney trigger is SPEC section 9's own, "before launch" (section 8).
+Not proposals: "The score ranks; it never auto-rejects." (section 1) and "Get an employment attorney
+to review before launch." (section 8) are SPEC section 9's own sentences.
 
 ## 1. What the engine does, and what it never does
 
 - It computes a deterministic fit score between one résumé and one job posting. There is no model
   inference, no network call and no randomness: the same inputs under the same config give the
   same bytes (SPEC section 0).
-- **The score ranks. It never rejects.** That is SPEC section 9's rule and Tailrd's. The engine's
-  result has no field that hides, removes or blocks anything, and the integration must not use a
-  score to hide a job, take it out of a feed or block an application.
+- **The score ranks; it never auto-rejects.** That is SPEC section 9's sentence, word for word. The
+  engine's result has no field that hides, removes or blocks anything, and the integration must not
+  use a score to hide a job, take it out of a feed or block an application.
 - When the input is too poor to score, SPEC sections 13 and 17 require the engine to say so, with a
   reason, instead of guessing. The outcome and reason-code contract is built (section 2); the
   scoring entry point that applies it is built by other tasks (Status (a)).
@@ -77,10 +84,10 @@ review log exists yet (Status (b)).
 | `NEEDS_REVIEW` | "We couldn't score this", followed by the plain sentence for each reason code (below) | the trace **and an entry in a review log, so that a person checks it** |
 | `GATE_FAIL` | no percentage; the sentence for the gate that failed (work authorization, licence, clearance) | the trace, with the gate and its reason |
 
-Tailrd's rule is that the score is never the only thing standing between a candidate and a job. A
-gate result is a statement about the facts the candidate gave Tailrd (for example, a stated need for
-sponsorship against a posting that offers none); the integration must let the candidate correct
-those facts and recompute the result. An unknown fact warns and never fails a gate (DECISIONS D-60).
+A gate result is a statement about the facts the candidate gave Tailrd (for example, a stated need
+for sponsorship against a posting that offers none), not a verdict on the candidate; the integration
+must let the candidate correct those facts and recompute the result. An unknown fact warns and never
+fails a gate (DECISIONS D-60).
 
 ### Reason codes that route to a person
 
@@ -115,12 +122,14 @@ and the integration must show the candidate the sentence in `matcher.errors.FLAG
    kind of candidate, is raised as a drift or fairness question (sections 5 and 6), not just closed
    one entry at a time.
 2. **Candidate-initiated.** Any candidate must be able to ask for a person to look at any score or
-   any non-score. The reviewer opens the trace, checks `input_digest` against the stored résumé and
-   posting, re-runs the engine under the recorded config hash and engine version (the result is
-   byte-identical, which needs the replay material in section 3) and answers in plain language.
-3. **No hand edits.** Tailrd's rule is that a score is never overwritten by hand. If it is wrong,
-   the cause is fixed (the input, the parser, the taxonomy, or a config proposal under
-   `proposals/`) and the score is recomputed, so the trace always explains the number that is shown.
+   any non-score (proposed, owner to confirm). The reviewer opens the trace, checks `input_digest`
+   against the stored résumé and posting, re-runs the engine under the recorded config hash and
+   engine version (the result is byte-identical, which needs the replay material in section 3) and
+   answers in plain language.
+3. **No hand edits.** A score is never overwritten by hand (proposed, owner to confirm; SPEC, EVAL
+   and DECISIONS are silent on it). If it is wrong, the cause is fixed (the input, the parser, the
+   taxonomy, or a config proposal under `proposals/`) and the score is recomputed, so the trace
+   always explains the number that is shown.
 
 ## 3. What is persisted for every score
 
@@ -148,8 +157,8 @@ A trace holds **no free text** (DECISIONS D-14). It reads only fields that hold 
 enums, numbers and dates, and it leaves out every explanation sentence, job title, employer, surface
 form and gate detail. As a backstop, a string in an id position that is not shaped like an id is
 replaced by `<redacted>` instead of being copied; that check makes a stray string visible, and it is
-not a proof that none can get through. The persisted line also carries the person's `opaque_id`
-(section 4) and the trace's `digest`; it carries no user id, name, email or résumé text.
+not a proof that none can get through. The persisted line must also carry the person's `opaque_id`
+(section 4) and the trace's `digest`, and must carry no user id, name, email or résumé text.
 
 **Retention and replay.** Replaying a score (section 2, step 2) needs more than the trace: the
 engine version (the code at that version), the config files and skill-graph artifacts that produced
@@ -283,24 +292,24 @@ address, ZIP or anything derived from them; school prestige or ranking; employme
 tenure or "stability"; and any free-text field not resolved to a canonical skill, title or sector
 id. The engine's models have no field for them, and `tests/test_models.py` asserts that. CLAUDE.md
 names `tests/test_forbidden_features.py` as the build-failing check and forbids editing it to make
-a build pass; that test is planned, Task 3.6, and does not exist yet. Free text is display-only
-(DECISIONS D-14).
+a build pass; it is planned in Task 3.6. Free text is display-only (DECISIONS D-14).
 
 ## 8. Before launch
 
 SPEC section 9: "Get an employment attorney to review before launch." That review should cover this
-document, the audit procedure and the first audit's results. SPEC section 9 lists NYC Local Law
-144, Illinois HB 3773, Colorado SB 24-205 and the EU AI Act as regimes that treat a rules-based
-scorer as an automated employment decision tool, and notes that disparate-impact liability attaches
-to deterministic rules as it does to models. Whether any of them reaches a candidate-facing tool is
-a question for the attorney, and this document does not answer it. It does rest on the premise in
-Status (c)1 (proposed, owner to confirm): if a score, a ranking or a shortlist is ever shown to or
-used by an employer, a recruiter or an agency, that premise is false and the review must be
-repeated before the change ships.
+document and the audit procedure, and the first audit's results once one has run. SPEC section 9
+lists NYC Local Law 144, Illinois HB 3773, Colorado SB 24-205 and the EU AI Act as regimes that
+treat a rules-based scorer as an automated employment decision tool, and notes that disparate-impact
+liability attaches to deterministic rules as it does to models. Whether any of them reaches a
+candidate-facing tool is a question for the attorney, and this document does not answer it. It does
+rest on the premise in Status (c)1 (proposed, owner to confirm): if a score, a ranking or a
+shortlist is ever shown to or used by an employer, a recruiter or an agency, that premise is false
+and the review must be repeated before the change ships.
 
 ## 9. Open work and known limits
 
-- **Not built:** everything in Status (b). It belongs to the Tailrd integration.
+- **Not built, and mostly not scheduled:** everything in Status (b). It belongs to the Tailrd
+  integration, and the owner decides first whether to build the parts the plan does not schedule.
 - **A pass is not proof.** The audit measures differences in outcomes between groups, not their
   cause. It covers only people who chose to share demographic data, so the audited population can
   differ from the real one. It looks at one attribute at a time, not at intersections.

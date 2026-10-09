@@ -116,7 +116,7 @@ def test_the_audit_command_uses_options_the_script_has(text) -> None:
 def test_the_document_keeps_its_commitments(text) -> None:
     flat = " ".join(text.split())
     for phrase in (
-        "The score ranks. It never rejects.",
+        "The score ranks; it never auto-rejects.",
         "We couldn't score this",
         "employment attorney",
         "It is not legal advice",
@@ -146,6 +146,8 @@ PROPOSALS = (
     "only the person who owns the audit",
     "set with counsel",
     "run these on a schedule",
+    "a person to look at any score",
+    "never overwritten by hand",
 )
 
 
@@ -176,19 +178,29 @@ def blocks(body: str) -> list[str]:
 def test_a_status_block_separates_what_exists_what_is_missing_and_what_is_proposed(text) -> None:
     block = section(text, "## Status and owner decisions")
     assert block.index("**(a)") < block.index("**(b)") < block.index("**(c)")
-    built, missing, proposed = (part.lower() for part in re.split(r"\*\*\([abc]\)", block)[1:4])
+    built, missing, proposed = (flat(part).lower() for part in re.split(r"\*\*\([abc]\)", block)[1:4])
     for name in ("build_trace", "four_fifths", "drift_alarms", "bias_audit.py", "opaque_id"):
         assert name in built, name
-    for work in ("review log", "demographics", "trace line", "scheduled", "task 9"):
+    for work in (
+        "milestone 9",
+        "review log",
+        "demographics form",
+        "salt",
+        "export that feeds the audit",
+        "four-fifths job",
+        "none of it is scheduled in the current plan",
+        "needs the owner's decision first",
+    ):
         assert work in missing, work
+    assert "9.x" not in missing  # work that is not scheduled must not be pinned to a task number
     items = [b for b in blocks(re.split(r"\*\*\(c\)", block)[1]) if re.match(r"\d+\. ", b)]
-    assert len(items) >= 7
+    assert len(items) >= 9
     assert all(MARK in item for item in items), [item[:60] for item in items if MARK not in item]
     assert "nothing" in proposed and "owner" in proposed
 
 
 def test_every_policy_call_is_marked_wherever_it_is_made(text) -> None:
-    assert text.count(MARK) >= 14
+    assert text.count(MARK) >= 18
     for phrase in PROPOSALS:
         hits = [b for b in blocks(text) if phrase in flat(b).lower()]
         assert len(hits) >= 1, phrase
@@ -196,11 +208,31 @@ def test_every_policy_call_is_marked_wherever_it_is_made(text) -> None:
             assert MARK in flat(hit), (phrase, hit[:80])
 
 
-def test_the_attorney_trigger_is_the_one_in_spec_9(text) -> None:
-    sentence = "Get an employment attorney to review before launch."
-    assert sentence in (ENGINE_ROOT / "SPEC.md").read_text(encoding="utf-8")
-    assert sentence in flat(text)
+def test_every_policy_call_is_listed_in_the_status_block(text) -> None:
+    block = section(text, "## Status and owner decisions")
+    items = [flat(b).lower() for b in blocks(re.split(r"\*\*\(c\)", block)[1]) if re.match(r"\d+\. ", b)]
+    for phrase in PROPOSALS:
+        if phrase != "run these on a schedule":  # the cadence item words it as "runs at least weekly"
+            assert any(phrase in item for item in items), phrase
+    assert any("at least weekly" in item and "once a year" in item for item in items)
+
+
+def test_the_document_quotes_spec_9_exactly(text) -> None:
+    spec = flat((ENGINE_ROOT / "SPEC.md").read_text(encoding="utf-8"))
+    for sentence in (
+        "Get an employment attorney to review before launch.",
+        "The score ranks; it never auto-rejects.",
+    ):
+        assert sentence in spec, sentence  # SPEC's own words
+        assert sentence in flat(text), sentence
     assert "before any employer-facing use" not in flat(text)
+    assert "It never rejects" not in flat(text)  # SPEC says auto-rejects; the document must not shorten it
+
+
+def test_the_pre_launch_review_does_not_cover_an_audit_that_has_not_run(text) -> None:
+    body = flat(section(text, "## 8. Before launch"))
+    assert "and the first audit's results once one has run" in body
+    assert "audit procedure and the first audit's results." not in body
 
 
 def test_claims_about_the_product_are_premises_or_requirements_not_facts(text) -> None:
@@ -210,6 +242,10 @@ def test_claims_about_the_product_are_premises_or_requirements_not_facts(text) -
         "Tailrd shows a candidate their own score",
         "The candidate sees",
         "Tailrd today shows",
+        "Tailrd's rule is that the score is never the only thing",
+        "Tailrd's rule is that a score is never overwritten by hand",
+        "Task 9.x",
+        "The persisted line also carries",
     ):
         assert stale not in flat(text), stale
     section_two = section(text, "## 2. The human-review path")
@@ -231,9 +267,16 @@ def test_prefer_not_to_say_is_exported_as_blank_and_read_as_blank(text) -> None:
         assert "Prefer not to say" in body and "blank" in body, heading
 
 
-def test_the_forbidden_features_test_is_marked_planned(text) -> None:
+def test_the_forbidden_features_test_is_planned_and_not_claimed_absent(text) -> None:
     body = flat(section(text, "## 7. Prohibited inputs"))
-    assert "tests/test_forbidden_features.py" in body and "planned, Task 3.6" in body
+    assert "tests/test_forbidden_features.py" in body and "planned in Task 3.6" in body
+    assert "does not exist" not in body  # true today, silently false once Task 3.6 lands
+
+
+def test_the_persisted_line_is_a_requirement_not_a_fact(text) -> None:
+    body = flat(section(text, "## 3. What is persisted for every score"))
+    assert "The persisted line must also carry the person's `opaque_id`" in body
+    assert "and must carry no user id, name, email or" in body
 
 
 def test_retention_lists_everything_a_replay_needs(text) -> None:
@@ -273,3 +316,8 @@ def test_the_decisions_log_records_the_audit_decisions() -> None:
         assert needle in lowered, needle
     assert max(len(line) for line in audit.splitlines()) <= 100
     assert chr(0x2014) not in audit
+    flat_audit = " ".join(audit.split())
+    # every unsafe component name is numbered (the code does so), so the entry must not say "where
+    # keys would collide": a lone one is <redacted:1>
+    assert "where keys would collide" not in flat_audit
+    assert "a lone one is `<redacted:1>`" in flat_audit

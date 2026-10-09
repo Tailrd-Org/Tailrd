@@ -67,8 +67,12 @@ _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _OUTCOMES = frozenset(outcome.value for outcome in Outcome)
 _ABSTAINED = frozenset({Outcome.NEEDS_REVIEW.value, Outcome.SCORED_LOW_CONFIDENCE.value})
 # Only these outcomes carry a score a person sees (a percentage, or a band): a trace with any other
-# outcome is never "selected", whatever calibrated score it happens to hold.
-_SCORING = frozenset({Outcome.SCORED.value, Outcome.SCORED_LOW_CONFIDENCE.value})
+# outcome is never "selected", whatever calibrated score it happens to hold. The tuple orders the
+# names for the report's Method text, so the text and the rule cannot drift apart.
+_SCORING_ORDER = (Outcome.SCORED.value, Outcome.SCORED_LOW_CONFIDENCE.value)
+_SCORING = frozenset(_SCORING_ORDER)
+# SPEC section 9, word for word: the report quotes it rather than paraphrasing the trigger.
+_SPEC_9_ATTORNEY = "Get an employment attorney to review before launch."
 _BUCKETS = [f"{low}-{low + 9}" for low in range(0, 90, 10)] + ["90-100"]
 _DECLINED = "prefer not to say"  # a person's answer, read as a blank: never a group of its own
 
@@ -469,9 +473,10 @@ def render_markdown(report: dict) -> str:
         "",
         "## Method",
         "",
-        "- A trace is selected at threshold T when its calibrated score >= T. A trace with no "
-        "calibrated score (needs review, gate failure) is never selected but stays in its group's "
-        "denominator, so a group that is more often left unscored shows a lower rate.",
+        f"- A trace is selected at threshold T when its outcome is {' or '.join(_SCORING_ORDER)} and its "
+        "calibrated score >= T. Every other trace (needs review, gate failure) is never selected, "
+        "whatever calibrated score it carries, but stays in its group's denominator, so a group that "
+        "is more often left unscored shows a lower rate.",
         "- A group's rate is selected traces divided by its traces: every scored pair of every person "
         "counts.",
         f"- A group is described and assessed only with at least {low_n} people (distinct opaque ids), "
@@ -493,8 +498,8 @@ def render_markdown(report: dict) -> str:
         "This report measures differences in outcomes between groups. It does not explain them, and it "
         "covers only the people who chose to share demographic data. A failed check is terminal: stop and "
         "surface it, and do not tune around it, move the threshold or drop the failing group. This is a "
-        "starting checklist, not legal advice; an employment attorney should review the audit procedure "
-        "before any employer-facing use (SPEC section 9, docs/compliance.md).",
+        f'starting checklist, not legal advice. SPEC section 9 says: "{_SPEC_9_ATTORNEY}" See '
+        "docs/compliance.md.",
         "",
     ]
     return "\n".join(out)

@@ -381,6 +381,7 @@ def test_a_redacted_component_placeholder_cannot_be_a_valid_name() -> None:
         "components"
     ]
     assert key.startswith(REDACTED[:-1]) and any(ch in key for ch in "<>")
+    assert key == "<redacted:1>"  # every unsafe name is numbered, so a lone one is number 1
 
 
 def test_the_redaction_marker_cannot_be_a_valid_id() -> None:
