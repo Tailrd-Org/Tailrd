@@ -89,6 +89,10 @@ NODES: tuple[SkillNode, ...] = (
     _n("skill.cpp", "C++", _TECH),
     _n("skill.csharp", "C#", _TECH, aliases=("C Sharp",)),
     _n("skill.dotnet", ".NET", _TECH, aliases=("dotnet",)),
+    _n("skill.java", "Java", _TECH, release_year=1995),
+    _n("skill.spring", "Spring", _TECH, "skill.java", aliases=("Spring Framework",)),
+    _n("skill.rest", "REST", _METHOD, aliases=("REST API",)),
+    _n("skill.graphql", "GraphQL", _TECH, release_year=2015),
     # Practices, tools, domains
     _n("skill.ci_cd", "CI/CD", _METHOD),
     _n("skill.agile", "Agile", _METHOD),
@@ -105,6 +109,8 @@ NODES: tuple[SkillNode, ...] = (
     _n("cred.aws_saa", "AWS Certified Solutions Architect \u2013 Associate", _CRED,
        aliases=("AWS Solutions Architect Associate", "AWS SAA"), source="curated"),
     _n("cred.registered_nurse", "Registered Nurse", _CRED, aliases=("RN",), source="curated"),
+    _n("cred.azure_fundamentals", "Microsoft Certified: Azure Fundamentals", _CRED, aliases=("AZ-900",),
+       source="curated"),
     # A parent cycle (bad source data the traversal must survive): a -> b -> c -> a
     _n("skill.cycle_a", "Cycle A", _DOMAIN, "skill.cycle_b"),
     _n("skill.cycle_b", "Cycle B", _DOMAIN, "skill.cycle_c"),

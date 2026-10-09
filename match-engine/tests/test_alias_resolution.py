@@ -370,11 +370,73 @@ def test_extract_handles_unicode_dashes_and_invisible_characters(resolver: Resol
     ]
 
 
-def test_extract_does_not_join_tokens_across_punctuation(resolver: Resolver) -> None:
-    assert _found(resolver.extract("Skills: React, Native modules")) == [("skill.react", "React", "EXACT")]
-    assert _found(resolver.extract("We used React. Native apps came later.")) == [
-        ("skill.react", "React", "EXACT")
+@pytest.mark.parametrize(
+    "text,surface",
+    [
+        ("Passed the AWS Certified Solutions Architect \u2013 Associate exam.",
+         "AWS Certified Solutions Architect \u2013 Associate"),  # spaced en dash
+        ("Passed the AWS Certified Solutions Architect - Associate exam.",
+         "AWS Certified Solutions Architect - Associate"),  # spaced ASCII hyphen
+        ("Holds the AWS\u00ae Certified Solutions Architect -- Associate credential",
+         "AWS\u00ae Certified Solutions Architect -- Associate"),  # registered mark, double hyphen
+    ],
+)
+def test_extract_joins_credential_names_across_dashes_and_marks(
+    resolver: Resolver, text: str, surface: str
+) -> None:
+    assert _found(resolver.extract(text)) == [("cred.aws_saa", surface, "EXACT")]
+
+
+def test_extract_joins_across_a_colon_and_trade_marks(resolver: Resolver) -> None:
+    assert _found(resolver.extract("Earned Microsoft Certified: Azure Fundamentals in 2024.")) == [
+        ("cred.azure_fundamentals", "Microsoft Certified: Azure Fundamentals", "EXACT")
     ]
+    assert _found(resolver.extract("Expert in Microsoft\u00ae Excel and Microsoft\u2122 Excel")) == [
+        ("skill.excel", "Microsoft\u00ae Excel", "EXACT"),
+        ("skill.excel", "Microsoft\u2122 Excel", "EXACT"),
+    ]
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Skills: React, Native modules",
+        "We used React. Native apps came later.",
+        "React; Native",
+        "React! Native",
+        "React? Native",
+        "React | Native",
+        "React (Native)",
+        "React [Native]",
+        "React {Native}",
+        "React\nNative",
+        "React \u2013Native",  # a dash attached to a word is not a standalone separator
+    ],
+)
+def test_extract_does_not_join_tokens_across_hard_breaks(resolver: Resolver, text: str) -> None:
+    assert _found(resolver.extract(text)) == [("skill.react", "React", "EXACT")]
+
+
+def test_extract_reads_through_possessives(resolver: Resolver) -> None:
+    assert _found(resolver.extract("Tuned React's rendering and Python's GC.")) == [
+        ("skill.react", "React", "EXACT"),
+        ("skill.python", "Python", "EXACT"),
+    ]
+    text = "Profiled React Native\u2019s bridge and Kubernetes\u2019 scheduler. Loved Go's channels."
+    mentions = resolver.extract(text)
+    assert _found(mentions) == [
+        ("skill.react_native", "React Native", "EXACT"),
+        ("skill.kubernetes", "Kubernetes", "EXACT"),
+        ("skill.go", "Go", "EXACT"),
+    ]
+    assert all(text[m.start:m.end] == m.surface for m in mentions)
+
+
+def test_extract_handles_decomposed_accents(config) -> None:
+    r = Resolver(_graph(_node("skill.web_dev", "D\u00e9veloppement web")), config)  # NFC label
+    text = "Expert en de\u0301veloppement web."  # NFD: "e" + combining acute accent
+    assert r.resolve("de\u0301veloppement web").method == "EXACT"
+    assert _found(r.extract(text)) == [("skill.web_dev", "de\u0301veloppement web", "EXACT")]
 
 
 @pytest.mark.parametrize(
@@ -388,7 +450,22 @@ def test_extract_does_not_join_tokens_across_punctuation(resolver: Resolver) -> 
         ("python, go, sql", "list", ["skill.python", "skill.go", "skill.sql"]),
         ("Go, Python", "list", ["skill.go", "skill.python"]),
         ("Go/Python", "list", ["skill.go", "skill.python"]),
-        ("Led the Go-Live of SAP.", "prose", []),  # a fragment of a hyphenated word is not the language
+        # Slash parts follow the same rules; the first part has the token's position (D-25).
+        ("Analysed survey data with Python/R.", "prose", ["skill.python", "skill.r"]),
+        ("Built REST/GraphQL APIs in Java/Spring.", "prose",
+         ["skill.rest", "skill.graphql", "skill.java", "skill.spring"]),
+        ("R/Python are my tools.", "prose", ["skill.python"]),  # "R" opens the sentence
+        ("Data work in python/r", "prose", ["skill.python"]),  # wrong casing
+        # Hyphen parts: only "<key>-<suffix>" compounds such as "Go-based" (D-25).
+        ("Shipped Go-based microservices.", "prose", ["skill.go"]),
+        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes", "skill.go", "skill.rest"]),
+        ("Python/R-based tooling", "prose", ["skill.python", "skill.r"]),
+        ("Shipped go-based tools", "prose", []),  # the suffix does not waive the casing
+        ("Led the Go-Live of SAP.", "prose", []),  # a hyphen phrase, not the language
+        ("Owned the Go-to-market plan.", "prose", []),
+        ("Shipped Go-only-mode builds", "prose", []),  # three parts: not a "<key>-<suffix>" compound
+        ("SAP, Go-Live support", "list", []),  # hyphen phrases stay out of lists too
+        ("Go-based services", "list", ["skill.go"]),
         ("Analysed survey data in R and Python.", "prose", ["skill.r", "skill.python"]),
         ("Managed the R&D budget.", "prose", []),
         ("Strong in Excel and R programming", "prose", ["skill.excel", "skill.r"]),

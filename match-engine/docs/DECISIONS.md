@@ -97,6 +97,8 @@ equals a skill listed once.
 
 **D-24 Provisional nodes** (§16) multiply the credit by 0.8 until confirmed.
 
+**D-25 Ambiguous skill words inside slash/hyphen tokens. [Spec: clarified]** In extraction, an ambiguous key ("Go", "R", "REST", "Spring") that is one part of a slash token keeps the usual rules (exact casing; in prose not the first word of a sentence, the token's first part taking the token's position), so "Python/R" yields R; as part of a hyphen token it matches only in a two-part `<key>-<suffix>` compound with suffix based, powered, driven, backed, first, centric, enabled, native, heavy or only, so "Go-based" yields Go while "Go-Live" and "Go-to-market" yield nothing.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores

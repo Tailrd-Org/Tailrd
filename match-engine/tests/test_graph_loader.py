@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import gzip
 import hashlib
 import json
 import math
@@ -101,6 +102,24 @@ def test_a_missing_file_is_rejected(tmp_path: Path, name: str) -> None:
     _write(tmp_path)
     (tmp_path / name).unlink()
     with pytest.raises(ArtifactError, match=re.escape(name)):
+        load_graph(tmp_path)
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        b"\x1f\x8b\x08\x00\x00\x00\x00\x00\x00\xff\x07" + b"\x00" * 8,  # gzip header, invalid deflate block
+        gzip.compress(b'{"format":1,"nodes":[]}', mtime=0)[:-12],  # stream cut short
+        b"not gzip at all",  # no gzip header
+    ],
+)
+def test_a_corrupt_gzip_stream_is_rejected(tmp_path: Path, payload: bytes) -> None:
+    _write(tmp_path)
+    (tmp_path / "nodes.json.gz").write_bytes(payload)
+    manifest = _manifest(tmp_path)
+    manifest["artifacts"]["nodes.json.gz"] = hashlib.sha256(payload).hexdigest()  # passes the hash check
+    (tmp_path / "MANIFEST.json").write_text(json.dumps(manifest), encoding="utf-8")
+    with pytest.raises(ArtifactError, match="nodes.json.gz"):
         load_graph(tmp_path)
 
 
