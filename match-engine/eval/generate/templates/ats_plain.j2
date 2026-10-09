@@ -1,0 +1,9 @@
+{# ATS plain: one column, no tables, no icons, capitalised headings, numeric dates, no places. #}
+{% import "_macros.j2" as m %}
+{{ m.header(p, headline=false) }}
+{{ m.summary(p, "SUMMARY") }}
+{{ m.skills(p, "SKILLS") }}
+{{ m.experience(p, "EXPERIENCE", with_place=false) }}
+{{ m.projects(p, "PROJECTS") }}
+{{ m.education(p, "EDUCATION") }}
+{{ m.certifications(p, "CERTIFICATIONS") }}

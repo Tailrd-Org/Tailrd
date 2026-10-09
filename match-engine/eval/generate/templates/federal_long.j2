@@ -1,0 +1,28 @@
+{# Federal (USAJOBS style): every job with hours per week, supervisor and a long duties narrative,
+   so the document runs to several pages, with a running header. #}
+{% import "_macros.j2" as m %}
+@runhead {{ p.name }} - Federal Resume
+{{ m.header(p) }}
+{{ m.summary(p, "Professional Summary") }}
+@section experience || Work Experience
+{% for r in p.roles %}
+@entry {{ r.title }} || {{ r.employer }} || {{ r.dates }} || {{ r.place }}
+@kv Hours per week || {{ r.hours }}
+@kv Supervisor || {{ r.supervisor }}, {{ r.supervisor_phone }}
+@kv May contact supervisor || {{ r.may_contact }}
+@para Duties and accomplishments:
+{% for duty in r.duties %}
+@para {{ duty }}
+{% endfor %}
+{% for b in r.bullets %}
+@bullet {{ b }}
+{% endfor %}
+{% endfor %}
+{{ m.projects(p, "Additional Projects") }}
+{{ m.education(p) }}
+{{ m.certifications(p, "Training and Certifications") }}
+{{ m.skills(p, "Other Qualifications") }}
+@section ksa || Knowledge, Skills and Abilities
+{% for statement in p.ksa %}
+@para {{ statement }}
+{% endfor %}

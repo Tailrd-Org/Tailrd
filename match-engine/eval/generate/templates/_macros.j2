@@ -1,0 +1,73 @@
+{# Shared building blocks. Every output line is one directive of the intermediate document (doc.py).
+   Fields are separated by " || "; an empty field is simply left blank. #}
+{% macro header(p, icons=false, headline=true) %}
+@name {{ p.name }}
+{% if headline and p.headline %}
+@headline {{ p.headline }}
+{% endif %}
+{% if icons %}
+@contact email || {{ p.email }} || {{ p.icons.email }}
+@contact phone || {{ p.phone }} || {{ p.icons.phone }}
+{% if p.place %}
+@contact place || {{ p.place }} || {{ p.icons.place }}
+{% endif %}
+{% else %}
+@contact email || {{ p.email }}
+@contact phone || {{ p.phone }}
+{% if p.place %}
+@contact place || {{ p.place }}
+{% endif %}
+{% endif %}
+{% endmacro %}
+
+{% macro summary(p, title="Professional Summary", icon="") %}
+{% if p.summary %}
+@section summary || {{ title }} || {{ icon }}
+@para {{ p.summary }}
+{% endif %}
+{% endmacro %}
+
+{% macro experience(p, title="Professional Experience", icon="", with_place=true) %}
+@section experience || {{ title }} || {{ icon }}
+{% for r in p.roles %}
+@entry {{ r.title }} || {{ r.employer }} || {{ r.dates }} || {{ r.place if with_place else "" }}
+{% for b in r.bullets %}
+@bullet {{ b }}
+{% endfor %}
+{% endfor %}
+{% endmacro %}
+
+{% macro projects(p, title="Projects", icon="") %}
+{% if p.projects %}
+@section projects || {{ title }} || {{ icon }}
+{% for j in p.projects %}
+@entry {{ j.name }} || || {{ j.dates }} ||
+{% for b in j.bullets %}
+@bullet {{ b }}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+{% macro education(p, title="Education", icon="", years=true) %}
+@section education || {{ title }} || {{ icon }}
+{% for e in p.education %}
+@entry {{ e.degree }} || {{ e.school }} || {{ e.year if years else "" }} ||
+{% endfor %}
+{% endmacro %}
+
+{% macro certifications(p, title="Certifications", icon="") %}
+{% if p.certifications %}
+@section certifications || {{ title }} || {{ icon }}
+{% for c in p.certifications %}
+@bullet {{ c }}
+{% endfor %}
+{% endif %}
+{% endmacro %}
+
+{% macro skills(p, title="Skills", icon="") %}
+{% if p.skills %}
+@section skills || {{ title }} || {{ icon }}
+@skills {{ p.skills | join(", ") }}
+{% endif %}
+{% endmacro %}
