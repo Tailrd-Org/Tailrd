@@ -128,5 +128,5 @@ def test_the_document_keeps_its_commitments(text) -> None:
 
 
 def test_the_document_has_no_em_dashes_and_no_emoji(text) -> None:
-    assert "—" not in text
-    assert not any(ord(ch) > 0x2000 and ch not in "’" for ch in text)
+    assert chr(0x2014) not in text
+    assert max(map(ord, text)) < 0x2000  # no dashes, quotes or emoji beyond Latin-1 letters such as e-acute

@@ -188,7 +188,10 @@ Run once a year, and after any release that changes weights, the skill graph or 
        --out-dir <private-audit-folder>/bias_audit/<year>
    ```
 
-   Do not pass `--min-group-n` below 100 for an audit; the report marks such a run as exploratory.
+   Pass none of `--min-group-n`, `--thresholds` or `--attributes` for an audit. A smaller group
+   floor, other thresholds or fewer attributes could each hide a violation, so a run that uses any
+   of them is marked exploratory in both reports and is a dry run, not an audit artifact. A group
+   floor above 100 is refused.
 5. **Read the status.** The script writes `bias_audit.json` and `bias_audit.md` and exits 0 when
    every check that could be assessed passed, 2 on a four-fifths violation, 3 when nothing could
    be assessed (no attribute has two groups of 100 people) and 1 on unusable input. The report

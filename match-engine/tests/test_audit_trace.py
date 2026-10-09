@@ -387,7 +387,7 @@ def test_ids_with_the_characters_real_ids_use_are_kept() -> None:
 
 @given(text=st.text(min_size=6), where=st.sampled_from(["gate_detail", "headline", "fact", "item"]))
 def test_text_in_any_free_field_never_reaches_the_trace(text: str, where: str) -> None:
-    marker = ("☃ZQX" + text)[:2000]  # a prefix no id, code or date contains
+    marker = (chr(0x2603) + "ZQX" + text)[:2000]  # a prefix no id, code or date contains
     result = full_result()
     if where == "gate_detail":
         gate = GateResult(
@@ -582,8 +582,12 @@ def test_trace_digest_is_16_lowercase_hex_and_stable_across_calls() -> None:
 
 
 def test_trace_digest_hashes_utf8_not_escapes() -> None:
-    canonical = json.dumps({"k": "café"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
-    assert trace_digest({"k": "café"}) == hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    canonical = json.dumps(
+        {"k": "caf" + chr(0xE9)}, sort_keys=True, separators=(",", ":"), ensure_ascii=False
+    )
+    assert (
+        trace_digest({"k": "caf" + chr(0xE9)}) == hashlib.sha256(canonical.encode("utf-8")).hexdigest()[:16]
+    )
 
 
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), -float("inf")])
@@ -623,7 +627,7 @@ def test_opaque_id_differs_across_users_and_is_24_lowercase_hex() -> None:
 
 def test_opaque_id_accepts_bytes_like_salts_and_unicode_keys() -> None:
     assert opaque_id("user-1", bytearray(SALT)) == opaque_id("user-1", SALT)
-    key = "usuari-ç"
+    key = "usuari-" + chr(0xE7)
     assert opaque_id(key, SALT) == hmac.new(SALT, key.encode("utf-8"), hashlib.sha256).hexdigest()[:24]
 
 

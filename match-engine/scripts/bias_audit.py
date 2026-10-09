@@ -17,7 +17,11 @@ Inputs
 Outputs (in --out-dir): bias_audit.json and bias_audit.md. For every attribute: selection rates per
 group at each band threshold with the four-fifths ratios (exact fractions), score distributions per
 group, and abstention per group. Output is deterministic and holds no person-level identifier.
-Groups smaller than --min-group-n are named with their size only.
+Groups smaller than --min-group-n are named with their size only. A run with a smaller --min-group-n
+than the standard 100, with --thresholds other than the band minimums, or with --attributes naming
+only some attributes is marked exploratory in both reports (a dry run, not an audit artifact): each
+could hide a violation. A --min-group-n above 100 is refused, because it would leave out groups that
+EVAL section 3 requires to be assessed.
 
 Exit status: 0 every check that could be assessed passed; 1 unusable input or options; 2 at least
 one four-fifths violation (terminal: stop and surface it, never tune around it); 3 nothing could be
@@ -279,15 +283,40 @@ def _attribute_report(
     }
 
 
+def _deviations(
+    demographics: Demographics,
+    attributes: Sequence[str],
+    thresholds: Sequence[int],
+    standard_thresholds: Sequence[int],
+    min_group_n: int,
+) -> list[str]:
+    """How this run differs from the standard audit. Any difference makes it a dry run: an audit
+    artifact must not be produced with a smaller group floor, other thresholds or fewer attributes,
+    because each could hide a violation (a failure is terminal; nobody tunes around it)."""
+    found = []
+    if min_group_n < MIN_GROUP_N:
+        found.append(f"the minimum group size is {min_group_n}, below the standard {MIN_GROUP_N}")
+    if list(thresholds) != list(standard_thresholds):
+        found.append(
+            f"the thresholds are {', '.join(map(str, thresholds))}, not the band minimums "
+            f"{', '.join(map(str, standard_thresholds))}"
+        )
+    if set(attributes) != set(demographics.attributes):
+        found.append(f"only {len(set(attributes))} of {len(demographics.attributes)} attributes were audited")
+    return found
+
+
 def build_report(
     load: TraceLoad,
     demographics: Demographics,
     attributes: Sequence[str],
     thresholds: Sequence[int],
     min_group_n: int,
+    standard_thresholds: Sequence[int],
 ) -> dict:
     rows = load.rows
     dated = sorted(row.as_of for row in rows if row.as_of)
+    deviations = _deviations(demographics, attributes, thresholds, standard_thresholds, min_group_n)
     report_attributes = {
         name: _attribute_report(rows, demographics, name, thresholds, min_group_n)
         for name in sorted(attributes)
@@ -313,7 +342,8 @@ def build_report(
         "parameters": {
             "min_group_n": min_group_n,
             "standard_min_group_n": MIN_GROUP_N,
-            "exploratory": min_group_n < MIN_GROUP_N,
+            "exploratory": bool(deviations),
+            "deviations": deviations,
             "thresholds": list(thresholds),
             "ratio_threshold": f"{FOUR_FIFTHS.numerator}/{FOUR_FIFTHS.denominator}",
         },
@@ -367,8 +397,7 @@ def render_markdown(report: dict) -> str:
     out = ["# Bias audit", "", f"Status: {report['status'].replace('_', ' ')}", ""]
     if parameters["exploratory"]:
         out += [
-            f"> Exploratory run: the minimum group size is {low_n}, below the standard "
-            f"{parameters['standard_min_group_n']}. A dry run, not an audit artifact.",
+            f"> Exploratory run: {'; '.join(parameters['deviations'])}. A dry run, not an audit artifact.",
             "",
         ]
     out += ["## Violations", ""]
@@ -533,7 +562,10 @@ def _parser() -> argparse.ArgumentParser:
         "--out-dir", type=Path, default=ROOT / "reports" / "bias_audit", help="where to write"
     )
     parser.add_argument(
-        "--min-group-n", type=int, default=MIN_GROUP_N, help=f"people per group (default {MIN_GROUP_N})"
+        "--min-group-n",
+        type=int,
+        default=MIN_GROUP_N,
+        help=f"people per group, at most {MIN_GROUP_N} (default {MIN_GROUP_N})",
     )
     parser.add_argument(
         "--thresholds", help="calibrated-score thresholds, e.g. 85,70,55 (default: band minimums)"
@@ -567,6 +599,12 @@ def _summary(report: dict, out_dir: Path) -> str:
 def run(args: argparse.Namespace) -> int:
     if args.min_group_n < 1:
         raise UsageError("--min-group-n must be at least 1")
+    if args.min_group_n > MIN_GROUP_N:
+        raise UsageError(
+            f"--min-group-n cannot exceed {MIN_GROUP_N}: a higher floor would leave out groups that "
+            "EVAL section 3 requires to be assessed"
+        )
+    standard_thresholds = _thresholds(None)
     thresholds = _thresholds(args.thresholds)
     demographics = load_demographics(args.demographics)
     attributes = (
@@ -583,7 +621,7 @@ def run(args: argparse.Namespace) -> int:
             f"no usable traces in {args.traces} ({load.lines} lines, {load.malformed} malformed, "
             f"{load.integrity_failures} failed their digest)"
         )
-    report = build_report(load, demographics, attributes, thresholds, args.min_group_n)
+    report = build_report(load, demographics, attributes, thresholds, args.min_group_n, standard_thresholds)
     args.out_dir.mkdir(parents=True, exist_ok=True)
     (args.out_dir / "bias_audit.json").write_text(
         json.dumps(report, indent=2, sort_keys=True, ensure_ascii=False) + "\n",

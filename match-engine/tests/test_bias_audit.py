@@ -135,9 +135,50 @@ def test_parameters_record_how_the_audit_was_run(audit) -> None:
         "min_group_n": 5,
         "standard_min_group_n": 100,
         "exploratory": True,
+        "deviations": ["the minimum group size is 5, below the standard 100"],
         "thresholds": [85, 70, 55],
         "ratio_threshold": "4/5",
     }
+
+
+def test_every_deviation_from_the_standard_audit_is_named_in_both_reports(bias_audit, tmp_path) -> None:
+    # A smaller group floor, other thresholds or fewer attributes could each hide a violation, so a
+    # run that uses any of them is a dry run and says so.
+    run(bias_audit, tmp_path, "--min-group-n", "5", "--thresholds", "70", "--attributes", "attr_pass")
+    parameters = load(tmp_path)["parameters"]
+    assert parameters["exploratory"] is True
+    assert parameters["deviations"] == [
+        "the minimum group size is 5, below the standard 100",
+        "the thresholds are 70, not the band minimums 85, 70, 55",
+        "only 1 of 2 attributes were audited",
+    ]
+    text = (tmp_path / "bias_audit.md").read_text(encoding="utf-8")
+    assert all(deviation in text for deviation in parameters["deviations"])
+
+
+def test_the_standard_audit_has_no_deviations_even_when_its_defaults_are_spelled_out(
+    bias_audit, tmp_path
+) -> None:
+    run(
+        bias_audit,
+        tmp_path,
+        "--min-group-n",
+        "100",
+        "--thresholds",
+        "85,70,55",
+        "--attributes",
+        "attr_fail,attr_pass",
+    )
+    parameters = load(tmp_path)["parameters"]
+    assert (parameters["exploratory"], parameters["deviations"]) == (False, [])
+
+
+def test_a_group_floor_above_100_is_refused_because_it_would_leave_groups_out(
+    bias_audit, tmp_path, capsys
+) -> None:
+    assert run(bias_audit, tmp_path / "out", "--min-group-n", "101") == ERROR
+    assert "cannot exceed 100" in capsys.readouterr().err
+    assert not (tmp_path / "out").exists()
 
 
 def test_input_summary_counts_good_bad_and_tampered_lines(audit) -> None:
