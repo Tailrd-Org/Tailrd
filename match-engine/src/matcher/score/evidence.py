@@ -1,35 +1,38 @@
 """Evidence strength: verbs, negation, quantified outcomes, E and R.
 
-SPEC §5.1 (E, R) and §15; DECISIONS D-32, D-33, D-34, D-34a.
+SPEC §5.1 (E, R) and §15; DECISIONS D-32, D-33, D-34, D-34a..D-34f.
 
 `analyze_bullet` gives every skill mention of a résumé bullet a verb class and a polarity. The
-caller (parse/) has already found the mentions and resolved them to canonical ids:
+caller (parse/) has already found the mentions and resolved them to canonical ids. The intent of
+SPEC §15: credit demonstrated work by its verb, and stop interest or negation from counting as
+experience, without ever zeroing a skill the bullet demonstrates.
 
-* Clauses. The bullet splits at `verbs.clause_punctuation` and at the coordinating conjunctions
-  (whole words, any case). Punctuation inside a word or a number ("Node.js", "3.5", "1,000") and
-  anything inside a mention span ("Research and Development") is not a boundary: it belongs to
-  one token or to one skill name.
-* Verb. The nearest `verbs.yaml` entry (lower-cased whole words, phrases included) that ends
-  before the mention inside its clause gives the verb class. Words inside a mention span are a
-  skill name, never a verb. An instrument participle (INSTRUMENT_PARTICIPLES: "using", ...)
-  defers to an earlier verb of its clause: in "Built dashboards using React" the action is
-  "built" and "using" only introduces the tool. This is how DECISIONS D-34a's own examples read
-  ("…using React, Redux and D3" all OWNERSHIP; "built dashboards for the sales team using
-  Tableau" keeps Tableau on "built"), now that verbs.yaml lists the gerund "using".
-* List continuation. A clause with no verb that holds only mentions, list words, articles and
-  punctuation ("…, Redux and D3") continues the previous clause's list (DECISIONS D-34a): its
-  mentions take the attachment of the previous clause's last mention, transitively. The
-  attachment is the verb class *and* the polarity: "Not familiar with Docker or Kubernetes"
-  negates both and "Studying Japanese and Korean" is aspirational for both (SPEC §15.2's failure
-  mode, applied to lists). Any other clause without a verb before the mention is NO_VERB.
-* Polarity. The `negation.window_tokens` tokens before the mention inside its clause are scanned
-  (another mention counts as one token, punctuation as none): a hard-negation term makes the
-  mention NEGATED, else an aspirational term makes it ASPIRATIONAL, else AFFIRMED. A multi-word
-  term matches only as a whole phrase inside the window.
+* Clauses (D-34a). The bullet splits at `verbs.clause_punctuation` and at the coordinating
+  conjunctions (whole words, any case). Not boundaries: punctuation inside a word or number
+  ("Node.js", "3.5", "1,000"), the period of an abbreviation ("U.S.", "e.g.", "Inc."), a "yet"
+  right after a negation ("not yet used") and anything inside a mention span.
+* Verb (§15.1, D-34d, D-34e). The nearest `verbs.yaml` entry in attaching position that ends
+  before the mention inside its clause gives the verb class. A base or third-person form
+  ("design", "support", "engineers") attaches only as the clause's first word or right after
+  "to"; a noun entry ("exposure") only before of/to/with/in; past and -ing forms anywhere. Words
+  inside a mention are a skill name, never a verb. An instrument participle
+  (`verbs.defer_to_earlier`: "using", ...) defers to an earlier verb. A verb chained to an
+  earlier one, directly or across only to/in/with/on, takes the head's class: "Helped to build"
+  is ASSISTANCE, "Contributed to building" PARTICIPATION.
+* Inheritance (D-34a, D-34b, D-34f). A clause with no verb takes the previous clause's verb
+  class when it holds only mentions, list words, articles and punctuation, or when it follows
+  and/or/nor inside a sentence. It takes the previous clause's polarity only from a mention
+  there, and never across a sentence end (. ; ! ?) or "but"/"yet".
+* Polarity (§15.2, D-34c). A hard-negation term negates a mention only when every token between
+  them is a scope filler (`negation.hard_negation.scope_fillers`), another mention, an
+  aspiration term or a "yet" right after the term; otherwise it governs the noun it opens
+  ("with no downtime using Kubernetes"). An exception phrase ("not only") and a term joined by a
+  hyphen ("no-code", "not-for-profit") never negate; "n't" counts as "not". Else an aspiration
+  term among the `negation.window_tokens` tokens before the mention (another mention counts as
+  one token, punctuation as none; a phrase only whole) makes it ASPIRATIONAL.
 
-The lexicons are config (verbs.yaml, negation.yaml). The short closed word lists below (list
-words, articles, instrument participles, counting nouns, outcome verbs) are grammar for reading
-a bullet, not weights to tune.
+The lexicons are config (verbs.yaml, negation.yaml). The short closed word lists below are
+grammar for reading a bullet, not weights to tune.
 """
 
 from __future__ import annotations
@@ -49,11 +52,15 @@ from matcher.models import Evidence, Frozen, Polarity, VerbClass
 from matcher.score.numeric import clamp01
 
 __all__ = [
+    "ABBREVIATIONS",
     "ARTICLES",
+    "CHAIN_LINKS",
     "COUNTING_NOUNS",
-    "INSTRUMENT_PARTICIPLES",
+    "LIST_CONJUNCTIONS",
     "LIST_WORDS",
     "OUTCOME_VERBS",
+    "POLARITY_BARRIERS",
+    "SENTENCE_ENDS",
     "BulletMention",
     "MentionEvidence",
     "analyze_bullet",
@@ -68,8 +75,21 @@ __all__ = [
 LIST_WORDS: tuple[str, ...] = ("and", "or", "&", "as well as", "plus", "including", "with")
 ARTICLES: tuple[str, ...] = ("a", "an", "the")
 
-# Participles that introduce the tool of an earlier verb ("Built dashboards using React").
-INSTRUMENT_PARTICIPLES: frozenset[str] = frozenset({"using", "utilizing", "utilising"})
+# Words that may join a verb chain: "Helped to build", "Participated in designing" (D-34d).
+CHAIN_LINKS: frozenset[str] = frozenset({"to", "in", "with", "on"})
+
+# A verbless clause after one of these inherits the verb class whatever it holds (D-34f).
+LIST_CONJUNCTIONS: frozenset[str] = frozenset({"and", "or", "nor"})
+
+# Polarity never crosses a sentence end or a contrast (D-34b).
+SENTENCE_ENDS: frozenset[str] = frozenset({".", ";", "!", "?"})
+POLARITY_BARRIERS: frozenset[str] = SENTENCE_ENDS | {"but", "yet"}
+
+# Abbreviations whose period ends no clause; dotted letter runs ("U.S.", "e.g.", "i.e.") too.
+ABBREVIATIONS: frozenset[str] = frozenset({
+    "approx", "co", "corp", "dept", "dr", "est", "etc", "govt", "inc", "intl", "jr", "ltd", "mr", "mrs",
+    "ms", "prof", "sr", "st", "univ", "vs",
+})
 
 # Nouns that make "<number ≥ 2> ... <noun>" a quantified outcome ("40 projects", "3 production
 # servers"). Durations of experience ("years", "months") are deliberately absent.
@@ -120,8 +140,8 @@ class BulletMention(Frozen):
 
 class MentionEvidence(Frozen):
     """The verb class and polarity of one mention (SPEC §15). `verb` is the lexicon entry that
-    attached ("" for NO_VERB); `trigger` the negation or aspiration term that fired ("" when
-    AFFIRMED). A list continuation carries the verb and trigger it inherited."""
+    attached, the head of its chain ("" for NO_VERB); `trigger` the negation or aspiration term
+    that fired ("" when AFFIRMED). An inheriting clause carries the verb and trigger it took."""
 
     canonical_id: str = Field(min_length=1, max_length=200)
     start: int = Field(ge=0)
@@ -132,21 +152,13 @@ class MentionEvidence(Frozen):
     trigger: str = ""
 
 
-# ─── Reading a bullet: tokens, lexicons, clauses ─────────────────────────────────────────
+# ─── Lexicons, built once per config ─────────────────────────────────────────────────────
 
-# A word: letters and digits joined by an in-word "." or apostrophe ("Node.js", "3.5", "team's")
+# A word: letters and digits joined by an in-word "." or apostrophe ("Node.js", "3.5", "didn't")
 # or by a thousands comma ("1,000"). Hyphens and slashes separate words ("co-led" -> co, led).
 _WORD = re.compile(r"[^\W_]+(?:(?:[.'\u2019]|(?<=[0-9]),(?=[0-9]{3}(?![0-9])))[^\W_]+)*")
-
-_WORD_UNIT, _MENTION_UNIT, _BOUNDARY_UNIT = 0, 1, 2
-
-
-class _Unit(NamedTuple):
-    start: int
-    end: int
-    kind: int  # _WORD_UNIT, _MENTION_UNIT or _BOUNDARY_UNIT
-    word: str = ""  # lower-cased, for a word
-    component: int = -1  # index of the merged mention span, for a mention
+_DOTTED_ABBREVIATION = re.compile(r"(?:[^\W\d_]\.)+[^\W\d_]")  # "u.s", "e.g", "i.e"
+_HYPHENS = frozenset({"-", "\u2010", "\u2011"})
 
 
 class _Match(NamedTuple):
@@ -156,14 +168,25 @@ class _Match(NamedTuple):
     verb_class: Optional[VerbClass]  # for verb entries
 
 
-class _Attachment(NamedTuple):
-    verb_class: VerbClass
-    verb: str
-    polarity: Polarity
-    trigger: str
-
-
 _Lexicon = dict[str, list[tuple[tuple[str, ...], str, Optional[VerbClass]]]]
+
+
+class _Lexicons(NamedTuple):
+    verbs: _Lexicon
+    position_bound: frozenset[str]  # base and third-person forms (DECISIONS D-34e)
+    nouns: frozenset[str]
+    noun_followers: frozenset[str]
+    defer: frozenset[str]
+    conjunctions: _Lexicon
+    hard: _Lexicon
+    exceptions: _Lexicon
+    fillers: _Lexicon
+    aspirational: _Lexicon
+    listing: _Lexicon
+
+
+def _normalised(entry: str) -> str:
+    return " ".join(word.lower() for word in _WORD.findall(entry))
 
 
 def _lexicon(entries: Iterable[tuple[str, Optional[VerbClass]]]) -> _Lexicon:
@@ -174,6 +197,75 @@ def _lexicon(entries: Iterable[tuple[str, Optional[VerbClass]]]) -> _Lexicon:
         if words:
             index.setdefault(words[0], []).append((words, " ".join(words), verb_class))
     return index
+
+
+def _base_or_third_person(form: str, forms: frozenset[str]) -> bool:
+    """Is `form` a base form (its -s/-es sibling is listed: "design"/"designs") or that third-
+    person sibling? Past and -ing forms and phrases are neither (DECISIONS D-34e)."""
+    if " " in form or form.endswith(("ed", "ing")):
+        return False
+    if f"{form}s" in forms or f"{form}es" in forms:
+        return True
+    return form.endswith("s") and (form[:-1] in forms or (form.endswith("es") and form[:-2] in forms))
+
+
+def _build_lexicons(config: EngineConfig) -> _Lexicons:
+    verbs, negation = config.verbs, config.negation
+    position_bound: set[str] = set()
+    for lexicon in verbs.classes.values():
+        forms = frozenset(_normalised(entry) for entry in lexicon.verbs)
+        position_bound.update(form for form in forms if _base_or_third_person(form, forms))
+    return _Lexicons(
+        verbs=_lexicon(
+            (entry, verb_class) for verb_class, lexicon in verbs.classes.items() for entry in lexicon.verbs
+        ),
+        position_bound=frozenset(position_bound),
+        nouns=frozenset(_normalised(entry) for entry in verbs.noun_entries),
+        noun_followers=frozenset(_normalised(entry) for entry in verbs.noun_entry_followers),
+        defer=frozenset(_normalised(entry) for entry in verbs.defer_to_earlier),
+        conjunctions=_lexicon((entry, None) for entry in verbs.coordinating_conjunctions),
+        hard=_lexicon((term, None) for term in negation.hard_negation.terms),
+        exceptions=_lexicon((term, None) for term in negation.hard_negation.exceptions),
+        fillers=_lexicon((term, None) for term in negation.hard_negation.scope_fillers),
+        aspirational=_lexicon((term, None) for term in negation.aspirational.terms),
+        listing=_lexicon((word, None) for word in LIST_WORDS + ARTICLES),
+    )
+
+
+_LEXICON_CACHE: dict[str, _Lexicons] = {}
+_LEXICON_CACHE_SIZE = 16
+
+
+def _lexicons(config: EngineConfig) -> _Lexicons:
+    """The lexicon structures of `config`, built once per config content hash. Deterministic
+    memoisation: nothing cached ever reaches an output."""
+    key = config.content_hash
+    found = _LEXICON_CACHE.get(key)
+    if found is None:
+        found = _build_lexicons(config)
+        if len(_LEXICON_CACHE) >= _LEXICON_CACHE_SIZE:
+            _LEXICON_CACHE.clear()
+        _LEXICON_CACHE[key] = found
+    return found
+
+
+# ─── Reading a bullet: units and clauses ─────────────────────────────────────────────────
+
+_WORD_UNIT, _MENTION_UNIT, _BOUNDARY_UNIT = 0, 1, 2
+
+
+class _Unit(NamedTuple):
+    start: int
+    end: int
+    kind: int  # _WORD_UNIT, _MENTION_UNIT or _BOUNDARY_UNIT
+    word: str = ""  # lower-cased word, or the boundary itself
+    component: int = -1  # index of the merged mention span, for a mention
+    compound: bool = False  # joined by a hyphen to a neighbouring word ("no" of "no-code")
+
+
+class _Clause(NamedTuple):
+    units: list[_Unit]
+    after: frozenset[str]  # the boundaries between this clause and the previous one
 
 
 def _find(units: Sequence[_Unit], lexicon: _Lexicon) -> list[_Match]:
@@ -190,6 +282,11 @@ def _find(units: Sequence[_Unit], lexicon: _Lexicon) -> list[_Match]:
             ):
                 found.append(_Match(i, stop, text, verb_class))
     return found
+
+
+def _mark(flags: list[bool], matches: Iterable[_Match]) -> None:
+    for match in matches:
+        flags[match.first:match.stop] = [True] * (match.stop - match.first)
 
 
 def _reach(match: _Match) -> tuple[int, int]:
@@ -225,34 +322,64 @@ def _occurrences(text: str, marks: Iterable[str]) -> Iterator[tuple[int, int]]:
             at = text.find(mark, at + len(mark))
 
 
-def _clauses(text: str, components: Sequence[tuple[int, int]], config: EngineConfig) -> list[list[_Unit]]:
+def _in_compound(text: str, start: int, end: int) -> bool:
+    """Is the word at `[start, end)` joined by a hyphen to a neighbouring word?"""
+    joined_before = start >= 2 and text[start - 1] in _HYPHENS and text[start - 2].isalnum()
+    joined_after = end + 1 < len(text) and text[end] in _HYPHENS and text[end + 1].isalnum()
+    return joined_before or joined_after
+
+
+def _is_abbreviation(word: Optional[str]) -> bool:
+    return word is not None and (word in ABBREVIATIONS or _DOTTED_ABBREVIATION.fullmatch(word) is not None)
+
+
+def _negation_view(units: Sequence[_Unit]) -> list[_Unit]:
+    """The units as the negation lexicon reads them: a contraction in "n't" is "not"."""
+    return [
+        unit._replace(word="not")
+        if unit.kind == _WORD_UNIT and len(unit.word) > 3 and unit.word.endswith(("n't", "n\u2019t"))
+        else unit
+        for unit in units
+    ]
+
+
+def _clauses(text: str, components: Sequence[tuple[int, int]], lex: _Lexicons,
+             config: EngineConfig) -> list[_Clause]:
     """The bullet as clauses of word and mention units, boundaries removed (SPEC §15.1)."""
     words = [(found.start(), found.end(), found.group().lower()) for found in _WORD.finditer(text)]
     word_spans = [(start, end) for start, end, _ in words]
     word_starts = [start for start, _ in word_spans]
+    word_ending_at = {end: word for _, end, word in words}
     starts = [start for start, _ in components]
-    units = [_Unit(s, e, _WORD_UNIT, word) for s, e, word in words if not _overlaps(components, starts, s, e)]
-    units += [_Unit(s, e, _MENTION_UNIT, component=k) for k, (s, e) in enumerate(components)]
-    units += [
-        _Unit(s, e, _BOUNDARY_UNIT)
-        for s, e in _occurrences(text, config.verbs.clause_punctuation)
-        if not _overlaps(word_spans, word_starts, s, e) and not _overlaps(components, starts, s, e)
+    units = [
+        _Unit(s, e, _WORD_UNIT, word, compound=_in_compound(text, s, e))
+        for s, e, word in words
+        if not _overlaps(components, starts, s, e)
     ]
+    units += [_Unit(s, e, _MENTION_UNIT, component=k) for k, (s, e) in enumerate(components)]
+    for s, e in _occurrences(text, config.verbs.clause_punctuation):
+        if _overlaps(word_spans, word_starts, s, e) or _overlaps(components, starts, s, e):
+            continue  # inside a word, a number or a skill name
+        if text[s:e] == "." and _is_abbreviation(word_ending_at.get(s)):
+            continue  # "U.S.", "e.g.", "Inc."
+        units.append(_Unit(s, e, _BOUNDARY_UNIT, text[s:e]))
     units.sort()
     cut = [unit.kind == _BOUNDARY_UNIT for unit in units]
-    conjunctions = _lexicon((conjunction, None) for conjunction in config.verbs.coordinating_conjunctions)
-    for match in _find(units, conjunctions):
+    after_negation = {match.stop for match in _find(_negation_view(units), lex.hard)}
+    for match in _find(units, lex.conjunctions):
+        if match.text == "yet" and match.first in after_negation:
+            continue  # "not yet used": part of the negation
         cut[match.first:match.stop] = [True] * (match.stop - match.first)
-    clauses: list[list[_Unit]] = []
-    current: list[_Unit] = []
+    clauses: list[_Clause] = []
+    pending: list[str] = []
     for unit, is_cut in zip(units, cut):
-        if not is_cut:
-            current.append(unit)
-        elif current:
-            clauses.append(current)
-            current = []
-    if current:
-        clauses.append(current)
+        if is_cut:
+            pending.append(unit.word)
+        elif clauses and not pending:
+            clauses[-1].units.append(unit)
+        else:
+            clauses.append(_Clause([unit], frozenset(pending)))
+            pending = []
     return clauses
 
 
@@ -260,51 +387,118 @@ def _only_list_words(clause: Sequence[_Unit], listing: _Lexicon) -> bool:
     """Does the clause hold nothing but mentions, list words and articles (punctuation never
     becomes a unit)?"""
     covered = [unit.kind == _MENTION_UNIT for unit in clause]
-    for match in _find(clause, listing):
-        covered[match.first:match.stop] = [True] * (match.stop - match.first)
+    _mark(covered, _find(clause, listing))
     return all(covered)
 
 
-class _ClauseReader:
-    """What a mention at a given position of one clause receives (SPEC §15.1, §15.2).
+def _attaches(units: Sequence[_Unit], match: _Match, lex: _Lexicons) -> bool:
+    """Is a verb entry in attaching position (DECISIONS D-34e)?"""
+    if match.text in lex.nouns:  # "exposure to Kafka", not "brand awareness campaigns"
+        return (match.stop < len(units) and units[match.stop].kind == _WORD_UNIT
+                and units[match.stop].word in lex.noun_followers)
+    if match.text in lex.position_bound:  # "Design APIs", "to design", not "design docs"
+        k = match.first
+        return k == 0 or (units[k - 1].kind == _WORD_UNIT and units[k - 1].word == "to")
+    return True
 
-    Matches are sorted once by nearness, so each lookup is a bisection plus a scan bounded by
-    the window: a long bullet costs O(n log n), never mentions × verbs.
+
+_NO_VERB = (VerbClass.NO_VERB, "")
+_AFFIRMED = (Polarity.AFFIRMED, "")
+
+
+class _ClauseReader:
+    """Verb and polarity lookups for the mentions of one clause (SPEC §15).
+
+    Matches are sorted once, so each lookup is a bisection plus a scan bounded by the window: a
+    long bullet costs O(n log n), never mentions × verbs.
     """
 
-    def __init__(
-        self, verbs: Sequence[_Match], negations: Sequence[_Match], aspirations: Sequence[_Match], window: int
-    ) -> None:
-        self._verbs = sorted(verbs, key=_reach)
-        self._verb_stops = [match.stop for match in self._verbs]
-        # _last_action[k]: index of the nearest non-instrument verb among the first k, else -1.
+    def __init__(self, units: Sequence[_Unit], lex: _Lexicons, window: int) -> None:
+        verbs = [match for match in _find(units, lex.verbs) if _attaches(units, match, lex)]
+        self.has_verbs = bool(verbs)
+        # Chain heads (D-34d): a verb right after another, or after only link words, takes the
+        # earlier verb's head.
+        heads: dict[tuple[int, int], tuple[VerbClass, str]] = {}
+        head_ending_at: dict[int, tuple[VerbClass, str]] = {}
+        for match in sorted(verbs, key=lambda m: (m.first, m.stop)):
+            j = match.first
+            head = head_ending_at.get(j)
+            while head is None and j > 0 and units[j - 1].kind == _WORD_UNIT and units[j - 1].word in CHAIN_LINKS:
+                j -= 1
+                head = head_ending_at.get(j)
+            own = (match.verb_class, match.text) if match.verb_class is not None else _NO_VERB
+            heads[(match.first, match.stop)] = head if head is not None else own
+            head_ending_at.setdefault(match.stop, heads[(match.first, match.stop)])
+        ordered = sorted(verbs, key=_reach)
+        self._verb_stops = [match.stop for match in ordered]
+        self._verb_heads = [heads[(match.first, match.stop)] for match in ordered]
+        # _last_action[k]: index of the nearest verb among the first k that does not defer.
         self._last_action = [-1]
-        for k, match in enumerate(self._verbs):
-            self._last_action.append(k if match.text not in INSTRUMENT_PARTICIPLES else self._last_action[-1])
-        self._terms: list[tuple[list[_Match], list[int], Polarity]] = []
-        for found, polarity in ((negations, Polarity.NEGATED), (aspirations, Polarity.ASPIRATIONAL)):
-            ordered = sorted(found, key=_reach)
-            self._terms.append((ordered, [match.stop for match in ordered], polarity))
+        for k, match in enumerate(ordered):
+            self._last_action.append(k if match.text not in lex.defer else self._last_action[-1])
+
+        negation = _negation_view(units)
+        excepted = [False] * len(units)
+        _mark(excepted, _find(negation, lex.exceptions))
+        hard = [
+            match for match in _find(negation, lex.hard)
+            if not any(excepted[k] or units[k].compound for k in range(match.first, match.stop))
+        ]
+        aspirations = _find(units, lex.aspirational)
+        # What a hard negation reaches across (D-34c): scope fillers, other mentions, aspiration
+        # terms, and a "yet" right after the term.
+        passable = [unit.kind == _MENTION_UNIT for unit in units]
+        _mark(passable, _find(units, lex.fillers))
+        _mark(passable, aspirations)
+        term_ends = {match.stop for match in hard}
+        for k, unit in enumerate(units):
+            if unit.kind == _WORD_UNIT and unit.word == "yet" and k in term_ends:
+                passable[k] = True
+        # _run_start[p]: where the run of passable units that ends at p begins.
+        self._run_start = [0]
+        for k, ok in enumerate(passable):
+            self._run_start.append(self._run_start[-1] if ok else k + 1)
+        self._hard = sorted(hard, key=_reach)
+        self._hard_stops = [match.stop for match in self._hard]
+        self._aspirations = sorted(aspirations, key=_reach)
+        self._aspiration_stops = [match.stop for match in self._aspirations]
         self._window = window
 
-    def attach(self, position: int) -> _Attachment:
-        """Units `[0, position)` of the clause precede the mention."""
-        verb_class, verb = VerbClass.NO_VERB, ""
+    def verb_at(self, position: int) -> Optional[tuple[VerbClass, str]]:
+        """The verb (head class, head text) of a mention at `position`; None when none attaches."""
         k = bisect_right(self._verb_stops, position)  # verbs ending before the mention
-        if k:
-            action = self._last_action[k]  # an instrument participle defers to an earlier verb
-            chosen = self._verbs[action if action >= 0 else k - 1]
-            if chosen.verb_class is not None:
-                verb_class, verb = chosen.verb_class, chosen.text
+        if not k:
+            return None
+        action = self._last_action[k]  # an instrument participle defers to an earlier verb
+        return self._verb_heads[action if action >= 0 else k - 1]
+
+    def polarity_at(self, position: int) -> Optional[tuple[Polarity, str]]:
+        """The polarity a mention at `position` takes from its own clause; None when no term
+        reaches it."""
+        k = bisect_right(self._hard_stops, position) - 1  # the nearest hard term before it
+        if k >= 0 and self._hard_stops[k] >= self._run_start[position]:
+            return Polarity.NEGATED, self._hard[k].text
         first = max(0, position - self._window)
-        for ordered, stops, polarity in self._terms:
-            # nearest first; a term ending at or before `first` cannot lie inside the window
-            j = bisect_right(stops, position) - 1
-            while j >= 0 and ordered[j].stop > first:
-                if ordered[j].first >= first:
-                    return _Attachment(verb_class, verb, polarity, ordered[j].text)
-                j -= 1
-        return _Attachment(verb_class, verb, Polarity.AFFIRMED, "")
+        j = bisect_right(self._aspiration_stops, position) - 1
+        while j >= 0 and self._aspirations[j].stop > first:  # nearest first, inside the window
+            if self._aspirations[j].first >= first:
+                return Polarity.ASPIRATIONAL, self._aspirations[j].text
+            j -= 1
+        return None
+
+
+class _Attachment(NamedTuple):
+    verb_class: VerbClass
+    verb: str
+    polarity: Polarity
+    trigger: str
+
+
+class _Handoff(NamedTuple):
+    """What a clause hands the next one: its verb, and its polarity when it holds a mention."""
+
+    verb: tuple[VerbClass, str]
+    polarity: Optional[tuple[Polarity, str]]
 
 
 def analyze_bullet(
@@ -323,32 +517,40 @@ def analyze_bullet(
                 f"mention {mention.canonical_id!r} [{mention.start}, {mention.end}) lies outside the "
                 f"bullet ({len(text)} characters)"
             )
-    components = _merge((mention.start, mention.end) for mention in mentions)
-    verbs = _lexicon(
-        (entry, verb_class) for verb_class, lexicon in config.verbs.classes.items() for entry in lexicon.verbs
-    )
-    hard = _lexicon((term, None) for term in config.negation.hard_negation.terms)
-    aspirational = _lexicon((term, None) for term in config.negation.aspirational.terms)
-    listing = _lexicon((word, None) for word in LIST_WORDS + ARTICLES)
+    lex = _lexicons(config)
     window = config.negation.window_tokens
     inherit = config.verbs.list_continuation_inherits_verb
+    components = _merge((mention.start, mention.end) for mention in mentions)
 
     attached: dict[int, _Attachment] = {}
-    carry: Optional[_Attachment] = None  # what the previous clause hands a list continuation
-    for clause in _clauses(text, components, config):
-        found = _find(clause, verbs)
-        if inherit and carry is not None and not found and _only_list_words(clause, listing):
-            for unit in clause:
-                if unit.kind == _MENTION_UNIT:
-                    attached[unit.component] = carry
-            continue
-        reader = _ClauseReader(found, _find(clause, hard), _find(clause, aspirational), window)
+    previous: Optional[_Handoff] = None
+    for clause in _clauses(text, components, lex, config):
+        reader = _ClauseReader(clause.units, lex, window)
+        inherits = (
+            inherit
+            and previous is not None
+            and not reader.has_verbs
+            and (
+                _only_list_words(clause.units, lex.listing)  # D-34a
+                or (bool(clause.after & LIST_CONJUNCTIONS) and not clause.after & SENTENCE_ENDS)  # D-34f
+            )
+        )
+        handed = None  # polarity from a mention of the previous clause (D-34b)
+        if inherits and previous is not None and not clause.after & POLARITY_BARRIERS:
+            handed = previous.polarity
         last: Optional[_Attachment] = None
-        for position, unit in enumerate(clause):
-            if unit.kind == _MENTION_UNIT:
-                last = attached[unit.component] = reader.attach(position)
-        # A clause without mentions still hands on what a mention at its end would receive.
-        carry = last if last is not None else reader.attach(len(clause))
+        for position, unit in enumerate(clause.units):
+            if unit.kind != _MENTION_UNIT:
+                continue
+            verb = previous.verb if inherits and previous is not None else reader.verb_at(position) or _NO_VERB
+            polarity = reader.polarity_at(position) or handed or _AFFIRMED
+            last = attached[unit.component] = _Attachment(verb[0], verb[1], polarity[0], polarity[1])
+        if last is not None:
+            previous = _Handoff((last.verb_class, last.verb), (last.polarity, last.trigger))
+        elif inherits and previous is not None:
+            previous = _Handoff(previous.verb, None)
+        else:
+            previous = _Handoff(reader.verb_at(len(clause.units)) or _NO_VERB, None)
 
     starts = [start for start, _ in components]
     result = []
@@ -377,11 +579,27 @@ _QTOKEN = re.compile(
     r"|(?P<word>[^\W\d_][^\W_]*(?:['\u2019.\-][^\W_]+)*)"
     r"|(?P<sym>[^\w\s])"
 )
-_MAGNITUDES = frozenset({"k", "K", "M", "B", "x"})  # glued to the number: 10k, 2M, 1.5B, 3x
+_MAGNITUDES = frozenset({"k", "K", "M", "B", "x", "X"})  # glued to the number: 10k, 2M, 1.5B, 3x
 _MULTIPLY = "\u00d7"  # the multiplication sign, as in "4×"
-_SENTENCE_ENDS = frozenset({".", "!", "?", ";"})
+_SCALE_WORDS = frozenset({"percent", "times", "thousand", "million", "billion", "trillion"})
 _NOUN_SCAN_STOPS = frozenset({".", "!", "?", ";", ",", ":"})
 _SENTENCE_OPENERS = frozenset({".", "!", "?", ";", ":", "*", "-", "\u2022", "\u2013", "\u2014"})
+# A lower-case word before a number opens a count, not a version, when it is a function word or
+# a verb form: "for 30 students", "built 12 dashboards", "to track 40 projects".
+_COUNT_OPENERS = frozenset({
+    "a", "about", "across", "almost", "among", "an", "and", "approx", "approximately", "around", "at",
+    "between", "by", "each", "every", "fewer", "first", "for", "from", "in", "into", "last", "least",
+    "less", "more", "most", "nearly", "next", "nor", "of", "on", "only", "or", "over", "past", "per",
+    "roughly", "some", "than", "the", "these", "those", "through", "to", "top", "under", "up", "with",
+    "within",
+})
+_IRREGULAR_PAST = frozenset({
+    "began", "brought", "built", "did", "drew", "drove", "fed", "flew", "fought", "found", "gave", "got",
+    "grew", "held", "hit", "kept", "knew", "led", "left", "lent", "made", "met", "oversaw", "paid", "put",
+    "ran", "read", "rebuilt", "rewrote", "rode", "rose", "said", "sat", "saw", "sent", "set", "shot",
+    "sold", "sought", "spent", "split", "spread", "stood", "struck", "taught", "thought", "threw",
+    "told", "took", "understood", "undertook", "upheld", "won", "wore", "wrote",
+})
 
 
 class _QToken(NamedTuple):
@@ -419,6 +637,11 @@ def _at_least_two(number: str) -> bool:
     return len(whole) > 1 or (whole != "" and whole >= "2")
 
 
+def _word(tokens: Sequence[_QToken], i: int) -> str:
+    """Token `i` lower-cased when it is a word; "" otherwise."""
+    return tokens[i].text.lower() if 0 <= i < len(tokens) and tokens[i].kind == "word" else ""
+
+
 def _currency_before(tokens: Sequence[_QToken], i: int, text: str) -> bool:
     if i == 0:
         return False
@@ -427,41 +650,61 @@ def _currency_before(tokens: Sequence[_QToken], i: int, text: str) -> bool:
 
 
 def _after_name(tokens: Sequence[_QToken], i: int, text: str) -> bool:
-    """Is number `i` a version right after a tech name ("React 18", "Java 8+")? It is when the
-    word just before it holds a capital and does not open the sentence: the opening word of a
-    bullet is its verb ("Managed 3 servers"), not a product name."""
+    """Is number `i` a version right after a tech name ("React 18", "react 18", "Java 8+")?
+
+    The word just before it, separated by spaces only, must not open the sentence (the first
+    word of a bullet is its verb: "Managed 3 servers"). A word holding a capital is a name; a
+    lower-case word is one unless it opens a count: a function word, a verb form (-ed, -ing,
+    -s, an irregular past, an outcome verb) or a word right after "to" ("to track 40 projects").
+    """
     if i < 2:
         return False
     name, opener = tokens[i - 1], tokens[i - 2]
     if name.kind != "word" or not text[name.end:tokens[i].start].isspace():
         return False
-    if not any(char.isupper() for char in name.text):
+    if opener.kind == "sym" and opener.text in _SENTENCE_OPENERS:
         return False
-    return not (opener.kind == "sym" and opener.text in _SENTENCE_OPENERS)
+    if any(char.isupper() for char in name.text):
+        return True
+    word = name.text.lower()
+    opens_count = (
+        word in _COUNT_OPENERS
+        or word in _IRREGULAR_PAST
+        or word in OUTCOME_VERBS
+        or word.endswith(("ed", "ing", "s"))
+        or _word(tokens, i - 2) == "to"
+    )
+    return not opens_count
 
 
-def _next_words(tokens: Sequence[_QToken], i: int, limit: int = 2) -> Iterator[str]:
-    """The next `limit` word or number tokens after token `i`, lower-cased. Symbols are skipped;
-    a clause mark ends the scan."""
-    seen = 0
-    for j in range(i + 1, len(tokens)):  # by index: slicing the rest would be quadratic
+def _next_words(tokens: Sequence[_QToken], i: int, text: str, limit: int = 2) -> Iterator[str]:
+    """The next `limit` word or number tokens after token `i`, lower-cased. Symbols are skipped,
+    a clause mark ends the scan, and a word with its number ("Grade 9", "Fortune 500") is one
+    token."""
+    seen, j = 0, i + 1
+    while j < len(tokens):
         token = tokens[j]
         if token.kind == "sym":
             if token.text in _NOUN_SCAN_STOPS:
                 return
+            j += 1
             continue
         yield token.text.lower()
         seen += 1
         if seen == limit:
             return
+        follower = tokens[j + 1] if j + 1 < len(tokens) else None
+        paired = (token.kind == "word" and follower is not None and follower.kind == "num"
+                  and not follower.tail and text[token.end:follower.start].isspace())
+        j += 2 if paired else 1
 
 
 def _is_quantity(tokens: Sequence[_QToken], i: int, text: str) -> bool:
     token = tokens[i]
     if _currency_before(tokens, i, text):  # $120K, €50k
         return True
-    if token.tail:  # 10k, 2M, 1.5B, 3x; not 120ms, 3D, 2nd
-        return token.tail in _MAGNITUDES
+    if token.tail:  # 10k, 2M, 1.5B, 3x, 10X, "1000s of"; not 120ms, 3D, 2nd, 1990s
+        return token.tail in _MAGNITUDES or (token.tail.lower() == "s" and _word(tokens, i + 1) == "of")
     following = tokens[i + 1] if i + 1 < len(tokens) else None
     if following is not None:
         gap = text[token.end:following.start]
@@ -472,11 +715,15 @@ def _is_quantity(tokens: Sequence[_QToken], i: int, text: str) -> bool:
                 return True
             if following.text == "+" and not gap:  # 500+, but not "Java 8+"
                 return not _after_name(tokens, i, text)
-        elif following.kind == "word" and following.text.lower() in ("percent", "times"):
-            return True
-    if _after_name(tokens, i, text) or not _at_least_two(token.text):
+        elif following.kind == "word" and following.text.lower() in _SCALE_WORDS:
+            return True  # 30 percent, 3 times, 2 million
+    if not _at_least_two(token.text):
         return False
-    for distance, word in enumerate(_next_words(tokens, i), start=1):
+    if _word(tokens, i - 1) == "of" and _word(tokens, i - 2) in ("team", "teams"):
+        return True  # "a team of 4"
+    if _after_name(tokens, i, text):
+        return False
+    for distance, word in enumerate(_next_words(tokens, i, text), start=1):
         if word in COUNTING_NOUNS:
             # a year is "on its own" unless the noun follows it directly ("2000 employees")
             return distance == 1 or not _is_year(token)
@@ -499,15 +746,17 @@ def is_quantified(text: str) -> bool:
     """Does the bullet state a quantified outcome (ROLE_BULLET_QUANTIFIED)?
 
     True for a number followed by "%" / "percent", preceded by a currency sign, followed by
-    k/K/M/B/x/×/+ or "times"; a number ≥ 2 followed within two tokens by a counting noun; or a
-    number after "by"/"to" following an outcome verb in the same sentence. Never for a year on
-    its own or a version right after a tech name ("React 18", "Python 3", "ES6").
+    k/K/M/B/x/X/×/+ or by "times" / "thousand" / "million" / "billion"; "1000s of"; "team of N"
+    (N ≥ 2); a number ≥ 2 followed within two tokens by a counting noun ("15 Grade 9 students":
+    a name with its number is one token); or a number after "by"/"to" following an outcome verb
+    in the same sentence. Never for a year on its own or a version right after a tech name
+    ("React 18", "react 18", "Python 3", "ES6").
     """
     tokens = _qtokens(text)
     after_outcome_verb = False
     for i, token in enumerate(tokens):
         if token.kind == "sym":
-            if token.text in _SENTENCE_ENDS:
+            if token.text in SENTENCE_ENDS:
                 after_outcome_verb = False
         elif token.kind == "word":
             word = token.text.lower()

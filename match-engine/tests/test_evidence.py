@@ -35,7 +35,9 @@ from matcher.score.evidence import (
 from matcher.score.numeric import clamp01, finite
 
 FIXTURE = Path(__file__).parent / "fixtures" / "bullets.yaml"
-BULLETS: list[dict] = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))["bullets"]
+_FIXTURE_DATA = yaml.safe_load(FIXTURE.read_text(encoding="utf-8"))
+BULLETS: list[dict] = _FIXTURE_DATA["bullets"]  # the SPEC §15.2 set: exactly 100
+PROBES: list[dict] = _FIXTURE_DATA["probes"]  # review round 1 regressions (DECISIONS D-34b..D-34f)
 LEXICON = load_config()  # read at collection time to parametrise over every configured entry
 
 # SPEC §15.1 / §15.2 / §5.1, written out rather than read from config.
@@ -91,8 +93,9 @@ def _replace(config: EngineConfig, **sections) -> EngineConfig:
 
 def test_fixture_holds_100_bullets_labelled_with_spec_arithmetic() -> None:
     assert len(BULLETS) == 100
-    assert len({b["text"] for b in BULLETS}) == 100
-    for bullet in BULLETS:
+    texts = [b["text"] for b in BULLETS + PROBES]
+    assert len(set(texts)) == len(texts)
+    for bullet in BULLETS + PROBES:
         assert isinstance(bullet["quantified"], bool) and bullet["mentions"]
         for label in bullet["mentions"]:
             verb_class, polarity = VerbClass(label["verb_class"]), Polarity(label["polarity"])
@@ -121,7 +124,11 @@ def test_fixture_covers_classes_forms_polarities_and_terms(config) -> None:
     assert any(len(b["mentions"]) >= 3 for b in BULLETS)
 
 
-@pytest.mark.parametrize("bullet", BULLETS, ids=[f"b{i:03d}" for i in range(1, len(BULLETS) + 1)])
+@pytest.mark.parametrize(
+    "bullet",
+    BULLETS + PROBES,
+    ids=[f"b{i:03d}" for i in range(1, len(BULLETS) + 1)] + [f"p{i:02d}" for i in range(1, len(PROBES) + 1)],
+)
 def test_bullet(bullet: dict, config) -> None:
     text = bullet["text"]
     mentions = [_mention(text, m["surface"], m.get("occurrence", 1)) for m in bullet["mentions"]]
@@ -148,11 +155,40 @@ _VERB_ENTRIES = [(cls, entry) for cls, cfg in LEXICON.verbs.classes.items() for 
 
 @pytest.mark.parametrize("verb_class,entry", _VERB_ENTRIES, ids=[e for _, e in _VERB_ENTRIES])
 def test_every_lexicon_entry_attaches_its_class(verb_class: VerbClass, entry: str, config) -> None:
+    # Clause-initial and followed by "with": every form and noun entry is in attaching position.
     for written in (entry, entry.capitalize(), entry.upper()):
-        ev = _one(f"{written} Python", "Python", config)
+        ev = _one(f"{written} with Python", "Python", config)
         assert ev.verb_class is verb_class, written
         assert ev.verb == " ".join(entry.lower().split())
         assert ev.polarity is Polarity.AFFIRMED
+
+
+@pytest.mark.parametrize("form,verb_class", [
+    ("design", VerbClass.OWNERSHIP), ("designs", VerbClass.OWNERSHIP), ("lead", VerbClass.OWNERSHIP),
+    ("drive", VerbClass.OWNERSHIP), ("engineers", VerbClass.EXECUTION), ("scale", VerbClass.EXECUTION),
+    ("work", VerbClass.PARTICIPATION), ("use", VerbClass.PARTICIPATION), ("support", VerbClass.ASSISTANCE),
+    ("helps", VerbClass.ASSISTANCE),
+])
+def test_base_and_third_person_forms_attach_only_in_verb_position(form: str, verb_class: VerbClass,
+                                                                   config) -> None:
+    # DECISIONS D-34e: mid-clause they are nouns ("design docs", "support tickets", "5 engineers")
+    assert _one(f"Wrote {form} notes in Go", "Go", config).verb_class is VerbClass.NO_VERB
+    assert _one(f"Learned to {form} in Go", "Go", config).verb_class is verb_class  # right after "to"
+    assert _one(f"{form.capitalize()} reports in Go", "Go", config).verb_class is verb_class  # first word
+    # past and -ing forms attach anywhere
+    assert _one("Wrote notes on tools designed in Go", "Go", config).verb_class is VerbClass.OWNERSHIP
+    assert _one("Wrote notes while designing tools in Go", "Go", config).verb_class is VerbClass.OWNERSHIP
+
+
+def test_noun_entries_attach_only_before_of_to_with_in(config) -> None:
+    assert _one("Gained exposure to Kafka", "Kafka", config).verb_class is VerbClass.EXPOSURE
+    assert _one("Ran exposure campaigns with Kafka", "Kafka", config).verb_class is VerbClass.NO_VERB
+    assert _one("Grew brand awareness of Canva", "Canva", config).verb_class is VerbClass.EXPOSURE
+
+
+def test_hyphen_splitting_keeps_prefixed_verbs(config) -> None:
+    ev = _one("Co-led a Flutter workshop", "Flutter", config)
+    assert (ev.verb_class, ev.verb) == (VerbClass.OWNERSHIP, "led")
 
 
 _TERMS = [(Polarity.NEGATED, t) for t in LEXICON.negation.hard_negation.terms] + [
@@ -168,8 +204,30 @@ def test_every_negation_term_fires(polarity: Polarity, term: str, config) -> Non
 
 
 def test_hard_negation_beats_aspiration_in_one_window(config) -> None:
+    # The aspiration term sits inside the negation's scope (DECISIONS D-34c).
     ev = _one("Not interested in Java", "Java", config)
     assert (ev.polarity, ev.trigger) == (Polarity.NEGATED, "not")
+
+
+def test_contractions_count_as_not(config) -> None:
+    for text in ("Haven't worked with Docker", "Don\u2019t have experience with Docker", "Didn't use Docker"):
+        ev = _one(text, "Docker", config)
+        assert (ev.polarity, ev.trigger) == (Polarity.NEGATED, "not"), text
+
+
+def test_polarity_stops_at_sentence_ends_and_but_yet(config) -> None:
+    # DECISIONS D-34b: the list still takes the verb class, never the negation, across ; and yet
+    for text in ("Not familiar with Docker; Kubernetes", "Not familiar with Docker, yet Kubernetes"):
+        docker, kubernetes = analyze_bullet(text, [_mention(text, "Docker"), _mention(text, "Kubernetes")], config)
+        assert docker.polarity is Polarity.NEGATED, text
+        assert (kubernetes.verb_class, kubernetes.polarity) == (VerbClass.EXPOSURE, Polarity.AFFIRMED), text
+
+
+def test_after_punctuation_only_a_pure_list_inherits(config) -> None:
+    # DECISIONS D-34f: and/or/nor hand on the verb class whatever follows; a comma does not
+    assert _one("Built dashboards, reports in Tableau", "Tableau", config).verb_class is VerbClass.NO_VERB
+    assert _one("Built dashboards or reports in Tableau", "Tableau", config).verb_class is VerbClass.OWNERSHIP
+    assert _one("Built dashboards. And reports in Tableau", "Tableau", config).verb_class is VerbClass.NO_VERB
 
 
 def test_a_new_verb_in_config_attaches(config) -> None:
@@ -183,10 +241,26 @@ def test_a_new_verb_in_config_attaches(config) -> None:
 
 
 def test_window_size_comes_from_config(config) -> None:
-    text = "Never deployed services to production on Kubernetes"
-    assert _one(text, "Kubernetes", config).polarity is Polarity.NEGATED
+    text = "Looking to grow my skills in Rust"  # "Looking to" ends 5 tokens before "Rust"
+    assert _one(text, "Rust", config).polarity is Polarity.ASPIRATIONAL
     narrow = _replace(config, negation=config.negation.model_copy(update={"window_tokens": 3}))
-    assert _one(text, "Kubernetes", narrow).polarity is Polarity.AFFIRMED
+    assert _one(text, "Rust", narrow).polarity is Polarity.AFFIRMED
+
+
+def test_scope_fillers_and_exceptions_come_from_config(config) -> None:
+    hard = config.negation.hard_negation
+
+    def with_hard(**changes) -> EngineConfig:
+        return _replace(config, negation=config.negation.model_copy(
+            update={"hard_negation": hard.model_copy(update=changes)}))
+
+    assert _one("No formal Java training", "Java", config).polarity is Polarity.NEGATED
+    assert _one("No formal training in Java", "Java", config).polarity is Polarity.AFFIRMED  # "training"
+    wider = with_hard(scope_fillers=(*hard.scope_fillers, "training"))
+    assert _one("No formal training in Java", "Java", wider).polarity is Polarity.NEGATED
+    assert _one("Not only shipped features in Java", "Java", config).polarity is Polarity.AFFIRMED
+    assert _one("Not Java", "Java", config).polarity is Polarity.NEGATED
+    assert _one("Not Java", "Java", with_hard(exceptions=("not",))).polarity is Polarity.AFFIRMED
 
 
 def test_clause_punctuation_comes_from_config(config) -> None:
@@ -210,11 +284,14 @@ def test_list_continuation_can_be_switched_off(config) -> None:
 # ─── Clause, verb and window rules, one at a time ───────────────────────────────────────
 
 
-def test_period_is_a_boundary_but_not_inside_a_word(config) -> None:
+def test_period_is_a_boundary_but_not_inside_a_word_or_after_an_abbreviation(config) -> None:
     assert _one("Led sprint planning. Tested releases with Cypress", "Cypress", config).verb_class is (
         VerbClass.NO_VERB)
     assert _one("Built a Vue.js admin for the Laravel API", "Laravel", config).verb_class is VerbClass.OWNERSHIP
     assert _one("Built version 2.5 of the Laravel API", "Laravel", config).verb_class is VerbClass.OWNERSHIP
+    for text in ("Built tools for the U.K. office in Go", "Built tools at Acme Corp. in Go",
+                 "Built tools (i.e. CLIs) in Go", "Built tools (e.g. CLIs) in Go"):
+        assert _one(text, "Go", config).verb_class is VerbClass.OWNERSHIP, text
 
 
 def test_conjunctions_split_in_any_case_and_only_as_whole_words(config) -> None:
@@ -227,16 +304,16 @@ def test_conjunctions_split_in_any_case_and_only_as_whole_words(config) -> None:
 
 def test_a_phrase_must_lie_wholly_inside_the_window(config) -> None:
     # "Hope" is the 7th token before "Vercel" and "to" the 6th: the phrase is not in the window.
-    ev = _one("Hope to soon deploy production apps on Vercel", "Vercel", config)
-    assert (ev.verb_class, ev.polarity) == (VerbClass.EXECUTION, Polarity.AFFIRMED)
+    assert _one("Hope to soon have deployed apps on Vercel", "Vercel", config).polarity is Polarity.AFFIRMED
+    assert _one("Hope to have deployed apps on Vercel", "Vercel", config).polarity is Polarity.ASPIRATIONAL
 
 
 def test_another_mention_counts_as_one_window_token(config) -> None:
-    # One clause. Before "Go": Never(6) used(5) [Amazon Web Services](4) alongside(3) Docker(2)
-    # in(1). Counted word by word, "Never" would be the 8th token and outside the window.
-    text = "Never used Amazon Web Services alongside Docker in Go"
-    got = analyze_bullet(text, [_mention(text, s) for s in ("Amazon Web Services", "Docker", "Go")], config)
-    assert [e.polarity for e in got] == [Polarity.NEGATED] * 3
+    # Before "Go": Hope(5) to(4) use(3) [Amazon Web Services](2) with(1). Counted word by word,
+    # "Hope" would be the 7th token and the phrase would leave the window.
+    text = "Hope to use Amazon Web Services with Go"
+    got = analyze_bullet(text, [_mention(text, s) for s in ("Amazon Web Services", "Go")], config)
+    assert [e.polarity for e in got] == [Polarity.ASPIRATIONAL] * 2
 
 
 def test_words_inside_a_mention_are_never_verbs(config) -> None:
@@ -302,28 +379,41 @@ def test_bullet_mention_validates_its_span(fields: dict) -> None:
         BulletMention(**fields)
 
 
+@pytest.mark.slow
 @pytest.mark.parametrize("unit,verb_class,polarity", [
     ("built Go ", VerbClass.OWNERSHIP, Polarity.AFFIRMED),  # one clause: 20,000 verbs, 20,000 mentions
-    ("never Go ", VerbClass.NO_VERB, Polarity.NEGATED),  # a negation in every window
+    ("never Go ", VerbClass.NO_VERB, Polarity.NEGATED),  # a negation before every mention
     ("Go, ", VerbClass.NO_VERB, Polarity.AFFIRMED),  # 20,000 list-continuation clauses
 ])
 def test_long_bullets_take_linear_time(unit: str, verb_class: VerbClass, polarity: Polarity, config) -> None:
-    # Matching every mention against every verb took ~7 s at 8,000 mentions; linear is well under 1 s.
+    # ~0.5 s linear; matching every mention against every verb took ~42 s at this size. The bound
+    # leaves 40x headroom for a loaded runner.
     n, offset = 20_000, unit.index("Go")
     mentions = [BulletMention(canonical_id="go", start=i * len(unit) + offset, end=i * len(unit) + offset + 2)
                 for i in range(n)]
     started = time.perf_counter()
     got = analyze_bullet(unit * n, mentions, config)
-    assert time.perf_counter() - started < 5.0
+    assert time.perf_counter() - started < 20.0
     assert len(got) == n and {(e.verb_class, e.polarity) for e in got} == {(verb_class, polarity)}
 
 
+@pytest.mark.slow
 def test_long_text_is_quantified_in_linear_time() -> None:
-    text = "2 " * 100_000
+    # ~2 s linear; re-slicing the rest of the tokens per number took ~50 s at this size.
+    text = "2 " * 200_000
     started = time.perf_counter()
     assert is_quantified(text) is False
-    assert time.perf_counter() - started < 6.0  # ~1 s linear; re-slicing the rest per number took ~13 s
+    assert time.perf_counter() - started < 25.0
     assert is_quantified(text + "2 users") is True
+
+
+def test_lexicons_are_built_once_per_config(config) -> None:
+    import matcher.score.evidence as evidence
+
+    assert evidence._lexicons(config) is evidence._lexicons(config)
+    data = config.verbs.model_dump()
+    data["classes"][VerbClass.EXECUTION]["verbs"] = (*data["classes"][VerbClass.EXECUTION]["verbs"], "shipped")
+    assert evidence._lexicons(_replace(config, verbs=VerbsConfig(**data))) is not evidence._lexicons(config)
 
 
 def test_analysis_is_deterministic(config) -> None:
@@ -347,7 +437,7 @@ def test_analysis_is_deterministic(config) -> None:
     "Processed 2.5M records nightly",
     "Indexed 1.2B rows",
     "Made queries 3x faster",
-    "Made queries 3× faster",
+    "Made queries 3\u00d7 faster",
     "Ran the suite 4 times a day",
     "Served 500+ customers",
     "Onboarded 25 users",
@@ -363,6 +453,16 @@ def test_analysis_is_deterministic(config) -> None:
     "Grew followers to 2,500",
     "Scaled 10-15 services",
     "Built a tool. Saved 10 hours a week",
+    "Made builds 10X faster",
+    "Served 1000s of users",
+    "Served 1,000s of users",
+    "Reached 3 million readers",
+    "Indexed 2 billion pages",
+    "Answered 5 thousand questions",
+    "Led a team of 4",
+    "Tutored 15 Grade 9 students",
+    "Supported 40 Fortune 500 clients",
+    "Deployed to 300 Windows 10 machines",
 ])
 def test_quantified(text: str) -> None:
     assert is_quantified(text) is True
@@ -386,6 +486,11 @@ def test_quantified(text: str) -> None:
     "Reduced costs significantly",
     "Built apps for Windows 10 users",
     "Worked 24/7 support shifts",
+    "Shipped react 18 apps",
+    "Built services in java 8+",
+    "Upgraded python 3 services",
+    "Grew up in the 1990s",
+    "Worked in a team of 1",
     "",
 ])
 def test_not_quantified(text: str) -> None:
@@ -471,12 +576,28 @@ def test_finite_and_clamp01() -> None:
 _ALLOWED_MATCHER = ("matcher.models", "matcher.errors", "matcher.config", "matcher.graph", "matcher.score")
 _IMPURE_STDLIB = {"os", "io", "pathlib", "shutil", "tempfile", "glob", "socket", "subprocess", "urllib",
                   "http", "time", "random", "secrets", "sqlite3"}
+_CLOCK_METHODS = {"today", "now", "utcnow"}  # date.today(), datetime.now(), datetime.utcnow()
+_IO_BUILTINS = {"open", "input", "print"}
+
+
+def _impure_call(node: ast.Call) -> bool:
+    func = node.func
+    if isinstance(func, ast.Name):
+        return func.id in _IO_BUILTINS
+    if isinstance(func, ast.Attribute):
+        if func.attr in _CLOCK_METHODS:
+            return True
+        return isinstance(func.value, ast.Name) and func.value.id in {"time", "random"}  # time.time(), ...
+    return False
 
 
 def test_score_package_imports_only_pure_modules() -> None:
     root = Path(matcher.score.__file__).parent
     for path in sorted(root.rglob("*.py")):
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            if isinstance(node, ast.Call):
+                assert not _impure_call(node), f"{path.name}:{node.lineno} reads the clock or does I/O"
+                continue
             if isinstance(node, ast.Import):
                 names = [alias.name for alias in node.names]
             elif isinstance(node, ast.ImportFrom) and node.level == 0:
@@ -490,3 +611,13 @@ def test_score_package_imports_only_pure_modules() -> None:
                 else:
                     assert top == "pydantic" or top in sys.stdlib_module_names, f"{path.name} imports {name}"
                     assert top not in _IMPURE_STDLIB, f"{path.name} imports {name}"
+
+
+@pytest.mark.parametrize("snippet,impure", [
+    ("date.today()", True), ("dt.datetime.now()", True), ("datetime.utcnow()", True), ("time.time()", True),
+    ("open('x')", True), ("random.random()", True), ("print(1)", True),
+    ("math.exp(1)", False), ("value.end()", False),
+])
+def test_purity_guard_catches_clock_and_io(snippet: str, impure: bool) -> None:
+    call = ast.parse(snippet, mode="eval").body
+    assert isinstance(call, ast.Call) and _impure_call(call) is impure

@@ -138,6 +138,31 @@ def test_negation_matches_spec(config) -> None:
             "studying", "hope to", "want to"} <= set(n.aspirational.terms)
 
 
+def test_evidence_grammar_config(config) -> None:
+    # DECISIONS D-34c, D-34d, D-34e
+    v, hard = config.verbs, config.negation.hard_negation
+    assert v.defer_to_earlier == ("using", "utilizing", "utilising", "leveraging")
+    assert v.noun_entries == ("exposure", "familiarity", "awareness")
+    assert set(v.noun_entry_followers) == {"of", "to", "with", "in"}
+    ruled = {"experience", "knowledge", "prior", "previous", "professional", "formal", "hands-on",
+             "working", "real-world", "familiarity", "exposure", "background", "expertise", "skills",
+             "proficiency", "familiar", "proficient", "experienced", "comfortable", "skilled", "used",
+             "worked", "using", "with", "in", "of", "on", "at", "to", "any", "the", "a", "an"}
+    assert ruled <= set(hard.scope_fillers)
+    assert all(isinstance(f, str) for f in hard.scope_fillers)  # YAML must not turn "on" into True
+    assert hard.exceptions == ("not only",)
+
+
+def test_noun_entries_must_be_lexicon_entries(tmp_path: Path) -> None:
+    root = _copy_config(tmp_path)
+    path = root / "verbs.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["noun_entries"].append("synergy")
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    with pytest.raises(ConfigError, match="synergy"):
+        load_config(root)
+
+
 def test_scoring_constants_match_spec(config) -> None:
     s = config.scoring
     assert (s.evidence.SKILLS_BLOB, s.evidence.ROLE_BULLET, s.evidence.ROLE_BULLET_QUANTIFIED,
