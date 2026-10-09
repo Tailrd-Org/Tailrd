@@ -1303,6 +1303,9 @@ def extract_scope(bullets: Sequence[str]) -> ScopeFeatures
    → IC3; staff, L6 → IC4; principal, L7, L8 → IC5; distinguished, fellow → IC6; "tech lead", "lead
    engineer/developer" → IC4; "team lead", "lead" alone, supervisor → M1; manager → M2; senior
    manager → M3; director, head of → M4; VP, vice president → M5; chief/CxO, president → M6.
+   Student jobs are IC0 too (from Task 3.3's review: an unlevelled current role makes seniority
+   abstain): teaching assistant, TA, research assistant, RA, lab assistant, tutor, camp
+   counsellor, student ambassador, peer mentor, residence/don, work-study.
    No modifier → `meta_level` (posting metadata: internship → IC0, new_grad → IC1) or None.
 3. `classify_industry`: curated company → NAICS table first (normalised names; include the ~100
    employers most frequent in Tailrd's catalogue and well-known Canadian/US employers), then
