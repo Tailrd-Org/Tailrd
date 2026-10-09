@@ -434,6 +434,15 @@ Modify: `pyproject.toml` eval extra — add `pg8000==1.31.2` (already installed 
 6. SOURCES.md gains a "Corpus statistics" section: source (Tailrd scraped postings, Development
    branch), N, date range, extraction method; and the one-line command to recompute against any
    database (`--env-file`).
+7. Fuzzy precision (from Task 2.2: 381 of the 3,000 most common 6+-letter words in the corpus
+   fuzzy-resolve to unrelated nodes, e.g. "patients" → patents, "salary" → SOLAR-2). A typo is
+   rare in the corpus; a real word is frequent. Write `data/taxonomy/common_words.json`
+   (`{"format":1,"words":[...]}`, hash-pinned in MANIFEST): every normalised single token with
+   document frequency ≥ 20 in the corpus that does NOT itself resolve exactly. Modify
+   `normalize/resolver.py` so `resolve()` never fuzzy-matches a query found in that set
+   (`load_resolver` passes it in; the Resolver works without it), and restore the 2.2 gate line
+   "salary → NONE" plus lines for "patients", "services", "analysis" style words. Add a test that
+   none of the 3,000 most frequent such words fuzzy-resolves.
 
 **Tests:** on `corpus_mini.jsonl`: df/co-df counts equal hand counts for three named skills and
 one pair; idf/pmi outputs deterministic under shuffled input; ancestor pairs excluded; curated
