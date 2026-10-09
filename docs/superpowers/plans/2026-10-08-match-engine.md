@@ -1447,7 +1447,12 @@ def parse_posting(title: str, description: str, *, meta: PostingMeta, as_of: dat
 6. Gates: "must be legally authorized to work in <country>", "no sponsorship", "unable to
    sponsor", "citizenship required", "Canadian citizen or permanent resident" → `WorkAuthGate`;
    "Secret/Top Secret clearance required", "active clearance" (active_required) vs "able to obtain"
-   → `ClearanceGate`; `meta.work_type == "onsite"` with locations → `LocationGate`.
+   → `ClearanceGate`; `meta.work_type == "onsite"` with locations → `LocationGate`. From the Task
+   3.4 review (DECISIONS D-61, D-63): a citizenship requirement ALWAYS sets `WorkAuthGate.countries`
+   (the country named, else the posting's country; a country-less citizenship gate would read the
+   posting location as the required citizenship); clearance levels are emitted as `<CC>_<LEVEL>`
+   tokens from `config.gates.security_clearance.ladders` (a bare "Secret", "Top Secret", "TS/SCI",
+   "Reliability" takes the posting's country), never as raw text, or the ladder cannot match them.
 7. Seniority = `title_seniority(title, meta_level=meta.experience_level)`; `is_internship` from
    meta/title; `job_family` = meta.job_family or the titles index family; `industry_codes` =
    `classify_industry(meta.company, meta.company_description)`; `remote_policy` from work_type.
@@ -1666,6 +1671,10 @@ Test `backend/tests/test_fit_engine_adapter.py`.
    experience/education/projects/skills content, else `raw_text`; work authorisation and location
    from the user's saved answers/settings (find where `needs_sponsorship` and the location live;
    unknown stays None).
+   Use `backend/services/profile_facts.py` (Task 9.1a, the Python port of the extension's
+   profileFacts.ts) for the facts; never treat a bare `settings.location` equal to the default
+   "United States" as residence (ledger ruling); map the "Security clearance" answer "Active
+   clearance" to `config.gates.security_clearance.unknown_level_token`, never a literal.
 3. `posting_for_job(job) -> JobPosting` per D-84: cached in `scraped_jobs.match_terms` as
    `{"v": "<engine posting-parser version>", "dl": <len(description)>, "posting": <canonical JSON>}`,
    recomputed when `v` differs or `dl` differs from `length(description)` selected in SQL (the
