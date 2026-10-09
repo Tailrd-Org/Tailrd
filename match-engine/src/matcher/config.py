@@ -139,6 +139,13 @@ class VerbsConfig(Frozen):
     clause_punctuation: tuple[str, ...]
     coordinating_conjunctions: tuple[str, ...]
     list_continuation_inherits_verb: bool = True
+    # Instrument participles that defer to an earlier verb of their clause (DECISIONS D-34d).
+    defer_to_earlier: tuple[str, ...]
+    # Entries that are nouns: they attach only when one of the followers comes next (D-34e).
+    noun_entries: tuple[str, ...]
+    noun_entry_followers: tuple[str, ...]
+    # Lower-case product names whose following number is a version, not a quantity ("react 18").
+    version_names: tuple[str, ...]
 
     @model_validator(mode="after")
     def _valid(self) -> "VerbsConfig":
@@ -154,6 +161,9 @@ class VerbsConfig(Frozen):
                 if key in seen and seen[key] is not cls:
                     raise ValueError(f"verb '{verb}' is in both {seen[key].value} and {cls.value}")
                 seen[key] = cls
+        for noun in self.noun_entries:
+            if noun.strip().lower() not in seen:
+                raise ValueError(f"noun entry '{noun}' is not a verb-class entry")
         return self
 
     def multiplier(self, verb_class: VerbClass) -> float:
@@ -167,9 +177,17 @@ class NegationRule(Frozen):
     terms: tuple[str, ...]
 
 
+class HardNegationRule(NegationRule):
+    """Hard negation reaches a skill only across `scope_fillers`; an `exceptions` phrase ("not
+    only") never negates (DECISIONS D-34c)."""
+
+    scope_fillers: tuple[str, ...]
+    exceptions: tuple[str, ...] = ()
+
+
 class NegationConfig(Frozen):
-    window_tokens: int = Field(ge=1, le=20)
-    hard_negation: NegationRule
+    window_tokens: int = Field(ge=1, le=20)  # the aspiration window (DECISIONS D-34c)
+    hard_negation: HardNegationRule
     aspirational: NegationRule
 
 

@@ -36,7 +36,8 @@ classes:
             participated, participate, participates, participating,
             worked, work, works, working,
             used, use, uses, using,
-            utilized, utilised, utilize, utilise, utilizes, utilises, utilizing, utilising]
+            utilized, utilised, utilize, utilise, utilizes, utilises, utilizing, utilising,
+            leveraged, leverage, leverages, leveraging]
   ASSISTANCE:
     multiplier: 0.45
     verbs: [assisted, assist, assists, assisting,
@@ -59,9 +60,35 @@ quantified_cap: 1.00
 # Clause boundaries (SPEC §15.1): punctuation plus coordinating conjunctions. "for" is left out
 # on purpose: in résumé bullets it is a preposition ("built dashboards for the sales team using
 # Tableau"), and splitting there would detach the tool from its verb (DECISIONS D-34a).
-clause_punctuation: [".", ";", ","]
+# "!" and "?" end sentences, so negation and aspiration stop at them too (DECISIONS D-34b).
+clause_punctuation: [".", ";", ",", "!", "?"]
 coordinating_conjunctions: [and, but, or, nor, yet, so]
 
 # A clause holding only skill mentions and list words ("React, Redux and D3") continues the
-# previous clause's list and inherits its verb (DECISIONS D-34a).
+# previous clause's list and inherits its verb (DECISIONS D-34a); so does any verbless clause
+# after and/or/nor, for the verb class only (D-34f). Polarity follows only from a mention, into a
+# pure list (D-34b).
 list_continuation_inherits_verb: true
+
+# Instrument participles defer to an earlier verb of their clause: in "Built dashboards using
+# React" the action is "built". They attach only when no other verb precedes (DECISIONS D-34d).
+# The leverage family behaves like "using".
+defer_to_earlier: [using, utilizing, utilising, leverage, leverages, leveraged, leveraging]
+
+# Entries that are nouns attach only when one of these words follows ("exposure to Kafka", not
+# "brand awareness campaigns"). Base and third-person forms (design, support, engineers: a form
+# whose -s/-es sibling is listed above, or that sibling) attach only as the first word of a
+# clause or right after "to"; past and -ing forms attach anywhere (DECISIONS D-34e).
+noun_entries: [exposure, familiarity, awareness]
+noun_entry_followers: [of, to, with, in]
+
+# Lower-case product names: a number right after one is a version, not a quantity ("react 18
+# apps", "java 8+"); after any other lower-case word it is a count ("maintain 12 microservices").
+# A capitalised word before a number is always read as a name ("React 18"). "go" is left out: in
+# lower case it is an ordinary verb.
+version_names: [react, vue, angular, svelte, nuxt, node, python, java, php, ruby, rails, perl,
+                django, flask, laravel, spring, hibernate, rust, swift, kotlin, scala, dotnet, net,
+                ios, android, windows, linux, macos, ubuntu, debian, centos, postgres, postgresql,
+                mysql, mongo, mongodb, redis, kafka, spark, hadoop, elasticsearch, tensorflow,
+                pytorch, docker, kubernetes, terraform, es, ecmascript, html, css, bootstrap, jquery,
+                unity, unreal, sql, excel, office]

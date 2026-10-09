@@ -1,0 +1,791 @@
+# 100 hand-written résumé bullets with labelled skill mentions (SPEC §15.2: "Test both against a
+# fixture file of 100 hand-written bullets with labeled expected multipliers").
+#
+# Labels come from SPEC §15 and DECISIONS D-32, D-33, D-34a..D-34f, never from the implementation:
+#   clauses   split at . ; , and the whole words and/but/or/nor/yet/so (any case); "for" never
+#             splits; punctuation inside a word or number (Node.js, 3.5, 1,000), the period of an
+#             abbreviation (U.S., e.g., Inc.), "yet" right after a negation and anything inside a
+#             mention span ("Research and Development") are not boundaries.
+#   verb      the nearest verbs.yaml entry that ends before the mention inside its clause;
+#             words inside a mention are skill names, not verbs; base and third-person forms
+#             (design, support, engineers) count only as the clause's first word or after "to",
+#             noun entries (exposure, ...) only before of/to/with/in (D-34e); a verb chained to an
+#             earlier one by nothing or to/in/with/on takes the head's class ("Helped to build"
+#             -> helped, D-34d); "using"/"utilizing"/... defer to an earlier verb of the clause.
+#   inherit   a clause with no verb continues the previous clause when it holds only mentions,
+#             list words (and, or, &, as well as, plus, including, with), articles and
+#             punctuation (D-34a), or follows and/or/nor (D-34f): it takes the previous clause's
+#             verb class, and its polarity only from a mention there, never across . ; ! ? or
+#             but/yet (D-34b). Otherwise NO_VERB.
+#   polarity  hard negation reaches a mention only across scope fillers (experience, with,
+#             used, ...), other mentions or aspiration terms (D-34c); "not only" and hyphenated
+#             compounds ("no-code") never negate; "n't" is "not". Aspiration: the 6 tokens before
+#             the mention inside its clause (a mention is one token, punctuation none), a
+#             multi-word term only whole inside the window. Hard negation wins.
+#   quantified  is_quantified(text) (the ROLE_BULLET_QUANTIFIED test, bullet level).
+#   multiplier  closed form: E = verb multiplier (OWNERSHIP 1.00, EXECUTION 0.85, PARTICIPATION
+#             0.65, ASSISTANCE 0.45, EXPOSURE 0.30, NO_VERB 0.70); quantified -> min(1.0, E x
+#             1.15); NEGATED -> 0.0; ASPIRATIONAL -> min(E, 0.15).
+#
+# Each mention's `surface` is located in `text` by the test (whole-word match; `occurrence`,
+# 1-based, when it repeats). Strings are quoted: YAML 1.1 reads a bare `no` as false.
+
+bullets:
+  # --- OWNERSHIP: every inflection of "architect", then other lemmas -------------------------
+  - text: "Architected a payments platform in Go"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "architected", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Architect event-driven pipelines with Kafka"
+    quantified: false
+    mentions:
+      - {surface: "Kafka", verb_class: OWNERSHIP, verb: "architect", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Architects data models in PostgreSQL"
+    quantified: false
+    mentions:
+      - {surface: "PostgreSQL", verb_class: OWNERSHIP, verb: "architects", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Architecting a multi-tenant SaaS platform on AWS"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: OWNERSHIP, verb: "architecting", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Designed the onboarding flow in Figma"
+    quantified: false
+    mentions:
+      - {surface: "Figma", verb_class: OWNERSHIP, verb: "designed", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Building a recommendation engine in Scala"
+    quantified: false
+    mentions:
+      - {surface: "Scala", verb_class: OWNERSHIP, verb: "building", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Owned the release pipeline on GitHub Actions"
+    quantified: false
+    mentions:
+      - {surface: "GitHub Actions", verb_class: OWNERSHIP, verb: "owned", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Led the migration from MySQL to PostgreSQL"
+    quantified: false
+    mentions:
+      - {surface: "MySQL", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "PostgreSQL", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+  # "using" introduces the tool; the action is "founded".
+  - text: "Founded a campus robotics club using ROS"
+    quantified: false
+    mentions:
+      - {surface: "ROS", verb_class: OWNERSHIP, verb: "founded", polarity: AFFIRMED, multiplier: 1.0}
+
+  # --- EXECUTION: every inflection of "develop", then other lemmas ---------------------------
+  - text: "Developed REST APIs in Flask"
+    quantified: false
+    mentions:
+      - {surface: "Flask", verb_class: EXECUTION, verb: "developed", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Develop internal dashboards in Streamlit"
+    quantified: false
+    mentions:
+      - {surface: "Streamlit", verb_class: EXECUTION, verb: "develop", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Develops ETL jobs in Airflow"
+    quantified: false
+    mentions:
+      - {surface: "Airflow", verb_class: EXECUTION, verb: "develops", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Developing a mobile client in Flutter"
+    quantified: false
+    mentions:
+      - {surface: "Flutter", verb_class: EXECUTION, verb: "developing", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Implemented OAuth login with Auth0"
+    quantified: false
+    mentions:
+      - {surface: "OAuth", verb_class: EXECUTION, verb: "implemented", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Auth0", verb_class: EXECUTION, verb: "implemented", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Delivered a mobile checkout in React Native"
+    quantified: false
+    mentions:
+      - {surface: "React Native", verb_class: EXECUTION, verb: "delivered", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Migrated legacy cron jobs to AWS Lambda"
+    quantified: false
+    mentions:
+      - {surface: "AWS Lambda", verb_class: EXECUTION, verb: "migrated", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Optimised slow queries in BigQuery"
+    quantified: false
+    mentions:
+      - {surface: "BigQuery", verb_class: EXECUTION, verb: "optimised", polarity: AFFIRMED, multiplier: 0.85}
+
+  # --- PARTICIPATION: every inflection of "use", then other lemmas ---------------------------
+  - text: "Contributed bug fixes to Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: PARTICIPATION, verb: "contributed", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Collaborated with designers in Figma"
+    quantified: false
+    mentions:
+      - {surface: "Figma", verb_class: PARTICIPATION, verb: "collaborated", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Participated in a game jam using Unity"
+    quantified: false
+    mentions:
+      - {surface: "Unity", verb_class: PARTICIPATION, verb: "participated", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Worked on data pipelines in Spark"
+    quantified: false
+    mentions:
+      - {surface: "Spark", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Used Excel to track inventory"
+    quantified: false
+    mentions:
+      - {surface: "Excel", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Use Jupyter for exploratory analysis"
+    quantified: false
+    mentions:
+      - {surface: "Jupyter", verb_class: PARTICIPATION, verb: "use", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Uses Postman to test endpoints"
+    quantified: false
+    mentions:
+      - {surface: "Postman", verb_class: PARTICIPATION, verb: "uses", polarity: AFFIRMED, multiplier: 0.65}
+  # No earlier verb to defer to: "using" itself attaches.
+  - text: "Using Docker for local environments"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+
+  # --- ASSISTANCE: every inflection of "assist", then other lemmas ---------------------------
+  - text: "Assisted the data team with SQL reporting"
+    quantified: false
+    mentions:
+      - {surface: "SQL", verb_class: ASSISTANCE, verb: "assisted", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Assist faculty with grading in Canvas"
+    quantified: false
+    mentions:
+      - {surface: "Canvas", verb_class: ASSISTANCE, verb: "assist", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Assists the finance team with QuickBooks"
+    quantified: false
+    mentions:
+      - {surface: "QuickBooks", verb_class: ASSISTANCE, verb: "assists", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Assisting researchers with R analyses"
+    quantified: false
+    mentions:
+      - {surface: "R", verb_class: ASSISTANCE, verb: "assisting", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Supported customers using Zendesk"
+    quantified: false
+    mentions:
+      - {surface: "Zendesk", verb_class: ASSISTANCE, verb: "supported", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Helped with onboarding docs in Notion"
+    quantified: false
+    mentions:
+      - {surface: "Notion", verb_class: ASSISTANCE, verb: "helped", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Shadowed a senior analyst running SAS reports"
+    quantified: false
+    mentions:
+      - {surface: "SAS", verb_class: ASSISTANCE, verb: "shadowed", polarity: AFFIRMED, multiplier: 0.45}
+
+  # --- EXPOSURE: every entry of the class --------------------------------------------------------
+  - text: "Exposed to Kubernetes during a cloud rotation"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "exposed", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Exposure to Salesforce administration"
+    quantified: false
+    mentions:
+      - {surface: "Salesforce", verb_class: EXPOSURE, verb: "exposure", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Familiar with Linux"
+    quantified: false
+    mentions:
+      - {surface: "Linux", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Familiarity with GraphQL"
+    quantified: false
+    mentions:
+      - {surface: "GraphQL", verb_class: EXPOSURE, verb: "familiarity", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Aware of HIPAA requirements"
+    quantified: false
+    mentions:
+      - {surface: "HIPAA", verb_class: EXPOSURE, verb: "aware", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Awareness of GDPR obligations"
+    quantified: false
+    mentions:
+      - {surface: "GDPR", verb_class: EXPOSURE, verb: "awareness", polarity: AFFIRMED, multiplier: 0.30}
+  # A phrase entry; "statistics" continues the list after "and".
+  - text: "Coursework in linear algebra and statistics"
+    quantified: false
+    mentions:
+      - {surface: "linear algebra", verb_class: EXPOSURE, verb: "coursework in", polarity: AFFIRMED, multiplier: 0.30}
+      - {surface: "statistics", verb_class: EXPOSURE, verb: "coursework in", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Basic knowledge of MATLAB"
+    quantified: false
+    mentions:
+      - {surface: "MATLAB", verb_class: EXPOSURE, verb: "basic knowledge", polarity: AFFIRMED, multiplier: 0.30}
+
+  # --- NO_VERB -------------------------------------------------------------------------------
+  - text: "Python, SQL and Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Tableau", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Capstone: a chatbot in Rasa"
+    quantified: false
+    mentions:
+      - {surface: "Rasa", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # A verb after the mention never attaches.
+  - text: "Python scripts were deployed nightly"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+
+  # --- Clause boundaries -----------------------------------------------------------------------
+  # Comma: "tuned queries in" is not a list continuation, so "Designed" does not reach it.
+  - text: "Designed the schema, tuned queries in PostgreSQL"
+    quantified: false
+    mentions:
+      - {surface: "PostgreSQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Led sprint planning; tested releases with Cypress"
+    quantified: false
+    mentions:
+      - {surface: "Cypress", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # "and" between clauses: the second clause has its own verb.
+  - text: "Built the data model and maintained the Snowflake warehouse"
+    quantified: false
+    mentions:
+      - {surface: "Snowflake", verb_class: EXECUTION, verb: "maintained", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Familiar with Rust but built production services in Go"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Automated test runs so releases could ship through Jenkins"
+    quantified: false
+    mentions:
+      - {surface: "Jenkins", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # "nor" splits; "Scala" continues the list, so it shares the verb and the negation.
+  - text: "Never used Java nor Scala"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "never", multiplier: 0.0}
+      - {surface: "Scala", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "never", multiplier: 0.0}
+  - text: "Contributed to the Rust compiler, yet maintained the Python services"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: PARTICIPATION, verb: "contributed", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "Python", verb_class: EXECUTION, verb: "maintained", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Deployed on AWS or Azure"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Azure", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  # "for" is a preposition, not a boundary (DECISIONS D-34a).
+  - text: "Built dashboards for the sales team in Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Tableau", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Designed dashboards for the sales team using Looker"
+    quantified: false
+    mentions:
+      - {surface: "Looker", verb_class: OWNERSHIP, verb: "designed", polarity: AFFIRMED, multiplier: 1.0}
+  # The "and" inside the skill name is not a boundary.
+  - text: "Led Research and Development using MATLAB"
+    quantified: false
+    mentions:
+      - {surface: "Research and Development", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "MATLAB", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+  # The dot of "Node.js" is not a sentence end.
+  - text: "Built APIs with Node.js and Express"
+    quantified: false
+    mentions:
+      - {surface: "Node.js", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "Express", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  # The comma of "1,000" is not a boundary; "1,000 tables" is a quantified outcome.
+  - text: "Migrated 1,000 tables to Snowflake"
+    quantified: true
+    mentions:
+      - {surface: "Snowflake", verb_class: EXECUTION, verb: "migrated", polarity: AFFIRMED, multiplier: 0.9775}
+
+  # --- List continuation (DECISIONS D-34a) -----------------------------------------------------
+  - text: "Built dashboards using React, Redux and D3"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "Redux", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "D3", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Worked with Python, Pandas, as well as NumPy"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "Pandas", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "NumPy", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Implemented pipelines with Spark, plus Delta Lake"
+    quantified: false
+    mentions:
+      - {surface: "Spark", verb_class: EXECUTION, verb: "implemented", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Delta Lake", verb_class: EXECUTION, verb: "implemented", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Automated reports in Excel, including Power Query"
+    quantified: false
+    mentions:
+      - {surface: "Excel", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Power Query", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+  # "store" is not a list word: "a Redux store" is no continuation, and "Jest" continues it.
+  - text: "Built a site with React, a Redux store and Jest"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "Redux", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Jest", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Automated releases with Bash, the AWS CLI and a Makefile"
+    quantified: false
+    mentions:
+      - {surface: "Bash", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "AWS CLI", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Makefile", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+  # "&" is a list word, not a boundary: "R" sits in the first clause.
+  - text: "Used Python & R, with SQL"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "R", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "SQL", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+
+  # --- Hard negation (SPEC §15.2) ----------------------------------------------------------------
+  - text: "No experience with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no experience", multiplier: 0.0}
+  - text: "Not familiar with Docker or Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Built the service without Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: OWNERSHIP, verb: "built", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+  - text: "Lacking hands-on AWS experience"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "lacking", multiplier: 0.0}
+  # "No" is 7 tokens back, but every token between is a scope filler (D-34c).
+  - text: "No prior professional hands-on experience with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no", multiplier: 0.0}
+  # "Looking to" starts 7 tokens back: outside the aspiration window.
+  - text: "Looking to grow my technical skills in Rust"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # Negation never crosses a clause boundary (comma, then "and").
+  - text: "Joined with no cloud background, deployed services on GCP"
+    quantified: false
+    mentions:
+      - {surface: "GCP", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Had no on-call duties and built alerting in Prometheus"
+    quantified: false
+    mentions:
+      - {surface: "Prometheus", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  # Hard negation and an aspirational term in one window: NEGATED.
+  - text: "Not looking to work with PHP"
+    quantified: false
+    mentions:
+      - {surface: "PHP", verb_class: PARTICIPATION, verb: "work", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  # "no" governs "downtime", the noun it opens, not Kubernetes (D-34c).
+  - text: "Shipped with no downtime using Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+
+  # --- Aspiration (SPEC §15.2): every term ---------------------------------------------------
+  - text: "Seeking to transition into machine learning"
+    quantified: false
+    mentions:
+      - {surface: "machine learning", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "seeking", multiplier: 0.15}
+  - text: "Aspiring analyst learning dbt"
+    quantified: false
+    mentions:
+      - {surface: "dbt", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "aspiring", multiplier: 0.15}
+  - text: "Looking to grow my skills in Rust"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "looking to", multiplier: 0.15}
+  - text: "Interested in computer vision research"
+    quantified: false
+    mentions:
+      - {surface: "computer vision", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "interested in", multiplier: 0.15}
+  - text: "Eager to learn Elixir"
+    quantified: false
+    mentions:
+      - {surface: "Elixir", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "eager to learn", multiplier: 0.15}
+  - text: "Currently learning Kotlin through online courses"
+    quantified: false
+    mentions:
+      - {surface: "Kotlin", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "currently learning", multiplier: 0.15}
+  - text: "Studying Japanese and Korean"
+    quantified: false
+    mentions:
+      - {surface: "Japanese", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "studying", multiplier: 0.15}
+      - {surface: "Korean", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "studying", multiplier: 0.15}
+  - text: "Hope to deepen my Go expertise"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "hope to", multiplier: 0.15}
+  - text: "Want to build a startup with Flutter"
+    quantified: false
+    mentions:
+      - {surface: "Flutter", verb_class: OWNERSHIP, verb: "build", polarity: ASPIRATIONAL, trigger: "want to", multiplier: 0.15}
+  # Aspiration does not cross the comma.
+  - text: "Seeking a new role, built ETL pipelines in Airflow"
+    quantified: false
+    mentions:
+      - {surface: "Airflow", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  # "Architect" inside the skill name is not a verb.
+  - text: "Studying for the AWS Solutions Architect exam"
+    quantified: false
+    mentions:
+      - {surface: "AWS Solutions Architect", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "studying", multiplier: 0.15}
+
+  # --- Quantified outcomes (ROLE_BULLET_QUANTIFIED) -------------------------------------------
+  # OWNERSHIP hits the cap: min(1.0, 1.00 x 1.15) = 1.0.
+  - text: "Built a pricing engine in Rust serving 2M requests a day"
+    quantified: true
+    mentions:
+      - {surface: "Rust", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Optimized Spark jobs, cutting runtime by 40%"
+    quantified: true
+    mentions:
+      - {surface: "Spark", verb_class: EXECUTION, verb: "optimized", polarity: AFFIRMED, multiplier: 0.9775}
+  - text: "Developed a churn model in Python that saved $120K a year"
+    quantified: true
+    mentions:
+      - {surface: "Python", verb_class: EXECUTION, verb: "developed", polarity: AFFIRMED, multiplier: 0.9775}
+  - text: "Used Tableau to track 40 projects"
+    quantified: true
+    mentions:
+      - {surface: "Tableau", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.7475}
+  - text: "Assisted 30 patients a day using Epic"
+    quantified: true
+    mentions:
+      - {surface: "Epic", verb_class: ASSISTANCE, verb: "assisted", polarity: AFFIRMED, multiplier: 0.5175}
+  # The counting noun is the second token after the number: quantified.
+  - text: "Maintained 3 production servers running Ubuntu"
+    quantified: true
+    mentions:
+      - {surface: "Ubuntu", verb_class: EXECUTION, verb: "maintained", polarity: AFFIRMED, multiplier: 0.9775}
+  # ... the third token: not quantified.
+  - text: "Maintained 3 large legacy servers running CentOS"
+    quantified: false
+    mentions:
+      - {surface: "CentOS", verb_class: EXECUTION, verb: "maintained", polarity: AFFIRMED, multiplier: 0.85}
+  # A version number right after a tech name is not a quantity.
+  - text: "Maintained Python 3 services for billing"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: EXECUTION, verb: "maintained", polarity: AFFIRMED, multiplier: 0.85}
+  # A year on its own is not a quantity, even after "to".
+  - text: "Cut cloud spend on AWS from 2019 to 2021"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Accelerated queries 4× using ClickHouse"
+    quantified: true
+    mentions:
+      - {surface: "ClickHouse", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.7475}
+  - text: "Improved model accuracy to 0.94 using XGBoost"
+    quantified: true
+    mentions:
+      - {surface: "XGBoost", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.7475}
+  - text: "Exposure to Jira across 4 teams"
+    quantified: true
+    mentions:
+      - {surface: "Jira", verb_class: EXPOSURE, verb: "exposure", polarity: AFFIRMED, multiplier: 0.345}
+  # Aspiration overrides the quantified bonus: min(0.70 x 1.15, 0.15) = 0.15.
+  - text: "Hope to mentor 30 students in Scratch"
+    quantified: true
+    mentions:
+      - {surface: "Scratch", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "hope to", multiplier: 0.15}
+
+  # --- Nearest verb ----------------------------------------------------------------------------
+  - text: "Used Python to automate reports in Excel"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "Excel", verb_class: EXECUTION, verb: "automate", polarity: AFFIRMED, multiplier: 0.85}
+  # "build" is not in verb position and "Helped" heads the chain (D-34d, D-34e).
+  - text: "Helped build dashboards in React"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: ASSISTANCE, verb: "helped", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Using Python, automated reports in Excel"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+      - {surface: "Excel", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+
+# Review round 1 probes: realistic bullets the first version zeroed or misgraded, labelled with
+# the rulings D-34b..D-34f. Same format and same checks as `bullets`.
+probes:
+  # --- Hyphenated compounds are modifiers, never negators (D-34c) ------------------------------
+  - text: "Built a no-code form builder in React"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Built a donor CRM for a not-for-profit using Salesforce"
+    quantified: false
+    mentions:
+      - {surface: "Salesforce", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Led a no-downtime migration to Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+  # Only the hyphen keeps "never" off Jenkins here: "used" alone is a scope filler.
+  - text: "Revived a never-used Jenkins server"
+    quantified: false
+    mentions:
+      - {surface: "Jenkins", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+
+  # --- Polarity across clauses (D-34b) --------------------------------------------------------
+  # A clause without a mention hands on its verb class only, and ";" stops polarity anyway.
+  - text: "Migrated 40 services with no downtime; Kubernetes, Helm and ArgoCD"
+    quantified: true
+    mentions:
+      - {surface: "Kubernetes", verb_class: EXECUTION, verb: "migrated", polarity: AFFIRMED, multiplier: 0.9775}
+      - {surface: "Helm", verb_class: EXECUTION, verb: "migrated", polarity: AFFIRMED, multiplier: 0.9775}
+      - {surface: "ArgoCD", verb_class: EXECUTION, verb: "migrated", polarity: AFFIRMED, multiplier: 0.9775}
+  - text: "Shipped the redesign with no regressions. React, Redux, Jest"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Redux", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Jest", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Seeking a data analyst internship. Python, SQL, Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Tableau", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # No barrier here: the first clause hands on no polarity because it holds no mention.
+  - text: "Seeking a summer internship, Python and SQL"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "No experience with Java, but Python and Go"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no experience", multiplier: 0.0}
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Go", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+
+  # --- Negation scope (D-34c): the term governs the noun it opens ------------------------------
+  - text: "Automated deployments with no manual steps using Terraform"
+    quantified: false
+    mentions:
+      - {surface: "Terraform", verb_class: EXECUTION, verb: "automated", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Delivered 3 features with no regressions in React"
+    quantified: true
+    mentions:
+      - {surface: "React", verb_class: EXECUTION, verb: "delivered", polarity: AFFIRMED, multiplier: 0.9775}
+  - text: "Built the API with no ORM in Go"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Scaled the API to 10k RPS without adding servers using Redis"
+    quantified: true
+    mentions:
+      - {surface: "Redis", verb_class: EXECUTION, verb: "scaled", polarity: AFFIRMED, multiplier: 0.9775}
+  - text: "Not only built the API in Go but also deployed it on GCP"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "GCP", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Deployed with no downtime using Kubernetes and Helm"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+      - {surface: "Helm", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  # ... and negates the skill when only scope fillers stand between.
+  - text: "No experience with Java"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no experience", multiplier: 0.0}
+  - text: "Never used Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "never", multiplier: 0.0}
+  - text: "Not familiar with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Without using Redux"
+    quantified: false
+    mentions:
+      - {surface: "Redux", verb_class: PARTICIPATION, verb: "using", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+
+  # --- Verb chains take the head's class (D-34d) ---------------------------------------------
+  - text: "Helped build the React front end"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: ASSISTANCE, verb: "helped", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Helped to build the React front end"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: ASSISTANCE, verb: "helped", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Contributed to building the data platform on Spark"
+    quantified: false
+    mentions:
+      - {surface: "Spark", verb_class: PARTICIPATION, verb: "contributed", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Participated in designing the REST API with Flask"
+    quantified: false
+    mentions:
+      - {surface: "Flask", verb_class: PARTICIPATION, verb: "participated", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Assisted in developing a dashboard in Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Tableau", verb_class: ASSISTANCE, verb: "assisted", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Helped migrate the billing service to AWS"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: ASSISTANCE, verb: "helped", polarity: AFFIRMED, multiplier: 0.45}
+  # A direct chain: "deploying" attaches anywhere, but "Supported" heads it.
+  - text: "Supported deploying the API to AWS"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: ASSISTANCE, verb: "supported", polarity: AFFIRMED, multiplier: 0.45}
+  # Not a chain ("a team" stands between): the nearest verb attaches and keeps OWNERSHIP.
+  - text: "Led a team building microservices in Go"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "building", polarity: AFFIRMED, multiplier: 1.0}
+
+  # --- Nouns that look like verbs (D-34e) -----------------------------------------------------
+  - text: "Used design patterns in Java"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Wrote design docs for the Kafka migration"
+    quantified: false
+    mentions:
+      - {surface: "Kafka", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Resolved support tickets using Zendesk"
+    quantified: false
+    mentions:
+      - {surface: "Zendesk", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Ran brand awareness campaigns on Instagram using Canva"
+    quantified: false
+    mentions:
+      - {surface: "Instagram", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Canva", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Shadowed senior engineers using Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: ASSISTANCE, verb: "shadowed", polarity: AFFIRMED, multiplier: 0.45}
+  - text: "Led a team of 5 engineers using React and Node.js"
+    quantified: true
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+      - {surface: "Node.js", verb_class: OWNERSHIP, verb: "led", polarity: AFFIRMED, multiplier: 1.0}
+
+  # --- "not yet", contractions, abbreviations, conjunction clauses (D-34c, D-34f) ----------------
+  - text: "Not yet familiar with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Have not yet used Rust"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Didn't use Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Built tools for U.S. clients in Go"
+    quantified: false
+    mentions:
+      - {surface: "Go", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Worked with cloud tools (e.g. AWS) daily"
+    quantified: false
+    mentions:
+      - {surface: "AWS", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Used a columnar store (i.e. ClickHouse) for analytics"
+    quantified: false
+    mentions:
+      - {surface: "ClickHouse", verb_class: PARTICIPATION, verb: "used", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Worked at Acme Inc. on Salesforce"
+    quantified: false
+    mentions:
+      - {surface: "Salesforce", verb_class: PARTICIPATION, verb: "worked", polarity: AFFIRMED, multiplier: 0.65}
+  - text: "Built dashboards and reports in Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Tableau", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+
+  # --- Review round 2 ---------------------------------------------------------------------------
+  # D-34f hands on the verb class only: the negation or aspiration stays in its own clause.
+  - text: "Not familiar with Docker and proficient in Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Not familiar with Docker or experienced with Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+      - {surface: "Kubernetes", verb_class: EXPOSURE, verb: "familiar", polarity: AFFIRMED, multiplier: 0.30}
+  - text: "Aspiring data scientist interested in machine learning and experienced in Python and SQL"
+    quantified: false
+    mentions:
+      - {surface: "machine learning", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "interested in", multiplier: 0.15}
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "Studying Japanese and fluent in Korean"
+    quantified: false
+    mentions:
+      - {surface: "Japanese", verb_class: NO_VERB, verb: "", polarity: ASPIRATIONAL, trigger: "studying", multiplier: 0.15}
+      - {surface: "Korean", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # Ordinary modifiers stay inside the negation's scope (D-34c) ...
+  - text: "No production experience with Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no", multiplier: 0.0}
+  - text: "Not very familiar with Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXPOSURE, verb: "familiar", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Not currently using Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "using", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Have not previously used Rust"
+    quantified: false
+    mentions:
+      - {surface: "Rust", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "not", multiplier: 0.0}
+  - text: "Never really used Docker"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: PARTICIPATION, verb: "used", polarity: NEGATED, trigger: "never", multiplier: 0.0}
+  # ... but never carry it past the noun they modify.
+  - text: "Shipped with no production downtime using Kubernetes"
+    quantified: false
+    mentions:
+      - {surface: "Kubernetes", verb_class: PARTICIPATION, verb: "using", polarity: AFFIRMED, multiplier: 0.65}
+  # "using" right after a negated tool opens a new tool: the negation stops there (D-34c).
+  - text: "Built the cache without Redis using Nginx"
+    quantified: false
+    mentions:
+      - {surface: "Redis", verb_class: OWNERSHIP, verb: "built", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Nginx", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  - text: "Deployed the app without Docker using Terraform"
+    quantified: false
+    mentions:
+      - {surface: "Docker", verb_class: EXECUTION, verb: "deployed", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Terraform", verb_class: EXECUTION, verb: "deployed", polarity: AFFIRMED, multiplier: 0.85}
+  - text: "Built the UI without React using Svelte"
+    quantified: false
+    mentions:
+      - {surface: "React", verb_class: OWNERSHIP, verb: "built", polarity: NEGATED, trigger: "without", multiplier: 0.0}
+      - {surface: "Svelte", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
+  # "!" and "?" end sentences, so polarity stops at them (D-34b).
+  - text: "Seeking an internship! Python, SQL"
+    quantified: false
+    mentions:
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "SQL", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  - text: "No experience with Java? Python and Go"
+    quantified: false
+    mentions:
+      - {surface: "Java", verb_class: NO_VERB, verb: "", polarity: NEGATED, trigger: "no experience", multiplier: 0.0}
+      - {surface: "Python", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+      - {surface: "Go", verb_class: NO_VERB, verb: "", polarity: AFFIRMED, multiplier: 0.70}
+  # A clause whose only verb defers ("using") is verbless for D-34f: "Built" wins.
+  - text: "Built dashboards and reports using Tableau"
+    quantified: false
+    mentions:
+      - {surface: "Tableau", verb_class: OWNERSHIP, verb: "built", polarity: AFFIRMED, multiplier: 1.0}
