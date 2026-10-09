@@ -1,4 +1,4 @@
-"""Extraction precision on realistic résumé and posting lines (Task 2.2 fix rounds 1-2; DECISIONS D-25..D-28).
+"""Extraction precision on realistic résumé and posting lines (Task 2.2 fix rounds 1-3; DECISIONS D-25..D-28).
 
 Each case runs `Resolver.extract` over the committed data/taxonomy and asserts the EXACT mentions,
 as (canonical id, surface) in text order: no false positive and every expected skill. The first
@@ -7,7 +7,9 @@ are not the skill in English and French, seasons, initials and money, fields of 
 domains named like them, French elisions, merged ESCO labels, acronym slashes); the rest are
 lines from software, data, engineering, finance, marketing, healthcare, the trades, students'
 co-op lines and French. Where a review quoted a fragment ("Executed equity trades..."), the line
-keeps the fragment verbatim and completes it.
+keeps the fragment verbatim and completes it. Round 3 (D-28): a status written around a licence
+("RN student", "CPA (in progress)") reads as the licence concept, the status being the résumé
+parser's business; only formal designations ("CPA PEP", "articling student") are in progress.
 """
 
 from __future__ import annotations
@@ -27,12 +29,13 @@ CASES = [
       ("cred.cpa_in_progress", "writing the CFE")]),
     ("prose", "Passed CFA Level I; CFA candidate for Level II.",
      [("cred.cfa_candidate", "CFA Level I"), ("cred.cfa_candidate", "CFA candidate")]),
-    ("prose", "RN student completing a nursing practicum.",
-     [("cred.nursing_student", "RN student"), ("skill.nursing", "nursing")]),  # nursing: a domain (D-27)
+    ("prose", "RN student completing a nursing practicum.",  # round 3: the licence concept (D-28)
+     [("cred.registered_nurse", "RN"), ("skill.nursing", "nursing")]),  # nursing: a domain (D-27)
     ("prose", "Articling student at a Toronto law firm.", [("cred.articling_student", "Articling student")]),
     ("prose", "309A apprentice electrician.", [("cred.electrician_apprentice", "309A apprentice electrician")]),
     ("prose", "Teacher candidate in the B.Ed program.", [("cred.teacher_candidate", "Teacher candidate")]),
-    ("prose", "P.Eng. candidate with four years of experience.", [("cred.eit", "P.Eng. candidate")]),
+    ("prose", "P.Eng. candidate with four years of experience.",  # round 3: the licence concept
+     [("cred.professional_engineer", "P.Eng")]),
     ("prose", "Dean's List, Fall 2023 and Spring 2024.", []),
     ("prose", "Software Developer Intern, Spring 2024 (Shopify)", []),
     ("prose", "Analyst at American Express, Summer 2024", []),
@@ -61,8 +64,7 @@ CASES = [
      [("skill.excel", "Excel"), ("skill.ms_access", "Access"), ("skill.aws", "AWS"), ("skill.azure", "Azure")]),
     ("prose", "Projets en l'apprentissage automatique et projets d'infonuagique.",
      [("skill.machine_learning", "apprentissage automatique"), ("skill.cloud_computing", "infonuagique")]),
-    ("prose", "Strong design sense and a passion for architecture, history and philosophy.",
-     [("skill.design", "design")]),  # design: a domain (D-27); the rest are fields of study only
+    ("prose", "Strong design sense and a passion for architecture, history and philosophy.", []),  # D-27
     ("prose", "Volunteered in education and commerce; studied physics and law.", []),
     ("prose", "Built backend services in Go.", [("skill.backend", "backend"), ("skill.go", "Go")]),
     ("prose", "Analysed data in R and Python.", [("skill.r", "R"), ("skill.python", "Python")]),
@@ -75,25 +77,86 @@ CASES = [
       ("skill.ocaml", "OCaml"), ("skill.hibernate", "Hibernate"), ("skill.pycharm", "PyCharm")]),
     ("prose", "Ran agile ceremonies as Scrum Master.", [("skill.agile", "agile"), ("skill.scrum_master", "Scrum Master")]),
     ("prose", "Posted daily on instagram.", [("skill.instagram", "instagram")]),
-    # ─── fix round 2: licences through long forms (D-28) ───────────────────────────────────
+    # ─── fix round 2 probes, read under round 3 (D-28): the licence concept, the status left to context ─
     ("prose", "Primary Care Paramedic student, Centennial College.",
-     [("cred.paramedic_student", "Primary Care Paramedic student")]),
-    ("prose", "Advanced Care Paramedic student", [("cred.paramedic_student", "Advanced Care Paramedic student")]),
-    ("prose", "Licensed Practical Nurse student", [("cred.nursing_student", "Licensed Practical Nurse student")]),
-    ("prose", "Enrolled in the RPN program at Fanshawe.", [("cred.nursing_student", "RPN program")]),
+     [("cred.paramedic_license", "Primary Care Paramedic")]),
+    ("prose", "Advanced Care Paramedic student", [("cred.paramedic_license", "Advanced Care Paramedic")]),
+    ("prose", "Licensed Practical Nurse student", [("cred.licensed_practical_nurse", "Licensed Practical Nurse")]),
+    ("prose", "Enrolled in the RPN program at Fanshawe.", [("cred.licensed_practical_nurse", "RPN")]),
     ("prose", "Nursing student in the RN program at Humber College.",
-     [("cred.nursing_student", "Nursing student"), ("cred.nursing_student", "RN program")]),
-    ("prose", "Registered Nurse candidate awaiting the NCLEX.",
-     [("cred.nursing_student", "Registered Nurse candidate")]),
-    ("prose", "Class A CDL student", [("cred.cdl_trainee", "Class A CDL student")]),
-    ("prose", "309A Electrical Apprentice", [("cred.electrician_apprentice", "Electrical Apprentice")]),
-    ("prose", "Apprentice Electrician (309A), Level 2", [("cred.electrician_apprentice", "Apprentice Electrician")]),
+     [("cred.nursing_student", "Nursing student"), ("cred.registered_nurse", "RN")]),
+    ("prose", "Registered Nurse candidate awaiting the NCLEX.", [("cred.registered_nurse", "Registered Nurse")]),
+    ("prose", "Class A CDL student", [("cred.commercial_drivers_license", "Class A CDL")]),
+    ("prose", "309A Electrical Apprentice",
+     [("cred.electrician_license", "309A"), ("cred.electrician_apprentice", "Electrical Apprentice")]),
+    ("prose", "Apprentice Electrician (309A), Level 2",
+     [("cred.electrician_apprentice", "Apprentice Electrician"), ("cred.electrician_license", "309A")]),
     ("prose", "Construction and Maintenance Electrician 309A apprentice",
-     [("cred.electrician_apprentice", "Construction and Maintenance Electrician 309A apprentice")]),
-    ("prose", "Professional Engineer in training", [("cred.eit", "Professional Engineer in training")]),
+     [("cred.electrician_license", "Construction and Maintenance Electrician 309A")]),
+    ("prose", "Professional Engineer in training", [("cred.professional_engineer", "Professional Engineer")]),
     ("prose", "Enrolled in the CPA Canada PEP (Core 2).", [("cred.cpa_in_progress", "CPA Canada PEP")]),
-    ("prose", "CPA Ontario PEP student", [("cred.cpa_in_progress", "CPA Ontario PEP student")]),
-    ("prose", "CPA (in progress)", [("cred.cpa_in_progress", "CPA (in progress)")]),
+    ("prose", "CPA Ontario PEP student", [("cred.cpa_in_progress", "CPA Ontario PEP")]),
+    ("prose", "CPA (in progress)", [("cred.cpa", "CPA")]),
+    # ─── fix round 3: status around a licence is context; the posting's "candidate" is the applicant ─
+    ("prose", "R.N. (in progress)", [("cred.registered_nurse", "R.N")]),
+    ("prose", "C.P.A. (in progress)", [("cred.cpa", "C.P.A")]),
+    ("prose", "L.P.N. (in progress)", [("cred.licensed_practical_nurse", "L.P.N")]),
+    ("prose", "P.Eng. (in progress)", [("cred.professional_engineer", "P.Eng")]),
+    ("prose", "Registered Nurse (RN) candidate awaiting the NCLEX.",
+     [("cred.registered_nurse", "Registered Nurse"), ("cred.registered_nurse", "RN")]),
+    ("prose", "Primary Care Paramedic (PCP) student at Humber College.",
+     [("cred.paramedic_license", "Primary Care Paramedic")]),
+    ("prose", "Construction and Maintenance Electrician (309A) Apprentice", [("cred.electrician_license", "309A")]),
+    ("prose", "Professional Engineer (P.Eng.) candidate",
+     [("cred.professional_engineer", "Professional Engineer"), ("cred.professional_engineer", "P.Eng")]),
+    ("prose", "CPA, in progress", [("cred.cpa", "CPA")]),
+    ("prose", "RN (pending NCLEX)", [("cred.registered_nurse", "RN")]),
+    ("prose", "CDL-A trainee", [("cred.commercial_drivers_license", "CDL")]),
+    ("prose", "RN students", [("cred.registered_nurse", "RN")]),
+    ("prose", "Ideal candidate: RN with 3+ years of acute care experience.",
+     [("cred.registered_nurse", "RN"), ("esco.acute_care", "acute care")]),
+    ("prose", "What we look for in a candidate: RN, BScN preferred.", [("cred.registered_nurse", "RN")]),
+    ("prose", "Ideal Candidate - Registered Nurse (RN) with current CNO registration.",
+     [("cred.registered_nurse", "Registered Nurse"), ("cred.registered_nurse", "RN")]),
+    ("prose", "The ideal candidate: P.Eng. or EIT with five years of design experience.",
+     [("cred.professional_engineer", "P.Eng"), ("cred.eit", "EIT")]),
+    ("prose", "Preferred candidate: Ontario Certified Teacher with ESL Part 1.",
+     [("cred.teaching_license", "Ontario Certified Teacher")]),
+    ("prose", "Graduate of an accredited RN program with current registration.", [("cred.registered_nurse", "RN")]),
+    ("prose", "Enrolled as a CPA PEP student in 2025.", [("cred.cpa_in_progress", "CPA PEP")]),
+    ("prose", "Registered as an EIT with PEO.", [("cred.eit", "EIT")]),
+    ("prose", "Passed CFA Level II in 2024.", [("cred.cfa_candidate", "CFA Level II")]),
+    ("prose", "Passed the NCLEX-RN in 2024.", []),  # an exam, not the licence
+    # a formal designation never spans ":" or a dash; the CFA charter's candidacy included
+    ("prose", "Elementary Teacher - Candidate must hold OCT certification.", []),
+    ("prose", "Designation: CFA - Level II or higher.", [("cred.cfa", "CFA")]),
+    # ─── fix round 3: "design" only in multi-word names; bodies named like a domain (D-27) ───
+    ("prose", "Design, build and maintain scalable backend services in Java.",
+     [("skill.backend", "backend"), ("skill.java", "Java")]),
+    ("prose", "You will help design our data pipelines.", [("skill.data_engineering", "data pipelines")]),
+    ("prose", "Participated in design reviews.", []),
+    ("prose", "Led the HVAC design for a hospital wing.", [("skill.hvac", "HVAC")]),
+    ("prose", "Applied design thinking to the onboarding flow.", [("skill.design", "design thinking")]),
+    ("prose", "Analyst at Statistics Canada.", []),
+    ("prose", "Policy analyst, Department of Finance Canada.", []),
+    # ─── fix round 3: no synonyms into fields, none through a generic word (D-26) ────────────
+    ("prose", "Five years of experience in computer software development.",
+     [("skill.software_development", "software development")]),
+    ("prose", "Optimized industrial process design for a refinery.", [("esco.design_process", "process design")]),
+    ("prose", "Maintained regulatory systems in pharma manufacturing.", []),
+    ("prose", "Provided financial planning advice to clients.", []),
+    ("prose", "Studied plasma mechanics in the lab.", [("esco.mechanics", "mechanics")]),
+    ("prose", "Gestion du programme de bourses.", []),
+    ("prose", "Ran battery analysis methods on cell samples.", []),  # no root cause analysis
+    ("prose", "Led the marketing analysis for a product launch.", [("skill.marketing", "marketing")]),
+    # ─── fix round 3: currency context (D-27) ────────────────────────────────────────────────
+    ("prose", "Traded USD/CAD and EUR/USD currency pairs.", []),
+    ("prose", "Produced 1,200 CAD drawings for the plant.", [("skill.cad", "CAD")]),
+    ("prose", "Updated the 2024 CAD standards manual.", [("skill.cad", "CAD")]),
+    ("list", "Microsoft Office 365, CAD, SolidWorks",  # a number before a list comma is no amount
+     [("skill.ms_office", "Microsoft Office"), ("skill.cad", "CAD"), ("skill.solidworks", "SolidWorks")]),
+    ("prose", "Experience with Fusion 360 CAD.", [("skill.fusion360", "Fusion 360"), ("skill.cad", "CAD")]),
+    ("prose", "Managed a 2M CAD budget.", []),  # a magnitude, then a money word
     # ─── fix round 2: French one-word aliases, and the round-1 fragments verbatim (D-27) ──────
     ("prose", "Nous sommes à la recherche d'un stagiaire en développement logiciel pour notre équipe.",
      [("skill.software_development", "développement logiciel")]),
@@ -246,8 +309,9 @@ def test_fields_of_study_come_back_when_asked_for(resolver) -> None:
 
 def test_licences_in_progress_never_reach_the_licence(resolver, config) -> None:
     licences = set(config.gates.license.professional_credential_ids)
-    for text in ("CPA candidate", "CPA PEP Core 1", "writing the CFE", "RN student", "nursing student",
-                 "P.Eng candidate", "articling student", "309A apprentice", "teacher candidate", "PharmD student",
-                 "medical student", "CDL trainee", "paramedic student", "CFA Level III", "C.P.A. candidate"):
+    for text in ("CPA candidate", "CPA PEP Core 1", "CPA Ontario PEP", "writing the CFE", "nursing student",
+                 "student nurse", "EIT", "Engineer-in-Training", "articling student", "309A apprentice",
+                 "teacher candidate", "PharmD student", "medical student", "commercial learner's permit",
+                 "paramedic student", "CFA Level III", "C.P.A. candidate"):
         found = {m.canonical_id for m in resolver.extract(text, context="list")}
         assert found and not found & licences, (text, found)

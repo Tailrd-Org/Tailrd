@@ -175,7 +175,7 @@ def test_resolver_settings_hold_the_rounds_rules() -> None:
                    "Executive Chef", "Pastry Chef", "Vitamin C", "Vitamin D", "Building A", "Building C",
                    "Building Z", "Swift Current", "Spring Break", "Spring Term", "Spring Semester", "Go-Live",
                    "Go-to-market", "Go/No-Go", "R&D", "Swift Transportation", "Express Employment Professionals",
-                   "Technical Skills"):
+                   "Technical Skills", "NCLEX-RN", "Statistics Canada", "Department of Finance"):
         assert phrase in settings["blocked_phrases"], phrase
     # Round 2: bare "Teams" and "Chef" are no keys at all; French "cerner" (to grasp) needs "Cerner".
     assert not {"teams", "chef"} & (set(settings["ambiguous"]) | set(settings["cased"]))
@@ -184,6 +184,7 @@ def test_resolver_settings_hold_the_rounds_rules() -> None:
 
 IN_PROGRESS = {
     "cred.cpa_in_progress": "cred.cpa", "cred.cfa_candidate": "cred.cfa",
+    "cred.eit": "cred.professional_engineer",
     "cred.nursing_student": "cred.registered_nurse", "cred.articling_student": "cred.bar_admission",
     "cred.electrician_apprentice": "cred.electrician_license", "cred.teacher_candidate": "cred.teaching_license",
     "cred.medical_student": "cred.medical_license", "cred.pharmacy_student": "cred.pharmacist_license",
@@ -198,10 +199,12 @@ def test_licences_in_progress_are_related_credentials_not_licences(graph, config
         assert node_id not in licences, node_id
         assert licence in licences or licence == "cred.cfa", node_id  # the CFA charter is not a gated licence
         assert 0.4 <= graph.related_weight(node_id, licence) <= 0.8, node_id
-    # resolver.json maps every professional licence to its in-progress node (D-28).
+    # resolver.json maps every professional licence, and the CFA charter, to its formal in-progress
+    # node (D-28).
     in_progress = load_json_artifact(TAXONOMY, "resolver.json")["in_progress"]
-    assert set(in_progress) == licences
+    assert set(in_progress) == licences | {"cred.cfa"}
     assert in_progress == {
+        "cred.cfa": "cred.cfa_candidate",
         "cred.registered_nurse": "cred.nursing_student", "cred.licensed_practical_nurse": "cred.nursing_student",
         "cred.cpa": "cred.cpa_in_progress", "cred.commercial_drivers_license": "cred.cdl_trainee",
         "cred.professional_engineer": "cred.eit", "cred.bar_admission": "cred.articling_student",
@@ -214,7 +217,7 @@ def test_licences_in_progress_are_related_credentials_not_licences(graph, config
     "skill, field", [("skill.statistics", "field.statistics"), ("skill.accounting", "field.accounting"),
                      ("skill.marketing", "field.marketing"), ("skill.finance", "field.finance"),
                      ("skill.economics", "field.economics"), ("skill.data_science", "field.data_science"),
-                     ("skill.nursing", "field.nursing"), ("skill.design", "field.design")])
+                     ("skill.nursing", "field.nursing")])
 def test_domains_named_like_a_field_of_study(graph, resolver, skill: str, field: str) -> None:
     # D-27: the skill owns the prose names, the field keeps its label for education lines.
     assert graph.nodes[skill].kind is SkillKind.DOMAIN
@@ -229,3 +232,15 @@ def test_domains_named_like_a_field_of_study(graph, resolver, skill: str, field:
 def test_artifacts_stay_small() -> None:
     total = sum(path.stat().st_size for path in TAXONOMY.iterdir() if path.is_file())
     assert total < 20_000_000, total
+
+
+def test_design_is_multi_word_only(graph, resolver) -> None:
+    # D-27: "design" alone is everywhere in postings as a verb; the skill has multi-word names only,
+    # the field keeps "Design" for education lines.
+    names = (graph.nodes["skill.design"].label, *graph.nodes["skill.design"].aliases)
+    assert all(" " in name for name in names), names
+    assert graph.related_weight("skill.design", "field.design") == 0.8
+    assert resolver.extract("Design, build and maintain scalable services; join our design reviews.") == ()
+    assert [m.canonical_id for m in resolver.extract("Applied design thinking daily.")] == ["skill.design"]
+    assert [m.canonical_id for m in resolver.extract("BDes in Design", include_fields=True)] == [
+        "field.design", "field.design"]

@@ -26,9 +26,10 @@ An ambiguous key is never a fuzzy target: a near miss cannot have the required c
 an education line); lets a blocked phrase ("American Express", "Sous Chef", "Technical Skills")
 consume its words without a mention; never reads a season word followed by a year or a term word,
 or next to another season ("Spring 2024", "Fall and Spring"), a person's initial ("John R.
-Smith"), or a currency code next to an amount ("80,000 CAD") as a skill; and, like `resolve`,
-reads past a French elision ("d'Excel" -> Excel). A professional licence written with a bracketed
-status, or next to its own in-progress form, is that in-progress credential (D-28).
+Smith"), or a currency code in a money context ("80,000 CAD.") as a skill; and, like `resolve`,
+reads past a French elision ("d'Excel" -> Excel). A formal in-progress designation ("CPA
+candidate") is read only as written, never across ":" or a dash; whether a credential is held,
+pursued or required is the context's business, not the taxonomy's (D-28).
 """
 
 from __future__ import annotations
@@ -89,22 +90,43 @@ _TERM_WORDS = frozenset(
 _SEASON_LINKS = frozenset({"and", "or", "&", "to", "through", "until"})
 _NEAR_MARKS = frozenset(",/&" + DASHES + "-" + APOSTROPHES)  # what may stand between a season and its year
 _YEAR_RE = re.compile(r"(?:19|20)\d\d|\d\d")
-# Currency codes next to an amount, a rate or a salary are money, never the skill (D-27): "80,000
-# CAD per year", "$25/hr CAD", "Salary (CAD)". An amount: "$" + digits, thousands, 4+ digits,
-# cents or "k"; a rate: "/hr", "per year". A bare small number ("10 CAD models") is no amount.
+# Currency codes in a money context are money, never the skill (D-27): after "$" or a salary
+# word on their line ("$25/hr CAD", "Salary (CAD)"), before an amount or a rate ("CAD $80k",
+# "CAD 2M", "CAD/hr"), in a currency pair ("USD/CAD"), or after a number, never a year, that a
+# rate or a money word follows ("25 CAD per hour", "a 2M CAD budget") or, when it is an amount
+# (thousands, cents, a magnitude, four digits or more), that ends its clause ("80,000 CAD.").
+# A count or a version keeps the skill ("1,200 CAD drawings", "Fusion 360 CAD.", "the 2024 CAD
+# standards"), and so does a number before a list comma ("Office 365, CAD").
 _CURRENCIES = frozenset({"cad", "usd", "eur", "gbp"})
-_AMOUNT = r"(?:\$\s*\d[\d,.]*\s*[kK]?|\d{1,3}(?:[,  ]\d{3})+(?:\.\d+)?|\d{4,}(?:\.\d+)?|\d+\.\d\d|\d+\s*[kK])"
-_RATE = r"(?:/\s*(?:hr|h|hour|yr|year|annum)|per\s+(?:hour|year|annum|month|week|day|hr))\b"
-_MONEY_BEFORE = re.compile(rf"(?:{_AMOUNT}(?:\s*{_RATE})?|\$)\s*$", re.IGNORECASE)
-_MONEY_AFTER = re.compile(rf"\s*(?:\$|{_AMOUNT}(?![\w])|{_RATE})", re.IGNORECASE)
-_SALARY_WORDS = re.compile(r"\b(?:salary|salaire|wage|compensation|rémunération)\b", re.IGNORECASE)
-# A licence written with its status in brackets is the in-progress credential (D-28): "CPA (in
-# progress)", "RN (student)", "P.Eng. (expected 2027)".
-_STATUS_AFTER = re.compile(
-    r"[ \t]*[(\[][ \t]*(?:in[ \t-]progress|candidate|candidacy|student|apprentice(?:ship)?|trainee"
-    r"|in[ \t-]training|pending|ongoing|en[ \t]cours|expected[^)\]\n]{0,25})[ \t]*[)\]]",
+_CURRENCY_CODES = _CURRENCIES | frozenset(
+    {"jpy", "chf", "aud", "nzd", "cny", "hkd", "sgd", "mxn", "inr", "sek", "nok", "dkk"}
+)
+_RATE = (
+    r"(?:/\s*(?:hr|h|hour|yr|year|annum)|per\s+(?:hour|year|annum|month|week|day|hr)|annually|hourly"
+    r"|an\s+hour|a\s+year)\b"
+)
+_MAGNITUDE = r"(?:k|m|b|bn|million|billion|thousand)"
+_DOLLAR_BEFORE = re.compile(rf"\$\s*[\d,.\u00a0]*\s*{_MAGNITUDE}?\s*(?:/\s*[A-Za-z]+)?\s*$", re.IGNORECASE)
+_NUMBER_BEFORE = re.compile(rf"(\d(?:[\d,.\u00a0]*\d)?)\s*({_MAGNITUDE})?\s*$", re.IGNORECASE)
+_YEAR_ONLY = re.compile(r"(?:19|20)\d\d")
+_THOUSANDS = re.compile(r"\d[,\u00a0]\d{3}(?!\d)")
+_CENTS = re.compile(r"\d+\.\d\d")
+_AMOUNT_AFTER = re.compile(
+    rf"\s*(?:\$|\d{{1,3}}(?:[,\u00a0 ]\d{{3}})+|\d+(?:\.\d+)?\s*{_MAGNITUDE}\b|\d+\.\d\d\b"
+    rf"|(?!(?:19|20)\d\d\b)\d{{4,}}|{_RATE})",
     re.IGNORECASE,
 )
+_MONEY_AFTER = re.compile(
+    rf"[ \t]*(?:{_RATE}|(?:salary|wages?|budgets?|revenues?|funding|savings|costs?|fees?|income"
+    r"|bonus(?:es)?)\b)",
+    re.IGNORECASE,
+)
+_CLAUSE_END_AFTER = re.compile(r"[ \t]*(?:$|[\n\r.;,)\]])")
+_SALARY_WORDS = re.compile(r"\b(?:salary|salaire|wages?|compensation|rémunération)\b", re.IGNORECASE)
+# A formal in-progress designation ("CPA candidate", "articling student") is read only as written,
+# never across ":" or a dash: "Elementary Teacher - Candidate must hold OCT" names no teacher
+# candidate, "Designation: CFA - Level II" no CFA candidacy (D-28).
+_FORMAL_BREAKS = frozenset(":-" + DASHES)
 # A leading French elision ("d'Excel", "l'apprentissage", "qu'AWS"): the word after it is looked up.
 _ELISION_RE = re.compile(rf"(?:qu|[ldjnscmt])[{APOSTROPHES}](?=\w)", re.IGNORECASE)
 # Initials (D-27): what may stand around a one-letter capital that is a person's initial.
@@ -180,8 +202,8 @@ class Resolver:
         """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
         lists waive it. `cased` keys (automatic, D-26) need their casing in lists too.
         `blocked_phrases` are non-skill phrases ("American Express") whose words never yield a
-        mention. `in_progress` maps a professional licence to the node of its in-progress forms
-        ("cred.cpa" -> "cred.cpa_in_progress", D-28)."""
+        mention. `in_progress` maps a professional licence to the node of its formal in-progress
+        designations ("cred.cpa" -> "cred.cpa_in_progress", D-28): those are read only as written."""
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
@@ -193,7 +215,7 @@ class Resolver:
         # skill in general text and the field in education lines (D-27).
         self._index = _build_index(graph, fields=False)
         self._field_index = _build_index(graph, fields=True)
-        self._in_progress = dict(in_progress)
+        self._formal = frozenset(in_progress.values())
 
         self._ambiguous: dict[str, str] = {}
         for key, casing in (*ambiguous.items(), *cased.items()):
@@ -301,9 +323,8 @@ class Resolver:
         phrase, and a field of study unless `include_fields`, consumes its span without a mention;
         with `include_fields` a key that a field and a skill both claim is the field (education
         lines). A token holding "/" or "-" that matches nothing is retried as its parts
-        ("React/Redux" -> React, Redux). A licence written with a bracketed status, or next to
-        its own in-progress form, is that in-progress credential (D-28). Offsets index the
-        original text; sorted by start.
+        ("React/Redux" -> React, Redux). A formal in-progress designation never spans ":" or a
+        dash (D-28). Offsets index the original text; sorted by start.
         """
         if context not in ("prose", "list"):
             raise ValueError(f"unknown context {context!r} (expected 'prose' or 'list')")
@@ -320,36 +341,7 @@ class Resolver:
                 continue
             mentions.extend(self._match_parts(text, tokens[i], context, include_fields))
             i += 1
-        mentions.sort(key=lambda mention: (mention.start, mention.end))
-        if self._in_progress:
-            mentions = self._licences_in_progress(text, mentions)
-        return tuple(mentions)
-
-    def _licences_in_progress(self, text: str, mentions: list[Mention]) -> list[Mention]:
-        """D-28: a licence followed by a bracketed status ("CPA (in progress)", "RN (student)") is
-        its in-progress credential; a licence standing next to its own in-progress form, with only
-        spaces or brackets between ("309A Electrical Apprentice", "Apprentice Electrician
-        (309A)"), is absorbed by it."""
-        out: list[Mention] = []
-        for k, mention in enumerate(mentions):
-            target = self._in_progress.get(mention.canonical_id)
-            if target is None:
-                out.append(mention)
-                continue
-            status = _STATUS_AFTER.match(text, mention.end)
-            if status is not None:
-                end = status.end()
-                out.append(Mention(canonical_id=target, surface=text[mention.start : end], start=mention.start,
-                                   end=end, method="ALIAS"))
-                continue
-            neighbours = (mentions[k - 1] if k else None, mentions[k + 1] if k + 1 < len(mentions) else None)
-            if any(
-                other is not None and other.canonical_id == target and _next_to(text, mention, other)
-                for other in neighbours
-            ):
-                continue
-            out.append(mention)
-        return out
+        return tuple(sorted(mentions, key=lambda mention: (mention.start, mention.end)))
 
     def _match_window(
         self, text: str, tokens: list[_Token], i: int, context: str, include_fields: bool
@@ -358,8 +350,8 @@ class Resolver:
         consumed, mention). The mention is None when the window is a blocked phrase or a field of
         study the caller left out: the span is consumed all the same. At equal width a blocked
         phrase wins ("R&D"). A one-token match on a season that dates something ("Spring 2024"),
-        on a person's initial ("John R. Smith") or on a currency code next to an amount ("80,000
-        CAD") is no match."""
+        on a person's initial ("John R. Smith") or on a currency code in a money context ("80,000
+        CAD.") is no match."""
         last = i
         while last + 1 < len(tokens) and last + 1 - i < _MAX_WINDOW and tokens[last + 1].joined:
             last += 1
@@ -384,6 +376,8 @@ class Resolver:
                 node_id, key = hit
                 if node_id.startswith(_FIELD_PREFIX) and not include_fields:
                     return j - i + 1, None
+                if node_id in self._formal and _crosses(text, tokens, i, j, _FORMAL_BREAKS):
+                    continue  # "Teacher - Candidate" is no teacher candidate
                 if j == i and (
                     (key in _SEASONS and _dates_a_season(text, tokens, i))
                     or (len(key) == 1 and self._is_initial(text, tokens, i, start, end))
@@ -438,6 +432,10 @@ class Resolver:
         if "/" not in token.norm and "-" not in token.norm:
             return []
         parts = _split_parts(text, token.lead_start, token.end)
+        if "/" in token.norm and len(parts) > 1 and all(
+            normalize_surface(text[part.start : part.end]) in _CURRENCY_CODES for part in parts
+        ):
+            return []  # a currency pair, "USD/CAD" (D-27)
         # Which parts are non-ambiguous skills on their own (the companions a slash part needs).
         plain = [
             self._match_part(
@@ -478,7 +476,7 @@ class Resolver:
         acronym_allowed: bool = False,
     ) -> Optional[Mention]:
         """The part as written, then without a possessive "'s", through the same lookup. A blocked
-        part, a field of study the caller left out, or a currency code next to an amount yields
+        part, a field of study the caller left out, or a currency code in a money context yields
         nothing."""
         for end, form in _forms(text, part.start, part.end):
             variants = surface_variants(form)
@@ -572,22 +570,39 @@ def _is_acronym(casing: str) -> bool:
 
 
 def _is_money(text: str, start: int, end: int) -> bool:
-    """Whether the currency code text[start:end] stands next to an amount or a rate, or after a
-    salary word on its line (D-27): "80,000 CAD per year", "$25/hr CAD", "CAD $80k", "Salary
-    (CAD)". "Proficient in CAD (SolidWorks)" and "10 CAD models" are the skill."""
+    """Whether the currency code text[start:end] stands in a money context (D-27): after "$" or a
+    salary word on its line, before an amount or a rate, or after a number (never a year) that a
+    rate or a money word follows, or an amount that ends its clause. "Proficient in CAD", "1,200
+    CAD drawings", "Fusion 360 CAD." and "the 2024 CAD standards" are the skill."""
     line_start = max(text.rfind("\n", 0, start), text.rfind("\r", 0, start)) + 1
     before = text[max(line_start, start - 30) : start]
-    if _MONEY_BEFORE.search(before) or _SALARY_WORDS.search(before):
+    if _DOLLAR_BEFORE.search(before) or _SALARY_WORDS.search(before):
         return True
-    return _MONEY_AFTER.match(text, end) is not None
+    if _AMOUNT_AFTER.match(text, end):
+        return True
+    number = _NUMBER_BEFORE.search(before)
+    if number is None or _YEAR_ONLY.fullmatch(number.group(1)):
+        return False
+    if _MONEY_AFTER.match(text, end):
+        return True
+    return _is_amount(number) and _CLAUSE_END_AFTER.match(text, end) is not None
 
 
-def _next_to(text: str, a: Mention, b: Mention) -> bool:
-    """Two mentions with only spaces or brackets between them, on one line (D-28)."""
-    left, right = (a, b) if a.start < b.start else (b, a)
-    return all(
-        (ch.isspace() and ch not in _LINE_BREAKS) or ch in "()[]" for ch in text[left.end : right.start]
+def _is_amount(number: re.Match[str]) -> bool:
+    """A number before a currency code that is an amount, not a count or a version: thousands
+    ("80,000"), cents ("25.50"), a magnitude ("1.2M", "80k") or four digits or more."""
+    digits, magnitude = number.group(1), number.group(2)
+    return bool(
+        magnitude
+        or _THOUSANDS.search(digits)
+        or _CENTS.fullmatch(digits)
+        or sum(ch.isdigit() for ch in digits.split(".")[0]) >= 4
     )
+
+
+def _crosses(text: str, tokens: list[_Token], i: int, j: int, marks: frozenset[str]) -> bool:
+    """Whether the window of tokens i..j spans one of `marks` between its words."""
+    return any(ch in marks for k in range(i + 1, j + 1) for ch in text[tokens[k - 1].end : tokens[k].start])
 
 
 def _build_index(graph: SkillGraph, *, fields: bool) -> dict[str, str]:

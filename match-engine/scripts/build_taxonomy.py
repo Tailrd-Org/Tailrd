@@ -26,14 +26,16 @@ bytes. Rules, in the order they apply:
 1. Curated nodes (config/curated_taxonomy.yaml: skills, credentials, fields) come first. Their
    ids, labels, kinds, parents and release years are final, and their labels and aliases are
    exempt from every alias filter. Only a field of study and a skill may share a curated key
-   ("Statistics"). Each professional licence (`in_progress`) gives its in-progress node the
-   generated names "<name> student|candidate|program|..." and "student|apprentice|candidate
-   <name>" (DECISIONS D-28); the build fails when any in-progress name reaches a licence.
+   ("Statistics"). Each professional licence, and the CFA charter, names in `in_progress` the
+   node of its formal in-progress designations ("CPA candidate", "articling student"), read only
+   as written; the build fails when one of them reaches a licence, or when a `licence_probes`
+   posting line yields other credentials than the ones it names (D-28).
 2. An ESCO concept or skill group, an O*NET commodity class or an O*NET example whose name
    normalises (`normalize_surface`, hyphen variants included) to a curated node's label or alias
    MERGES into that node (into the skill when a field shares the key): its names become the
-   node's aliases (of an ESCO concept, its preferred labels, and an alternative or hidden label
-   only when it has several words one of which is a content word of the curated names, D-26),
+   node's aliases (of an ESCO concept, its preferred labels, and, for a skill but never a field
+   of study, an alternative or hidden label of several words sharing a specific content word
+   with the curated names, D-26),
    its parents are inherited only when the curated node declares no `parents` key, and every
    reference to it points at the node.
 3. Other ESCO concepts become `esco.<slug of the preferred label>` (a slug shared by several
@@ -97,17 +99,6 @@ COMMON_WORD_MIN_COUNT = 2  # lower-case occurrences in the source prose that mak
 MOS_COMMON_KNOWLEDGE_SHARE = 0.25  # a knowledge area in more military codes than this says nothing
 PROGRAMMING_ID = "skill.programming"  # curated "Computer programming": ESCO languages sit under it
 FIELD_PREFIX = "field."  # fields of study
-# The in-progress forms generated for every alias of a professional licence (DECISIONS D-28):
-# "<alias> <suffix>" and "<prefix> <alias>", all owned by the licence's in-progress node.
-IN_PROGRESS_SUFFIXES = ("student", "candidate", "program", "apprentice", "apprenticeship", "trainee",
-                        "in training", "in progress", "(in progress)")
-IN_PROGRESS_PREFIXES = ("student", "apprentice", "candidate")
-# "CPA <body> PEP[ student]": the CPA Professional Education Program, run by CPA Canada and the
-# provincial and regional bodies; generated for the licence that owns the key "cpa".
-CPA_PEP_BODIES = ("Canada", "Ontario", "Quebec", "Québec", "British Columbia", "BC", "Alberta", "Manitoba",
-                  "Saskatchewan", "Nova Scotia", "New Brunswick", "Newfoundland and Labrador",
-                  "Prince Edward Island", "PEI", "Atlantic", "Western School of Business", "Yukon",
-                  "Northwest Territories", "Nunavut")
 # Words that carry no content when a merged concept's alternative label is compared with the
 # curated node it merged into (D-26): English and French function words.
 STOP_WORDS = frozenset({
@@ -115,6 +106,28 @@ STOP_WORDS = frozenset({
     "its", "their", "your", "our", "this", "that", "these", "those", "be", "is", "are", "all", "any", "other",
     "de", "des", "du", "la", "le", "les", "l", "d", "et", "ou", "en", "à", "au", "aux", "un", "une", "pour",
     "par", "sur", "dans", "avec", "sans", "son", "sa", "ses", "leur", "leurs", "qu", "que", "qui", "s", "se",
+})
+# Words too general to tie an alternative label to a curated node by themselves (D-26): "regulatory
+# systems" is no control system, "financial planning" no forecasting, "plasma mechanics" no
+# fluid mechanics, "gestion du programme" no project management, "farming machines" no milling
+# machine, "systèmes électroniques" no embedded system. Compared as content tokens.
+GENERIC_WORDS = frozenset({
+    "system", "planning", "plan", "mechanic", "programme", "program", "management", "process", "gestion",
+    "financial", "business", "general", "basic", "principle", "method", "technique", "knowledge", "skill",
+    "theory", "practice", "activity", "concept", "fundamental", "type", "range", "use", "field",
+    "discipline", "study", "application", "service", "operation", "information", "technology", "data",
+    "tool", "equipment", "software", "work", "advanced", "professional", "industrial", "procedure",
+    "standard", "regulation", "control", "analysis", "development", "design", "engineering", "science",
+    "machine",
+    # light verbs of ESCO labels ("show courtesy" is no "show empathy")
+    "show", "demonstrate", "display", "exhibit", "apply", "perform", "conduct",
+    # the same in French (ESCO's French labels)
+    "système", "planification", "mécanique", "processus", "procédé", "financier", "financière",
+    "affaires", "général", "générale", "principe", "méthode", "connaissance", "compétence", "théorie",
+    "pratique", "activité", "fondamental", "gamme", "utilisation", "domaine", "étude", "technologie",
+    "donnée", "outil", "équipement", "logiciel", "logicielle", "travail", "avancé", "professionnel",
+    "professionnelle", "industriel", "industrielle", "procédure", "norme", "réglementation", "contrôle",
+    "analyse", "développement", "conception", "ingénierie",
 })
 GITATTRIBUTES = (
     "# These files are hash-pinned by MANIFEST.json: git must never rewrite their line endings\n"
@@ -408,29 +421,33 @@ class Curated:
     no_merge: frozenset[str]
     blocked_phrases: tuple[str, ...] = ()  # as written, "[A-Z]" expanded (resolver.json)
     generic_titles: frozenset[str] = frozenset()  # title keys that name no occupation
-    in_progress: dict[str, str] = field(default_factory=dict)  # licence id -> its in-progress node
-    generated: dict[str, tuple[str, ...]] = field(default_factory=dict)  # in-progress id -> generated forms
-
-
-def in_progress_forms(label: str, aliases: Sequence[str]) -> list[str]:
-    """The in-progress forms of a licence named `label` / `aliases` (D-28): "<name> student",
-    "<name> candidate", ..., "student <name>", ..., and "CPA <body> PEP[ student]" for CPA."""
-    names = [label, *aliases]
-    forms = [f"{name} {suffix}" for name in names for suffix in IN_PROGRESS_SUFFIXES]
-    forms += [f"{prefix} {name}" for name in names for prefix in IN_PROGRESS_PREFIXES]
-    if any("cpa" in _keys(name) for name in names):
-        forms += [f"CPA {body} PEP{tail}" for body in CPA_PEP_BODIES for tail in ("", " student")]
-    return forms
+    in_progress: dict[str, str] = field(default_factory=dict)  # licence id -> its formal in-progress node
+    licence_probes: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (posting line, its exact credential ids)
 
 
 def content_tokens(surface: str) -> frozenset[str]:
     """The content words of a surface, for comparing labels (D-26): normalised, split at spaces,
     hyphens, slashes and apostrophes, function words and one-letter words dropped ("C" in "C and
-    Smalltalk" says nothing about Objective-C), a plural "s" removed."""
+    Smalltalk" says nothing about Objective-C), a plural "s" or "es" removed."""
     text = normalize_surface(re.sub("['‘’]", " ", surface))
     words = (word for word in re.split(r"[\s/\-]+", text) if len(word) > 1 and word not in STOP_WORDS)
-    return frozenset(word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
-                     for word in words)
+    return frozenset(_singular(word) for word in words)
+
+
+def _singular(word: str) -> str:
+    if len(word) > 4 and word.endswith(("sses", "xes", "ches", "shes")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+_GENERIC_TOKENS = frozenset(map(_singular, GENERIC_WORDS))  # "analysis" is the token "analysi"
+
+
+def shares_specific_word(label: str, tokens: frozenset[str]) -> bool:
+    """Whether `label` has a content word, not a generic one, among the curated `tokens` (D-26)."""
+    return bool((content_tokens(label) - _GENERIC_TOKENS) & tokens)
 
 
 _LETTER_SLOT = "[A-Z]"  # in a blocked phrase: one phrase per capital letter ("Building [A-Z]")
@@ -508,17 +525,6 @@ def load_curated(path: Path) -> Curated:
             for k, v in in_progress.items()):
         raise BuildError(f"{path.name}: in_progress must map curated licence credentials to curated "
                          "in-progress credentials")
-    generated: dict[str, list[str]] = defaultdict(list)
-    for licence, target in sorted(in_progress.items()):
-        known = {key for surface in (by_id[target].label, *by_id[target].aliases, *generated[target])
-                 for key in _keys(surface)}
-        for form in in_progress_forms(by_id[licence].label, by_id[licence].aliases):
-            if not set(_keys(form)) & known:
-                generated[target].append(form)
-                known.update(_keys(form))
-    nodes = [CuratedNode(id=node.id, label=node.label, kind=node.kind, aliases=(*node.aliases, *generated[node.id]),
-                         parents=node.parents, release_year=node.release_year) if generated.get(node.id) else node
-             for node in nodes]
     phrases = _expand_phrases(_strings(doc.get("blocked_phrases"), f"{path.name}: blocked_phrases"))
     curated_keys = {key for node in nodes for surface in (node.label, *node.aliases) for key in _keys(surface)}
     for phrase in phrases:
@@ -536,8 +542,20 @@ def load_curated(path: Path) -> Curated:
         blocked_phrases=phrases,
         generic_titles=frozenset(key for title in generic for key in _keys(title)),
         in_progress=dict(sorted(in_progress.items())),
-        generated={node_id: tuple(forms) for node_id, forms in sorted(generated.items()) if forms},
+        licence_probes=_licence_probes(doc.get("licence_probes"), path.name, set(in_progress)),
     )
+
+
+def _licence_probes(value: Any, where: str, licences: set[str]) -> tuple[tuple[str, tuple[str, ...]], ...]:
+    """[posting line, licence id, other credential ids the line names ...] -> (line, ids)."""
+    if value is None:
+        return ()
+    if not isinstance(value, list) or not all(
+            isinstance(item, list) and len(item) >= 2 and all(isinstance(x, str) and x for x in item)
+            and item[1] in licences for item in value):
+        raise BuildError(f"{where}: licence_probes are [posting line, licence id with an in_progress entry, "
+                         "other credential ids the line names ...]")
+    return tuple((item[0], tuple(item[1:])) for item in value)
 
 
 def load_curated_edges(path: Path) -> list[tuple[str, str, float]]:
@@ -865,11 +883,11 @@ class Assembler:
         """The concept's labels as claims on `draft` (DECISIONS D-26). A one-word French preferred
         label stays only when it is the English one ("Python"): otherwise it is often an ordinary
         French word ("morale", "saisie"). A concept merged into a curated node brings its preferred
-        labels, and an alternative or hidden label only when it has several words one of which is
-        a content word of the curated node's own names ("supervised learning" under machine
-        learning, "manage projects" under project management): the others too often name a
-        neighbour of the curated sense ("web design" under computer programming, "make business
-        decisions" under marketing)."""
+        labels, and, when the node is not a field of study, an alternative or hidden label only
+        when it has several words one of which is a specific (not generic) content word of the
+        curated node's own names ("supervised learning" under machine learning, "manage projects"
+        under project management): the others too often name a neighbour of the curated sense
+        ("web design" under computer programming, "financial planning" under forecasting)."""
         group = self._next_group()
         english = {normalize_surface(concept.pref)}
         for pref, strength in ((concept.pref, NAME), (concept.pref_fr, FR_NAME)):
@@ -890,7 +908,8 @@ class Assembler:
                                  (concept.hidden_fr, FR_ALT)):
             for label in labels:
                 if merged:
-                    if " " not in normalize_surface(label) or not content_tokens(label) & tokens:
+                    if (draft.id.startswith(FIELD_PREFIX) or " " not in normalize_surface(label)
+                            or not shares_specific_word(label, tokens)):
                         continue
                     self.synonym_imports.append((draft.id, label))
                 self._claim(draft, label, strength, group)
@@ -1429,12 +1448,12 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "## Rules worth knowing when reading the artifacts",
         "",
         "- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,",
-        "  and an alternative or hidden label only when it has several words one of which is a content word",
-        f"  of the curated names ({len(report.synonym_imports):,} kept); a one-word French preferred label is",
-        "  kept only when it is the English label. ESCO programming languages (labelled \"(computer",
-        "  programming)\" or under computer programming) are TECHNOLOGY. Each professional licence's",
-        "  in-progress node holds the generated forms of the licence's names (DECISIONS D-28:",
-        f"  {report.counts.get('generated_in_progress', 0):,} names); none of them reaches a licence.",
+        "  and, into a skill (never a field of study), an alternative or hidden label of several words that",
+        f"  shares a specific content word with the curated names ({len(report.synonym_imports):,} kept); a",
+        "  one-word French preferred label is kept only when it is the English label. ESCO programming",
+        "  languages (labelled \"(computer programming)\" or under computer programming) are TECHNOLOGY.",
+        "  The formal in-progress designations of a professional licence or of the CFA charter (\"CPA",
+        "  candidate\") never reach it, and the curated posting probes keep their licence (DECISIONS D-28).",
         "- titles.json: a primary O*NET title maps to its occupation; an alternate or reported title claimed",
         "  by several occupations goes to the SOC major group most of them share (ties: the smaller group",
         "  code), then to that group's smallest code. Trailing parentheticals give two keys",
@@ -1459,7 +1478,8 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "  everywhere: lower-case text never resolves to them and the fuzzy fallback never targets them.",
         "  `blocked_phrases` (\"American Express\", \"Sous Chef\", \"Building C\", \"Technical Skills\")",
         "  consume their words in extraction without a mention. `in_progress` maps each professional",
-        "  licence to the node of its in-progress forms (DECISIONS D-28).",
+        "  licence, and the CFA charter, to the node of its formal in-progress designations, read only as",
+        "  written (D-28).",
         "",
         "## Counts",
         "",
@@ -1556,8 +1576,7 @@ def build(
     }
     leaks = check_in_progress(nodes, curated, resolver_settings)
     if leaks:
-        raise BuildError(f"in-progress forms that reach a professional licence (D-28): {leaks[:20]}")
-    report.counts["generated_in_progress"] = sum(len(forms) for forms in curated.generated.values())
+        raise BuildError(f"licence status check failed (D-28): {leaks[:20]}")
     report.synonym_imports = list(assembler.synonym_imports)
     extras = {
         "resolver.json": resolver_settings,
@@ -1578,9 +1597,10 @@ def build(
 
 
 def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Mapping[str, Any]) -> list[str]:
-    """Every name of an in-progress node, generated or curated, read through the resolver the
-    artifacts will load: `resolve` and `extract` (list and prose) must never reach one of the
-    licences it stands for (D-28). Returns the offending names (empty: the build may go on)."""
+    """Read through the resolver the artifacts will load (D-28): no name of a formal in-progress
+    node reaches a professional licence through `resolve` or `extract` (list and prose), and every
+    `licence_probes` posting line yields exactly its credentials: the licence it requires and the
+    others it names ("Ideal candidate: RN with 3+ years" requires the licence). Returns what failed."""
     from matcher.config import load_config
     from matcher.normalize.resolver import Resolver
 
@@ -1588,17 +1608,23 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
     resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
                         blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"])
     licences = set(curated.in_progress)
-    leaks = []
+    targets = set(curated.in_progress.values())
+    failures = []
     for node in nodes:
-        if node.id not in set(curated.in_progress.values()):
+        if node.id not in targets:
             continue
         for name in (node.label, *node.aliases):
             found = {resolver.resolve(name).canonical_id}
             for context in ("list", "prose"):
                 found.update(m.canonical_id for m in resolver.extract(name, context=context))
             if found & licences:
-                leaks.append(f"{name!r} -> {sorted(found & licences)}")
-    return leaks
+                failures.append(f"{name!r} -> {sorted(found & licences)}")
+    for text, expected in curated.licence_probes:
+        found = {m.canonical_id for m in resolver.extract(text)}
+        credentials = {node_id for node_id in found if node_id.startswith("cred.")}
+        if credentials != set(expected):
+            failures.append(f"posting {text!r} -> {sorted(credentials)}, expected {sorted(expected)}")
+    return failures
 
 
 def _write_review(report: Report, review_dir: Path) -> None:
@@ -1637,7 +1663,6 @@ def main(argv: Optional[list[str]] = None) -> int:
     print(f"built {report.counts['nodes']:,} nodes, {report.counts['aliases']:,} aliases into {args.out} "
           f"in {report.seconds:.1f} s; merges {len(report.merges):,}, dropped nodes {len(report.dropped_nodes):,}, "
           f"ambiguous keys {len(report.ambiguous_keys):,}, label ties {len(report.label_ties):,}, "
-          f"in-progress forms generated {report.counts['generated_in_progress']:,}, "
           f"merged synonyms kept {len(report.synonym_imports):,}")
     return 0
 

@@ -728,12 +728,35 @@ def test_a_key_both_a_field_and_a_skill_claim(config) -> None:
         ("Built 3D CAD assemblies.", ["skill.cad"]),
         ("Used CAD/CAM programming daily.", ["skill.cad", "skill.cam"]),
         ("Drafting in CAD, $25/hr.", ["skill.cad"]),  # the rate is not next to the code
+        ("Traded USD/CAD and EUR/USD currency pairs.", []),  # currency pairs
+        ("Produced 1,200 CAD drawings for the plant.", ["skill.cad"]),  # a count, more words follow
+        ("Updated the 2024 CAD standards manual.", ["skill.cad"]),  # a year is no amount
+        ("Paid 25 CAD per hour.", []),  # a number, then a rate
+        ("The budget was 80,000 CAD.", []),  # an amount, then the clause ends
+        ("Salary: 80,000 CAD\nBenefits included", []),  # the line ends
+        ("Paid 25.50 CAD.", []),  # cents
+        ("Budget of 1.2M CAD.", []),  # a magnitude
+        ("Managed a 2M CAD budget.", []),  # a money word follows
+        ("Managed a CAD 2M budget.", []),  # an amount follows
+        ("Experience with Fusion 360 CAD.", ["skill.cad"]),  # a version is no amount
+        ("Experience with SolidWorks 2022 CAD.", ["skill.solidworks", "skill.cad"]),  # nor a year
+        ("Proficient in CAD 2024.", ["skill.cad"]),  # nor a year after the code
+        ("Tools: Office 365, CAD, SolidWorks", ["skill.cad", "skill.solidworks"]),  # a list comma
+        ("Skills: Python 3, CAD.", ["skill.cad"]),
     ],
 )
-def test_a_currency_code_next_to_an_amount_is_money(config, text: str, expected: list[str]) -> None:
+def test_a_currency_code_in_a_money_context_is_money(config, text: str, expected: list[str]) -> None:
     graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"), _node("skill.cam", "CAM"))
     r = Resolver(graph, config, ambiguous={"cad": "CAD"})
     assert _ids(r, text) == expected
+
+
+def test_a_number_before_a_list_comma_is_no_amount(config) -> None:
+    # D-27: in a skills list "365, CAD" is two items, whatever ends the clause after the code.
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"))
+    r = Resolver(graph, config, ambiguous={"cad": "CAD"})
+    for context in ("list", "prose"):
+        assert _ids(r, "Microsoft Office 365, CAD, SolidWorks", context=context) == ["skill.cad", "skill.solidworks"]
 
 
 def test_spring_of_a_year_is_a_date(config) -> None:
@@ -755,28 +778,30 @@ def test_an_initialisms_period_joins_only_a_lower_case_word(config) -> None:
 @pytest.mark.parametrize(
     "text,expected",
     [
-        ("CPA (in progress)", [("cred.cpa_wip", "CPA (in progress)")]),
-        ("CPA [expected 2027]", [("cred.cpa_wip", "CPA [expected 2027]")]),
-        ("RN (student) at Humber", [("cred.nursing", "RN (student)")]),
-        ("309A Electrical Apprentice", [("cred.apprentice", "Electrical Apprentice")]),
-        ("Apprentice Electrician (309A), Level 2", [("cred.apprentice", "Apprentice Electrician")]),
-        ("CPA (2019), Toronto", [("cred.cpa", "CPA")]),  # no status: the licence
-        ("RN, BScN student", [("cred.registered_nurse", "RN"), ("cred.nursing", "BScN student")]),  # a comma
-        ("Electrical Apprentice\n309A licence", [("cred.apprentice", "Electrical Apprentice"),
-                                                  ("cred.electrician", "309A licence")]),  # a line break
+        # Status is the context's business (D-28): the credential concept, whatever surrounds it.
+        ("CPA (in progress)", [("cred.cpa", "CPA")]),
+        ("RN (student) at Humber", [("cred.registered_nurse", "RN")]),
+        ("309A Electrical Apprentice", [("cred.electrician", "309A"), ("cred.apprentice", "Electrical Apprentice")]),
+        # A formal designation is read only as written, never across ":" or a dash.
+        ("Applied as a CPA candidate in 2024.", [("cred.cpa_wip", "CPA candidate")]),
+        ("Ideal candidate: CPA with five years.", [("cred.cpa", "CPA")]),
+        ("Ideal Candidate - CPA, Toronto", [("cred.cpa", "CPA")]),
+        ("CPA candidate - Toronto", [("cred.cpa_wip", "CPA candidate")]),
+        ("Apprentice Electrician: 309A licence", [("cred.apprentice", "Apprentice Electrician"),
+                                                   ("cred.electrician", "309A licence")]),
     ],
 )
-def test_a_licence_written_with_its_status_is_in_progress(config, text: str, expected: list) -> None:
-    graph = _graph(_node("cred.cpa", "Chartered Professional Accountant", "CPA"), _node("cred.cpa_wip", "CPA candidate"),
+def test_credential_status_is_left_to_the_context(config, text: str, expected: list) -> None:
+    graph = _graph(_node("cred.cpa", "Chartered Professional Accountant", "CPA"),
+                   _node("cred.cpa_wip", "CPA candidate", "candidate CPA"),
                    _node("cred.registered_nurse", "Registered Nurse", "RN"),
-                   _node("cred.nursing", "Nursing student", "BScN student"),
                    _node("cred.electrician", "Electrician licence", "309A", "309A licence"),
                    _node("cred.apprentice", "Electrical apprentice", "Apprentice Electrician"))
-    r = Resolver(graph, config, in_progress={"cred.cpa": "cred.cpa_wip", "cred.registered_nurse": "cred.nursing",
-                                             "cred.electrician": "cred.apprentice"})
+    r = Resolver(graph, config, in_progress={"cred.cpa": "cred.cpa_wip", "cred.electrician": "cred.apprentice"})
     mentions = r.extract(text)
     assert [(m.canonical_id, m.surface) for m in mentions] == expected
     assert all(text[m.start:m.end] == m.surface for m in mentions)
+    assert r.resolve("candidate CPA").canonical_id == "cred.cpa_wip"  # resolve reads the name as given
 
 
 def test_new_settings_are_deterministic_across_input_order(config) -> None:

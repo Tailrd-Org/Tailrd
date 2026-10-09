@@ -133,6 +133,7 @@ edges:
   - [cred.cpa_in_progress, field.accounting, 0.70]
   - [cred.cfa_candidate, cred.cfa, 0.60]
   - [cred.cfa_candidate, skill.financial_analysis, 0.70]
+  - [cred.eit, cred.professional_engineer, 0.60]
   - [cred.nursing_student, cred.registered_nurse, 0.60]
   - [cred.nursing_student, cred.licensed_practical_nurse, 0.50]
   - [cred.nursing_student, field.nursing, 0.70]

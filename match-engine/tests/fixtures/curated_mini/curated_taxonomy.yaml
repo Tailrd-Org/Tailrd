@@ -22,7 +22,7 @@ skills:
 
 credentials:
   - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN]}
-  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [RN student]}
+  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [student nurse]}
 
 fields:
   - {id: field.science, label: Science, kind: DOMAIN}
@@ -40,6 +40,9 @@ generic_titles: [intern, co-op]
 
 in_progress:
   cred.registered_nurse: cred.nursing_student
+
+licence_probes:
+  - ["Ideal candidate: RN with 3+ years.", cred.registered_nurse]
 
 onet_vendor_prefixes: [Microsoft, Atlassian, Autodesk, Amazon, Google]
 

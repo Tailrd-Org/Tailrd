@@ -124,6 +124,7 @@
    "skill.early_childhood_education":0.8
   },
   "cred.eit":{
+   "cred.professional_engineer":0.6,
    "field.engineering":0.6
   },
   "cred.electrician_apprentice":{
@@ -210,6 +211,7 @@
    "skill.project_management":0.8
   },
   "cred.professional_engineer":{
+   "cred.eit":0.6,
    "field.engineering":0.7
   },
   "cred.psm":{

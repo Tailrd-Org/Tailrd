@@ -243,7 +243,7 @@ skills:
   - {id: skill.economics, label: Economics, kind: DOMAIN, aliases: [economic analysis, sciences économiques]}
   - {id: skill.data_science, label: Data science, kind: DOMAIN, aliases: [science des données, sciences des données]}
   - {id: skill.nursing, label: Nursing, kind: DOMAIN, aliases: [nursing care, nursing practice, soins infirmiers]}
-  - {id: skill.design, label: Design, kind: DOMAIN, aliases: [design skills]}
+  - {id: skill.design, label: Design skills, kind: DOMAIN, aliases: [product design, industrial design, interior design, design thinking]}
   - {id: skill.regression, label: Regression analysis, kind: METHODOLOGY, aliases: [linear regression, logistic regression, regression models, regression modeling, regression modelling, multiple regression], parents: [skill.statistical_analysis]}
   - {id: skill.ab_testing, label: A/B testing, kind: METHODOLOGY, aliases: [AB testing, A/B tests, split testing], parents: [skill.statistical_analysis]}
   - {id: skill.sas, label: SAS, kind: TOOL, aliases: [SAS software, SAS programming, SAS Base, SAS/STAT, SAS Enterprise Guide], parents: [skill.statistical_analysis]}
@@ -356,7 +356,7 @@ skills:
   - {id: skill.plumbing, label: Plumbing, kind: METHODOLOGY, aliases: [plumbing systems, pipefitting, plomberie], parents: [skill.skilled_trades]}
   - {id: skill.carpentry, label: Carpentry, kind: METHODOLOGY, aliases: [carpenter skills, woodworking, finish carpentry, menuiserie]}
   - {id: skill.power_tools, label: Power tools, kind: TOOL, aliases: [power tool, operate power tools, use power tools, outils électriques]}
-  - {id: skill.hand_tools, label: Hand tools, kind: TOOL, aliases: [hand tool, use hand tools, outils manuels]}
+  - {id: skill.hand_tools, label: Hand tools, kind: TOOL, aliases: [hand tool, use hand tools, outils manuels, outils à main]}
   - {id: skill.forklift, label: Forklift operation, kind: TOOL, aliases: [forklift, forklifts, forklift driving, operate forklift, forklift truck, lift truck, chariot élévateur]}
   - {id: skill.pallet_jack, label: Pallet jack, kind: TOOL, aliases: [pallet jacks, pallet truck, electric pallet jack, transpalette]}
   - {id: skill.osha, label: OSHA standards, kind: DOMAIN, aliases: [OSHA, OSHA regulations, OSHA compliance, Occupational Safety and Health Administration standards], parents: [skill.workplace_safety]}
@@ -415,7 +415,7 @@ skills:
   - {id: skill.lasers, label: Lasers, kind: TOOL, aliases: [laser systems]}
   - {id: skill.microchip_scanners, label: Microchip scanners, kind: TOOL}
   - {id: skill.microprocessors, label: Microprocessors, kind: TECHNOLOGY, aliases: [microprocessor], parents: [skill.digital_design]}
-  - {id: skill.milling_machines, label: Milling machines, kind: TOOL, aliases: [milling machine], parents: [skill.cnc]}
+  - {id: skill.milling_machines, label: Milling machines, kind: TOOL, aliases: [milling machine, mill machine], parents: [skill.cnc]}
   - {id: skill.orthotic_devices, label: Orthotic devices, kind: TOOL, aliases: [orthoses]}
   - {id: skill.orthotics, label: Orthotics, kind: DOMAIN}
   - {id: skill.projection_equipment, label: Projection equipment, kind: TOOL, aliases: [projectors]}
@@ -621,17 +621,18 @@ credentials:
   - {id: cred.teaching_license, label: Teaching licence, kind: CREDENTIAL, aliases: [teaching license, teaching certificate, teacher certification, Ontario Certified Teacher, teaching credential, brevet d'enseignement]}
   - {id: cred.electrician_license, label: Electrician licence, kind: CREDENTIAL, aliases: [electrician license, licensed electrician, 309A, 309A licence, journeyman electrician licence, master electrician licence, Construction and Maintenance Electrician 309A]}
   - {id: cred.paramedic_license, label: Paramedic licence, kind: CREDENTIAL, aliases: [paramedic license, Primary Care Paramedic, Advanced Care Paramedic, licensed paramedic, EMT-P, paramedic certification]}
-  # ─── on the way to a licence: NOT licences (not in gates.yaml), each related to its licence (D-28) ─
-  # The longest match takes "CPA candidate", "RN student", "309A apprentice" away from the licence.
-  - {id: cred.cpa_in_progress, label: CPA candidate, kind: CREDENTIAL, aliases: [C.P.A. candidate, CPA student, CPA PEP, CPA PEP Core 1, CPA PEP Core 2, CPA PEP Capstone 1, CPA PEP Capstone 2, CPA Professional Education Program, CPA Professional Education Programme, CPA PREP, writing the CFE, wrote the CFE, CFE candidate, Common Final Examination, pursuing CPA, pursuing the CPA, pursuing CPA designation, pursuing the CPA designation, working towards CPA, working towards the CPA, working towards the CPA designation, working toward the CPA designation, CPA in progress, candidat CPA, candidate CPA, candidat à la profession de CPA, candidate à la profession de CPA]}
-  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [student nurse, RN student, BScN student, BSN student, nursing program student, RPN student, LPN student, PN student, practical nursing student, étudiante en soins infirmiers, étudiant en soins infirmiers, étudiante infirmière, étudiant infirmier]}
-  - {id: cred.cdl_trainee, label: CDL trainee, kind: CREDENTIAL, aliases: [CDL student, CDL permit, CDL learner's permit, commercial learner's permit, AZ trainee, AZ student, AZ training, DZ trainee]}
-  - {id: cred.articling_student, label: Articling student, kind: CREDENTIAL, aliases: [articling, articling clerk, articled student, student-at-law, student at law, law student, law school student, JD student, JD candidate, LLB student, bar candidate, bar exam candidate, Law Society licensing candidate, Lawyer Licensing Process candidate, stagiaire en droit, étudiant en droit, étudiante en droit]}
+  # ─── formal designations on the way to a licence: NOT licences (D-28) ──────────────────────
+  # Only fixed formal names, read as written (never across ":" or a dash). A status written around a
+  # licence ("RN student", "CPA (in progress)", "pursuing") is the résumé parser's business.
+  - {id: cred.cpa_in_progress, label: CPA candidate, kind: CREDENTIAL, aliases: [C.P.A. candidate, CPA student, CPA PEP, CPA PEP Core 1, CPA PEP Core 2, CPA PEP Capstone 1, CPA PEP Capstone 2, CPA Professional Education Program, CPA Professional Education Programme, CPA PREP, writing the CFE, CFE candidate, Common Final Examination, candidat à la profession de CPA, candidate à la profession de CPA, CPA Canada PEP, CPA Ontario PEP, CPA Quebec PEP, CPA Québec PEP, CPA British Columbia PEP, CPA BC PEP, CPA Alberta PEP, CPA Manitoba PEP, CPA Saskatchewan PEP, CPA Nova Scotia PEP, CPA New Brunswick PEP, CPA Newfoundland and Labrador PEP, CPA Prince Edward Island PEP, CPA PEI PEP, CPA Atlantic PEP, CPA Western School of Business PEP, CPA Yukon PEP, CPA Northwest Territories PEP, CPA Nunavut PEP]}
+  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [student nurse, BScN student, BSN student, nursing program student, practical nursing student, étudiante en soins infirmiers, étudiant en soins infirmiers, étudiante infirmière, étudiant infirmier]}
+  - {id: cred.cdl_trainee, label: Commercial learner's permit, kind: CREDENTIAL, aliases: [commercial learner permit, CDL learner's permit, CDL permit]}
+  - {id: cred.articling_student, label: Articling student, kind: CREDENTIAL, aliases: [articling, articling clerk, articled student, student-at-law, student at law, law student, law school student, JD student, JD candidate, LLB student, Law Society licensing candidate, Lawyer Licensing Process candidate, stagiaire en droit, étudiant en droit, étudiante en droit]}
   - {id: cred.medical_student, label: Medical student, kind: CREDENTIAL, aliases: [medical school student, MD student, MD candidate, clinical clerk, medical clerk, étudiant en médecine, étudiante en médecine, externe en médecine]}
   - {id: cred.pharmacy_student, label: Pharmacy student, kind: CREDENTIAL, aliases: [PharmD student, PharmD candidate, pharmacy intern, intern pharmacist, pharmacist intern, student pharmacist, registered pharmacy student, étudiant en pharmacie, étudiante en pharmacie]}
   - {id: cred.teacher_candidate, label: Teacher candidate, kind: CREDENTIAL, aliases: [teaching candidate, student teacher, student teaching, pre-service teacher, preservice teacher, B.Ed candidate, BEd candidate, B.Ed student, BEd student, Bachelor of Education candidate, stagiaire en enseignement]}
   - {id: cred.electrician_apprentice, label: Electrical apprentice, kind: CREDENTIAL, aliases: [apprentice electrician, electrician apprentice, electrical apprenticeship, electrician apprenticeship, 309A apprentice, 309A apprenticeship, 309A apprentice electrician, apprenti électricien, apprentie électricienne]}
-  - {id: cred.paramedic_student, label: Paramedic student, kind: CREDENTIAL, aliases: [student paramedic, paramedic trainee, paramedic program student, PCP student]}
+  - {id: cred.paramedic_student, label: Paramedic student, kind: CREDENTIAL, aliases: [student paramedic, paramedic trainee, paramedic program student]}
   # ─── common certifications ───────────────────────────────────────────────────────────────
   - {id: cred.aws_cloud_practitioner, label: AWS Certified Cloud Practitioner, kind: CREDENTIAL, aliases: [AWS Cloud Practitioner, AWS CCP, CLF-C02]}
   - {id: cred.aws_saa, label: AWS Certified Solutions Architect – Associate, kind: CREDENTIAL, aliases: [AWS Solutions Architect Associate, AWS SAA, AWS Certified Solutions Architect Associate, SAA-C03, AWS Certified Solutions Architect]}
@@ -660,11 +661,11 @@ credentials:
   - {id: cred.six_sigma_black_belt, label: Six Sigma Black Belt, kind: CREDENTIAL, aliases: [Lean Six Sigma Black Belt, Six Sigma Black Belt certification, CSSBB, LSSBB, SSBB]}
   - {id: cred.itil, label: ITIL Foundation, kind: CREDENTIAL, aliases: [ITIL, ITIL v4, ITIL 4 Foundation, ITIL certification, ITIL v3 Foundation]}
   - {id: cred.cfa, label: Chartered Financial Analyst, kind: CREDENTIAL, aliases: [CFA, CFA charterholder, CFA charter holder, CFA charter]}
-  - {id: cred.cfa_candidate, label: CFA candidate, kind: CREDENTIAL, aliases: [CFA Level I, CFA Level 1, CFA Level II, CFA Level 2, CFA Level III, CFA Level 3, CFA Level I candidate, CFA Level II candidate, CFA Level III candidate, Level I CFA candidate, Level II CFA candidate, Level III CFA candidate, CFA Program candidate, CFA program, pursuing the CFA, pursuing the CFA designation, pursuing the CFA charter, working towards the CFA, working towards the CFA charter, candidat CFA]}
+  - {id: cred.cfa_candidate, label: CFA candidate, kind: CREDENTIAL, aliases: [CFA Level I, CFA Level 1, CFA Level II, CFA Level 2, CFA Level III, CFA Level 3, CFA Level I candidate, CFA Level II candidate, CFA Level III candidate, Level I CFA candidate, Level II CFA candidate, Level III CFA candidate, CFA Program candidate, CFA program]}
   - {id: cred.cma, label: Certified Management Accountant, kind: CREDENTIAL, aliases: [CMA, CMA designation]}
   - {id: cred.chrp, label: Certified Human Resources Professional, kind: CREDENTIAL, aliases: [CHRP, CHRP designation]}
   - {id: cred.chrl, label: Certified Human Resources Leader, kind: CREDENTIAL, aliases: [CHRL, CHRL designation]}
-  - {id: cred.eit, label: Engineer in Training, kind: CREDENTIAL, aliases: [EIT, E.I.T., Engineer-in-Training, EIT designation, ingénieur junior, ingénieure junior, P.Eng candidate, PEng candidate, P.Eng in training, pursuing P.Eng, pursuing the P.Eng, working towards P.Eng, working towards the P.Eng, working toward P.Eng, candidat à la profession d'ingénieur, candidate à la profession d'ingénieur]}
+  - {id: cred.eit, label: Engineer in Training, kind: CREDENTIAL, aliases: [EIT, E.I.T., Engineer-in-Training, EIT designation, ingénieur junior, ingénieure junior, candidat à la profession d'ingénieur, candidate à la profession d'ingénieur]}
   - {id: cred.leed, label: LEED Accredited Professional, kind: CREDENTIAL, aliases: [LEED AP, LEED Green Associate, LEED accreditation, LEED certified professional]}
   - {id: cred.red_seal, label: Red Seal, kind: CREDENTIAL, aliases: [Red Seal certification, Red Seal endorsement, Red Seal tradesperson, Sceau rouge]}
   - {id: cred.first_aid, label: First Aid certification, kind: CREDENTIAL, aliases: [First Aid, Standard First Aid, Emergency First Aid, First Aid certificate, First Aid certified, secourisme, premiers soins]}
@@ -848,15 +849,16 @@ blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, C
   Chef de cuisine, Executive Chef, Pastry Chef, Head Chef, "Vitamin [A-Z]", "Building [A-Z]",
   Hepatitis C, Hep C, Schedule C, Swift Current, Swift Water, Spring Break, Spring Term,
   Spring Semester, Go-Live, Go-to-market, Go/No-Go, R&D, Unity Health, Epic Games, Swift Transportation,
-  Express Employment Professionals,
+  Express Employment Professionals, NCLEX-RN, Statistics Canada, Department of Finance,
   # section headers that would otherwise read as a skill ("Technical Skills:")
   Technical Skills, Language Skills, Platforms]
 
-# Professional licences (config/gates.yaml) -> the credential that holds their in-progress forms
-# (D-28). The build generates "<name> student|candidate|program|apprentice|apprenticeship|trainee|
-# in training|in progress|(in progress)" and "student|apprentice|candidate <name>" for every name
-# of the licence, plus "CPA <body> PEP[ student]", and fails when any of them reaches a licence.
+# Professional licences (config/gates.yaml) -> the credential of their formal in-progress
+# designations (D-28). The build fails when a licence has none, or when one of those names reaches
+# a licence through the resolver. The CFA charter is no gated licence, but its candidacy ("CFA
+# Level II") is as formal a designation: read only as written, and never as the charter.
 in_progress:
+  cred.cfa: cred.cfa_candidate
   cred.registered_nurse: cred.nursing_student
   cred.licensed_practical_nurse: cred.nursing_student
   cred.cpa: cred.cpa_in_progress
@@ -868,6 +870,19 @@ in_progress:
   cred.teaching_license: cred.teacher_candidate
   cred.electrician_license: cred.electrician_apprentice
   cred.paramedic_license: cred.paramedic_student
+
+# Posting lines that require a professional licence: [line, licence, other credentials it names].
+# The build fails unless the line yields exactly those credentials ("candidate" in a posting is
+# the applicant, never an in-progress status; D-28).
+licence_probes:
+  - ["Ideal candidate: RN with 3+ years of acute care experience.", cred.registered_nurse]
+  - ["What we look for in a candidate: RN, BScN preferred.", cred.registered_nurse]
+  - ["Ideal Candidate - Registered Nurse (RN) with current CNO registration.", cred.registered_nurse]
+  - ["The ideal candidate: P.Eng. or EIT with five years of design experience.", cred.professional_engineer, cred.eit]
+  - ["Preferred candidate: Ontario Certified Teacher with ESL Part 1.", cred.teaching_license]
+  - ["Graduate of an accredited RN program with current registration.", cred.registered_nurse]
+  - ["Candidate must hold a CPA designation.", cred.cpa]
+  - ["Successful candidate: licensed 309A electrician.", cred.electrician_license]
 
 # Job titles that name no occupation by themselves: titles.json leaves them out (D-26).
 generic_titles: [intern, interns, internship, co-op, co-op student, coop student, student, students,

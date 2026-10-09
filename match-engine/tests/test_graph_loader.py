@@ -342,13 +342,17 @@ def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, messa
         load_resolver_settings(tmp_path)
 
 
-def test_load_resolver_applies_the_in_progress_map(tmp_path: Path, config) -> None:
-    settings = {"format": 1, "ambiguous": {}, "in_progress": {"skill.react": "skill.redux"}}
-    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
-                    extra={"resolver.json": settings})
-    resolver = load_resolver(tmp_path, config)
-    mentions = resolver.extract("Shipped React (in progress) daily.")
-    assert [(m.canonical_id, m.surface) for m in mentions] == [("skill.redux", "React (in progress)")]
+@pytest.mark.parametrize("line", ["Shipped React - Native apps.", "Stack: React: Native apps."])
+def test_load_resolver_applies_the_in_progress_map(tmp_path: Path, config, line: str) -> None:
+    # D-28: the map's in-progress nodes are formal designations, read only as written, never across
+    # ":" or a dash; any other node may span them.
+    found = {}
+    for name, in_progress in (("plain", {}), ("mapped", {"skill.react": "skill.react_native"})):
+        settings = {"format": 1, "ambiguous": {}, "in_progress": in_progress}
+        write_artifacts(tmp_path / name, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                        extra={"resolver.json": settings})
+        found[name] = [m.canonical_id for m in load_resolver(tmp_path / name, config).extract(line)]
+    assert found == {"plain": ["skill.react_native"], "mapped": ["skill.react"]}
 
 
 def test_load_resolver_applies_cased_keys_and_blocked_phrases(tmp_path: Path, config) -> None:

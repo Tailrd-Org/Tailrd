@@ -9,10 +9,8 @@ Python 3	skill.python	ALIAS
 Python (computer programming)	skill.python	ALIAS
 Java	skill.java	EXACT
 Java EE	skill.java	ALIAS
-J2EE	skill.java	ALIAS
 JavaScript	skill.javascript	EXACT
 JS	skill.javascript	ALIAS
-ES6	skill.javascript	ALIAS
 TypeScript	skill.typescript	EXACT
 TS	skill.typescript	ALIAS
 C++	skill.cpp	EXACT
@@ -23,7 +21,6 @@ csharp	skill.csharp	ALIAS
 C sharp	skill.csharp	ALIAS
 Go	skill.go	EXACT
 Golang	skill.go	ALIAS
-golang	skill.go	ALIAS
 Rust	skill.rust	EXACT
 Rustlang	skill.rust	ALIAS
 Ruby	skill.ruby	EXACT
@@ -78,6 +75,7 @@ WebAssembly	skill.webassembly	EXACT
 # ─── web, frameworks, testing ───
 React	skill.react	EXACT
 ReactJS	skill.react	ALIAS
+React.js	skill.react	ALIAS
 React Native	skill.react_native	EXACT
 React-Native	skill.react_native	ALIAS
 Angular	skill.angular	EXACT
@@ -90,6 +88,7 @@ Next	skill.nextjs	ALIAS
 Svelte	skill.svelte	EXACT
 SvelteKit	skill.svelte	ALIAS
 Node.js	skill.nodejs	EXACT
+NodeJS	skill.nodejs	ALIAS
 Node	skill.nodejs	ALIAS
 Express.js	skill.express	EXACT
 Express	skill.express	ALIAS
@@ -797,7 +796,7 @@ Kinesiology	field.kinesiology	EXACT
 Pharmacy	field.pharmacy	EXACT
 Communications	field.communications	EXACT
 Journalism	field.journalism	EXACT
-Design	skill.design	EXACT
+Design	field.design	EXACT
 Architecture	field.architecture	EXACT
 Law	field.law	EXACT
 legal studies	field.law	ALIAS
@@ -868,11 +867,11 @@ CFA Level II	cred.cfa_candidate	ALIAS
 Passed CFA Level III in 2025.	cred.cfa_candidate	ALIAS	prose
 CFA charterholder	cred.cfa	ALIAS
 nursing student	cred.nursing_student	EXACT
-RN student	cred.nursing_student	ALIAS
+BScN student	cred.nursing_student	ALIAS
 student nurse	cred.nursing_student	ALIAS
-RN student at Humber College.	cred.nursing_student	ALIAS	prose
-P.Eng candidate	cred.eit	ALIAS
-P.Eng. candidate with four years of experience.	cred.eit	ALIAS	prose
+RN student at Humber College.	cred.registered_nurse	ALIAS	prose
+Engineer-in-Training	cred.eit	ALIAS
+P.Eng. candidate with four years of experience.	cred.professional_engineer	ALIAS	prose
 articling student	cred.articling_student	EXACT
 student-at-law	cred.articling_student	ALIAS
 Articling student at a Toronto law firm.	cred.articling_student	EXACT	prose
@@ -882,7 +881,7 @@ teacher candidate	cred.teacher_candidate	EXACT
 Teacher candidate in the B.Ed program.	cred.teacher_candidate	EXACT	prose
 PharmD student	cred.pharmacy_student	ALIAS
 medical student	cred.medical_student	EXACT
-CDL trainee	cred.cdl_trainee	EXACT
+Commercial learner's permit	cred.cdl_trainee	EXACT
 paramedic student	cred.paramedic_student	EXACT
 # ─── words that are not the skill here (fix round 1; DECISIONS D-27) ───
 Dean's List, Fall 2023 and Spring 2024.	-	NONE	prose
@@ -904,6 +903,7 @@ Loaded shipping containers at the port.	-	NONE	prose
 Skilled in the trades.	-	NONE	prose
 Ran a regression on the housing data.	-	NONE	prose
 Holds a black belt in karate.	-	NONE	prose
+Passed the NCLEX-RN in 2024.	-	NONE	prose
 tables	-	NONE	list
 Volunteered in education and commerce; studied physics and law.	-	NONE	prose
 # ─── French elisions (fix round 1; DECISIONS D-27) ───

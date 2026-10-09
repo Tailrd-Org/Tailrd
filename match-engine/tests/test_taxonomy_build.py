@@ -156,8 +156,9 @@ def test_a_merged_concept_keeps_only_alternatives_that_share_a_content_word(grap
     assert {"Python programming", "Python 2.7", "langage Python"} <= _aliases(graph, "skill.python")
     assert "Py" not in _aliases(graph, "skill.python")
     assert _aliases(graph, "skill.programming") == {"programmation informatique", "software programming"}
-    assert {"statistical learning", "apprentissage machine", "apprentissage automatique"} <= _aliases(
-        graph, "skill.machine_learning")
+    assert {"statistical learning", "apprentissage automatique"} <= _aliases(graph, "skill.machine_learning")
+    # "apprentissage machine" shares only "machine" with "Machine learning": a generic word.
+    assert "apprentissage machine" not in _aliases(graph, "skill.machine_learning")
     # Not merged: the concept keeps every label that passes the filters.
     assert {"Ruby", "Ruby language"} <= _aliases(graph, "esco.ruby_computer_programming")
 
@@ -168,13 +169,38 @@ def test_a_merged_concept_keeps_only_alternatives_that_share_a_content_word(grap
         ("web design", False),  # under "Computer programming": no word in common
         ("software programming", True),
         ("C and Smalltalk", False),  # a one-letter word says nothing (under "Objective-C")
-        ("gestion de programmes", True),  # French function words dropped, a plural "s" too
+        ("gestion de programmes", False),  # "gestion", "programme": generic words
+        ("gestion de projets agiles", True),  # French function words dropped, a plural "s" too
+        ("financial planning", False),  # under forecasting ("financial forecasting"): generic words only
+        ("regulatory systems", False),  # under "Control systems"
+        ("plasma mechanics", False),  # under "Fluid mechanics"
+        ("customer support", True),  # under "Customer service"
+        ("supervised learning", True),  # under "Machine learning"
+        ("regression analysis", False),  # under "Data analysis": "analysis" is generic as a token too
+        ("farming machines", False),  # under "Milling machines"
+        ("show courtesy", False),  # under "show empathy": a light verb
+        ("systèmes électroniques et informatiques", False),  # under "systèmes embarqués"
+        ("entrepôt de données", False),  # under "bases de données"
+        ("manier des outils à main", True),  # under "outils à main"
     ],
 )
-def test_content_tokens(label: str, shares: bool) -> None:
+def test_a_synonym_needs_a_specific_shared_word(label: str, shares: bool) -> None:
     curated = {"web design": "Computer programming", "software programming": "Computer programming",
-               "C and Smalltalk": "Objective-C", "gestion de programmes": "gestion de projets"}[label]
-    assert bool(builder.content_tokens(label) & builder.content_tokens(curated)) is shares
+               "C and Smalltalk": "Objective-C", "gestion de programmes": "gestion de projets",
+               "gestion de projets agiles": "gestion de projets", "financial planning": "financial forecasting",
+               "regulatory systems": "Control systems", "plasma mechanics": "Fluid mechanics",
+               "customer support": "Customer service", "supervised learning": "Machine learning",
+               "regression analysis": "Data analysis", "farming machines": "Milling machines",
+               "show courtesy": "show empathy", "systèmes électroniques et informatiques": "systèmes embarqués",
+               "entrepôt de données": "bases de données", "manier des outils à main": "outils à main"}[label]
+    assert builder.shares_specific_word(label, builder.content_tokens(curated)) is shares
+
+
+def test_a_field_of_study_imports_no_alternative_label(graph) -> None:
+    # D-26: "maths knowledge" (ESCO mathematics) stays out of field.mathematics; a field's names are
+    # its curated ones, so no ESCO paraphrase ever consumes prose as a field.
+    assert _aliases(graph, "field.mathematics") == {"Math", "Maths"}
+    assert _aliases(graph, "field.computer_programming") == set()
 
 
 def test_a_one_word_french_preferred_label_needs_to_be_the_english_one(graph) -> None:
@@ -199,7 +225,7 @@ def test_an_onet_example_merges_through_its_vendor_free_or_acronym_form(graph) -
 def test_esco_knowledge_and_its_group_merge_into_a_field(graph) -> None:
     mathematics = graph.nodes["field.mathematics"]
     assert mathematics.kind is SkillKind.DOMAIN and mathematics.parents == ("field.science",)
-    assert set(mathematics.aliases) == {"Math", "Maths", "maths knowledge"}  # shares "math" (D-26)
+    assert set(mathematics.aliases) == {"Math", "Maths"}  # a field imports no alternative label (D-26)
     assert "esco.mathematics" not in graph.nodes and "esco.group.0541" not in graph.nodes
 
 
@@ -382,24 +408,29 @@ def test_load_resolver_uses_the_ambiguous_casings(built: Path, config) -> None:
     assert resolver.resolve("American Express").method == "NONE"
 
 
-def test_in_progress_forms_are_generated_for_every_licence_name(graph, built: Path, config) -> None:
-    # D-28: every name of a professional licence gives "<name> student|...", "student <name>", ...
-    # to the licence's in-progress node, so the longest match never leaves the licence standing.
-    student = _aliases(graph, "cred.nursing_student")
-    assert {"RN student", "RN program", "RN candidate", "RN in progress", "student RN", "Registered Nurse student",
-            "Registered Nurse in training", "candidate Registered Nurse"} <= student
+def test_formal_designations_are_read_as_written(graph, built: Path, config) -> None:
+    # D-28: a professional licence names the node of its formal in-progress designations; no name
+    # is generated, a status written around the licence is the context's business.
+    assert _aliases(graph, "cred.nursing_student") == {"student nurse"}
     assert _json(built, "resolver.json")["in_progress"] == {"cred.registered_nurse": "cred.nursing_student"}
     resolver = load_resolver(built, config)
-    for text in ("Registered Nurse candidate awaiting the NCLEX.", "Enrolled in the RN program.", "RN (in progress)"):
-        assert {m.canonical_id for m in resolver.extract(text)} == {"cred.nursing_student"}, text
-    assert [m.canonical_id for m in resolver.extract("Registered Nurse at Mount Sinai.")] == ["cred.registered_nurse"]
+    for text, expected in (("Nursing student at Humber.", ["cred.nursing_student"]),
+                           ("RN (in progress)", ["cred.registered_nurse"]),
+                           ("Ideal candidate: RN with 3+ years.", ["cred.registered_nurse"])):
+        assert [m.canonical_id for m in resolver.extract(text)] == expected, text
 
 
-def test_the_cpa_pep_forms() -> None:
-    forms = builder.in_progress_forms("Chartered Professional Accountant", ["CPA"])
-    assert {"CPA Canada PEP", "CPA Ontario PEP student", "CPA Québec PEP", "CPA candidate", "student CPA",
-            "CPA (in progress)", "Chartered Professional Accountant in training"} <= set(forms)
-    assert not any("PEP" in form for form in builder.in_progress_forms("Registered Nurse", ["RN"]))
+def test_a_posting_probe_that_loses_its_licence_fails_the_build(tmp_path: Path) -> None:
+    # "candidate RN" as a designation would read a posting's "Ideal candidate RN" as a student.
+    text = CURATED.read_text(encoding="utf-8").replace(
+        "aliases: [student nurse]", "aliases: [student nurse, candidate RN]").replace(
+        '  - ["Ideal candidate: RN with 3+ years.", cred.registered_nurse]\n',
+        '  - ["Ideal candidate: RN with 3+ years.", cred.registered_nurse]\n'
+        '  - ["Ideal candidate RN with 3+ years.", cred.registered_nurse]\n')
+    path = tmp_path / "curated.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(builder.BuildError, match="licence status check failed.*Ideal candidate RN"):
+        _build(tmp_path / "out", curated_path=path)
 
 
 def test_a_professional_licence_without_an_in_progress_node_fails_the_build(tmp_path: Path) -> None:
@@ -414,10 +445,11 @@ def test_a_professional_licence_without_an_in_progress_node_fails_the_build(tmp_
 def test_an_in_progress_name_that_reaches_the_licence_fails_the_build(tmp_path: Path) -> None:
     # "RN, BScN" resolves to the student node as a whole, but extraction stops at the comma and
     # reads "RN": the build check refuses it (D-28).
-    text = CURATED.read_text(encoding="utf-8").replace("aliases: [RN student]", 'aliases: [RN student, "RN, BScN"]')
+    text = CURATED.read_text(encoding="utf-8").replace("aliases: [student nurse]",
+                                                       'aliases: [student nurse, "RN, BScN"]')
     path = tmp_path / "curated.yaml"
     path.write_text(text, encoding="utf-8")
-    with pytest.raises(builder.BuildError, match="reach a professional licence"):
+    with pytest.raises(builder.BuildError, match="licence status check failed"):
         _build(tmp_path / "out", curated_path=path)
 
 

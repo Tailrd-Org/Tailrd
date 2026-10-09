@@ -3,14 +3,14 @@
   "idf.json":"f9e6b0934118b314197043c2483213f6a055a9f3a19d62015a7aaeb1bc166019",
   "mos_crosswalk.json":"f6ee0717a5692a73a53cd245e3357d0a1e4fc0914ce8f23893d7bdda3505b846",
   "naics.json":"45cba4f2c7d3dc39012dab982bbba5a86fe2a2b7bcfaf1d06216c3fa76ba8fdc",
-  "nodes.json.gz":"865ef936afbf5cc03107b8314b0f202df3baf1683467980957765c048c163074",
-  "pmi_edges.json":"ab71571af3f4a4fe1c4c1b4442854d66fb48e1ae82d56e2d06bee56825213122",
-  "resolver.json":"969a7cdf0661b762fb3de6c728a97e07df836f209a8c64d7a1269c47e874edda",
+  "nodes.json.gz":"ceb90696da4a17350c6c660c6dc0afaa38e9f32249c7f31da78e51e7279c022c",
+  "pmi_edges.json":"7883a033647fd0b917f1323d08d0cee2439207a98556e75f482fc15e250ca5b3",
+  "resolver.json":"3d1de85a2ebc934a31a137d2b571e3c54c8746b3ec6e18afe4e173f2c249e35d",
   "titles.json":"69cf73692e9247a9be0330505ea0fee4197786b44fb15e4e1f9eed03a621a738"
  },
  "format":1,
  "sources":{
-  "curated":"config/curated_taxonomy.yaml sha256 8a683dbe2b174f1bbbdd8b1de2cedf1ac1211fe28066fcd6633e91bf10351aed; config/curated_edges.yaml sha256 6881253e3ef0821e1400b0a551282afb5c222fd4ff904eda41be7c3f8a8900fa",
+  "curated":"config/curated_taxonomy.yaml sha256 853a98b55686e6b1e55a65054e8cf55192703152dabe51c1450a8b70f6a77bee; config/curated_edges.yaml sha256 c876b9965d39e78be7dfb1cb568cae06bdb53858858432096d0e1c6331f56940",
   "esco_en":"ESCO v1.2.1 classification, English, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20en%20-%20csv.zip; sha256 f9761b0b52be1828b38a3e5e0ae59a93a7b0ce358bc800f52f57a8b002adeb3e",
   "esco_fr":"ESCO v1.2.1 classification, French, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20fr%20-%20csv.zip; sha256 84fe49774fad90bdfd27d080440ffb1fdef1fbd62939f6436d2fc21f4d58d4e8",
   "naics_2022":"NAICS 2022, 2-6 digit codes and titles (U.S. Census Bureau); https://www.census.gov/naics/2022NAICS/2-6%20digit_2022_Codes.xlsx; sha256 be12ba41002803359f49181c9bf33a03fbd08578f4f4a4c0bbad7aadaaea0316",
