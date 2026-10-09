@@ -734,8 +734,9 @@ taxonomy_coverage = (requirement_token_count − len(unresolved)) / requirement_
 None when the count is 0; evidence_density = share of matched requirement groups whose via/exact
 skill's best evidence is not SKILLS_BLOB, None when nothing matched; temporal_completeness = dated
 roles / roles, None without roles; requirement_count = piecewise-linear `requirement_count_curve`
-on the number of distinct requirement ids (clamped to the end points); dimension_coverage = sum of
-configured weights of scoring dimensions); value = exp(Σ wᵢ ln max(cᵢ, floor) / Σ wᵢ) over defined
+on the number of distinct requirement ids (clamped to the end points); dimension_coverage = `Aggregate.scored_weight`
+from Task 3.4 (the configured weight of scoring dimensions, where required weight moved to preferred
+under §14.5 counts as scored, so an all-PREFERRED posting has coverage 1.0, DECISIONS)); value = exp(Σ wᵢ ln max(cᵢ, floor) / Σ wᵢ) over defined
 components; reasons = the LOW_* flag of every component below `weak_component`. Outcome: ≥ 0.80
 SCORED, ≥ 0.60 SCORED_LOW_CONFIDENCE, else NEEDS_REVIEW with `LOW_CONFIDENCE` + those reasons.
 Note from Task 3.2: `NO_REQUIREMENTS_RESOLVED` is also a DIMENSION abstain reason (zero idf
