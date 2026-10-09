@@ -1692,7 +1692,8 @@ Test `backend/tests/test_fit_engine_adapter.py`.
    `score` NULL (the migration makes the column nullable if it is not; never a numeric sentinel,
    which could leak into a display, an average or a threshold). A missing score is not a low score:
    match-sorted queries put NULL scores after every scored row with an explicit, dialect-portable
-   ordering, the UI labels them ("Not scored" / "Not eligible"), and no count, alert or "strong"
+   ordering, the UI labels them ("We couldn't score this" / "Not eligible", as Task 9.4 and
+   `match-engine/docs/compliance.md` §2 say), and no count, alert or "strong"
    filter ever treats them as low or as matches. Record this as a DECISIONS entry.
 7. `explain_job(db, user, job) -> dict`: one full result with explanation, interval and
    counterfactual for the detail view.
@@ -1755,7 +1756,9 @@ itself, fed the engine's gaps where it used to be fed its own analysis. Response
 `frontend/src/components/JobsSidebar.tsx`, `frontend/src/components/CustomResumeModal.tsx`, their
 tests. **Behaviour:** card badge = band from the API with "Fit 76" (no "%" and no hard-coded
 80/60); low confidence shows the band only; GATE_FAIL shows "Not eligible" with the reason;
-NEEDS_REVIEW shows nothing scary ("Not scored"). The detail view ALWAYS requests the breakdown
+NEEDS_REVIEW shows "We couldn't score this" on the card and, in the detail view, the plain
+sentence for each reason code (`match-engine/docs/compliance.md` §2; never a number, never
+alarming copy). The detail view ALWAYS requests the breakdown
 (it is free now) and renders headline, basis, strengths and gaps with impacts, "to improve"
 suggestions, notes, and the interval when displayed. Sidebar copy follows the 85/70/55 bands.
 Run `npx tsc --noEmit` and the touched vitest files locally (vitest is not in CI).
