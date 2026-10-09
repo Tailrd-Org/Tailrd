@@ -360,6 +360,29 @@ def test_free_text_in_an_id_position_is_redacted_not_copied() -> None:
         assert probe not in json.dumps(trace)
 
 
+def test_two_unsafe_component_names_do_not_merge_into_one_key() -> None:
+    confidence = Confidence(
+        value=0.5, components={"Jane Doe": 0.1, "Acme Corp": 0.2, "parse_quality": 0.9}, reasons=()
+    )
+    trace = build_trace(full_result().model_copy(update={"confidence": confidence}))
+    # Placeholders are numbered in the order of the (sorted) original names, so they are stable and
+    # distinct: neither value is lost, and no name is copied.
+    assert trace["confidence"]["components"] == {
+        "<redacted:1>": 0.2,  # "Acme Corp"
+        "<redacted:2>": 0.1,  # "Jane Doe"
+        "parse_quality": 0.9,
+    }
+    assert "Jane" not in json.dumps(trace) and "Acme" not in json.dumps(trace)
+
+
+def test_a_redacted_component_placeholder_cannot_be_a_valid_name() -> None:
+    confidence = Confidence(value=0.5, components={"has space": 0.3}, reasons=())
+    (key,) = build_trace(full_result().model_copy(update={"confidence": confidence}))["confidence"][
+        "components"
+    ]
+    assert key.startswith(REDACTED[:-1]) and any(ch in key for ch in "<>")
+
+
 def test_the_redaction_marker_cannot_be_a_valid_id() -> None:
     assert not REDACTED.isalnum() and any(ch in REDACTED for ch in "<>")
 

@@ -313,6 +313,91 @@ transferred) differs, which fixes today's never-invalidated terms.
 **D-85 Thresholds.** Every hard-coded 80/60 in the backend and web app is replaced by the band
 from the engine (85/70/55). Alerts go out for confident (`SCORED`) Strong matches only.
 
+## Audit and monitoring
+
+**D-90 Audit trace. [Spec: "full feature trace" undefined]** `audit.build_trace(result)` is the
+record persisted with every score (SPEC §0.4): the outcome and gate status; the raw and calibrated
+score and the band; per dimension the value, weight, effective weight and abstain reason; the
+caps, gates and confidence (value, components, reasons); one `[skill_id, necessity, m, relation]`
+row per requirement group; flags and reasons; and the engine version, config hash, input digest
+and `as_of`. Three fields go beyond the task brief: `trace_version`, `gate_status` and
+`calibration{method, scope, n, version}` (a percentile cannot be read without its reference).
+Never free text (D-14). The defence is structural: the trace reads only fields that hold canonical
+ids, enums, numbers and dates (the scorer writes the ids) and refuses explanations, improvements,
+intervals, fact details and gate details. As a backstop, an id-position string that is not
+`[A-Za-z0-9][A-Za-z0-9._:/+#-]{0,199}` becomes `<redacted>` (`<redacted:1>`, `<redacted:2>` where
+keys would collide), so a stray string shows up in the record instead of being copied; that is a
+backstop, not a proof. `audit/` imports nothing from `score/`: the requirement fact codes are
+duplicated and a test pins them to `score/coverage.py`.
+
+**D-91 Opaque ids.** `opaque_id(user_key, salt)` is HMAC-SHA256 of the user key under the salt,
+first 24 hex characters. Demographic data is joined to traces on this id only (SPEC §9), never on
+a user id: `scripts/bias_audit.py` refuses any key that is not 24 lowercase hex. Tailrd's user ids
+are small integers, so a short or guessable salt would make every id enumerable: `opaque_id`
+raises ValueError for a salt under 16 bytes. The salt is a secret kept outside the repository and
+outside the scorer's environment; rotating it severs every earlier link.
+
+**D-92 Four-fifths counts people; rates count pairs. [Deviation from eval/metrics/fairness.py]**
+The runtime monitor `audit.four_fifths(records)` takes `(opaque_id, group, selected)` records. A
+group is assessed only when it holds at least `min_group_n` (100, EVAL §3) DISTINCT opaque ids;
+its selection rate is selected records over records, so every scored pair of every person counts
+and an abstained or gated pair is a record that was not selected. One person scored against 2,000
+postings is one person (the reasoning of D-50). The offline harness `eval/metrics/fairness.py`
+gates on PAIRS instead (its `PairScore` carries a group but no person id), so "n ≥ 100" means
+pairs in the harness and people in the runtime monitor. Rates and ratios are exact `Fraction`s and
+the verdict is `min ratio ≥ 4/5`: 5/100 against 4/100 passes though 0.04 / 0.05 is
+0.7999999999999999 in floats. 4/5 is not a parameter (CLAUDE.md). A person in two groups, an empty
+id or group, or a `selected` that is not a bool raises ValueError.
+
+**D-93 Not assessed is not a pass.** A `FairnessReport` is `assessed` only when at least two
+groups are eligible. Otherwise `passed`, `min_ratio` and `min_ratio_exact` are None, as is each
+group's ratio: nothing was compared, so there is no verdict. (The offline harness reports
+`passed=True` there, which suits a build guardrail and misleads a monitor.) A monitor reports "not
+assessed" and never reads None as a pass or as a failure; `bias_audit.py` mirrors it with status
+NOT_ASSESSED and exit status 3.
+
+**D-94 PSI. [Spec: binning unspecified]** `audit.psi(reference, current, bins=10)` bins by the
+reference's quantile edges (nearest rank, so each bin holds about 1/bins of the reference;
+duplicate edges collapse when ties make bins indistinguishable), right-closed with open ends, and
+sums `(a - e) ln(a / e)` with every share floored at 1e-4. The reference defines the bins, so PSI
+is not symmetric; the 0.10 / 0.25 rules of thumb come from decile PSI of this kind. PSI is noise
+on small samples: `drift_alarms` and `evaluate_drift` raise no SCORE_DRIFT alarm unless both
+windows hold at least 200 scores (`PSI_MIN_SAMPLE`; the caller passes the sizes), and
+`evaluate_drift` reports the skipped check with the reason "insufficient sample". `psi` itself is
+plain arithmetic.
+
+**D-95 Drift alarms (EVAL §6).** Strict comparisons: coverage < 0.92, abstention > 0.20 or > 2×
+the 30-day baseline, PSI > 0.25, four-fifths ratio < 0.80, p95 > 300 ms; a value on its limit is
+healthy. None skips a check; NaN, infinite, negative or out-of-range input raises (a percentage
+passed as a fraction would never alarm). Abstention means no percentage was shown, NEEDS_REVIEW or
+SCORED_LOW_CONFIDENCE; GATE_FAIL is an ineligibility finding. `COVERAGE_FLOOR` is pinned to
+`taxonomy.coverage_alert_threshold` by a test; the fairness floor is `float(FOUR_FIFTHS)` and its
+input must be `FairnessReport.min_ratio` (None when not assessed, which raises nothing).
+
+**D-96 Bias-audit artifacts (SPEC §9).** `scripts/bias_audit.py` reads persisted lines
+`{"opaque_id": <24 hex>, "digest": <16 hex, optional>, "trace": {...}}` (a digest that does not
+match excludes the line and is counted) and a UTF-8 demographics CSV keyed by an `opaque_id`
+column, one column per attribute (blank = not disclosed; "Prefer not to say" counts as blank; a
+column in which every person has a different value, or that holds email addresses, is refused as
+an identifier). It writes `bias_audit.json` and `bias_audit.md`: per attribute and band threshold
+(the minimums in `bands.yaml`) the selection rates, exact four-fifths ratios, score distributions
+and abstention per group. A trace is selected at threshold T when its outcome is SCORED or
+SCORED_LOW_CONFIDENCE and its calibrated score is ≥ T; any other trace is never selected but stays
+in the denominator. Groups under the floor are named with their size only. Exit status: 0 pass, 1
+unusable input, 2 violation, 3 not assessed. A run with a floor under 100, thresholds other than
+the band minimums or a subset of attributes is marked EXPLORATORY in both reports and in the
+summary line, because each could hide a violation; a floor above 100 is refused for the same
+reason (a fairness failure is terminal: nobody tunes around it or drops the failing group).
+
+**D-97 Compliance document: facts versus owner decisions.** `docs/compliance.md` opens with
+"Status and owner decisions": what this package provides, what the Tailrd integration must still
+build (display rules, review log, demographics form and store, trace export, scheduled
+monitoring), and the policy calls and the product premise that are only PROPOSED until the owner
+confirms them: candidate-facing only, a missing score never hides a job, a named person reads the
+review log weekly, autofill EEO answers are not an audit source, who may join demographics,
+retention, cadence. The attorney trigger is not one of them: it is SPEC §9's own, review before
+launch.
+
 ## Language
 
 **D-70** Language detection is a stop-word profile plus script detection (no model). Supported:

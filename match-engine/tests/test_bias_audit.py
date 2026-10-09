@@ -115,7 +115,9 @@ def test_nothing_assessable_is_not_a_pass(bias_audit, tmp_path) -> None:
     assert report["violations"] == []
     for attribute in report["attributes"].values():
         assert attribute["groups"] == {}
-        assert all(check["assessed"] is False for check in attribute["selection"].values())
+        for check in attribute["selection"].values():
+            # no verdict: null, never true ("not assessed" must not read as a pass)
+            assert (check["assessed"], check["passed"], check["min_ratio"]) == (False, None, None)
     text = (tmp_path / "bias_audit.md").read_text(encoding="utf-8")
     assert "Status: NOT ASSESSED" in text
     assert "Exploratory" not in text
@@ -647,3 +649,176 @@ def test_a_group_with_no_score_has_empty_statistics(bias_audit) -> None:
     assert details["scores"]["n"] == 0
     assert details["scores"]["mean"] is None and details["scores"]["median"] is None
     assert details["abstention"] == {"count": 2, "rate": 1.0, "reasons": {"UNREADABLE": 2}}
+
+
+# --- review round 1: outcomes, summary line, input hygiene --------------------------------------
+
+
+def person(index: int) -> str:
+    return fixture.person_id(100 + index)
+
+
+def custom_run(bias_audit, tmp_path: Path, people, *options: str):
+    """people: (opaque_id, group, [trace dicts]). Writes the files, runs the audit, returns
+    (exit code, report or None)."""
+    demographics = write_demographics(
+        tmp_path / "d.csv", "opaque_id,attr", *[f"{oid},{group}" for oid, group, _ in people]
+    )
+    lines = [{"opaque_id": oid, "trace": trace} for oid, _, traces in people for trace in traces]
+    traces = trace_file(tmp_path, *lines)
+    out = tmp_path / "out"
+    code = run(bias_audit, out, *options, traces=traces, demographics=demographics)
+    return code, (load(out) if (out / "bias_audit.json").exists() else None)
+
+
+SCORED_90 = {"outcome": "SCORED", "calibrated": 90}
+
+
+@pytest.mark.parametrize(
+    "stray",
+    [
+        {"outcome": "NEEDS_REVIEW", "calibrated": 99, "reasons": ["UNREADABLE"]},
+        {"outcome": "GATE_FAIL", "calibrated": 99, "reasons": ["WORK_AUTH_MISMATCH"]},
+    ],
+)
+def test_selection_keys_on_the_outcome_not_on_a_score_a_trace_happens_to_carry(
+    bias_audit, tmp_path, stray
+) -> None:
+    # Group a: one scored 90 and one trace that carries a stray calibrated 99 under a non-scoring
+    # outcome. That trace is never selected and never enters the distribution. Group b: two scored 90.
+    people = [
+        (person(0), "a", [SCORED_90]),
+        (person(1), "a", [stray]),
+        (person(2), "b", [SCORED_90]),
+        (person(3), "b", [SCORED_90]),
+    ]
+    code, report = custom_run(bias_audit, tmp_path, people, "--min-group-n", "2", "--thresholds", "85")
+    attribute = report["attributes"]["attr"]
+    a, b = attribute["selection"]["85"]["groups"]
+    assert (a["group"], a["n_records"], a["selected"], a["rate_exact"]) == ("a", 2, 1, "1/2")
+    assert (b["group"], b["selected"], b["rate_exact"], b["ratio_exact"]) == ("b", 2, "1/1", "1/1")
+    assert a["ratio_exact"] == "1/2"
+    assert (code, report["status"]) == (FAIL, "FAIL")  # 1/2 against 1 is below four-fifths
+    scores = attribute["groups"]["a"]["scores"]
+    assert (scores["n"], scores["max"], scores["mean"]) == (1, 90, 90.0)
+    assert attribute["groups"]["a"]["outcomes"] == {stray["outcome"]: 1, "SCORED": 1}
+
+
+def test_a_low_confidence_trace_is_selected_by_its_band_score(bias_audit, tmp_path) -> None:
+    # The percentage is withheld but the band is shown, so the trace still counts at its band.
+    low_confidence = {"outcome": "SCORED_LOW_CONFIDENCE", "calibrated": 90, "reasons": ["LOW_PARSE_QUALITY"]}
+    people = [
+        (person(0), "a", [low_confidence]),
+        (person(1), "a", [SCORED_90]),
+        (person(2), "b", [SCORED_90]),
+    ]
+    _, report = custom_run(bias_audit, tmp_path, people, "--min-group-n", "1", "--thresholds", "85")
+    assert report["attributes"]["attr"]["selection"]["85"]["groups"][0]["selected"] == 2
+
+
+def test_a_single_eligible_group_is_not_assessed_and_has_no_verdict(bias_audit, tmp_path) -> None:
+    def scored(score: int) -> dict:
+        return {"outcome": "SCORED", "calibrated": score}
+
+    people = [
+        (person(0), "a", [scored(80)]),
+        (person(1), "a", [scored(60)]),
+        (person(2), "a", [scored(50)]),
+        (person(3), "b", [scored(90)]),
+    ]
+    code, report = custom_run(bias_audit, tmp_path, people, "--min-group-n", "3", "--thresholds", "70")
+    check = report["attributes"]["attr"]["selection"]["70"]
+    assert (code, report["status"]) == (NOT_ASSESSED, "NOT_ASSESSED")
+    assert (check["assessed"], check["passed"], check["min_ratio"], check["min_ratio_exact"]) == (
+        False,
+        None,
+        None,
+        None,
+    )
+    (only,) = check["groups"]
+    assert (only["group"], only["selected"], only["rate_exact"]) == ("a", 1, "1/3")
+    assert (only["ratio"], only["ratio_exact"], only["meets"]) == (None, None, None)
+    text = (tmp_path / "out" / "bias_audit.md").read_text(encoding="utf-8")
+    assert "Not assessed: fewer than two groups reach 3 people." in text
+
+
+def test_the_summary_line_says_when_a_run_is_exploratory(bias_audit, tmp_path, capsys) -> None:
+    code = run(bias_audit, tmp_path / "a", "--min-group-n", "5", "--thresholds", "70")
+    assert code == PASS  # attr_pass 5/6 and attr_fail 6/7 at >= 70
+    assert capsys.readouterr().out.splitlines()[0] == "bias audit: PASS (exploratory)"
+    run(bias_audit, tmp_path / "b", "--min-group-n", "5")
+    assert capsys.readouterr().out.splitlines()[0] == "bias audit: FAIL (exploratory)"
+    run(bias_audit, tmp_path / "c")  # the standard audit; nothing is assessable at 100 people
+    assert capsys.readouterr().out.splitlines()[0] == "bias audit: NOT ASSESSED"
+
+
+def test_a_demographics_file_that_is_not_utf8_exits_1_with_a_clear_message(
+    bias_audit, tmp_path, capsys
+) -> None:
+    key = fixture.person_id(0).encode("ascii")
+    payloads = {
+        "utf16": "opaque_id,attr_pass\n".encode("utf-16"),  # what a spreadsheet's "Unicode text" is
+        "latin1": b"opaque_id,attr\n" + key + b",caf" + bytes([0xE9]) + b"\n",
+        "binary": bytes(range(128, 256)),
+    }
+    for name, payload in payloads.items():
+        path = tmp_path / f"{name}.csv"
+        path.write_bytes(payload)
+        assert run(bias_audit, tmp_path / "out", demographics=path) == ERROR, name
+        err = capsys.readouterr().err
+        assert "UTF-8" in err and "Traceback" not in err, name
+    assert not (tmp_path / "out").exists()
+
+
+def test_a_demographics_file_with_an_enormous_field_exits_1(bias_audit, tmp_path, capsys) -> None:
+    huge = write_demographics(tmp_path / "d.csv", "opaque_id,attr", f"{fixture.person_id(0)},{'x' * 200_000}")
+    assert run(bias_audit, tmp_path / "out", demographics=huge) == ERROR
+    assert "not valid CSV" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    "values",
+    [
+        ["a@example.com", "b@example.com", "c@example.com"],  # tiny file, every value different
+        ["a@example.com", "a@example.com", "b@example.com"],  # repeated, but an email address
+        ["g1", "g2"],  # two people, two different values
+    ],
+)
+def test_the_identifier_guard_covers_tiny_files_and_email_addresses(
+    bias_audit, tmp_path, capsys, values
+) -> None:
+    rows = [f"{person(i)},{value}" for i, value in enumerate(values)]
+    contact = write_demographics(tmp_path / "d.csv", "opaque_id,contact", *rows)
+    assert run(bias_audit, tmp_path / "out", demographics=contact) == ERROR
+    err = capsys.readouterr().err
+    assert "identifier" in err and "'contact'" in err
+    assert "example.com" not in err and "g1" not in err  # the labels are never printed
+    assert not (tmp_path / "out").exists()
+
+
+def test_a_tiny_file_with_a_repeated_label_is_not_mistaken_for_an_identifier_column(
+    bias_audit, tmp_path
+) -> None:
+    rows = [f"{person(0)},g1", f"{person(1)},g1"]
+    ok = write_demographics(tmp_path / "d.csv", "opaque_id,attr", *rows)
+    assert run(bias_audit, tmp_path / "out", demographics=ok) == NOT_ASSESSED
+
+
+def test_prefer_not_to_say_is_not_a_group(bias_audit, tmp_path) -> None:
+    rows = DEMOGRAPHICS.read_text(encoding="utf-8").splitlines()
+    declined = tmp_path / "declined.csv"
+    # persons 20 and 21 (group p3 in attr_pass) answer "Prefer not to say", in an odd spelling
+    declined.write_text(
+        "\n".join([rows[0], *[r.replace(",p3,", ",  PREFER not   to say ,") for r in rows[1:]]]) + "\n",
+        encoding="utf-8",
+    )
+    out = tmp_path / "out"
+    run(bias_audit, out, "--min-group-n", "5", demographics=declined)
+    attribute = load(out)["attributes"]["attr_pass"]
+    # their 3 traces join the 3 blank ones: 6 undisclosed; the 20 traces of p1 and p2 keep their groups
+    assert attribute["coverage"] == {"traces": 27, "with_group": 20, "undisclosed": 6, "no_record": 1}
+    assert sorted(attribute["groups"]) == ["p1", "p2"] and attribute["suppressed"] == []
+    blob = (out / "bias_audit.md").read_text(encoding="utf-8") + (out / "bias_audit.json").read_text(
+        encoding="utf-8"
+    )
+    assert "prefer" not in blob.lower()

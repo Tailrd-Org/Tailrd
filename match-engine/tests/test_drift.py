@@ -22,8 +22,11 @@ from matcher.audit.drift import (
     FAIRNESS_FLOOR,
     LATENCY_P95_CEILING_MS,
     PSI_CEILING,
+    PSI_MIN_SAMPLE,
     DriftAlarm,
+    DriftReport,
     drift_alarms,
+    evaluate_drift,
     psi,
 )
 from matcher.audit.fairness import FOUR_FIFTHS, four_fifths
@@ -245,6 +248,75 @@ def test_psi_alarm_fires_above_0_25_only() -> None:
     assert codes(psi_value=4.6) == ["SCORE_DRIFT"]
     alarm = alarms(psi_value=0.3)[0]
     assert (alarm.value, alarm.threshold) == (0.3, 0.25)
+
+
+def evaluate(**changes) -> DriftReport:
+    return evaluate_drift(**{**NO_DATA, **changes})
+
+
+def test_psi_needs_at_least_200_scores_on_each_side_before_it_can_alarm() -> None:
+    assert PSI_MIN_SAMPLE == 200
+    for reference_n, current_n in [(199, 5000), (5000, 199), (1, 1), (0, 5000), (5000, 0)]:
+        report = evaluate(psi_value=0.9, psi_reference_n=reference_n, psi_current_n=current_n)
+        assert report.alarms == (), (reference_n, current_n)
+        (skipped,) = report.skipped
+        assert (skipped.code, skipped.reason) == ("SCORE_DRIFT", "insufficient sample")
+        assert "insufficient sample" in skipped.message and "200" in skipped.message
+        assert f"reference {reference_n}" in skipped.message and f"current {current_n}" in skipped.message
+        # drift_alarms is the alarm half of the same evaluation
+        assert codes(psi_value=0.9, psi_reference_n=reference_n, psi_current_n=current_n) == []
+
+
+def test_psi_with_exactly_200_scores_on_each_side_is_evaluated() -> None:
+    report = evaluate(psi_value=0.9, psi_reference_n=200, psi_current_n=200)
+    assert [a.code for a in report.alarms] == ["SCORE_DRIFT"] and report.skipped == ()
+    assert codes(psi_value=0.25, psi_reference_n=200, psi_current_n=200) == []  # healthy stays healthy
+
+
+def test_without_sample_sizes_psi_is_evaluated_as_before() -> None:
+    report = evaluate(psi_value=0.9)
+    assert [a.code for a in report.alarms] == ["SCORE_DRIFT"] and report.skipped == ()
+
+
+def test_one_small_known_size_skips_psi_and_one_large_known_size_does_not_clear_it() -> None:
+    assert evaluate(psi_value=0.9, psi_reference_n=100).alarms == ()
+    assert evaluate(psi_value=0.9, psi_current_n=100).alarms == ()
+    assert [a.code for a in evaluate(psi_value=0.9, psi_reference_n=500).alarms] == ["SCORE_DRIFT"]
+    assert [a.code for a in evaluate(psi_value=0.9, psi_current_n=500).alarms] == ["SCORE_DRIFT"]
+
+
+def test_a_psi_that_was_not_measured_is_neither_an_alarm_nor_a_skip() -> None:
+    report = evaluate(psi_value=None, psi_reference_n=5, psi_current_n=5)
+    assert report == DriftReport(alarms=(), skipped=())
+
+
+@pytest.mark.parametrize("bad", [-1, 2.5, True, "200", float("nan")])
+def test_sample_sizes_must_be_whole_non_negative_numbers(bad) -> None:
+    with pytest.raises(ValueError):
+        evaluate(psi_value=0.9, psi_reference_n=bad)
+    with pytest.raises(ValueError):
+        evaluate(psi_value=0.9, psi_current_n=bad)
+
+
+def test_other_alarms_are_unaffected_by_a_skipped_psi() -> None:
+    report = evaluate(coverage=0.5, psi_value=0.9, psi_reference_n=10, psi_current_n=10, p95_latency_ms=999.0)
+    assert [a.code for a in report.alarms] == ["COVERAGE_LOW", "LATENCY_HIGH"]
+    assert [s.code for s in report.skipped] == ["SCORE_DRIFT"]
+
+
+def test_drift_alarms_is_the_alarm_half_of_evaluate_drift() -> None:
+    kwargs = dict(
+        coverage=0.9,
+        abstention_rate=0.3,
+        abstention_baseline=0.1,
+        psi_value=0.5,
+        min_fairness_ratio=0.5,
+        p95_latency_ms=500.0,
+        psi_reference_n=1000,
+        psi_current_n=1000,
+    )
+    assert drift_alarms(**kwargs) == evaluate_drift(**kwargs).alarms
+    assert len(drift_alarms(**kwargs)) == 6
 
 
 def test_fairness_alarm_fires_below_0_80_only() -> None:

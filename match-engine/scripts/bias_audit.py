@@ -12,11 +12,18 @@ Inputs
     demographics.csv   a header with an `opaque_id` column plus one or more attribute columns, one
                        row per person. Keys must be opaque ids (24 lowercase hex characters, from
                        `matcher.audit.opaque_id`), never user ids. A blank cell means the person did
-                       not disclose that attribute. Each attribute is audited on its own.
+                       not disclose that attribute, and so does the answer "Prefer not to say" (any
+                       capitalization): it is never audited as a group of its own. Each attribute is
+                       audited on its own. A column that looks like an identifier (every person has
+                       a different value, or the values are email addresses) is refused, so a stray
+                       user id or email column can never be reported as groups. The file must be UTF-8.
 
 Outputs (in --out-dir): bias_audit.json and bias_audit.md. For every attribute: selection rates per
 group at each band threshold with the four-fifths ratios (exact fractions), score distributions per
-group, and abstention per group. Output is deterministic and holds no person-level identifier.
+group, and abstention per group. A trace is selected at threshold T when its outcome is SCORED or
+SCORED_LOW_CONFIDENCE and its calibrated score is at least T; every other outcome is never selected
+(whatever score the trace happens to carry) but stays in the group's denominator. Output is
+deterministic and holds no person-level identifier.
 Groups smaller than --min-group-n are named with their size only. A run with a smaller --min-group-n
 than the standard 100, with --thresholds other than the band minimums, or with --attributes naming
 only some attributes is marked exploratory in both reports (a dry run, not an audit artifact): each
@@ -59,8 +66,11 @@ _OPAQUE_ID = re.compile(r"[0-9a-f]{24}")
 _DATE = re.compile(r"\d{4}-\d{2}-\d{2}")
 _OUTCOMES = frozenset(outcome.value for outcome in Outcome)
 _ABSTAINED = frozenset({Outcome.NEEDS_REVIEW.value, Outcome.SCORED_LOW_CONFIDENCE.value})
+# Only these outcomes carry a score a person sees (a percentage, or a band): a trace with any other
+# outcome is never "selected", whatever calibrated score it happens to hold.
+_SCORING = frozenset({Outcome.SCORED.value, Outcome.SCORED_LOW_CONFIDENCE.value})
 _BUCKETS = [f"{low}-{low + 9}" for low in range(0, 90, 10)] + ["90-100"]
-_ID_COLUMN_MIN_ROWS = 10  # below this a column of distinct labels can be a real (tiny) attribute
+_DECLINED = "prefer not to say"  # a person's answer, read as a blank: never a group of its own
 
 
 class AuditError(Exception):
@@ -84,6 +94,11 @@ class TraceRow(NamedTuple):
     as_of: Optional[str]
     engine_version: Optional[str]
     config_hash: Optional[str]
+
+    @property
+    def score(self) -> Optional[int]:
+        """The calibrated score that counts: only a SCORED or SCORED_LOW_CONFIDENCE trace has one."""
+        return self.calibrated if self.outcome in _SCORING else None
 
 
 class TraceLoad(NamedTuple):
@@ -159,7 +174,30 @@ class Demographics(NamedTuple):
     people: dict[str, dict[str, str]]  # opaque id -> attribute -> group ("" = not disclosed)
 
 
+def _answer(cell: str) -> str:
+    """One demographic cell: trimmed, inner whitespace collapsed, and "Prefer not to say" (any
+    capitalization) read as a blank, so a declined answer is never audited as a group of its own."""
+    value = " ".join(cell.split())
+    return "" if value.casefold() == _DECLINED else value
+
+
+def _looks_like_identifiers(labels: list[str]) -> bool:
+    """Every person has a different value (two or more people), or a value is an email address."""
+    return any("@" in label for label in labels) or (len(labels) >= 2 and len(set(labels)) == len(labels))
+
+
 def load_demographics(path: Path) -> Demographics:
+    try:
+        return _read_demographics(path)
+    except UnicodeDecodeError:
+        raise AuditError(
+            "the demographics file is not valid UTF-8 text; export it again as UTF-8 CSV"
+        ) from None
+    except csv.Error as exc:
+        raise AuditError(f"the demographics file is not valid CSV ({exc})") from None
+
+
+def _read_demographics(path: Path) -> Demographics:
     with path.open(encoding="utf-8-sig", newline="") as handle:
         reader = csv.reader(handle)
         header = [cell.strip() for cell in next(reader, [])]
@@ -186,15 +224,15 @@ def load_demographics(path: Path) -> Demographics:
                     f"line {number}: the key is not an opaque id (24 lowercase hex characters); "
                     "demographics are keyed by opaque id, never by user id"
                 )
-            values = {name: row[i].strip() for i, name in enumerate(header) if i != key_at}
+            values = {name: _answer(row[i]) for i, name in enumerate(header) if i != key_at}
             if people.setdefault(key, values) != values:
                 raise AuditError(f"line {number}: an opaque id appears twice with different values")
     for name in attributes:
-        labels = [person[name] for person in people.values() if person[name]]
-        if len(labels) >= _ID_COLUMN_MIN_ROWS and len(set(labels)) == len(labels):
+        if _looks_like_identifiers([person[name] for person in people.values() if person[name]]):
+            # Never print a label here: a stray user id or email column must not leak into an error.
             raise AuditError(
-                f"column {name!r} gives every person a different value: it looks like an identifier, "
-                "not a demographic attribute"
+                f"column {name!r} looks like an identifier, not a demographic attribute: every person "
+                "has a different value, or the values are email addresses"
             )
     return Demographics(attributes, people)
 
@@ -208,7 +246,7 @@ def _share(part: int, whole: int) -> float:
 
 def _group_details(members: list[TraceRow]) -> dict:
     withheld = [m for m in members if m.outcome in _ABSTAINED]
-    scores = sorted(m.calibrated for m in members if m.calibrated is not None)
+    scores = sorted(score for score in (m.score for m in members) if score is not None)
     histogram = dict.fromkeys(_BUCKETS, 0)
     for score in scores:
         histogram[_BUCKETS[min(score // 10, 9)]] += 1
@@ -233,13 +271,13 @@ def _group_details(members: list[TraceRow]) -> dict:
 
 
 def _check(report: FairnessReport) -> dict:
-    data = report.model_dump(mode="json")
-    data["assessed"] = report.assessed
+    data = report.model_dump(mode="json")  # includes `assessed`; `passed` is null when not assessed
     if data["min_ratio"] is not None:
         data["min_ratio"] = round(data["min_ratio"], 6)
     for group in data["groups"]:
         group["rate"] = round(group["rate"], 6)
-        group["ratio"] = round(group["ratio"], 6)
+        if group["ratio"] is not None:
+            group["ratio"] = round(group["ratio"], 6)
     return data
 
 
@@ -263,7 +301,7 @@ def _attribute_report(
     reports = {}
     for threshold in thresholds:
         records = [
-            (row.opaque_id, label, row.calibrated is not None and row.calibrated >= threshold)
+            (row.opaque_id, label, row.score is not None and row.score >= threshold)
             for label, members in grouped.items()
             for row in members
         ]
@@ -327,7 +365,7 @@ def build_report(
         for threshold in thresholds:
             check = attribute["selection"][str(threshold)]
             assessed = assessed or check["assessed"]
-            if not check["passed"]:
+            if check["passed"] is False:  # None means "not assessed", which is not a violation
                 violations.append(
                     {
                         "attribute": name,
@@ -587,7 +625,9 @@ def _thresholds(text: Optional[str]) -> list[int]:
 
 
 def _summary(report: dict, out_dir: Path) -> str:
-    lines = [f"bias audit: {report['status'].replace('_', ' ')}"]
+    # An exploratory run is a dry run: its status line must not read like an audit result.
+    exploratory = " (exploratory)" if report["parameters"]["exploratory"] else ""
+    lines = [f"bias audit: {report['status'].replace('_', ' ')}{exploratory}"]
     lines += [
         f"  {v['attribute']}, calibrated score >= {v['threshold']}: lowest ratio {v['min_ratio_exact']}"
         for v in report["violations"]

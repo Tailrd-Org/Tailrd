@@ -6,11 +6,13 @@ dimension's value and weights (and why it abstained); the caps, gates and confid
 one `[skill_id, necessity, m, relation]` row per requirement; the flags and reasons; and the
 engine version, config hash, input digest and `as_of` date that let anyone replay the score.
 
-It never holds free text (D-14). Explanations, improvement sentences, gate details, fact details and
-every `surface_form` stay out. Strings that remain are enum values, flag codes, dates, hashes and
-canonical ids, and an id-position string that is not shaped like an id (a letter or digit, then
-letters, digits and . _ : / + # -, at most 200 characters in all) is replaced by `REDACTED` rather
-than copied. A leak is therefore visible in the record and never silently persisted.
+It never holds free text (D-14). The defence is structural: the trace reads only the fields that
+hold canonical ids, enums, numbers and dates (the scorer is what writes canonical ids into them),
+and it refuses the free-text fields: explanations, improvement sentences, gate details, fact
+details and every `surface_form`. As a backstop, an id-position string that is not shaped like an
+id (a letter or digit, then letters, digits and . _ : / + # -, at most 200 characters in all) is
+replaced by `REDACTED` instead of being copied, so a stray string shows up in the record. That is
+a backstop and not a proof: a single word that happens to look like an id would pass it.
 
 `trace_digest` fingerprints a trace for integrity checks. `opaque_id` is the only key demographics
 are joined on: an HMAC of the user key under a secret salt, so a user id alone can never reach the
@@ -100,9 +102,19 @@ def _dimension(dimension: DimensionScore) -> dict[str, Any]:
 def _confidence(confidence: Optional[Confidence]) -> Optional[dict[str, Any]]:
     if confidence is None:
         return None
+    components: dict[str, Optional[float]] = {}
+    redacted = 0
+    for name, value in sorted(confidence.components.items()):
+        key = _token(name)
+        if key == REDACTED:
+            # Two unsafe names must not merge into one key and lose a value: numbered placeholders,
+            # in the order of the sorted original names, so they are stable and distinct.
+            redacted += 1
+            key = f"{REDACTED[:-1]}:{redacted}>"
+        components[key] = value
     return {
         "value": confidence.value,
-        "components": {_token(name): value for name, value in sorted(confidence.components.items())},
+        "components": dict(sorted(components.items())),
         "reasons": [flag.value for flag in confidence.reasons],
     }
 

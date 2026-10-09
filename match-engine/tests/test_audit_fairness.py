@@ -95,9 +95,11 @@ def test_the_minimum_group_size_is_inclusive() -> None:
 
 def test_min_group_n_is_configurable() -> None:
     records = group("A", 100, 50) + group("C", 99, 0)
-    assert four_fifths(records).passed is True
-    assert four_fifths(records, min_group_n=99).passed is False
-    assert four_fifths(records, min_group_n=99).min_group_n == 99
+    default = four_fifths(records)  # C is excluded and A is alone: nothing to compare, no verdict
+    assert (default.assessed, default.passed) == (False, None)
+    assert [e.group for e in default.excluded] == ["C"]
+    lowered = four_fifths(records, min_group_n=99)  # C joins the comparison and its rate of 0 fails it
+    assert (lowered.assessed, lowered.passed, lowered.min_group_n) == (True, False, 99)
 
 
 def test_eligibility_counts_people_not_scored_pairs() -> None:
@@ -153,26 +155,54 @@ def test_nobody_selected_means_parity_not_a_division_by_zero() -> None:
     assert report.reference_group is None  # no group has a best rate to be measured against
 
 
-def test_no_group_large_enough_means_not_assessed_and_not_failed() -> None:
+def test_no_group_large_enough_means_no_verdict_and_never_a_pass() -> None:
     report = four_fifths(group("A", 40, 20) + group("B", 30, 5))
-    assert report.passed is True
-    assert report.min_ratio is None and report.min_ratio_exact is None
-    assert report.groups == ()
     assert report.assessed is False
+    assert report.passed is None  # not True: a monitor must not be able to read "not assessed" as a pass
+    assert report.min_ratio is None and report.min_ratio_exact is None
+    assert report.reference_group is None
+    assert report.groups == ()
     assert [e.group for e in report.excluded] == ["A", "B"]
     empty = four_fifths([])
-    assert (empty.passed, empty.assessed, empty.groups, empty.excluded) == (True, False, (), ())
+    assert (empty.assessed, empty.passed, empty.groups, empty.excluded) == (False, None, (), ())
 
 
-def test_one_eligible_group_has_nothing_to_be_compared_with() -> None:
+def test_one_eligible_group_has_nothing_to_be_compared_with_so_there_is_no_verdict() -> None:
     report = four_fifths(group("A", 120, 30))
     assert report.assessed is False
-    assert report.min_ratio == 1.0
-    assert report.passed is True
+    assert report.passed is None and report.min_ratio is None and report.min_ratio_exact is None
+    assert report.reference_group is None
+    (only,) = report.groups
+    assert (only.group, only.n_people, only.selected, only.rate_exact) == ("A", 120, 30, "1/4")
+    # a lone group has no ratio and does not "meet" anything
+    assert (only.ratio, only.ratio_exact, only.meets) == (None, None, None)
 
 
-def test_two_eligible_groups_are_assessed() -> None:
-    assert four_fifths(group("A", 100, 30) + group("B", 100, 30)).assessed is True
+def test_two_eligible_groups_are_assessed_and_get_a_verdict() -> None:
+    passing = four_fifths(group("A", 100, 30) + group("B", 100, 30))
+    assert (passing.assessed, passing.passed) == (True, True)
+    failing = four_fifths(group("A", 100, 30) + group("B", 100, 10))
+    assert (failing.assessed, failing.passed) == (True, False)
+
+
+def test_assessed_is_part_of_the_report_a_consumer_receives() -> None:
+    dumped = four_fifths(group("A", 100, 30) + group("B", 100, 30)).model_dump(mode="json")
+    assert dumped["assessed"] is True and dumped["passed"] is True
+    unassessed = four_fifths(group("A", 100, 30)).model_dump(mode="json")
+    assert unassessed["assessed"] is False and unassessed["passed"] is None
+
+
+@given(st.lists(st.integers(min_value=1, max_value=130), max_size=4), st.data())
+def test_passed_is_a_bool_exactly_when_two_groups_were_assessed(sizes, data) -> None:
+    records: list[tuple[str, str, bool]] = []
+    for index, n in enumerate(sizes):
+        records.extend(group(f"G{index}", n, data.draw(st.integers(min_value=0, max_value=n))))
+    report = four_fifths(records)
+    assert report.assessed is (sum(1 for n in sizes if n >= 100) >= 2)
+    if report.assessed:
+        assert isinstance(report.passed, bool) and report.min_ratio is not None
+    else:
+        assert report.passed is None and report.min_ratio is None and report.min_ratio_exact is None
 
 
 # --- input handling ----------------------------------------------------------------------------

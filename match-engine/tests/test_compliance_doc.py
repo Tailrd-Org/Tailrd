@@ -130,3 +130,146 @@ def test_the_document_keeps_its_commitments(text) -> None:
 def test_the_document_has_no_em_dashes_and_no_emoji(text) -> None:
     assert chr(0x2014) not in text
     assert max(map(ord, text)) < 0x2000  # no dashes, quotes or emoji beyond Latin-1 letters such as e-acute
+
+
+# --- review round 1: facts, requirements and proposals are told apart ---------------------------
+
+MARK = "proposed, owner to confirm"
+
+# Statements that are policy calls or premises, not facts about the code. Each is marked wherever
+# it is made, so a reader can tell a proposal from a fact.
+PROPOSALS = (
+    "no employer, recruiter or agency sees",
+    "must say that it was not scored",
+    "must read the log at least weekly",
+    "are not an audit source",
+    "only the person who owns the audit",
+    "set with counsel",
+    "run these on a schedule",
+)
+
+
+def flat(value: str) -> str:
+    return " ".join(value.split())
+
+
+def blocks(body: str) -> list[str]:
+    """Markdown blocks: a paragraph, a list item with its continuation lines, or a table row."""
+    out: list[str] = []
+    current: list[str] = []
+    for line in body.splitlines():
+        if not line.strip():
+            if current:
+                out.append(" ".join(current))
+                current = []
+        elif re.match(r"(?:- |\d+\. |\||#)", line):
+            if current:
+                out.append(" ".join(current))
+            current = [line.strip()]
+        else:
+            current.append(line.strip())
+    if current:
+        out.append(" ".join(current))
+    return out
+
+
+def test_a_status_block_separates_what_exists_what_is_missing_and_what_is_proposed(text) -> None:
+    block = section(text, "## Status and owner decisions")
+    assert block.index("**(a)") < block.index("**(b)") < block.index("**(c)")
+    built, missing, proposed = (part.lower() for part in re.split(r"\*\*\([abc]\)", block)[1:4])
+    for name in ("build_trace", "four_fifths", "drift_alarms", "bias_audit.py", "opaque_id"):
+        assert name in built, name
+    for work in ("review log", "demographics", "trace line", "scheduled", "task 9"):
+        assert work in missing, work
+    items = [b for b in blocks(re.split(r"\*\*\(c\)", block)[1]) if re.match(r"\d+\. ", b)]
+    assert len(items) >= 7
+    assert all(MARK in item for item in items), [item[:60] for item in items if MARK not in item]
+    assert "nothing" in proposed and "owner" in proposed
+
+
+def test_every_policy_call_is_marked_wherever_it_is_made(text) -> None:
+    assert text.count(MARK) >= 14
+    for phrase in PROPOSALS:
+        hits = [b for b in blocks(text) if phrase in flat(b).lower()]
+        assert len(hits) >= 1, phrase
+        for hit in hits:
+            assert MARK in flat(hit), (phrase, hit[:80])
+
+
+def test_the_attorney_trigger_is_the_one_in_spec_9(text) -> None:
+    sentence = "Get an employment attorney to review before launch."
+    assert sentence in (ENGINE_ROOT / "SPEC.md").read_text(encoding="utf-8")
+    assert sentence in flat(text)
+    assert "before any employer-facing use" not in flat(text)
+
+
+def test_claims_about_the_product_are_premises_or_requirements_not_facts(text) -> None:
+    for stale in (
+        "no employer sees a score or a ranking",
+        "shows nothing to employers",
+        "Tailrd shows a candidate their own score",
+        "The candidate sees",
+        "Tailrd today shows",
+    ):
+        assert stale not in flat(text), stale
+    section_two = section(text, "## 2. The human-review path")
+    assert "The integration must show" in section_two and "The integration must record" in section_two
+
+
+def test_the_psi_minimum_sample_and_the_no_verdict_rule_are_documented(text) -> None:
+    body = flat(section(text, "## 5. Continuous monitoring"))
+    assert str(drift.PSI_MIN_SAMPLE) in body and "insufficient sample" in body and "evaluate_drift" in body
+    assert "`assessed`" in body and "no verdict" in body and "never a pass" in body
+
+
+def test_prefer_not_to_say_is_exported_as_blank_and_read_as_blank(text) -> None:
+    for heading in (
+        "## 4. Demographic data: where it lives and who can join it",
+        "## 6. The annual bias audit",
+    ):
+        body = section(text, heading)
+        assert "Prefer not to say" in body and "blank" in body, heading
+
+
+def test_the_forbidden_features_test_is_marked_planned(text) -> None:
+    body = flat(section(text, "## 7. Prohibited inputs"))
+    assert "tests/test_forbidden_features.py" in body and "planned, Task 3.6" in body
+
+
+def test_retention_lists_everything_a_replay_needs(text) -> None:
+    body = flat(section(text, "## 3. What is persisted for every score")).lower()
+    for needed in (
+        "engine version",
+        "config",
+        "skill-graph artifacts",
+        "by hash",
+        "the inputs",
+        "same period",
+    ):
+        assert needed in body, needed
+
+
+def test_the_decisions_log_records_the_audit_decisions() -> None:
+    log = (ENGINE_ROOT / "docs" / "DECISIONS.md").read_text(encoding="utf-8")
+    assert "\n## Audit and monitoring\n" in log
+    audit = log.split("\n## Audit and monitoring\n", 1)[1].split("\n## ", 1)[0]
+    assert re.findall(r"^\*\*D-(\d+) ", audit, flags=re.M) == [str(n) for n in range(90, 98)]
+    lowered = audit.lower()
+    for needle in (
+        "distinct opaque ids",
+        "eval/metrics/fairness.py",
+        "pairs",
+        "16 bytes",
+        "quantile",
+        "200 scores",
+        "trace_version",
+        "calibration{",
+        "<redacted>",
+        "exploratory",
+        "not assessed",
+        "prefer not to say",
+        "owner",
+    ):
+        assert needle in lowered, needle
+    assert max(len(line) for line in audit.splitlines()) <= 100
+    assert chr(0x2014) not in audit

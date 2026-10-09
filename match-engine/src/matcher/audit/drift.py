@@ -14,6 +14,13 @@ None was not measured and raises no alarm; a metric that is NaN, infinite, negat
 range (a percentage where a fraction belongs) raises ValueError, because silently passing a broken
 measurement is the failure a monitor exists to prevent. The thresholds are module constants, not
 parameters; the fairness floor in particular is never a knob (CLAUDE.md).
+
+PSI is noisy on small samples, so it can alarm only when both windows hold at least
+`PSI_MIN_SAMPLE` (200) scores. The caller says how many scores each side holds
+(`psi_reference_n`, `psi_current_n`); a PSI over fewer is not evaluated, and `evaluate_drift`
+reports that as a skipped check with the reason "insufficient sample" instead of raising an alarm
+(`drift_alarms` returns the alarms alone). A monitor that logs only alarms would hide the skip, so
+the scheduled job should use `evaluate_drift` and log `skipped`.
 """
 
 from __future__ import annotations
@@ -35,13 +42,18 @@ __all__ = [
     "COVERAGE_LOW",
     "FAIRNESS_FLOOR",
     "FOUR_FIFTHS_VIOLATION",
+    "INSUFFICIENT_SAMPLE",
     "LATENCY_HIGH",
     "LATENCY_P95_CEILING_MS",
     "PSI_CEILING",
     "PSI_EPSILON",
+    "PSI_MIN_SAMPLE",
     "SCORE_DRIFT",
     "DriftAlarm",
+    "DriftReport",
+    "SkippedCheck",
     "drift_alarms",
+    "evaluate_drift",
     "psi",
 ]
 
@@ -54,6 +66,8 @@ LATENCY_P95_CEILING_MS: Final = 300.0
 
 # An empty bin has no logarithm; PSI floors every bin's share at this value, the usual convention.
 PSI_EPSILON: Final = 1e-4
+# PSI over fewer scores than this on either side is noise, not drift: it is not evaluated.
+PSI_MIN_SAMPLE: Final = 200
 
 COVERAGE_LOW: Final = "COVERAGE_LOW"
 ABSTENTION_HIGH: Final = "ABSTENTION_HIGH"
@@ -61,6 +75,8 @@ ABSTENTION_RISING: Final = "ABSTENTION_RISING"
 SCORE_DRIFT: Final = "SCORE_DRIFT"
 FOUR_FIFTHS_VIOLATION: Final = "FOUR_FIFTHS_VIOLATION"
 LATENCY_HIGH: Final = "LATENCY_HIGH"
+
+INSUFFICIENT_SAMPLE: Final = "insufficient sample"
 
 
 class DriftAlarm(Frozen):
@@ -70,6 +86,21 @@ class DriftAlarm(Frozen):
     value: float
     threshold: float
     message: str
+
+
+class SkippedCheck(Frozen):
+    """A check that was not evaluated, and why. Not an alarm: nothing is wrong, nothing was learned."""
+
+    code: str  # the alarm code that could not be evaluated
+    reason: str
+    message: str
+
+
+class DriftReport(Frozen):
+    """What `evaluate_drift` found: the alarms, and the checks it could not evaluate."""
+
+    alarms: tuple[DriftAlarm, ...]
+    skipped: tuple[SkippedCheck, ...]
 
 
 # --- population stability index ----------------------------------------------------------------
@@ -99,7 +130,8 @@ def psi(reference: Sequence[float], current: Sequence[float], *, bins: int = 10)
     the reference and of the current sample; a share below 1e-4 (an empty bin) is floored at 1e-4.
     Because the reference sets the bins, `psi(a, b)` and `psi(b, a)` differ. 0 means identical
     shares; EVAL section 6 alarms above 0.25. Raises ValueError for an empty or non-finite sample
-    or `bins < 2`. Small samples make PSI noisy: compare windows of a few hundred scores or more.
+    or `bins < 2`. This is plain arithmetic and works on any size, but a PSI over fewer than
+    `PSI_MIN_SAMPLE` (200) scores on either side is noise: `evaluate_drift` will not alarm on it.
     """
     if isinstance(bins, bool) or not isinstance(bins, int) or bins < 2:
         raise ValueError(f"bins must be an integer of at least 2, got {bins!r}")
@@ -135,7 +167,16 @@ def _check(name: str, value: Optional[float], upper: Optional[float] = None) -> 
         raise ValueError(f"{name} must be {bound}, got {value!r}")
 
 
-def drift_alarms(
+def _check_count(name: str, value: Optional[int]) -> None:
+    if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 0):
+        raise ValueError(f"{name} must be a whole number of scores (0 or more) or None, got {value!r}")
+
+
+def _count(value: Optional[int]) -> str:
+    return "unknown" if value is None else str(value)
+
+
+def evaluate_drift(
     *,
     coverage: Optional[float],
     abstention_rate: Optional[float],
@@ -143,13 +184,20 @@ def drift_alarms(
     psi_value: Optional[float],
     min_fairness_ratio: Optional[float],
     p95_latency_ms: Optional[float],
-) -> tuple[DriftAlarm, ...]:
-    """The alarms EVAL section 6 pages on, in a fixed order: coverage, abstention (absolute, then
-    against the baseline), score drift, four-fifths, latency.
+    psi_reference_n: Optional[int] = None,
+    psi_current_n: Optional[int] = None,
+) -> DriftReport:
+    """The alarms EVAL section 6 pages on, in a fixed order, plus the checks that were skipped.
 
-    `coverage`, `abstention_rate`, `abstention_baseline` are fractions in [0, 1];
+    Order: coverage, abstention (absolute, then against the baseline), score drift, four-fifths,
+    latency. `coverage`, `abstention_rate`, `abstention_baseline` are fractions in [0, 1];
     `min_fairness_ratio` is `FairnessReport.min_ratio` (computed in exact arithmetic, never by float
-    division); `psi_value` comes from `psi`; `p95_latency_ms` is in milliseconds. None skips a check.
+    division; None when the report was not assessed, which raises nothing and must be reported as
+    "not assessed" by the caller); `psi_value` comes from `psi`; `p95_latency_ms` is in milliseconds.
+    None skips a check. `psi_reference_n` and `psi_current_n` are the number of scores on each side
+    of the PSI: if either is known and below `PSI_MIN_SAMPLE` the PSI is not evaluated and appears
+    in `skipped` with the reason "insufficient sample". Without them the PSI is evaluated as given,
+    so pass them.
     """
     _check("coverage", coverage, 1.0)
     _check("abstention_rate", abstention_rate, 1.0)
@@ -157,8 +205,11 @@ def drift_alarms(
     _check("psi_value", psi_value)
     _check("min_fairness_ratio", min_fairness_ratio, 1.0)
     _check("p95_latency_ms", p95_latency_ms)
+    _check_count("psi_reference_n", psi_reference_n)
+    _check_count("psi_current_n", psi_current_n)
 
     alarms: list[DriftAlarm] = []
+    skipped: list[SkippedCheck] = []
     if coverage is not None and coverage < COVERAGE_FLOOR:
         alarms.append(
             DriftAlarm(
@@ -198,18 +249,32 @@ def drift_alarms(
                         ),
                     )
                 )
-    if psi_value is not None and psi_value > PSI_CEILING:
-        alarms.append(
-            DriftAlarm(
-                code=SCORE_DRIFT,
-                value=psi_value,
-                threshold=PSI_CEILING,
-                message=(
-                    "The score distribution has moved away from the 30-day baseline "
-                    f"(PSI {psi_value:.4f}, limit {PSI_CEILING:.2f})."
-                ),
+    if psi_value is not None:
+        known = [n for n in (psi_reference_n, psi_current_n) if n is not None]
+        if any(n < PSI_MIN_SAMPLE for n in known):
+            skipped.append(
+                SkippedCheck(
+                    code=SCORE_DRIFT,
+                    reason=INSUFFICIENT_SAMPLE,
+                    message=(
+                        f"PSI was not evaluated: {INSUFFICIENT_SAMPLE} (reference {_count(psi_reference_n)}, "
+                        f"current {_count(psi_current_n)}; at least {PSI_MIN_SAMPLE} scores are needed "
+                        "on each side)."
+                    ),
+                )
             )
-        )
+        elif psi_value > PSI_CEILING:
+            alarms.append(
+                DriftAlarm(
+                    code=SCORE_DRIFT,
+                    value=psi_value,
+                    threshold=PSI_CEILING,
+                    message=(
+                        "The score distribution has moved away from the 30-day baseline "
+                        f"(PSI {psi_value:.4f}, limit {PSI_CEILING:.2f})."
+                    ),
+                )
+            )
     # `min_fairness_ratio` must come from FairnessReport.min_ratio: exact arithmetic, then one correctly
     # rounded float(). The double nearest 0.80 lies just above 4/5, so for such a value `< 0.80` is
     # true exactly when the exact ratio is below 4/5 (a ratio of exactly 4/5 arrives as 0.8 and is
@@ -239,4 +304,28 @@ def drift_alarms(
                 ),
             )
         )
-    return tuple(alarms)
+    return DriftReport(alarms=tuple(alarms), skipped=tuple(skipped))
+
+
+def drift_alarms(
+    *,
+    coverage: Optional[float],
+    abstention_rate: Optional[float],
+    abstention_baseline: Optional[float],
+    psi_value: Optional[float],
+    min_fairness_ratio: Optional[float],
+    p95_latency_ms: Optional[float],
+    psi_reference_n: Optional[int] = None,
+    psi_current_n: Optional[int] = None,
+) -> tuple[DriftAlarm, ...]:
+    """The alarms of `evaluate_drift` and nothing else: a skipped check is not reported here."""
+    return evaluate_drift(
+        coverage=coverage,
+        abstention_rate=abstention_rate,
+        abstention_baseline=abstention_baseline,
+        psi_value=psi_value,
+        min_fairness_ratio=min_fairness_ratio,
+        p95_latency_ms=p95_latency_ms,
+        psi_reference_n=psi_reference_n,
+        psi_current_n=psi_current_n,
+    ).alarms

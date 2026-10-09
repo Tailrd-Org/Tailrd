@@ -1,4 +1,4 @@
-"""Four-fifths monitoring on opaque-id records (SPEC section 9; EVAL section 3).
+"""Four-fifths monitoring on opaque-id records (SPEC section 9; EVAL section 3; DECISIONS D-92, D-93).
 
 The monitor sees `(opaque_id, group, selected)` and nothing else: no user id, no score, no text.
 Demographic groups are separate, voluntary data keyed by opaque id and never reach the scorer
@@ -8,14 +8,18 @@ Demographic groups are separate, voluntary data keyed by opaque id and never rea
   the group counts, and an abstained or gated pair is a record that was not selected.
 * A group is assessed only when it holds at least `min_group_n` PEOPLE (distinct opaque ids), not
   records. One person scored against 2,000 postings is one person (DECISIONS D-50 applies the same
-  rule to calibration). Smaller groups are listed as excluded and take no part in the verdict.
+  rule to calibration). Smaller groups are listed as excluded and take no part in the verdict. The
+  offline harness (`eval/metrics/fairness.py`) gates on scored pairs instead; here "n >= 100" means
+  people.
 * The verdict compares each assessed group's rate with the best assessed rate in exact rational
   arithmetic (`fractions.Fraction`), so float rounding can neither hide a violation nor invent one:
   5/100 against 4/100 is exactly 4/5 and passes, though 0.04 / 0.05 is 0.7999999999999999.
 * The threshold is 4/5 and is not a parameter. A fairness failure is terminal (CLAUDE.md): nobody
   tunes around it, moves the threshold or drops the failing group.
-* Fewer than two assessed groups means nothing was compared: `passed` is True (no violation was
-  found) and `assessed` is False, so a report can say "not assessed" rather than "fair".
+* NOT ASSESSED IS NOT A PASS. With fewer than two assessed groups nothing was compared, so
+  `assessed` is False and there is no verdict: `passed`, `min_ratio`, `min_ratio_exact` and every
+  group's ratio are None. A monitor must report "not assessed" and must never read it as a pass
+  (or as a failure).
 """
 
 from __future__ import annotations
@@ -37,7 +41,10 @@ def _exact(value: Fraction) -> str:
 
 
 class GroupSelection(Frozen):
-    """One assessed group: its size, its selection rate, and that rate relative to the best group's."""
+    """One assessed group: its size, its selection rate, and that rate relative to the best group's.
+
+    `ratio`, `ratio_exact` and `meets` are None when the report was not assessed (a lone group is
+    compared with nothing)."""
 
     group: str
     n_people: int
@@ -45,9 +52,9 @@ class GroupSelection(Frozen):
     selected: int
     rate: float
     rate_exact: str  # "selected/records" reduced, e.g. "9/20"
-    ratio: float
-    ratio_exact: str
-    meets: bool  # ratio >= 4/5
+    ratio: Optional[float]
+    ratio_exact: Optional[str]
+    meets: Optional[bool]  # ratio >= 4/5
 
 
 class ExcludedGroup(Frozen):
@@ -61,24 +68,22 @@ class ExcludedGroup(Frozen):
 class FairnessReport(Frozen):
     """The four-fifths verdict.
 
-    `min_ratio` is the lowest assessed ratio (None when no group was assessed); `passed` is
-    `min_ratio >= 4/5`, or True when nothing was assessed. `reference_group` is the group with the
-    best rate (the smallest id on a tie), None when nobody was selected anywhere.
+    `assessed` is True when at least two groups were large enough to be compared. Only then is there
+    a verdict: `min_ratio` is the lowest assessed ratio and `passed` is `min_ratio >= 4/5`. When
+    `assessed` is False, `passed`, `min_ratio` and `min_ratio_exact` are None: "not assessed" is not a
+    pass. `reference_group` is the group with the best rate (the smallest id on a tie), None when
+    nobody was selected anywhere or nothing was assessed.
     """
 
     threshold: str
     min_group_n: int
+    assessed: bool
     groups: tuple[GroupSelection, ...]
     excluded: tuple[ExcludedGroup, ...]
     reference_group: Optional[str]
     min_ratio: Optional[float]
     min_ratio_exact: Optional[str]
-    passed: bool
-
-    @property
-    def assessed(self) -> bool:
-        """True when at least two groups were large enough to be compared with each other."""
-        return len(self.groups) >= 2
+    passed: Optional[bool]
 
 
 def _unpack(record: object) -> tuple[str, str, bool]:
@@ -102,7 +107,7 @@ def four_fifths(
     `records` are `(opaque_id, group, selected)`, one per scored pair; a person may appear in many
     records but only in one group. Raises ValueError for a malformed record, for a person assigned
     to two groups, and for `min_group_n < 1`. Output is ordered by group id, so it does not depend
-    on the order of `records`.
+    on the order of `records`. See the module docstring for what "not assessed" means.
     """
     if isinstance(min_group_n, bool) or not isinstance(min_group_n, int) or min_group_n < 1:
         raise ValueError(f"min_group_n must be a positive integer, got {min_group_n!r}")
@@ -124,26 +129,16 @@ def four_fifths(
         for label in sorted(people)
         if len(people[label]) < min_group_n
     )
-    if not eligible:
-        return FairnessReport(
-            threshold=_exact(FOUR_FIFTHS),
-            min_group_n=min_group_n,
-            groups=(),
-            excluded=excluded,
-            reference_group=None,
-            min_ratio=None,
-            min_ratio_exact=None,
-            passed=True,
-        )
-
     rates = {label: Fraction(n_selected[label], n_records[label]) for label in eligible}
-    best = max(rates.values())
+    assessed = len(eligible) >= 2
+    best = max(rates.values(), default=Fraction(0))
     # Nobody selected anywhere: every group is at parity, there is no best rate to be measured against.
-    ratios = {label: (rates[label] / best if best else Fraction(1)) for label in eligible}
-    lowest = min(ratios.values())
+    ratios = {label: (rates[label] / best if best else Fraction(1)) for label in eligible} if assessed else {}
+    lowest = min(ratios.values()) if assessed else None
     return FairnessReport(
         threshold=_exact(FOUR_FIFTHS),
         min_group_n=min_group_n,
+        assessed=assessed,
         groups=tuple(
             GroupSelection(
                 group=label,
@@ -152,15 +147,17 @@ def four_fifths(
                 selected=n_selected[label],
                 rate=float(rates[label]),
                 rate_exact=_exact(rates[label]),
-                ratio=float(ratios[label]),
-                ratio_exact=_exact(ratios[label]),
-                meets=ratios[label] >= FOUR_FIFTHS,
+                ratio=float(ratios[label]) if assessed else None,
+                ratio_exact=_exact(ratios[label]) if assessed else None,
+                meets=ratios[label] >= FOUR_FIFTHS if assessed else None,
             )
             for label in eligible
         ),
         excluded=excluded,
-        reference_group=next((label for label in eligible if rates[label] == best), None) if best else None,
-        min_ratio=float(lowest),
-        min_ratio_exact=_exact(lowest),
-        passed=lowest >= FOUR_FIFTHS,
+        reference_group=next((label for label in eligible if rates[label] == best), None)
+        if assessed and best
+        else None,
+        min_ratio=float(lowest) if lowest is not None else None,
+        min_ratio_exact=_exact(lowest) if lowest is not None else None,
+        passed=lowest >= FOUR_FIFTHS if lowest is not None else None,
     )
