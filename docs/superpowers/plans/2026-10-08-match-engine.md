@@ -728,6 +728,10 @@ on the number of distinct requirement ids (clamped to the end points); dimension
 configured weights of scoring dimensions); value = exp(Σ wᵢ ln max(cᵢ, floor) / Σ wᵢ) over defined
 components; reasons = the LOW_* flag of every component below `weak_component`. Outcome: ≥ 0.80
 SCORED, ≥ 0.60 SCORED_LOW_CONFIDENCE, else NEEDS_REVIEW with `LOW_CONFIDENCE` + those reasons.
+Note from Task 3.2: `NO_REQUIREMENTS_RESOLVED` is also a DIMENSION abstain reason (zero idf
+denominator for one necessity); only a posting with no requirements at all becomes
+NEEDS_REVIEW — a single abstaining dimension redistributes like any other. Negated-only skills
+sit in `PreparedResume.best` with value 0 (not coverage).
 Engine order: validate (anything not a valid Resume/JobPosting/date → `review_result(
 [INVALID_INPUT])`); resume flags in `NEEDS_REVIEW_REASONS` → NEEDS_REVIEW with them; posting with
 no requirements → NEEDS_REVIEW `POSTING_UNSCORABLE` if flagged else `NO_REQUIREMENTS_RESOLVED`;
@@ -881,7 +885,7 @@ people only ("Alex Example" style names, example.com emails) — no PII.
 **Files:** Create `eval/generate/__init__.py`, `eval/generate/vocabulary.py`,
 `eval/generate/profiles.py`, `eval/generate/postings.py`, `eval/generate/render.py`,
 `eval/generate/templates/{chronological,functional,two_column,academic_cv,ats_plain,designer_heavy,federal_long,military_transition}.j2`,
-`eval/generate/corpus.py` (CLI: `python -m eval.generate.corpus --profiles 500 --seed 7 --out eval/corpora/synthetic`);
+`eval/generate/corpus.py` (CLI: `python -m eval.generate.corpus --profiles 500 --seed 7 --out eval/corpora/synthetic [--force]`; a used output dir needs `--force`);
 Test `tests/eval/test_generate.py`.
 
 **Interfaces (Produces):**
@@ -1369,7 +1373,13 @@ def resume_from_document(doc: Mapping[str, Any], *, as_of, resolver, config, par
    items}]` (certification-like titles → credentials; others → SKILLS_BLOB), `summary`
    (`summary_title` is a heading — ignored). Dates: `parse_range(f"{start} – {end}")`. A document
    with no experience/education/projects/skills content and a `raw_text` → `parse_resume_text(raw_text)`.
-5. Adversarial (SPEC §10): white-text stuffing is stripped at ingest and flagged; a résumé that IS
+5. In-progress credentials (from Task 2.2's review): status words written OUTSIDE the credential
+   name — "in progress", "pursuing", "candidate", "currently completing", "expected <year>",
+   "writing the …", "Level I/II/III" — on the same line or entry as a credential mention turn it
+   into the matching in-progress node (e.g. `cred.cpa_in_progress`; taxonomy DECISIONS D-28) or,
+   when none exists, drop the credential ref; "Pursuing a CPA designation" and "CPA (in progress)"
+   must never yield `cred.cpa` (the licence gate would pass an unlicensed candidate, SPEC §4).
+6. Adversarial (SPEC §10): white-text stuffing is stripped at ingest and flagged; a résumé that IS
    a pasted job posting (the posting's text, end to end through `parse_resume_text` →
    `score`) scores raw < 0.85 against that posting; one skill listed 50 times == once.
 
@@ -1400,7 +1410,9 @@ def parse_posting(title: str, description: str, *, meta: PostingMeta, as_of: dat
 2. Clause-split bullets; every skill mention → a requirement with its context's necessity; the
    same skill in several contexts keeps the strongest (REQUIRED > PREFERRED > IMPLIED).
 3. OR-groups: "X or Y", "X/Y" (both resolving), "one of X, Y, Z", "such as X, Y or Z" → one
-   `or_group`; "X or equivalent" → one-member group with `or_equivalent`.
+   `or_group`; "X or equivalent" → one-member group with `or_equivalent`. Group labels must never
+   collide with skill ids (coverage groups share one namespace): use `or:<n>` (n = order of
+   appearance within the posting).
 4. Years: "3+ years of Python" → that requirement's `min_years`; "3+ years of experience" /
    "minimum 2 years" / "at least 5 years" / "1-2 years" (→ 1) with no skill → `min_years_total`;
    `min_years` above (as_of.year − node.release_year) → clamped to that span, flag
