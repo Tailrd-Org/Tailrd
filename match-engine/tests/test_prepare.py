@@ -7,7 +7,9 @@ arithmetic from the spec constants in tests/builders.py (EVAL §2.2).
 
 from __future__ import annotations
 
+import copy
 import math
+import pickle
 import random
 from datetime import date
 
@@ -299,6 +301,66 @@ def test_prepared_resume_is_frozen_validated_and_ordered(small_graph, config) ->
     with pytest.raises(ValidationError):
         SkillValue(skill_id="skill.x", value=1.5, evidence_mult=1.0, recency_mult=1.0,
                    evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED, source=SkillSource.OTHER)
+
+
+def test_prepared_resume_records_its_graph_and_config(small_graph, config) -> None:
+    prepared = prepare_resume(resume(blob=listed("skill.python")), small_graph, config, AS_OF)
+    assert prepared.graph_version == small_graph.version
+    assert prepared.config_hash == config.content_hash
+    other = prepare_resume(resume(blob=listed("skill.python")), small_graph,
+                           with_scoring(config, "relations", max_depth=2), AS_OF)
+    assert other.config_hash != prepared.config_hash
+
+
+def test_best_and_child_cover_are_read_only(small_graph, config) -> None:
+    prepared = prepare_resume(resume(blob=listed("skill.nextjs")), small_graph, config, AS_OF)
+    some = SkillValue(skill_id="skill.x", value=0.5, evidence_mult=0.5, recency_mult=1.0,
+                      evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED, source=SkillSource.OTHER)
+    for mapping, item in ((prepared.best, some), (prepared.child_cover, (0.5, "skill.x"))):
+        key = next(iter(mapping))
+        for mutate in (lambda: mapping.__setitem__("skill.x", item), lambda: mapping.__delitem__(key),
+                       lambda: mapping.update({"skill.x": item}), lambda: mapping.pop(key),
+                       lambda: mapping.popitem(), lambda: mapping.setdefault("skill.x", item),
+                       lambda: mapping.clear()):
+            with pytest.raises(TypeError):
+                mutate()
+        with pytest.raises(TypeError):
+            mapping |= {"skill.x": item}
+        assert key in mapping and "skill.x" not in mapping
+    # Still a plain value object: serialises, round-trips, copies and pickles.
+    assert PreparedResume.model_validate_json(canonical_json(prepared)) == prepared
+    assert copy.deepcopy(prepared) == prepared and prepared.model_copy(deep=True) == prepared
+    assert pickle.loads(pickle.dumps(prepared)) == prepared
+    with pytest.raises(TypeError):
+        copy.deepcopy(prepared).best["skill.x"] = some
+
+
+def test_a_one_ulp_difference_never_decides_which_mention_is_kept() -> None:
+    from matcher.score.prepare import _rank
+
+    value = E_BLOB * recency(84)
+    listed_value = SkillValue(skill_id="skill.python", value=math.nextafter(value, 1.0), evidence_mult=E_BLOB,
+                              recency_mult=recency(84), evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED,
+                              source=SkillSource.SKILLS_SECTION)
+    shown_value = listed_value.model_copy(update={"value": value, "evidence": Evidence.ROLE_BULLET,
+                                                  "source": SkillSource.ROLE})
+    for pair in ((listed_value, shown_value), (shown_value, listed_value)):
+        assert max(pair, key=_rank) is shown_value  # a tie: the demonstrated mention, not the last bit
+
+
+def test_a_one_ulp_difference_never_decides_the_child_cover(small_graph, config) -> None:
+    from matcher.score.prepare import _child_cover
+
+    value = E_BLOB * recency(84)
+
+    def listed_at(skill_id: str, v: float) -> SkillValue:
+        return SkillValue(skill_id=skill_id, value=v, evidence_mult=E_BLOB, recency_mult=1.0,
+                          evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED, source=SkillSource.SKILLS_SECTION)
+
+    best = {"skill.angular": listed_at("skill.angular", value),
+            "skill.vue": listed_at("skill.vue", math.nextafter(value, 1.0))}
+    credit, via = _child_cover(best, small_graph, config)["skill.js_framework"]
+    assert via == "skill.angular" and credit == CHILD_CREDIT * value  # the smaller id, its own credit
 
 
 def test_preparation_does_not_depend_on_input_order(small_graph, config) -> None:

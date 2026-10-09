@@ -21,7 +21,13 @@ Equal values are broken by a total order so the result never depends on the orde
 the stronger evidence tier (later in the `Evidence` order: a skill listed in the skills section
 never hides one demonstrated in a bullet at the same value), then the earlier `SkillSource`, then
 the earlier `Polarity`, then the higher E, then the higher R. Child-cover ties go to the smaller
-skill id.
+skill id. Values are compared at `numeric.TIE_DECIMALS` places (`tie_key`), so two products that
+are equal in exact arithmetic tie even when their last bits differ; the kept value is unrounded.
+
+A `PreparedResume` belongs to the graph and config it was built with: it records the graph
+version and the config hash, and `ensure_bound` (called by every function that reads one) raises
+`EngineFault(INTERNAL_ERROR)` when it is handed another graph or config. `best` and `child_cover`
+are read-only (`ReadOnlyDict`), so nothing downstream can change a prepared résumé.
 """
 
 from __future__ import annotations
@@ -30,16 +36,33 @@ from collections.abc import Iterable
 from datetime import date
 from typing import Optional
 
-from pydantic import Field
+from pydantic import Field, field_validator
 
 from matcher.config import EngineConfig
+from matcher.errors import EngineFault, Flag
 from matcher.graph.model import SkillGraph
 from matcher.graph.traversal import ancestors
 from matcher.models import Evidence, Frozen, Polarity, Resume, Role, SkillRef, SkillSource
 from matcher.score.evidence import apply_polarity, evidence_multiplier, recency_multiplier
-from matcher.score.numeric import clamp01
+from matcher.score.numeric import clamp01, tie_key
 
-__all__ = ["PreparedResume", "SkillValue", "prepare_resume"]
+__all__ = ["PreparedResume", "ReadOnlyDict", "SkillValue", "ensure_bound", "prepare_resume"]
+
+
+class ReadOnlyDict(dict):
+    """A dict that refuses every change after construction. Still a `dict` for pydantic, JSON and
+    equality, and it pickles and deep-copies (as itself) through `__reduce__`."""
+
+    __slots__ = ()
+
+    def _refuse(self, *args: object, **kwargs: object) -> None:
+        raise TypeError(f"{type(self).__name__} is read-only")
+
+    __setitem__ = __delitem__ = __ior__ = _refuse  # type: ignore[assignment]
+    clear = pop = popitem = setdefault = update = _refuse  # type: ignore[assignment]
+
+    def __reduce__(self) -> tuple[type, tuple[dict]]:
+        return (type(self), (dict(self),))
 
 
 class SkillValue(Frozen):
@@ -56,13 +79,37 @@ class SkillValue(Frozen):
 
 class PreparedResume(Frozen):
     """A résumé indexed for matching. Built by `prepare_resume` for one graph, config and as_of;
-    it holds no reference to the graph, which is passed to every function that reads it."""
+    it holds no reference to the graph, which is passed to every function that reads it, and
+    records which graph and config it was built for (`ensure_bound`)."""
 
     resume: Resume
     as_of: date
+    graph_version: str = Field(max_length=200)  # SkillGraph.version
+    config_hash: str = Field(max_length=200)  # EngineConfig.content_hash
     latest_activity: Optional[date]
-    best: dict[str, SkillValue]  # canonical id -> its max-value mention, keys sorted
-    child_cover: dict[str, tuple[float, str]]  # requirement id -> (best CHILD credit, via id), keys sorted
+    best: dict[str, SkillValue]  # canonical id -> its max-value mention; read-only, keys sorted
+    child_cover: dict[str, tuple[float, str]]  # requirement id -> (best CHILD credit, via id); read-only, sorted
+
+    @field_validator("best", "child_cover", mode="after")
+    @classmethod
+    def _read_only(cls, value: dict) -> ReadOnlyDict:
+        return ReadOnlyDict(sorted(value.items()))
+
+
+def ensure_bound(prepared: PreparedResume, graph: SkillGraph, config: EngineConfig) -> None:
+    """Raise `EngineFault(INTERNAL_ERROR)` unless `prepared` was built with this graph and config:
+    a résumé prepared for one graph or config and matched with another would mix two taxonomies'
+    or two configs' credits without any visible sign."""
+    if prepared.graph_version != graph.version:
+        raise EngineFault(
+            Flag.INTERNAL_ERROR,
+            f"résumé prepared for graph {prepared.graph_version!r}, used with graph {graph.version!r}",
+        )
+    if prepared.config_hash != config.content_hash:
+        raise EngineFault(
+            Flag.INTERNAL_ERROR,
+            f"résumé prepared for config {prepared.config_hash!r}, used with config {config.content_hash!r}",
+        )
 
 
 _EVIDENCE_ORDER = {evidence: rank for rank, evidence in enumerate(Evidence)}
@@ -71,10 +118,11 @@ _POLARITY_ORDER = {polarity: rank for rank, polarity in enumerate(Polarity)}
 
 
 def _rank(value: SkillValue) -> tuple[float, int, int, int, float, float]:
-    """Larger is better. A total order over every field but `skill_id`, so two mentions of one
-    skill with equal ranks are equal and the kept one never depends on input order."""
+    """Larger is better. A total order over every field but `skill_id` (`value` at tie precision),
+    so two mentions of one skill with equal ranks are equal and the kept one never depends on
+    input order."""
     return (
-        value.value,
+        tie_key(value.value),
         _EVIDENCE_ORDER[value.evidence],
         -_SOURCE_ORDER[value.source],
         -_POLARITY_ORDER[value.polarity],
@@ -142,8 +190,9 @@ def _child_cover(best: dict[str, SkillValue], graph: SkillGraph, config: EngineC
                 credit *= relations.provisional_multiplier
             candidate = (clamp01(credit), skill_id)
             current = cover.get(ancestor)
-            # Higher credit first, then the smaller via id: independent of iteration order.
-            if current is None or (-candidate[0], candidate[1]) < (-current[0], current[1]):
+            # Higher credit (at tie precision) first, then the smaller via id: independent of
+            # iteration order. The stored credit is the candidate's own, unrounded.
+            if current is None or (-tie_key(candidate[0]), candidate[1]) < (-tie_key(current[0]), current[1]):
                 cover[ancestor] = candidate
     return cover
 
@@ -164,11 +213,12 @@ def prepare_resume(resume: Resume, graph: SkillGraph, config: EngineConfig, as_o
         if kept is None or _rank(value) > _rank(kept):
             best[value.skill_id] = value
     ordered = {skill_id: best[skill_id] for skill_id in sorted(best)}
-    cover = _child_cover(ordered, graph, config)
     return PreparedResume(
         resume=resume,
         as_of=as_of,
+        graph_version=graph.version,
+        config_hash=config.content_hash,
         latest_activity=latest,
         best=ordered,
-        child_cover={ancestor: cover[ancestor] for ancestor in sorted(cover)},
+        child_cover=_child_cover(ordered, graph, config),  # sorted and frozen by the model
     )

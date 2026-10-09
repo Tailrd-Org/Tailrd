@@ -18,7 +18,9 @@ from matcher.models import Frozen, RelationKind
 
 _KIND_ORDER = {RelationKind.EXACT: 0, RelationKind.CHILD: 1, RelationKind.SIBLING: 2, RelationKind.PARENT: 3}
 _ADJACENCY_KEY = ("adjacency",)
+_RELATED_KEY = ("related_neighbors",)
 _EMPTY: Mapping[str, int] = MappingProxyType({})
+_NO_NEIGHBORS: Mapping[str, float] = MappingProxyType({})
 
 
 class Relation(Frozen):
@@ -79,6 +81,36 @@ def relations(graph: SkillGraph, have: str, want: str, max_depth: int) -> tuple[
     if down is not None:
         found.append(Relation(kind=RelationKind.PARENT, depth=down))
     return tuple(sorted(found, key=lambda relation: _KIND_ORDER[relation.kind]))
+
+
+def related_neighbors(graph: SkillGraph, node_id: str) -> Mapping[str, float]:
+    """Every node joined to `node_id` by a related edge stored in either direction (the
+    out-degree cap can leave an edge stored one way only, DECISIONS D-22), with the weight
+    `graph.related_weight(node_id, other)` gives: the edge stored out of `node_id` if there is
+    one, else the edge into it. Never `node_id` itself; empty for unknown ids and for nodes
+    without edges. Read-only, keys sorted; the index of every node is built once per graph and
+    memoised in `graph.cache`."""
+    return _related_index(graph).get(node_id, _NO_NEIGHBORS)
+
+
+def _related_index(graph: SkillGraph) -> Mapping[str, Mapping[str, float]]:
+    cached = graph.cache.get(_RELATED_KEY)
+    if cached is not None:
+        return cached
+    merged: dict[str, dict[str, float]] = {}
+    for a, targets in graph.related.items():  # every edge seen from its far end first ...
+        for b, weight in targets.items():
+            if a != b:
+                merged.setdefault(b, {})[a] = weight
+    for a, targets in graph.related.items():  # ... then the edges stored out of a node win
+        for b, weight in targets.items():
+            if a != b:
+                merged.setdefault(a, {})[b] = weight
+    result = MappingProxyType(
+        {node_id: MappingProxyType(dict(sorted(merged[node_id].items()))) for node_id in sorted(merged)}
+    )
+    graph.cache[_RELATED_KEY] = result
+    return result
 
 
 def distance(graph: SkillGraph, a: str, b: str, max_depth: int) -> Optional[int]:

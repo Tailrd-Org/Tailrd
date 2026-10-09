@@ -9,6 +9,7 @@ arithmetic, never from the engine's config objects (EVAL §2.2).
 from __future__ import annotations
 
 import math
+import random
 from collections.abc import Iterable, Mapping
 from datetime import date
 from typing import Optional
@@ -210,3 +211,56 @@ def tiny_graph(
     for a, b, weight in one_way:
         related.setdefault(a, {})[b] = weight
     return SkillGraph(nodes, related, dict(idf), "test")
+
+
+def random_graph(
+    seed: int,
+    n_nodes: int = 300,
+    *,
+    edges_per_node: int = 6,
+    one_way_share: float = 0.25,
+    asymmetric_share: float = 0.10,
+    provisional_share: float = 0.05,
+) -> SkillGraph:
+    """A seeded random graph with the shapes real data can take: a parent DAG up to several
+    levels deep, related edges stored both ways, one way only (the out-degree cap, D-22) or both
+    ways with different weights (hand-built data), weights on both sides of [0.40, 0.80],
+    provisional nodes, and nodes the corpus never saw (no IDF)."""
+    rng = random.Random(seed)
+    ids = [f"skill.r{i:05d}" for i in range(n_nodes)]
+    nodes = {}
+    for i, node_id in enumerate(ids):
+        parents = tuple(sorted(set(rng.sample(ids[:i], k=min(i, rng.choice((0, 1, 1, 2))))))) if i >= 5 else ()
+        nodes[node_id] = SkillNode(id=node_id, label=node_id, kind=SkillKind.TECHNOLOGY, parents=parents,
+                                   provisional=rng.random() < provisional_share)
+    related: dict[str, dict[str, float]] = {}
+    for a in ids:
+        for b in rng.sample(ids, k=edges_per_node):
+            if a == b:
+                continue
+            weight = round(rng.uniform(0.2, 1.0), 3)
+            shape = rng.random()
+            related.setdefault(a, {})[b] = weight
+            if shape < one_way_share:
+                continue
+            if shape < one_way_share + asymmetric_share:
+                related.setdefault(b, {})[a] = round(rng.uniform(0.2, 1.0), 3)
+            else:
+                related.setdefault(b, {})[a] = weight
+    idf = {node_id: round(rng.random(), 6) for node_id in ids if rng.random() < 0.8}
+    return SkillGraph(nodes, related, idf, f"random-{seed}-{n_nodes}")
+
+
+def random_resume(rng: random.Random, skill_ids: list[str], k: int) -> Resume:
+    """`k` mentions of random skills with random evidence, verbs, polarity and dates."""
+    mentions = []
+    for skill_id in rng.sample(skill_ids, k=k):
+        evidence = rng.choice(list(Evidence))
+        polarity = rng.choices(list(Polarity), weights=(8, 1, 1))[0]
+        mentions.append(ref(skill_id, evidence, verb=rng.choice(list(VerbClass)), polarity=polarity))
+    third = max(1, k // 3)
+    return resume(
+        roles=(current_role(*mentions[:third]),
+               ended_role(*mentions[third:2 * third], end=date(2020 + rng.randrange(6), 1 + rng.randrange(12), 1))),
+        blob=mentions[2 * third:],
+    )

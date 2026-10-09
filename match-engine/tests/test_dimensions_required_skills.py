@@ -9,10 +9,14 @@ from __future__ import annotations
 
 import math
 import random
+import time
+from datetime import date, timedelta
 
 import pytest
 
+from matcher.config import load_config
 from matcher.errors import EngineFault, Flag
+from matcher.graph.traversal import ancestors, related_neighbors
 from matcher.models import (
     DimensionName,
     Evidence,
@@ -24,7 +28,7 @@ from matcher.models import (
     canonical_json,
 )
 from matcher.score.coverage import RequirementMatch, coverage_value, match_requirements, match_skill
-from matcher.score.dimensions import score_required_skills
+from matcher.score.dimensions import score_preferred_skills, score_required_skills, score_tools
 from matcher.score.prepare import PreparedResume, SkillValue, prepare_resume
 from tests.builders import (
     AS_OF,
@@ -49,6 +53,9 @@ from tests.builders import (
     ended_role,
     listed,
     posting,
+    random_graph,
+    random_resume,
+    recency,
     req,
     resume,
     tiny_graph,
@@ -495,17 +502,31 @@ def test_a_non_finite_match_raises_a_numeric_fault(field: str) -> None:
     assert err.value.flag is Flag.NUMERIC_FAULT
 
 
-def test_a_non_finite_skill_value_raises_a_numeric_fault(small_graph, config) -> None:
+def _nan_value(skill_id: str) -> SkillValue:
+    return SkillValue.model_construct(skill_id=skill_id, value=math.nan, evidence_mult=1.0, recency_mult=1.0,
+                                      evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED,
+                                      source=SkillSource.OTHER)
+
+
+@pytest.mark.parametrize("requirement,best,child_cover", [
+    # Each case reaches exactly one relation branch with the NaN:
+    ("skill.not_in_graph", {"skill.not_in_graph": "nan"}, {}),  # EXACT only: unknown requirement
+    ("skill.js_framework", {}, {"skill.js_framework": (math.nan, "skill.vue")}),  # CHILD only
+    ("skill.kubernetes", {"skill.docker": "nan"}, {}),  # SIBLING only: docker–kubernetes edge, no hierarchy
+    ("skill.angular", {"skill.js_framework": "nan"}, {}),  # PARENT only: js_framework has no edges
+], ids=["exact", "child", "sibling", "parent"])
+def test_a_non_finite_value_raises_a_numeric_fault_in_every_branch(small_graph, config, requirement, best,
+                                                                   child_cover) -> None:
     # A NaN smuggled past validation (model_construct) is never silently coerced (SPEC §13).
-    bad = SkillValue.model_construct(skill_id="skill.react", value=math.nan, evidence_mult=1.0, recency_mult=1.0,
-                                     evidence=Evidence.SKILLS_BLOB, polarity=Polarity.AFFIRMED,
-                                     source=SkillSource.OTHER)
-    prepared = PreparedResume.model_construct(resume=resume(), as_of=AS_OF, latest_activity=None,
-                                              best={"skill.react": bad}, child_cover={})
-    for requirement in ("skill.react", "skill.vue", "skill.nextjs"):  # EXACT, SIBLING, PARENT paths
-        with pytest.raises(EngineFault) as err:
-            match_skill(prepared, requirement, small_graph, config)
-        assert err.value.flag is Flag.NUMERIC_FAULT
+    assert not related_neighbors(small_graph, "skill.angular")  # PARENT case: no SIBLING path
+    assert not small_graph.nodes["skill.kubernetes"].parents  # SIBLING case: no PARENT path
+    assert not related_neighbors(small_graph, "skill.js_framework")  # CHILD case: no SIBLING path
+    prepared = PreparedResume.model_construct(
+        resume=resume(), as_of=AS_OF, latest_activity=None, graph_version=small_graph.version,
+        config_hash=config.content_hash, best={k: _nan_value(k) for k in best}, child_cover=child_cover)
+    with pytest.raises(EngineFault) as err:
+        match_skill(prepared, requirement, small_graph, config)
+    assert err.value.flag is Flag.NUMERIC_FAULT
 
 
 # ─── Determinism (SPEC §0) ──────────────────────────────────────────────────────────────
@@ -524,6 +545,168 @@ def test_scores_do_not_depend_on_input_order(small_graph, config) -> None:
         rng.shuffle(requirements)
         again = _score(resume(roles=(current_role(*skills),)), posting(*requirements), small_graph, config)
         assert canonical_json(again) == canonical_json(reference)
+
+
+def test_mathematically_equal_credits_tie_whatever_the_float_rounding(small_graph, config) -> None:
+    # Wants react; has nextjs listed and vue in an EXECUTION bullet, both last used N days ago.
+    # CHILD 0.85 × (0.65 × R) and SIBLING 0.65 × (0.85 × R) are equal, but the two products differ
+    # in the last bit for many R: the tie must still go to CHILD, every time.
+    wrong = []
+    for days in range(0, 1461, 7):
+        role = ended_role(bullet("skill.vue", VerbClass.EXECUTION), end=AS_OF - timedelta(days=days),
+                          start=date(2010, 1, 1))
+        cv = resume(roles=(role,), blob=listed("skill.nextjs"))
+        m, relation, via = match_skill(_prepare(cv, small_graph, config), "skill.react", small_graph, config)
+        if (relation, via) != (CHILD, "skill.nextjs") or not _close(m, CHILD_CREDIT * E_BLOB * recency(days)):
+            wrong.append(days)
+    assert wrong == []
+
+
+def test_a_one_ulp_difference_never_decides_the_best_member(config) -> None:
+    graph = tiny_graph({"skill.a": 0.5, "skill.b": 0.5})
+    credit = CHILD_CREDIT * E_BLOB * recency(84)
+    prepared = PreparedResume(
+        resume=resume(), as_of=AS_OF, latest_activity=None, graph_version=graph.version,
+        config_hash=config.content_hash, best={},
+        child_cover={"skill.a": (credit, "skill.x"), "skill.b": (math.nextafter(credit, 1.0), "skill.y")})
+    post = posting(req("skill.b", or_group="g"), req("skill.a", or_group="g"))
+    (group,) = match_requirements(prepared, post.requirements, graph, config)
+    assert (group.best_member, group.m, group.via) == ("skill.a", credit, "skill.x")  # the smaller id, unrounded
+
+
+def test_an_or_group_label_never_merges_with_a_skill_id(small_graph, config) -> None:
+    # An OR-group whose label happens to equal a skill id stays a group of its own.
+    cv = resume(blob=listed("skill.go"))
+    post = posting(req("skill.python", or_group="skill.python"), req("skill.go", or_group="skill.python"),
+                   req("skill.python"))
+    matches = match_requirements(_prepare(cv, small_graph, config), post.requirements, small_graph, config)
+    assert [(m.group, m.members, m.best_member) for m in matches] == [
+        ("skill.python", ("skill.go", "skill.python"), "skill.go"),  # the OR-group sorts first on a shared label
+        ("skill.python", ("skill.python",), "skill.python"),
+    ]
+    i_go, i_py = small_graph.idf["skill.go"], small_graph.idf["skill.python"]
+    expected = (max(i_go, i_py) * E_BLOB + i_py * 0.0) / (max(i_go, i_py) + i_py)
+    assert _close(_score(cv, post, small_graph, config).value, expected)
+
+
+# ─── A prepared résumé belongs to one graph and one config ──────────────────────────────
+
+
+def test_a_prepared_resume_is_bound_to_its_graph_and_config(small_graph, config) -> None:
+    prepared = _prepare(resume(blob=listed("skill.python")), small_graph, config)
+    post = posting(req("skill.python"), req("skill.go", PREFERRED), req("skill.git", IMPLIED))
+    calls = [
+        lambda g, c: match_skill(prepared, "skill.python", g, c),
+        lambda g, c: match_requirements(prepared, post.requirements, g, c),
+        lambda g, c: score_required_skills(prepared, post, g, c),
+        lambda g, c: score_preferred_skills(prepared, post, g, c),
+        lambda g, c: score_tools(prepared, post, g, c),
+        lambda g, c: score_required_skills(prepared, posting(), g, c),  # even where it would abstain
+    ]
+    other_graph = tiny_graph({"skill.python": 0.5})
+    other_config = with_scoring(config, "relations", max_depth=2)
+    for call in calls:
+        call(small_graph, config)
+        call(small_graph, load_config())  # an equal config loaded again is the same config
+        for graph, cfg in ((other_graph, config), (small_graph, other_config)):
+            with pytest.raises(EngineFault) as err:
+                call(graph, cfg)
+            assert err.value.flag is Flag.INTERNAL_ERROR
+
+
+# ─── The SIBLING lookup: cached neighbours instead of a scan of the résumé ─────────────
+
+
+def _full_scan(prepared, requirement_id, graph, config):
+    """match_skill as it was before the neighbour index: SIBLING checks every résumé skill."""
+    rel = config.scoring.relations
+    best, found = prepared.best, []
+
+    def provisional(skill_id):
+        node = graph.node(skill_id)
+        return node is not None and node.provisional
+
+    def offer(credit, kind, via):
+        if provisional(requirement_id) or provisional(via):
+            credit *= rel.provisional_multiplier
+        found.append((min(1.0, max(0.0, credit)), kind, via))
+
+    if requirement_id in best:
+        offer(rel.exact * best[requirement_id].value, EXACT, requirement_id)
+    if requirement_id in graph:
+        if requirement_id in prepared.child_cover:
+            credit, via = prepared.child_cover[requirement_id]
+            found.append((credit, CHILD, via))
+        for skill_id, value in best.items():
+            weight = graph.related_weight(skill_id, requirement_id)
+            if skill_id != requirement_id and weight is not None:
+                offer(min(rel.sibling_max, max(rel.sibling_min, weight)) * value.value, SIBLING, skill_id)
+        for ancestor in ancestors(graph, requirement_id, rel.max_depth):
+            if ancestor in best:
+                offer(rel.parent * best[ancestor].value, PARENT, ancestor)
+    order = {EXACT: 0, CHILD: 1, SIBLING: 2, PARENT: 3}
+    if not found:
+        return (0.0, NONE, None)
+    credit, kind, via = min(found, key=lambda c: (-round(c[0], 12), order[c[1]], c[2]))
+    return (0.0, NONE, None) if credit < 1e-12 else (credit, kind, via)
+
+
+def _assert_same_as_full_scan(prepared, graph, config, requirement_ids) -> int:
+    siblings = 0
+    for requirement_id in requirement_ids:
+        got = match_skill(prepared, requirement_id, graph, config)
+        assert got == _full_scan(prepared, requirement_id, graph, config), requirement_id
+        siblings += got[1] is SIBLING
+    return siblings
+
+
+def test_sibling_lookup_matches_the_full_scan_on_the_fixture(small_graph, config) -> None:
+    rng = random.Random(23)
+    ids = sorted(small_graph.nodes)
+    resumes = [
+        resume(roles=(current_role(bullet("skill.react")),), blob=listed("skill.python", "skill.docker")),
+        resume(blob=listed("skill.nextjs", "skill.vue", "skill.svelte", "skill.javascript", "skill.terraform")),
+        *(random_resume(rng, ids, k) for k in (3, 10, 25, len(ids))),
+    ]
+    siblings = 0
+    for cv in resumes:
+        siblings += _assert_same_as_full_scan(_prepare(cv, small_graph, config), small_graph, config,
+                                              [*ids, "skill.unknown"])
+    assert siblings > 0  # the comparison really exercised the SIBLING branch
+
+
+def test_sibling_lookup_matches_the_full_scan_on_a_random_graph_with_one_way_edges(config) -> None:
+    graph = random_graph(seed=11, n_nodes=400)
+    one_way = sum(1 for a, targets in graph.related.items() for b in targets if a not in graph.related.get(b, {}))
+    assert one_way > 100  # the graph really has edges stored one way only
+    rng = random.Random(11)
+    ids = sorted(graph.nodes)
+    siblings = 0
+    for k in (5, 40, 120, 300):
+        siblings += _assert_same_as_full_scan(_prepare(random_resume(rng, ids, k), graph, config), graph, config, ids)
+    assert siblings > 100
+
+
+def test_matching_cost_does_not_grow_with_resume_size(config) -> None:
+    # ~18 related neighbours per node; résumés of 40 and 400 skills; 30 requirements.
+    graph = random_graph(seed=3, n_nodes=3000, edges_per_node=9, one_way_share=0.1, asymmetric_share=0.0)
+    rng = random.Random(3)
+    ids = sorted(graph.nodes)
+    requirements = tuple(req(skill_id) for skill_id in rng.sample(ids, 30))
+
+    def seconds_per_call(n_skills: int) -> float:
+        prepared = _prepare(resume(blob=listed(*rng.sample(ids, n_skills))), graph, config)
+        match_requirements(prepared, requirements, graph, config)  # warm the graph's memo caches
+        fastest = math.inf
+        for _ in range(7):
+            start = time.perf_counter()
+            for _ in range(10):
+                match_requirements(prepared, requirements, graph, config)
+            fastest = min(fastest, (time.perf_counter() - start) / 10)
+        return fastest
+
+    small, large = seconds_per_call(40), seconds_per_call(400)
+    assert large < 2.0 * small, f"40 skills: {small * 1e3:.3f} ms, 400 skills: {large * 1e3:.3f} ms"
 
 
 def test_values_are_clamped_and_facts_are_plain_scalars(small_graph, config) -> None:

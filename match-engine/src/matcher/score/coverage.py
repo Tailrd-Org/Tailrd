@@ -4,24 +4,33 @@ SPEC §5.1, §5.2, §5.7, §13, §14.4; DECISIONS D-21, D-23, D-24, D-30, D-31, 
 
 * `match_skill` (D-23, D-24): a requirement's match quality `m` is the best credit any résumé
   skill earns for it: EXACT `relations.exact × value`, CHILD the prepared child cover, SIBLING
-  `clamp(edge, sibling_min, sibling_max) × value` over related edges stored either way, PARENT
-  `relations.parent × value` for each ancestor within `relations.max_depth`; × the provisional
-  multiplier when the requirement or the résumé skill is a provisional node (once; the child
-  cover already carries it). Equal credits keep the order EXACT, CHILD, SIBLING, PARENT, then the
-  smaller résumé skill id. A requirement absent from the graph matches its exact id only. No
-  credit at all is `(0.0, NONE, None)`; `via` is the résumé skill that earned the credit (the
-  requirement itself for EXACT).
-* `match_requirements` (D-31): requirements sharing an `or_group` form one group (otherwise each
-  skill id is its own group, so a duplicated requirement counts once). A group scores its best
-  member; its IDF is the max member IDF (DECISIONS D-21: `idf.unseen_default` for an id the
-  corpus never saw or the graph does not hold); its weight multiplier is the max member's
-  (§14.4 overflow); its necessity the strongest member's. A REQUIRED group with IDF above
-  `critical_miss.idf_threshold` and `m` below `critical_miss.m_threshold` is critical (D-43; the
-  aggregator applies the cap).
+  `clamp(edge, sibling_min, sibling_max) × value` for the résumé skills joined to it by a related
+  edge stored either way (found through `traversal.related_neighbors`, so the cost follows the
+  requirement's degree, not the size of the résumé), PARENT `relations.parent × value` for each
+  ancestor within `relations.max_depth`; × the provisional multiplier when the requirement or the
+  résumé skill is a provisional node (once; the child cover already carries it). Equal credits
+  keep the order EXACT, CHILD, SIBLING, PARENT, then the smaller résumé skill id. Credits are
+  compared at `numeric.TIE_DECIMALS` places, so a last-bit difference between products that are
+  equal in exact arithmetic never decides a tie; the credit returned is the unrounded one. A
+  requirement absent from the graph matches its exact id only. No credit at all is
+  `(0.0, NONE, None)`; `via` is the résumé skill that earned the credit (the requirement itself
+  for EXACT).
+* `match_requirements` (D-31): requirements sharing an `or_group` form one group; any other
+  requirement is a group of its own skill id, so a duplicated requirement counts once. OR-group
+  labels and skill ids never share a namespace: a label equal to a skill id stays its own group.
+  A group scores its best member (ties as above, then the smaller id); its IDF is the max member
+  IDF (D-21: `idf.unseen_default` for an id the corpus never saw or the graph does not hold); its
+  weight multiplier is the max member's (§14.4 overflow); its necessity the strongest member's.
+  A REQUIRED group with IDF above `critical_miss.idf_threshold` and `m` below
+  `critical_miss.m_threshold` is critical (D-43; the aggregator applies the cap). Groups come
+  sorted by label, an OR-group before a lone skill of the same label.
 * `coverage_value`: `Σ(idf × wm × m) / Σ(idf × wm)`, None when no group carries weight.
 * `score_coverage` builds the dimension: §5.1 over REQUIRED, §5.2 over PREFERRED, §5.7 over
   IMPLIED requirements (D-30). It abstains when the posting has none of that necessity or when
   none carries weight; an abstaining dimension carries no facts, so no critical-miss cap.
+
+Every public function that takes a prepared résumé first checks it was built with this graph and
+config (`prepare.ensure_bound`).
 """
 
 from __future__ import annotations
@@ -35,7 +44,7 @@ from pydantic import Field
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph
-from matcher.graph.traversal import ancestors
+from matcher.graph.traversal import ancestors, related_neighbors
 from matcher.models import (
     DimensionName,
     DimensionScore,
@@ -46,8 +55,8 @@ from matcher.models import (
     Necessity,
     RelationKind,
 )
-from matcher.score.numeric import clamp01, finite
-from matcher.score.prepare import PreparedResume
+from matcher.score.numeric import clamp01, finite, tie_key
+from matcher.score.prepare import PreparedResume, ensure_bound
 
 __all__ = [
     "CRITICAL_MISS",
@@ -81,12 +90,13 @@ _KIND_ORDER = {
 }
 _NECESSITY_ORDER = {Necessity.REQUIRED: 0, Necessity.PREFERRED: 1, Necessity.IMPLIED: 2}
 _NO_MATCH: tuple[float, RelationKind, Optional[str]] = (0.0, RelationKind.NONE, None)
+_OR_GROUP, _LONE_SKILL = 0, 1  # group-key namespaces: (label, namespace)
 
 
 class RequirementMatch(Frozen):
     """One requirement group scored against a prepared résumé."""
 
-    group: str = Field(max_length=200)  # the or_group, or the skill id of a lone requirement
+    group: str = Field(max_length=200)  # the or_group label, or the skill id of a lone requirement
     members: tuple[str, ...] = Field(min_length=1)  # sorted, distinct
     best_member: str = Field(min_length=1, max_length=200)
     m: float = Field(ge=0.0, le=1.0)
@@ -107,6 +117,13 @@ def match_skill(
     prepared: PreparedResume, requirement_id: str, graph: SkillGraph, config: EngineConfig
 ) -> tuple[float, RelationKind, Optional[str]]:
     """`(m, relation, via)` for one requirement id (SPEC §5.1 table; DECISIONS D-23, D-24)."""
+    ensure_bound(prepared, graph, config)
+    return _match_skill(prepared, requirement_id, graph, config)
+
+
+def _match_skill(
+    prepared: PreparedResume, requirement_id: str, graph: SkillGraph, config: EngineConfig
+) -> tuple[float, RelationKind, Optional[str]]:
     relations = config.scoring.relations
     best = prepared.best
     wanted_provisional = _provisional(graph, requirement_id)
@@ -124,21 +141,27 @@ def match_skill(
         cover = prepared.child_cover.get(requirement_id)
         if cover is not None:  # already × the provisional multiplier where it applies
             candidates.append((clamp01(cover[0]), RelationKind.CHILD, cover[1]))
-        for skill_id, value in best.items():
-            if skill_id == requirement_id:
-                continue
+        neighbors = related_neighbors(graph, requirement_id)
+        # Walk the smaller side: a hub skill can have thousands of neighbours and a stuffed skills
+        # section hundreds of skills; either way the cost is the smaller of the two.
+        if len(neighbors) <= len(best):
+            related = [skill_id for skill_id in neighbors if skill_id in best]
+        else:
+            related = [skill_id for skill_id in best if skill_id in neighbors]
+        for skill_id in related:
+            # The weight as traversal.relations reads it: the résumé skill's stored edge first.
             weight = graph.related_weight(skill_id, requirement_id)
             if weight is not None:
                 clamped = min(relations.sibling_max, max(relations.sibling_min, finite(weight)))
-                offer(clamped * value.value, RelationKind.SIBLING, skill_id)
+                offer(clamped * best[skill_id].value, RelationKind.SIBLING, skill_id)
         for ancestor in ancestors(graph, requirement_id, relations.max_depth):
             value = best.get(ancestor)
             if value is not None:
                 offer(relations.parent * value.value, RelationKind.PARENT, ancestor)
     if not candidates:
         return _NO_MATCH
-    # Highest credit; equal credits by relation order, then the smaller via id.
-    credit, kind, via = min(candidates, key=lambda c: (-c[0], _KIND_ORDER[c[1]], c[2]))
+    # Highest credit at tie precision; equal credits by relation order, then the smaller via id.
+    credit, kind, via = min(candidates, key=lambda c: (-tie_key(c[0]), _KIND_ORDER[c[1]], c[2]))
     if credit < NO_CREDIT:
         return _NO_MATCH
     return credit, kind, via
@@ -157,24 +180,39 @@ def match_requirements(
     graph: SkillGraph,
     config: EngineConfig,
 ) -> tuple[RequirementMatch, ...]:
-    """Every requirement group scored, sorted by group key (SPEC §14.4; DECISIONS D-31, D-43)."""
-    groups: dict[str, list[JobRequirement]] = {}
+    """Every requirement group scored, sorted by label (SPEC §14.4; DECISIONS D-31, D-43)."""
+    ensure_bound(prepared, graph, config)
+    return _match_requirements(prepared, requirements, graph, config)
+
+
+def _match_requirements(
+    prepared: PreparedResume,
+    requirements: Sequence[JobRequirement],
+    graph: SkillGraph,
+    config: EngineConfig,
+) -> tuple[RequirementMatch, ...]:
+    groups: dict[tuple[str, int], list[JobRequirement]] = {}
     for requirement in requirements:
-        key = requirement.or_group if requirement.or_group is not None else requirement.skill_id
+        if requirement.or_group is not None:
+            key = (requirement.or_group, _OR_GROUP)
+        else:
+            key = (requirement.skill_id, _LONE_SKILL)
         groups.setdefault(key, []).append(requirement)
     critical_miss = config.scoring.critical_miss
     matches = []
     for key in sorted(groups):
         group = groups[key]
         members = tuple(sorted({requirement.skill_id for requirement in group}))
-        found = {member: match_skill(prepared, member, graph, config) for member in members}
-        best_member = min(members, key=lambda member: (-found[member][0], _KIND_ORDER[found[member][1]], member))
+        found = {member: _match_skill(prepared, member, graph, config) for member in members}
+        best_member = min(
+            members, key=lambda member: (-tie_key(found[member][0]), _KIND_ORDER[found[member][1]], member)
+        )
         m, relation, via = found[best_member]
         idf = max(_idf(graph, member, config) for member in members)
         necessity = min((Necessity(r.necessity) for r in group), key=_NECESSITY_ORDER.__getitem__)
         matches.append(
             RequirementMatch(
-                group=key,
+                group=key[0],
                 members=members,
                 best_member=best_member,
                 m=m,
@@ -263,11 +301,12 @@ def score_coverage(
     """The coverage dimension over the posting's requirements of one necessity (DECISIONS D-30).
 
     `effective_weight` is the configured weight; the aggregator redistributes (SPEC §14.5)."""
+    ensure_bound(prepared, graph, config)
     weight = config.weights.of(name)
     requirements = [requirement for requirement in posting.requirements if requirement.necessity == necessity]
     if not requirements:
         return _abstain(name, weight, absent)
-    matches = match_requirements(prepared, requirements, graph, config)
+    matches = _match_requirements(prepared, requirements, graph, config)
     value = coverage_value(matches)
     if value is None:
         return _abstain(name, weight, Flag.NO_REQUIREMENTS_RESOLVED)

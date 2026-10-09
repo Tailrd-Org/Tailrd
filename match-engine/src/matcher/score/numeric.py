@@ -35,3 +35,14 @@ def clamp01(x: float) -> float:
     if value >= 1.0:
         return 1.0
     return value
+
+
+TIE_DECIMALS = 12
+
+
+def tie_key(x: float) -> float:
+    """`x` rounded to `TIE_DECIMALS` places, for ORDERING candidates only: products that are equal
+    in exact arithmetic but multiplied in another order (0.85 × (0.65 × R) and 0.65 × (0.85 × R))
+    can differ in the last bit, and that bit must not decide a tie. Callers keep and return the
+    unrounded value of the candidate they pick. Non-finite input raises as in `finite`."""
+    return round(finite(x), TIE_DECIMALS)
