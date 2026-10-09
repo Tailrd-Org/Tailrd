@@ -1549,11 +1549,128 @@ fairness guardrail failure is terminal (never tuned around, never re-thresholded
 - [ ] Tests (constraint enforcement, simplex normalisation, proposal never touches config, holdout skip/ledger/refusal, sensitivity arithmetic on a toy) → FAIL; implement → PASS; commit `feat(match-engine): constrained tuning, proposals, holdout tooling, CI workflow`
 
 ## Milestone 9 — Tailrd integration (beyond BUILD.md; the reason this exists)
-### Task 9.1: Adapter `backend/services/fit_engine.py` (engine singleton, résumé/posting conversion per D-80/D-84, fingerprints D-82)
-### Task 9.2: Storage — migration adding `job_match_scores.{raw_score,band,outcome,engine_version,config_hash}`, tables `match_traces`, `match_calibration`
-### Task 9.3: Replace every producer (feed overlay, breakdown, upload pre-score, sweep, sidebar) and delete the AI scoring paths (D-83); tests incl. `test_stale_fingerprints_are_never_served`
-### Task 9.4: Tailoring scores from the engine (D-83)
-### Task 9.5: Web app — bands/labels from the engine (D-85), full breakdown (strengths, gaps, to-improve, basis, confidence note, interval)
+**Common to Milestone 9** (paths relative to the REPO root): read DECISIONS D-80..D-85 and
+`docs/ai-cost-controls.md`. Backend tests run from an isolated CWD with
+`DATABASE_URL=sqlite:///./ci_test.db JWT_SECRET=test` exported (never against Neon — the app
+lifespan would migrate whatever database `DATABASE_URL` names); e.g.
+`cd <scratch dir> && DATABASE_URL=sqlite:///./ci_test.db JWT_SECRET=test PYTHONPATH=<worktree> python -m pytest <worktree>/backend/tests/<file> -q`
+with the system Python that has the backend requirements. Integration map (from the codebase
+survey; verify line numbers, they drift): producers `backend/services/local_match.py` (whole
+file), `jobs_sidebar.py:42-43,73-125`, `routers/jobs.py:73-98,154-342 (strong/sort 287-339),
+1029-1030, 1089-1100`, `routers/ai.py:126-221 (breakdown), 373-387 (analyze-fit), 397-480
+(job-analysis/custom-resume/rewrite), 483-537 (batch-score), 662-675 (cron-match-alerts)`,
+`routers/resumes.py:449-537`, `services/match_notifier.py:65-135,182-209,402-510,513-818`,
+`services/match_engine.py:90-102,190-358`, `services/openai_service.py:665-708`,
+`services/resume_tailor.py:150-162`, `routers/tailor.py:46-118`; schemas `schemas/match.py:8-24`,
+`schemas/jobs.py:11-72`, `schemas/ai.py:35-74`, `schemas/tailor.py:18-26`; storage
+`db/models.py:197-200,298-322`, `migrations/add_job_match_terms.py`, `main.py:60-117`; cron
+`routers/github_sources.py:810-932`; email `services/email_service.py:209-285`; web
+`frontend/src/pages/Jobs.tsx`, `components/JobDetailView.tsx`, `components/JobsSidebar.tsx`,
+`components/CustomResumeModal.tsx`, `lib/skillLabel.ts`; extension `chrome-extension/src/content/tailorCard.ts`.
+
+### Task 9.1: Adapter, storage and calibration references
+
+**Files:** Create `backend/services/fit_engine.py`, `backend/migrations/add_fit_engine.py`;
+Modify `backend/db/models.py` (new columns/tables), `backend/main.py` (register the migration),
+`api/requirements.txt` (+ `PyYAML==6.0.2`), `vercel.json` (`excludeFiles` also excludes
+`match-engine/{tests,eval,scripts,proposals,reports,docs}/**` and `match-engine/data/raw/**`);
+Test `backend/tests/test_fit_engine_adapter.py`.
+
+**Behaviour:**
+1. `fit_engine.py` puts `match-engine/src` on `sys.path` (D-01) and exposes a lazily built,
+   process-wide `FitEngine` (config, graph, resolver, parse config, title/MOS indexes, panel
+   references, combined hash); measure and report cold build time.
+2. `resume_for_profile(profile, settings) -> ParsedResume` per D-80: the stored document when it has
+   experience/education/projects/skills content, else `raw_text`; work authorisation and location
+   from the user's saved answers/settings (find where `needs_sponsorship` and the location live;
+   unknown stays None).
+3. `posting_for_job(job) -> JobPosting` per D-84: cached in `scraped_jobs.match_terms` as
+   `{"v": "<engine posting-parser version>", "dl": <len(description)>, "posting": <canonical JSON>}`,
+   recomputed when `v` differs or `dl` differs from `length(description)` selected in SQL (the
+   description is fetched only when recomputing); `PostingMeta` from the job's columns (company,
+   company_description, locations_json, work_type, employment_type, experience_level,
+   role_category as job family).
+4. Fingerprint per D-82: `"fit" + major + ":" + sha256(canonical Resume JSON + combined hash)`
+   truncated to 64 chars. `current_fingerprints()` returns ONLY this (old AI and `local1:` rows
+   become stale everywhere).
+5. Storage (additive migration, idempotent, works on SQLite and Postgres): `job_match_scores`
+   gains `raw_score FLOAT`, `band VARCHAR(20)`, `outcome VARCHAR(30)`, `confidence FLOAT`,
+   `engine_version VARCHAR(20)`, `config_hash VARCHAR(20)` (all nullable); new `match_traces`
+   (user_id, job_id unique pair, trace JSON from `audit.build_trace`, input_digest,
+   engine_version, config_hash, scored_at) — written beside every banked score and never selected
+   by feed queries (egress); new `match_calibration` (scope, key, n_candidates, n_pairs, samples
+   JSON, version, created_at) holding the per-family/global references built from banked raw
+   scores by `refresh_calibration(db)` (distinct résumé fingerprints count as candidates; < 30 →
+   the panel stays in charge, D-50).
+6. `bank_scores(db, user_id, profile, job_ids) -> dict[int, MatchResult]`: score every job without
+   a current row (one prepared résumé, many postings), store `score` = calibrated int (sorting),
+   raw/band/outcome/confidence/version/hash, and the trace; GATE_FAIL and NEEDS_REVIEW rows store
+   `score` NULL-equivalent (choose a sentinel that sorts last, documented) so they never rank high.
+7. `explain_job(db, user, job) -> dict`: one full result with explanation, interval and
+   counterfactual for the detail view.
+
+- [ ] Tests (sqlite): conversion from a Tailrd-shaped document and from raw text, posting cache
+      hit/miss/invalidation by length, fingerprint changes on résumé edit and on config change,
+      banking writes scores + traces, calibration refresh uses distinct candidates → FAIL → implement → PASS; commit
+
+### Task 9.2: Every producer switched; every AI scoring path removed (D-83, D-85)
+
+**Files:** Modify `backend/services/jobs_sidebar.py`, `backend/routers/jobs.py`,
+`backend/routers/ai.py`, `backend/routers/resumes.py`, `backend/services/match_notifier.py`,
+`backend/routers/github_sources.py` (sweep summary fields), `backend/services/email_service.py`
+(subject/body naming: "Strong match: <title> · fit score 88", never "88% match"),
+`backend/services/match_engine.py` (delete `compute_breakdown`, `analyze_fit`, `queue_analysis`;
+keep what tailoring still needs), `backend/services/openai_service.py` (delete `match_job`,
+`extract_experience_years`), `backend/schemas/match.py` (MatchBreakdown keeps its old fields for
+compatibility and gains `band`, `headline`, `basis`, `outcome`, `display_score`, `strengths`/`gaps`
+as structured items, `to_improve`, `notes`, `interval`), `backend/schemas/jobs.py` (`match_band`,
+`match_outcome` overlaid like `match_score`), `docs/ai-cost-controls.md`; Delete
+`backend/services/local_match.py` (move `display_skill` where its callers need it) and the
+`MATCH_SCORING` / `MATCH_AI_DAILY_PER_USER` / `MATCH_AI_CONFIRM_MIN` settings; Test: rewrite
+`test_local_match.py` → `test_fit_scoring_paths.py`, update `test_jobs_sidebar.py`,
+`test_match_notifier.py`, `test_match_sweep_cost.py`, `test_ai_router.py`,
+`test_match_engine_basic.py`, `test_ai_web_flow.py`, `test_jobs_properties.py`.
+
+**Behaviour:** feed overlay, `sort=match`, `strong=1` (= band Strong, outcome SCORED), sidebar
+counts and `GAP_POOL` (Good or better), upload pre-score (newest 300 visible jobs), the cron sweep
+(no LLM call of any kind; alerts only for SCORED Strong matches; `refresh_calibration` once per
+sweep; drift alarms from `audit.drift_alarms` in the summary), `/ai/match-breakdown` (engine
+explanation, never charges the AI daily limit), `/ai/batch-score` and `/ai/analyze-fit` removed
+(404) — all read/write engine fingerprints only. Old rows are never shown:
+`test_stale_fingerprints_are_never_served` seeds AI and `local1:` rows and asserts the feed,
+sidebar, breakdown and alerts ignore them. A grep in the tests asserts no scoring module calls
+OpenAI (`op="match.score"`, `"match.fit"` gone).
+
+- [ ] Tests → FAIL → implement → PASS (all touched suites + the full backend suite once, isolated); commit
+
+### Task 9.3: Tailoring shows engine scores (D-83)
+
+**Files:** Modify `backend/services/resume_tailor.py`, `backend/routers/tailor.py`,
+`backend/routers/ai.py` (job-analysis / custom-resume-analysis / rewrite / custom-resume),
+`backend/services/match_engine.py` (`analyze_job` no longer produces scores or keyword lists with
+the LLM); Test the tailoring suites (`test_tailor_api.py`, `test_tailor_document.py`,
+`test_resume_rewrite_regression.py`, `test_analysis_memo.py`).
+**Behaviour:** `overall_score`, `ats_score` (= the engine's calibrated score; documented),
+`match_label` (band), `keyword_coverage` (required+preferred coverage), `matched_keywords` /
+`missing_keywords` (engine facts, display labels) and before/after scores come from scoring the
+original and the tailored document with the engine; the LLM is used only for the rewrite text
+itself, fed the engine's gaps where it used to be fed its own analysis. Response shapes unchanged
+(the extension's tailor card keeps working on the same 0–100 scale).
+
+- [ ] Tests → FAIL → implement → PASS; commit
+
+### Task 9.4: Web app shows the engine's result (D-52, D-85)
+
+**Files:** Modify `frontend/src/pages/Jobs.tsx`, `frontend/src/components/JobDetailView.tsx`,
+`frontend/src/components/JobsSidebar.tsx`, `frontend/src/components/CustomResumeModal.tsx`, their
+tests. **Behaviour:** card badge = band from the API with "Fit 76" (no "%" and no hard-coded
+80/60); low confidence shows the band only; GATE_FAIL shows "Not eligible" with the reason;
+NEEDS_REVIEW shows nothing scary ("Not scored"). The detail view ALWAYS requests the breakdown
+(it is free now) and renders headline, basis, strengths and gaps with impacts, "to improve"
+suggestions, notes, and the interval when displayed. Sidebar copy follows the 85/70/55 bands.
+Run `npx tsc --noEmit` and the touched vitest files locally (vitest is not in CI).
+
+- [ ] Tests → FAIL → implement → PASS; commit
 ### Task 9.6: Docs + real-data dry run on the dev DB (latency, abstention rate, distribution, agreement with the old local scorer)
 Includes EVAL §6 hooks: optional shadow scoring (`FIT_SHADOW_CONFIG` dir → score with both, persist
 only the live one, log the distribution diff) and the drift alarms wired to the sweep summary.
