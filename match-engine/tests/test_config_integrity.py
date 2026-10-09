@@ -167,6 +167,19 @@ def test_scoring_constants_match_spec(config) -> None:
             s.taxonomy.review_queue_size) == (50, 30, 50)
     assert s.calibration.min_reference_n == 30
     assert (s.ingest.max_experience_tokens, s.ingest.ocr_min_confidence) == (40000, 0.60)
+    assert (s.ingest.max_pages, s.ingest.resume_likelihood_threshold) == (100, 0.5)
+
+
+@pytest.mark.parametrize("key,value", [("max_pages", 0), ("max_pages", 2.5), ("resume_likelihood_threshold", 1.5),
+                                       ("resume_likelihood_threshold", -0.1)])
+def test_ingest_limits_are_validated(tmp_path: Path, key: str, value: float) -> None:
+    root = _copy_config(tmp_path)
+    path = root / "scoring.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["ingest"][key] = value
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(root)
 
 
 def test_gates_policy(config) -> None:

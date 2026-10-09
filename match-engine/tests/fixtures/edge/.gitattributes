@@ -1,0 +1,3 @@
+# Binary fixtures (PDF, DOCX, images, encoded text): git must never rewrite their bytes
+# (core.autocrlf would turn LF into CRLF on a Windows checkout and change what is tested).
+* -text

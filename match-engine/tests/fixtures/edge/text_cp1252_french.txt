@@ -1,0 +1,16 @@
+Alex Example
+alex.example@example.com | 555-0100 | Montréal, QC
+PROFIL
+Analyste de données avec quatre ans d’expérience dans la création de rapports.
+EXPÉRIENCE PROFESSIONNELLE
+Analyste de données, Exemple Inc.    janv. 2020 – aujourd'hui
+- Conception de tableaux de bord pour l'équipe des finances
+- Automatisation des rapports hebdomadaires avec Python et SQL
+Analyste junior, Société Exemple    juin 2018 – déc. 2019
+- Nettoyage et validation des données de ventes
+FORMATION
+Baccalauréat en statistique, Université Exemple    2014 – 2018
+COMPÉTENCES
+Python, SQL, Tableau, Excel, statistiques
+LANGUES
+Français et anglais

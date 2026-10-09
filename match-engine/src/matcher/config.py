@@ -325,6 +325,8 @@ class TaxonomyConfig(Frozen):
 class IngestConfig(Frozen):
     max_experience_tokens: int = Field(ge=1000)
     ocr_min_confidence: float = Field(ge=0.0, le=1.0)
+    max_pages: int = Field(ge=1, le=10_000)  # pages read from a PDF; the rest flag TRUNCATED
+    resume_likelihood_threshold: float = Field(ge=0.0, le=1.0)  # below it: NOT_A_RESUME
 
 
 class ScoringConfig(Frozen):
