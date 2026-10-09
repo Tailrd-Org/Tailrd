@@ -9,7 +9,8 @@ Formats (all UTF-8 JSON carrying `"format": 1`):
 - extra JSON documents (`resolver.json`, `titles.json`, ...): any `{"format":1, ...}` object, written
   next to the graph by `write_artifacts(extra=...)` and pinned in the same MANIFEST. The resolver
   settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"},
-  "cased":{"<key>":"<required casing>"},"blocked_phrases":["<phrase>", ...]}`.
+  "cased":{"<key>":"<required casing>"},"blocked_phrases":["<phrase>", ...],
+  "in_progress":{"<licence id>":"<in-progress id>"}}`.
 
 Every reader refuses an artifact whose bytes do not match the manifest: `load_graph` checks the
 three graph files it reads, `load_json_artifact` the document it is asked for. The graph version
@@ -247,8 +248,9 @@ def _json_artifact(root: Path, name: str, artifacts: Mapping[str, str]) -> dict[
 
 def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
     """The hash-verified `resolver.json`: `{"format": 1, "ambiguous": {key: required casing},
-    "cased": {key: required casing}, "blocked_phrases": [phrase, ...]}`. `ambiguous` holds the
-    curated keys, `cased` the automatic ones (D-26); the last two may be absent (empty)."""
+    "cased": {key: required casing}, "blocked_phrases": [phrase, ...], "in_progress": {licence id:
+    in-progress id}}`. `ambiguous` holds the curated keys, `cased` the automatic ones (D-26),
+    `in_progress` the professional licences (D-28); all but `ambiguous` may be absent (empty)."""
     root = Path(taxonomy_dir)
     return _resolver_settings(root, _manifest_artifacts(root))
 
@@ -257,12 +259,12 @@ def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, An
     settings = _json_artifact(root, RESOLVER_JSON, artifacts)
     if "ambiguous" not in settings:
         raise ArtifactError(f"{RESOLVER_JSON}: 'ambiguous' is missing")
-    for name in ("ambiguous", "cased"):
-        casings = settings.get(name, {})
-        if not isinstance(casings, dict) or not all(
-            isinstance(key, str) and isinstance(casing, str) for key, casing in casings.items()
+    for name in ("ambiguous", "cased", "in_progress"):
+        mapping = settings.get(name, {})
+        if not isinstance(mapping, dict) or not all(
+            isinstance(key, str) and isinstance(value, str) for key, value in mapping.items()
         ):
-            raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map keys to their required casing")
+            raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map strings to strings")
     phrases = settings.get("blocked_phrases", [])
     if not isinstance(phrases, list) or not all(isinstance(phrase, str) and phrase for phrase in phrases):
         raise ArtifactError(f"{RESOLVER_JSON}: 'blocked_phrases' must be a list of phrases")
@@ -284,6 +286,7 @@ def load_resolver(
         ambiguous=settings["ambiguous"],
         cased=settings.get("cased", {}),
         blocked_phrases=settings.get("blocked_phrases", ()),
+        in_progress=settings.get("in_progress", {}),
         fuzzy_log=fuzzy_log,
     )
 

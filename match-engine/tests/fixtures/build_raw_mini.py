@@ -50,7 +50,7 @@ CONCEPTS = (
     ("00000000-0000-4000-8000-000000000012", "skill/competence", "cross-sector", "use spreadsheets software",
      ["work with spreadsheets"], ["Microsoft Office Excel", "Gnumeric"], "utiliser un tableur", []),
     ("00000000-0000-4000-8000-000000000013", "knowledge", "cross-sector", "computer programming",
-     ["coding", "software programming"], [], "programmation informatique", []),
+     ["coding", "software programming", "web design"], [], "programmation informatique", []),
     ("00000000-0000-4000-8000-000000000014", "skill/competence", "cross-sector", "think critically",
      ["critical thinking", "synergy"], [], "faire preuve d'esprit critique", ["pensée critique"]),
     # A one-word French preferred label that is an ordinary French word, unlike the English one.

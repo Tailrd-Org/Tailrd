@@ -141,25 +141,40 @@ def test_esco_and_onet_merge_into_the_curated_node(graph) -> None:
     python = graph.nodes["skill.python"]
     assert (python.label, python.kind, python.release_year, python.source) == (
         "Python", SkillKind.TECHNOLOGY, 1991, "curated")
-    assert set(python.aliases) == {"Python 3", "Python (computer programming)", "Python (programmation informatique)"}
+    assert set(python.aliases) == {"Python 3", "Python (computer programming)", "Python (programmation informatique)",
+                                   "Python programming", "Python 2.7", "langage Python"}
     assert not any(node_id.startswith("esco.python") for node_id in graph.nodes)
     # Curated parents absent: the merged sources' parents are inherited (ESCO broader, O*NET class),
     # the ESCO "computer programming" concept being merged into skill.programming itself.
     assert python.parents == ("cat.43232405", "esco.group.0613", "skill.programming")
 
 
-def test_a_merged_esco_concept_brings_its_preferred_labels_only(graph) -> None:
-    # D-26: the alternative and hidden labels of a merged concept ("Python programming", "Python
-    # 2.7", "langage Python"; "coding" under computer programming) never become aliases, so a
-    # neighbour of the curated sense cannot ride in on them.
-    for node_id, absent in (("skill.python", {"Python programming", "Python 2.7", "langage Python"}),
-                            ("skill.programming", {"coding", "software programming"}),
-                            ("skill.machine_learning", {"statistical learning", "apprentissage machine"})):
-        assert not absent & _aliases(graph, node_id), node_id
-    assert _aliases(graph, "skill.programming") == {"programmation informatique"}  # French, two words
-    assert "apprentissage automatique" in _aliases(graph, "skill.machine_learning")
+def test_a_merged_concept_keeps_only_alternatives_that_share_a_content_word(graph) -> None:
+    # D-26: an alternative or hidden label of a merged concept becomes an alias only when it has
+    # several words and one of them is a content word of the curated node's own names; "web
+    # design" under computer programming, a single word ("coding", "Py") never.
+    assert {"Python programming", "Python 2.7", "langage Python"} <= _aliases(graph, "skill.python")
+    assert "Py" not in _aliases(graph, "skill.python")
+    assert _aliases(graph, "skill.programming") == {"programmation informatique", "software programming"}
+    assert {"statistical learning", "apprentissage machine", "apprentissage automatique"} <= _aliases(
+        graph, "skill.machine_learning")
     # Not merged: the concept keeps every label that passes the filters.
     assert {"Ruby", "Ruby language"} <= _aliases(graph, "esco.ruby_computer_programming")
+
+
+@pytest.mark.parametrize(
+    "label, shares",
+    [
+        ("web design", False),  # under "Computer programming": no word in common
+        ("software programming", True),
+        ("C and Smalltalk", False),  # a one-letter word says nothing (under "Objective-C")
+        ("gestion de programmes", True),  # French function words dropped, a plural "s" too
+    ],
+)
+def test_content_tokens(label: str, shares: bool) -> None:
+    curated = {"web design": "Computer programming", "software programming": "Computer programming",
+               "C and Smalltalk": "Objective-C", "gestion de programmes": "gestion de projets"}[label]
+    assert bool(builder.content_tokens(label) & builder.content_tokens(curated)) is shares
 
 
 def test_a_one_word_french_preferred_label_needs_to_be_the_english_one(graph) -> None:
@@ -184,7 +199,7 @@ def test_an_onet_example_merges_through_its_vendor_free_or_acronym_form(graph) -
 def test_esco_knowledge_and_its_group_merge_into_a_field(graph) -> None:
     mathematics = graph.nodes["field.mathematics"]
     assert mathematics.kind is SkillKind.DOMAIN and mathematics.parents == ("field.science",)
-    assert set(mathematics.aliases) == {"Math", "Maths"}  # "maths knowledge": an alternative label
+    assert set(mathematics.aliases) == {"Math", "Maths", "maths knowledge"}  # shares "math" (D-26)
     assert "esco.mathematics" not in graph.nodes and "esco.group.0541" not in graph.nodes
 
 
@@ -365,6 +380,70 @@ def test_load_resolver_uses_the_ambiguous_casings(built: Path, config) -> None:
     assert [m.surface for m in resolver.extract("go, sql, SQL", context="list")] == ["go", "SQL"]
     assert resolver.extract("Lab work in Building C with Python.")[0].surface == "Python"
     assert resolver.resolve("American Express").method == "NONE"
+
+
+def test_in_progress_forms_are_generated_for_every_licence_name(graph, built: Path, config) -> None:
+    # D-28: every name of a professional licence gives "<name> student|...", "student <name>", ...
+    # to the licence's in-progress node, so the longest match never leaves the licence standing.
+    student = _aliases(graph, "cred.nursing_student")
+    assert {"RN student", "RN program", "RN candidate", "RN in progress", "student RN", "Registered Nurse student",
+            "Registered Nurse in training", "candidate Registered Nurse"} <= student
+    assert _json(built, "resolver.json")["in_progress"] == {"cred.registered_nurse": "cred.nursing_student"}
+    resolver = load_resolver(built, config)
+    for text in ("Registered Nurse candidate awaiting the NCLEX.", "Enrolled in the RN program.", "RN (in progress)"):
+        assert {m.canonical_id for m in resolver.extract(text)} == {"cred.nursing_student"}, text
+    assert [m.canonical_id for m in resolver.extract("Registered Nurse at Mount Sinai.")] == ["cred.registered_nurse"]
+
+
+def test_the_cpa_pep_forms() -> None:
+    forms = builder.in_progress_forms("Chartered Professional Accountant", ["CPA"])
+    assert {"CPA Canada PEP", "CPA Ontario PEP student", "CPA Québec PEP", "CPA candidate", "student CPA",
+            "CPA (in progress)", "Chartered Professional Accountant in training"} <= set(forms)
+    assert not any("PEP" in form for form in builder.in_progress_forms("Registered Nurse", ["RN"]))
+
+
+def test_a_professional_licence_without_an_in_progress_node_fails_the_build(tmp_path: Path) -> None:
+    text = CURATED.read_text(encoding="utf-8").replace("in_progress:\n  cred.registered_nurse: cred.nursing_student\n",
+                                                       "")
+    path = tmp_path / "curated.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(builder.BuildError, match="in_progress"):
+        _build(tmp_path / "out", curated_path=path)
+
+
+def test_an_in_progress_name_that_reaches_the_licence_fails_the_build(tmp_path: Path) -> None:
+    # "RN, BScN" resolves to the student node as a whole, but extraction stops at the comma and
+    # reads "RN": the build check refuses it (D-28).
+    text = CURATED.read_text(encoding="utf-8").replace("aliases: [RN student]", 'aliases: [RN student, "RN, BScN"]')
+    path = tmp_path / "curated.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(builder.BuildError, match="reach a professional licence"):
+        _build(tmp_path / "out", curated_path=path)
+
+
+def test_a_field_and_a_skill_may_share_a_key(graph, built: Path, config) -> None:
+    # D-27: "Computer programming" is a skill and a field of study; the ESCO concept merges into
+    # the skill, both keep the key, extraction reads the skill and an education line the field.
+    assert graph.nodes["skill.programming"].label == graph.nodes["field.computer_programming"].label
+    assert "programmation informatique" not in _aliases(graph, "field.computer_programming")
+    resolver = load_resolver(built, config)
+    text = "Studied computer programming."
+    assert [m.canonical_id for m in resolver.extract(text)] == ["skill.programming"]
+    assert [m.canonical_id for m in resolver.extract(text, include_fields=True)] == ["field.computer_programming"]
+    assert resolver.resolve("Computer programming").canonical_id == "skill.programming"
+    assert resolver.resolve("Computer programming", prefer_fields=True).canonical_id == "field.computer_programming"
+
+
+def test_two_curated_skills_still_may_not_share_a_key(tmp_path: Path) -> None:
+    text = CURATED.read_text(encoding="utf-8").replace("label: Forklift, kind: TOOL, aliases: [forklift operation]",
+                                                       "label: Forklift, kind: TOOL, aliases: [forklift operation, Maths]")
+    path = tmp_path / "curated.yaml"
+    path.write_text(text, encoding="utf-8")
+    _build(tmp_path / "ok", curated_path=path)  # a skill may share "maths" with the field
+    text = text.replace("aliases: [forklift operation, Maths]", "aliases: [forklift operation, Golang]")
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(builder.BuildError, match="golang"):
+        _build(tmp_path / "out", curated_path=path)
 
 
 def test_a_blocked_phrase_that_is_also_a_curated_alias_fails_the_build(tmp_path: Path) -> None:

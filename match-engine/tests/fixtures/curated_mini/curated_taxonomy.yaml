@@ -22,10 +22,12 @@ skills:
 
 credentials:
   - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN]}
+  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [RN student]}
 
 fields:
   - {id: field.science, label: Science, kind: DOMAIN}
   - {id: field.mathematics, label: Mathematics, kind: DOMAIN, aliases: [Math, Maths], parents: [field.science]}
+  - {id: field.computer_programming, label: Computer programming, kind: DOMAIN, parents: [field.science]}
 
 ambiguous:
   go: Go
@@ -35,6 +37,9 @@ blocked_aliases: [Scratch, synergy, Analytics]
 blocked_phrases: [American Express, "Building [A-Z]"]
 
 generic_titles: [intern, co-op]
+
+in_progress:
+  cred.registered_nurse: cred.nursing_student
 
 onet_vendor_prefixes: [Microsoft, Atlassian, Autodesk, Amazon, Google]
 

@@ -174,8 +174,12 @@ def test_resolver_settings_hold_the_rounds_rules() -> None:
     for phrase in ("American Express", "Express Entry", "Express Scripts", "Sous Chef", "Chef de partie",
                    "Executive Chef", "Pastry Chef", "Vitamin C", "Vitamin D", "Building A", "Building C",
                    "Building Z", "Swift Current", "Spring Break", "Spring Term", "Spring Semester", "Go-Live",
-                   "Go-to-market", "Go/No-Go", "R&D"):
+                   "Go-to-market", "Go/No-Go", "R&D", "Swift Transportation", "Express Employment Professionals",
+                   "Technical Skills"):
         assert phrase in settings["blocked_phrases"], phrase
+    # Round 2: bare "Teams" and "Chef" are no keys at all; French "cerner" (to grasp) needs "Cerner".
+    assert not {"teams", "chef"} & (set(settings["ambiguous"]) | set(settings["cased"]))
+    assert settings["ambiguous"]["cerner"] == "Cerner"
 
 
 IN_PROGRESS = {
@@ -194,6 +198,32 @@ def test_licences_in_progress_are_related_credentials_not_licences(graph, config
         assert node_id not in licences, node_id
         assert licence in licences or licence == "cred.cfa", node_id  # the CFA charter is not a gated licence
         assert 0.4 <= graph.related_weight(node_id, licence) <= 0.8, node_id
+    # resolver.json maps every professional licence to its in-progress node (D-28).
+    in_progress = load_json_artifact(TAXONOMY, "resolver.json")["in_progress"]
+    assert set(in_progress) == licences
+    assert in_progress == {
+        "cred.registered_nurse": "cred.nursing_student", "cred.licensed_practical_nurse": "cred.nursing_student",
+        "cred.cpa": "cred.cpa_in_progress", "cred.commercial_drivers_license": "cred.cdl_trainee",
+        "cred.professional_engineer": "cred.eit", "cred.bar_admission": "cred.articling_student",
+        "cred.medical_license": "cred.medical_student", "cred.pharmacist_license": "cred.pharmacy_student",
+        "cred.teaching_license": "cred.teacher_candidate", "cred.electrician_license": "cred.electrician_apprentice",
+        "cred.paramedic_license": "cred.paramedic_student"}
+
+
+@pytest.mark.parametrize(
+    "skill, field", [("skill.statistics", "field.statistics"), ("skill.accounting", "field.accounting"),
+                     ("skill.marketing", "field.marketing"), ("skill.finance", "field.finance"),
+                     ("skill.economics", "field.economics"), ("skill.data_science", "field.data_science"),
+                     ("skill.nursing", "field.nursing"), ("skill.design", "field.design")])
+def test_domains_named_like_a_field_of_study(graph, resolver, skill: str, field: str) -> None:
+    # D-27: the skill owns the prose names, the field keeps its label for education lines.
+    assert graph.nodes[skill].kind is SkillKind.DOMAIN
+    assert graph.related_weight(skill, field) == 0.8
+    label = graph.nodes[field].label
+    assert graph.nodes[skill].label == label
+    assert [m.canonical_id for m in resolver.extract(f"Experience in {label.lower()}.")] == [skill]
+    assert [m.canonical_id for m in resolver.extract(f"BSc in {label}", include_fields=True)][-1] == field
+    assert resolver.resolve(label, prefer_fields=True).canonical_id == field
 
 
 def test_artifacts_stay_small() -> None:

@@ -81,7 +81,8 @@
    "skill.kubernetes":0.8
   },
   "cred.cma":{
-   "field.accounting":0.7
+   "field.accounting":0.7,
+   "skill.accounting":0.7
   },
   "cred.commercial_drivers_license":{
    "cred.cdl_trainee":0.6,
@@ -98,11 +99,13 @@
   },
   "cred.cpa":{
    "cred.cpa_in_progress":0.6,
-   "field.accounting":0.8
+   "field.accounting":0.8,
+   "skill.accounting":0.8
   },
   "cred.cpa_in_progress":{
    "cred.cpa":0.6,
-   "field.accounting":0.7
+   "field.accounting":0.7,
+   "skill.accounting":0.7
   },
   "cred.cpr":{
    "esco.provide_first_aid":0.6,
@@ -164,7 +167,8 @@
   },
   "cred.licensed_practical_nurse":{
    "cred.nursing_student":0.5,
-   "field.nursing":0.7
+   "field.nursing":0.7,
+   "skill.nursing":0.7
   },
   "cred.medical_license":{
    "cred.medical_student":0.6,
@@ -177,7 +181,8 @@
   "cred.nursing_student":{
    "cred.licensed_practical_nurse":0.5,
    "cred.registered_nurse":0.6,
-   "field.nursing":0.7
+   "field.nursing":0.7,
+   "skill.nursing":0.6
   },
   "cred.oscp":{
    "skill.penetration_testing":0.8
@@ -218,7 +223,8 @@
   },
   "cred.registered_nurse":{
    "cred.nursing_student":0.6,
-   "field.nursing":0.8
+   "field.nursing":0.8,
+   "skill.nursing":0.8
   },
   "cred.salesforce_admin":{
    "skill.salesforce":0.8
@@ -303,7 +309,8 @@
    "cred.cpa":0.8,
    "cred.cpa_in_progress":0.7,
    "field.commerce":0.5,
-   "field.finance":0.6
+   "field.finance":0.6,
+   "skill.accounting":0.8
   },
   "field.aerospace_engineering":{
    "field.mechanical_engineering":0.7
@@ -353,15 +360,18 @@
   },
   "field.data_science":{
    "field.computer_science":0.7,
-   "field.statistics":0.7
+   "field.statistics":0.7,
+   "skill.data_science":0.8
   },
   "field.design":{
-   "field.architecture":0.5
+   "field.architecture":0.5,
+   "skill.design":0.8
   },
   "field.economics":{
    "field.finance":0.6,
    "field.mathematics":0.4,
-   "field.political_science":0.4
+   "field.political_science":0.4,
+   "skill.economics":0.8
   },
   "field.education":{
    "cred.teacher_candidate":0.7,
@@ -386,7 +396,8 @@
   "field.finance":{
    "field.accounting":0.6,
    "field.commerce":0.5,
-   "field.economics":0.6
+   "field.economics":0.6,
+   "skill.finance":0.8
   },
   "field.information_systems":{
    "field.computer_science":0.6,
@@ -401,7 +412,8 @@
    "cred.bar_admission":0.8
   },
   "field.marketing":{
-   "field.communications":0.5
+   "field.communications":0.5,
+   "skill.marketing":0.8
   },
   "field.mathematics":{
    "field.economics":0.4,
@@ -420,7 +432,8 @@
    "cred.licensed_practical_nurse":0.7,
    "cred.nursing_student":0.7,
    "cred.registered_nurse":0.8,
-   "field.public_health":0.5
+   "field.public_health":0.5,
+   "skill.nursing":0.8
   },
   "field.pharmacy":{
    "cred.pharmacist_license":0.8,
@@ -447,7 +460,14 @@
   },
   "field.statistics":{
    "field.data_science":0.7,
-   "field.mathematics":0.7
+   "field.mathematics":0.7,
+   "skill.statistics":0.8
+  },
+  "skill.accounting":{
+   "cred.cma":0.7,
+   "cred.cpa":0.8,
+   "cred.cpa_in_progress":0.7,
+   "field.accounting":0.8
   },
   "skill.adobe_xd":{
    "skill.figma":0.7
@@ -491,8 +511,17 @@
    "cred.cissp":0.8,
    "cred.comptia_security_plus":0.7
   },
+  "skill.data_science":{
+   "field.data_science":0.8
+  },
+  "skill.design":{
+   "field.design":0.8
+  },
   "skill.early_childhood_education":{
    "cred.ece_registration":0.8
+  },
+  "skill.economics":{
+   "field.economics":0.8
   },
   "skill.electrical_wiring":{
    "cred.electrician_apprentice":0.7,
@@ -501,6 +530,9 @@
   "skill.figma":{
    "skill.adobe_xd":0.7,
    "skill.sketch":0.7
+  },
+  "skill.finance":{
+   "field.finance":0.8
   },
   "skill.financial_analysis":{
    "cred.cfa":0.8,
@@ -563,6 +595,9 @@
    "cred.cka":0.8,
    "cred.ckad":0.8
   },
+  "skill.marketing":{
+   "field.marketing":0.8
+  },
   "skill.mysql":{
    "skill.postgresql":0.7
   },
@@ -570,6 +605,12 @@
    "cred.ccna":0.8,
    "cred.ccnp":0.8,
    "cred.comptia_network_plus":0.7
+  },
+  "skill.nursing":{
+   "cred.licensed_practical_nurse":0.7,
+   "cred.nursing_student":0.6,
+   "cred.registered_nurse":0.8,
+   "field.nursing":0.8
   },
   "skill.patient_care":{
    "cred.psw_certificate":0.7
@@ -620,6 +661,9 @@
   "skill.solidworks":{
    "skill.autocad":0.5,
    "skill.catia":0.6
+  },
+  "skill.statistics":{
+   "field.statistics":0.8
   },
   "skill.tableau":{
    "skill.power_bi":0.7

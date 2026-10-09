@@ -490,7 +490,8 @@ def test_extract_handles_decomposed_accents(config) -> None:
         ("Completed a Spring/Summer 2027 co-op term.", "prose", []),  # a term, not the framework
         ("Excel/Word", "prose", []),
         ("Kept the budget in Excel/Word files.", "prose", []),
-        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes"]),  # Go, REST: both ambiguous
+        # REST, an all-capital acronym, needs no companion; Go still does, and an acronym is none.
+        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes", "skill.rest"]),
         ("Skills: A/R, A/P, Excel", "list", ["skill.excel"]),  # lists need the companion too
         ("Spring/Summer 2027", "list", []),
         # Hyphen parts: only "<key>-<suffix>" compounds such as "Go-based" (D-25).
@@ -666,6 +667,116 @@ def test_a_dotted_abbreviations_period_does_not_end_a_window(config) -> None:
     assert _ids(r, "P.Eng. candidate with 4 years of experience.") == ["cred.eit"]
     assert _ids(r, "Licensed P.Eng. Leads the design team.") == ["cred.peng"]
     assert _ids(r, "Reports to the engineer. Candidate pool grew.") == []  # a plain word's period ends it
+
+
+@pytest.mark.parametrize(
+    "text,context,expected",
+    [
+        ("Experience with AI/ML frameworks such as PyTorch.", "prose", ["skill.ai", "skill.ml", "skill.pytorch"]),
+        ("We are hiring an AI/ML Engineer Intern.", "prose", ["skill.ai", "skill.ml"]),
+        ("AI/ML, NLP", "list", ["skill.ai", "skill.ml", "skill.nlp"]),
+        ("ai/ml, nlp", "list", ["skill.ai", "skill.ml", "skill.nlp"]),  # lists waive the casing
+        ("Built ML/AI pipelines on AWS.", "prose", ["skill.ml", "skill.ai", "skill.aws"]),
+        ("Worked on BI/reporting dashboards.", "prose", ["skill.bi"]),
+        ("Strong grasp of OS/networking fundamentals.", "prose", ["skill.os"]),
+        ("Did ai/ml work.", "prose", []),  # prose keeps the casing
+        ("AI/ML is our focus.", "prose", ["skill.ml"]),  # the first part keeps the sentence start
+        ("Granted R/W access to shares.", "prose", []),  # single letters keep the companion rule
+        ("Go/Excel", "prose", []),  # word-like keys too, and an acronym is no companion
+        ("Shipped AI-powered search.", "prose", ["skill.ai"]),  # hyphens: still "<key>-<suffix>" only
+        ("Paid bi-weekly.", "prose", []),
+    ],
+)
+def test_all_capital_acronyms_need_no_slash_companion(config, text: str, context: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.ai", "Artificial intelligence", "AI"), _node("skill.ml", "Machine learning", "ML"),
+                   _node("skill.bi", "Business intelligence", "BI"), _node("skill.os", "Operating systems", "OS"),
+                   _node("skill.r", "R"), _node("skill.go", "Go"), _node("skill.excel", "Excel"),
+                   _node("skill.pytorch", "PyTorch"), _node("skill.nlp", "NLP"), _node("skill.aws", "AWS"))
+    r = Resolver(graph, config, ambiguous={"ai": "AI", "ml": "ML", "bi": "BI", "os": "OS", "r": "R", "go": "Go",
+                                           "excel": "Excel"})
+    assert _ids(r, text, context=context) == expected
+
+
+def test_a_key_both_a_field_and_a_skill_claim(config) -> None:
+    # D-27: the skill in general text, the field in education lines; a field-only key still
+    # consumes its words when fields are left out.
+    graph = _graph(_node("skill.statistics", "Statistics", source="curated"),
+                   _node("field.statistics", "Statistics", "statistical science", source="curated"),
+                   _node("field.physics", "Physics", source="curated"), _node("skill.python", "Python"))
+    r = Resolver(graph, config)
+    assert _ids(r, "Applied statistics and physics with Python.") == ["skill.statistics", "skill.python"]
+    assert _ids(r, "Applied statistics and physics with Python.", include_fields=True) == [
+        "field.statistics", "field.physics", "skill.python"]
+    assert _ids(r, "BSc in statistical science") == []  # field-only: consumed, no mention
+    assert r.resolve("Statistics").canonical_id == "skill.statistics"  # resolve: the skill first
+    assert r.resolve("Statistics", prefer_fields=True).canonical_id == "field.statistics"  # an education field
+    assert r.resolve("statistical science").canonical_id == "field.statistics"
+    assert r.resolve("Statistcs").canonical_id == "skill.statistics"  # fuzzy: the same order
+    assert r.resolve("Statistcs", prefer_fields=True).canonical_id == "field.statistics"
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Salary: 80,000 CAD per year", []),
+        ("$25/hr CAD", []),
+        ("Pay: CAD $80k", []),
+        ("Compensation (CAD) is competitive.", []),
+        ("Earned 52,000.00 USD", []),
+        ("Proficient in CAD (SolidWorks)", ["skill.cad", "skill.solidworks"]),
+        ("Designed over 10 CAD models.", ["skill.cad"]),  # a small count is no amount
+        ("Built 3D CAD assemblies.", ["skill.cad"]),
+        ("Used CAD/CAM programming daily.", ["skill.cad", "skill.cam"]),
+        ("Drafting in CAD, $25/hr.", ["skill.cad"]),  # the rate is not next to the code
+    ],
+)
+def test_a_currency_code_next_to_an_amount_is_money(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"), _node("skill.cam", "CAM"))
+    r = Resolver(graph, config, ambiguous={"cad": "CAD"})
+    assert _ids(r, text) == expected
+
+
+def test_spring_of_a_year_is_a_date(config) -> None:
+    r = Resolver(_graph(_node("skill.spring", "Spring")), config, ambiguous={"spring": "Spring"})
+    assert _ids(r, "Graduated in the Spring of 2024.") == []
+    assert _ids(r, "Built services with Spring of all kinds.") == ["skill.spring"]
+
+
+def test_an_initialisms_period_joins_only_a_lower_case_word(config) -> None:
+    r = Resolver(_graph(_node("cred.peng", "Professional Engineer", "P.Eng"),
+                        _node("cred.eit", "Engineer in Training", "P.Eng candidate"),
+                        _node("skill.dotnet", ".NET", "ASP.NET", "ASP.NET Core")), config)
+    assert _ids(r, "P.Eng. candidate with four years of experience.") == ["cred.eit"]
+    assert _ids(r, "Licensed P.Eng. Candidate pool screening is ongoing.") == ["cred.peng"]
+    assert _found(r.extract("Built the portal in ASP.NET. Core features included search.")) == [
+        ("skill.dotnet", "ASP.NET", "ALIAS")]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("CPA (in progress)", [("cred.cpa_wip", "CPA (in progress)")]),
+        ("CPA [expected 2027]", [("cred.cpa_wip", "CPA [expected 2027]")]),
+        ("RN (student) at Humber", [("cred.nursing", "RN (student)")]),
+        ("309A Electrical Apprentice", [("cred.apprentice", "Electrical Apprentice")]),
+        ("Apprentice Electrician (309A), Level 2", [("cred.apprentice", "Apprentice Electrician")]),
+        ("CPA (2019), Toronto", [("cred.cpa", "CPA")]),  # no status: the licence
+        ("RN, BScN student", [("cred.registered_nurse", "RN"), ("cred.nursing", "BScN student")]),  # a comma
+        ("Electrical Apprentice\n309A licence", [("cred.apprentice", "Electrical Apprentice"),
+                                                  ("cred.electrician", "309A licence")]),  # a line break
+    ],
+)
+def test_a_licence_written_with_its_status_is_in_progress(config, text: str, expected: list) -> None:
+    graph = _graph(_node("cred.cpa", "Chartered Professional Accountant", "CPA"), _node("cred.cpa_wip", "CPA candidate"),
+                   _node("cred.registered_nurse", "Registered Nurse", "RN"),
+                   _node("cred.nursing", "Nursing student", "BScN student"),
+                   _node("cred.electrician", "Electrician licence", "309A", "309A licence"),
+                   _node("cred.apprentice", "Electrical apprentice", "Apprentice Electrician"))
+    r = Resolver(graph, config, in_progress={"cred.cpa": "cred.cpa_wip", "cred.registered_nurse": "cred.nursing",
+                                             "cred.electrician": "cred.apprentice"})
+    mentions = r.extract(text)
+    assert [(m.canonical_id, m.surface) for m in mentions] == expected
+    assert all(text[m.start:m.end] == m.surface for m in mentions)
 
 
 def test_new_settings_are_deterministic_across_input_order(config) -> None:

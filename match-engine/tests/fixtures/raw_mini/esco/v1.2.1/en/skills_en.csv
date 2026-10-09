@@ -20,7 +20,8 @@ KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-800
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000012,skill/competence,cross-sector,use spreadsheets software,work with spreadsheets,"Microsoft Office Excel
 Gnumeric",released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About use spreadsheets software.
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000013,knowledge,cross-sector,computer programming,"coding
-software programming",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About computer programming.
+software programming
+web design",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About computer programming.
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000014,skill/competence,cross-sector,think critically,"critical thinking
 synergy",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About think critically.
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000015,knowledge,cross-sector,morality,moral standards,,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About morality.

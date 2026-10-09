@@ -1,16 +1,16 @@
 {
  "artifacts":{
   "idf.json":"f9e6b0934118b314197043c2483213f6a055a9f3a19d62015a7aaeb1bc166019",
-  "mos_crosswalk.json":"fafe1756ad246893479a21198ba9eee45dec7cdf2d3e762fe7e0ab0c5d5daf2f",
+  "mos_crosswalk.json":"f6ee0717a5692a73a53cd245e3357d0a1e4fc0914ce8f23893d7bdda3505b846",
   "naics.json":"45cba4f2c7d3dc39012dab982bbba5a86fe2a2b7bcfaf1d06216c3fa76ba8fdc",
-  "nodes.json.gz":"b01a5c9a3e694da4f193767d595022ba80308153c817f99cdfc7f943227dcd73",
-  "pmi_edges.json":"e851ae168127274eb5d0f37529b14f68381767651c1b8463fea26e8fcb0bdcb1",
-  "resolver.json":"c7761067b7b730989d90599f713d2bad507a3be099eb990d7c6204370e59c260",
+  "nodes.json.gz":"865ef936afbf5cc03107b8314b0f202df3baf1683467980957765c048c163074",
+  "pmi_edges.json":"ab71571af3f4a4fe1c4c1b4442854d66fb48e1ae82d56e2d06bee56825213122",
+  "resolver.json":"969a7cdf0661b762fb3de6c728a97e07df836f209a8c64d7a1269c47e874edda",
   "titles.json":"69cf73692e9247a9be0330505ea0fee4197786b44fb15e4e1f9eed03a621a738"
  },
  "format":1,
  "sources":{
-  "curated":"config/curated_taxonomy.yaml sha256 af99b7f172ff389ce244a286eaf647d41a0a1ff6b58cb6bf351214dc7a160097; config/curated_edges.yaml sha256 39308a84affd0d7943fbbeaaa1b3fe32591ed02563ce6e4a38e74e55d4767001",
+  "curated":"config/curated_taxonomy.yaml sha256 8a683dbe2b174f1bbbdd8b1de2cedf1ac1211fe28066fcd6633e91bf10351aed; config/curated_edges.yaml sha256 6881253e3ef0821e1400b0a551282afb5c222fd4ff904eda41be7c3f8a8900fa",
   "esco_en":"ESCO v1.2.1 classification, English, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20en%20-%20csv.zip; sha256 f9761b0b52be1828b38a3e5e0ae59a93a7b0ce358bc800f52f57a8b002adeb3e",
   "esco_fr":"ESCO v1.2.1 classification, French, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20fr%20-%20csv.zip; sha256 84fe49774fad90bdfd27d080440ffb1fdef1fbd62939f6436d2fc21f4d58d4e8",
   "naics_2022":"NAICS 2022, 2-6 digit codes and titles (U.S. Census Bureau); https://www.census.gov/naics/2022NAICS/2-6%20digit_2022_Codes.xlsx; sha256 be12ba41002803359f49181c9bf33a03fbd08578f4f4a4c0bbad7aadaaea0316",

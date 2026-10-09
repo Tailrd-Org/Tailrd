@@ -40,10 +40,13 @@ as downloaded.
 
 ## Rules worth knowing when reading the artifacts
 
-- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels
-  only, never its alternative or hidden labels; a one-word French preferred label is kept only when
-  it is the English label. ESCO programming languages (labelled "(computer programming)" or under
-  computer programming) are TECHNOLOGY.
+- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,
+  and an alternative or hidden label only when it has several words one of which is a content word
+  of the curated names (1,038 kept); a one-word French preferred label is
+  kept only when it is the English label. ESCO programming languages (labelled "(computer
+  programming)" or under computer programming) are TECHNOLOGY. Each professional licence's
+  in-progress node holds the generated forms of the licence's names (DECISIONS D-28:
+  925 names); none of them reaches a licence.
 - titles.json: a primary O*NET title maps to its occupation; an alternate or reported title claimed
   by several occupations goes to the SOC major group most of them share (ties: the smaller group
   code), then to that group's smallest code. Trailing parentheticals give two keys
@@ -65,8 +68,9 @@ as downloaded.
   (a skills list waives it); `cased` holds, automatically, every one-word name with a capital on a
   node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as written
   everywhere: lower-case text never resolves to them and the fuzzy fallback never targets them.
-  `blocked_phrases` ("American Express", "Sous Chef", "Building C") consume their words in
-  extraction without a mention.
+  `blocked_phrases` ("American Express", "Sous Chef", "Building C", "Technical Skills")
+  consume their words in extraction without a mention. `in_progress` maps each professional
+  licence to the node of its in-progress forms (DECISIONS D-28).
 
 ## Counts
 
@@ -74,17 +78,17 @@ as downloaded.
 |---|---|
 | TECHNOLOGY | 2,201 |
 | METHODOLOGY | 11,120 |
-| DOMAIN | 3,307 |
+| DOMAIN | 3,315 |
 | TOOL | 27,896 |
 | SOFT | 134 |
 | CREDENTIAL | 79 |
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 695 | 2,674 |
-| esco | 14,297 | 102,830 |
+| curated | 703 | 4,459 |
+| esco | 14,297 | 102,816 |
 | onet | 29,745 | 1,990 |
 
-- Total: 44,737 nodes, 107,494 aliases; 142 curated related edges; 86 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 75 blocked phrases.
-- Merged into curated nodes: 620 source concepts; dropped nodes: 25; keys dropped as ambiguous between nodes: 603; label ties left to the resolver: 108.
+- Total: 44,745 nodes, 109,265 aliases; 156 curated related edges; 85 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 80 blocked phrases.
+- Merged into curated nodes: 619 source concepts; dropped nodes: 26; keys dropped as ambiguous between nodes: 617; label ties left to the resolver: 116.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.

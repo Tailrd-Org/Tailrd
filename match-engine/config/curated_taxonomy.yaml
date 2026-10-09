@@ -168,12 +168,12 @@ skills:
   - {id: skill.solidity, label: Solidity, kind: TECHNOLOGY, aliases: [Solidity programming], parents: [skill.blockchain], release_year: 2014}
   - {id: skill.product_management, label: Product management, kind: METHODOLOGY, aliases: [product manager skills, gestion de produit]}
   - {id: skill.project_management, label: Project management, kind: METHODOLOGY, aliases: [project-management, managing projects, project planning, perform project management, gestion de projet, gestion de projets]}
-  - {id: skill.ux, label: UX design, kind: METHODOLOGY, aliases: [ux, user experience, user experience design, UX research, UX/UI, UI/UX, UX/UI design, UI/UX design, user-centered design, conception UX], parents: [field.design]}
-  - {id: skill.ui, label: UI design, kind: METHODOLOGY, aliases: [ui, user interface, user interface design, UI development, interface design], parents: [field.design]}
+  - {id: skill.ux, label: UX design, kind: METHODOLOGY, aliases: [ux, user experience, user experience design, UX research, UX/UI, UI/UX, UX/UI design, UI/UX design, user-centered design, conception UX], parents: [skill.design]}
+  - {id: skill.ui, label: UI design, kind: METHODOLOGY, aliases: [ui, user interface, user interface design, UI development, interface design], parents: [skill.design]}
   - {id: skill.accessibility, label: Accessibility, kind: METHODOLOGY, aliases: [a11y, web accessibility, WCAG, digital accessibility, AODA compliance], parents: [skill.ux]}
   - {id: skill.seo, label: SEO, kind: METHODOLOGY, aliases: [search engine optimization, search engine optimisation, référencement naturel], parents: [skill.digital_marketing]}
   - {id: skill.financial_modeling, label: Financial modeling, kind: METHODOLOGY, aliases: [financial modelling, financial models, financial model, Excel modeling, modélisation financière], parents: [skill.financial_analysis]}
-  - {id: skill.supply_chain, label: Supply chain management, kind: DOMAIN, aliases: [supply chain, supply-chain management, gestion de la chaîne d'approvisionnement]}
+  - {id: skill.supply_chain, label: Supply chain management, kind: DOMAIN, aliases: [supply chain, supply-chain management, gestion de la chaîne d'approvisionnement, chaîne d'approvisionnement, chaîne logistique]}
   - {id: skill.lean, label: Lean manufacturing, kind: METHODOLOGY, aliases: [lean, Lean principles, lean methodology, lean production, lean management]}
   - {id: skill.six_sigma, label: Six Sigma, kind: METHODOLOGY, aliases: [6 Sigma, Lean Six Sigma, Six Sigma methodology, DMAIC], parents: [skill.process_improvement]}
   # ─── categories that give the hierarchy its shape ────────────────────────────────────────
@@ -233,7 +233,17 @@ skills:
   - {id: skill.xgboost, label: XGBoost, kind: TECHNOLOGY, aliases: [XG Boost], parents: [skill.machine_learning]}
   - {id: skill.opencv, label: OpenCV, kind: TECHNOLOGY, aliases: [Open CV, OpenCV library], parents: [skill.computer_vision]}
   - {id: skill.hugging_face, label: Hugging Face, kind: TECHNOLOGY, aliases: [HuggingFace, Hugging Face Transformers], parents: [skill.nlp]}
-  - {id: skill.statistical_analysis, label: Statistical analysis, kind: METHODOLOGY, aliases: [statistical modeling, statistical modelling, statistical methods, analyse statistique], parents: [field.statistics]}
+  - {id: skill.statistical_analysis, label: Statistical analysis, kind: METHODOLOGY, aliases: [statistical modeling, statistical modelling, statistical methods, analyse statistique], parents: [skill.statistics]}
+  # Domains that are also fields of study (D-27): the skill owns the prose names; the field keeps
+  # its label and degree names and wins a shared key only in education lines (include_fields).
+  - {id: skill.statistics, label: Statistics, kind: DOMAIN, aliases: [stats, statistiques]}
+  - {id: skill.accounting, label: Accounting, kind: DOMAIN, aliases: [accountancy, financial accounting, managerial accounting, accounting principles, comptabilité]}
+  - {id: skill.marketing, label: Marketing, kind: DOMAIN, aliases: [marketing strategy, marketing strategies, marketing management, marketing plans, mercatique]}
+  - {id: skill.finance, label: Finance, kind: DOMAIN, aliases: [corporate finance, financial management]}
+  - {id: skill.economics, label: Economics, kind: DOMAIN, aliases: [economic analysis, sciences économiques]}
+  - {id: skill.data_science, label: Data science, kind: DOMAIN, aliases: [science des données, sciences des données]}
+  - {id: skill.nursing, label: Nursing, kind: DOMAIN, aliases: [nursing care, nursing practice, soins infirmiers]}
+  - {id: skill.design, label: Design, kind: DOMAIN, aliases: [design skills]}
   - {id: skill.regression, label: Regression analysis, kind: METHODOLOGY, aliases: [linear regression, logistic regression, regression models, regression modeling, regression modelling, multiple regression], parents: [skill.statistical_analysis]}
   - {id: skill.ab_testing, label: A/B testing, kind: METHODOLOGY, aliases: [AB testing, A/B tests, split testing], parents: [skill.statistical_analysis]}
   - {id: skill.sas, label: SAS, kind: TOOL, aliases: [SAS software, SAS programming, SAS Base, SAS/STAT, SAS Enterprise Guide], parents: [skill.statistical_analysis]}
@@ -364,7 +374,7 @@ skills:
   - {id: skill.power_systems, label: Power systems, kind: DOMAIN, aliases: [electrical power systems, power engineering, power distribution]}
   - {id: skill.microcontrollers, label: Microcontrollers, kind: TECHNOLOGY, aliases: [microcontroller, MCU, STM32, PIC microcontrollers, AVR microcontrollers], parents: [skill.embedded_systems]}
   - {id: skill.rtos, label: RTOS, kind: TECHNOLOGY, aliases: [real-time operating system, real-time operating systems, FreeRTOS], parents: [skill.embedded_systems]}
-  - {id: skill.chef, label: Chef, kind: TECHNOLOGY, aliases: [Chef Infra, Progress Chef, Opscode Chef, Chef (tools for software configuration management)], parents: [skill.configuration_management]}
+  - {id: skill.chef, label: Chef Infra, kind: TECHNOLOGY, aliases: [Chef configuration management, Chef (configuration management), Progress Chef, Opscode Chef, Chef (tools for software configuration management)], parents: [skill.configuration_management]}
   - {id: skill.puppet, label: Puppet, kind: TECHNOLOGY, aliases: [Puppet Enterprise, Puppet Labs, Puppet (tools for software configuration management)], parents: [skill.configuration_management]}
   - {id: skill.saltstack, label: SaltStack, kind: TECHNOLOGY, aliases: [Salt Project, Salt (tools for software configuration management)], parents: [skill.configuration_management]}
   - {id: skill.eclipse, label: Eclipse IDE, kind: TOOL, aliases: [Eclipse, Eclipse (integrated development environment software)], parents: [skill.ide]}
@@ -417,7 +427,7 @@ skills:
   - {id: skill.powerpoint, label: PowerPoint, kind: TOOL, aliases: [Microsoft PowerPoint, MS PowerPoint, Power Point, PPT], parents: [skill.ms_office]}
   - {id: skill.outlook, label: Microsoft Outlook, kind: TOOL, aliases: [Outlook, MS Outlook, Microsoft Office Outlook], parents: [skill.ms_office]}
   - {id: skill.ms_access, label: Microsoft Access, kind: TOOL, aliases: [Access, MS Access, Access databases], parents: [skill.ms_office, skill.databases]}
-  - {id: skill.ms_teams, label: Microsoft Teams, kind: TOOL, aliases: [Teams, MS Teams], parents: [skill.ms_office]}
+  - {id: skill.ms_teams, label: Microsoft Teams, kind: TOOL, aliases: [MS Teams], parents: [skill.ms_office]}
   - {id: skill.onenote, label: OneNote, kind: TOOL, aliases: [Microsoft OneNote, MS OneNote, One Note], parents: [skill.ms_office]}
   - {id: skill.sharepoint, label: SharePoint, kind: TOOL, aliases: [Microsoft SharePoint, MS SharePoint, Microsoft SharePoint Server, Share Point], parents: [skill.ms_office]}
   - {id: skill.ms_project, label: Microsoft Project, kind: TOOL, aliases: [MS Project, Microsoft Project software], parents: [skill.project_management]}
@@ -456,7 +466,7 @@ skills:
   - {id: skill.quickbooks, label: QuickBooks, kind: TOOL, aliases: [Intuit QuickBooks, QuickBooks Online, QBO, Quick Books, QuickBooks Desktop], parents: [skill.accounting_software]}
   - {id: skill.xero, label: Xero, kind: TOOL, aliases: [Xero accounting], parents: [skill.accounting_software]}
   - {id: skill.sage, label: Sage 50, kind: TOOL, aliases: [Sage, Sage accounting, Sage 300, Simply Accounting, Sage 50 Accounting, Sage 50 Accounting Software, Sage Accounting Software], parents: [skill.accounting_software]}
-  - {id: skill.accounting_software, label: Accounting software, kind: TOOL, aliases: [accounting systems, accounting packages, bookkeeping software], parents: [field.accounting]}
+  - {id: skill.accounting_software, label: Accounting software, kind: TOOL, aliases: [accounting systems, accounting packages, bookkeeping software], parents: [skill.accounting]}
   - {id: skill.netsuite, label: NetSuite, kind: TOOL, aliases: [Oracle NetSuite, NetSuite ERP], parents: [skill.erp]}
   - {id: skill.erp, label: ERP, kind: TOOL, aliases: [enterprise resource planning, ERP systems, ERP software, Enterprise resource planning ERP software, progiciel de gestion intégré]}
   - {id: skill.oracle_erp, label: Oracle E-Business Suite, kind: TOOL, aliases: [Oracle EBS, Oracle ERP, Oracle Fusion, Oracle E-Business Suite Financials], parents: [skill.erp]}
@@ -475,20 +485,20 @@ skills:
   - {id: skill.bloomberg, label: Bloomberg Terminal, kind: TOOL, aliases: [Bloomberg, Bloomberg Professional, Bloomberg terminals, Bloomberg Professional Services]}
   - {id: skill.capital_iq, label: S&P Capital IQ, kind: TOOL, aliases: [Capital IQ, CapIQ, CapitalIQ]}
   - {id: skill.factset, label: FactSet, kind: TOOL, aliases: [Fact Set, FactSet Research Systems], parents: [skill.financial_analysis]}
-  - {id: skill.gaap, label: GAAP, kind: DOMAIN, aliases: [generally accepted accounting principles, US GAAP, ASPE, PCGR], parents: [field.accounting]}
-  - {id: skill.ifrs, label: IFRS, kind: DOMAIN, aliases: [International Financial Reporting Standards, normes IFRS], parents: [field.accounting]}
-  - {id: skill.financial_analysis, label: Financial analysis, kind: METHODOLOGY, aliases: [financial statement analysis, analyse financière]}
+  - {id: skill.gaap, label: GAAP, kind: DOMAIN, aliases: [generally accepted accounting principles, US GAAP, ASPE, PCGR], parents: [skill.accounting]}
+  - {id: skill.ifrs, label: IFRS, kind: DOMAIN, aliases: [International Financial Reporting Standards, normes IFRS], parents: [skill.accounting]}
+  - {id: skill.financial_analysis, label: Financial analysis, kind: METHODOLOGY, aliases: [financial statement analysis, analyse financière], parents: [skill.finance]}
   - {id: skill.financial_reporting, label: Financial reporting, kind: METHODOLOGY, aliases: [financial statements, financial statement preparation, financial reports, reporting financier, états financiers]}
-  - {id: skill.bookkeeping, label: Bookkeeping, kind: METHODOLOGY, aliases: [book keeping, bookkeeper skills, tenue de livres], parents: [field.accounting]}
-  - {id: skill.accounts_payable, label: Accounts payable, kind: METHODOLOGY, aliases: [A/P, accounts payable processing, comptes fournisseurs], parents: [field.accounting]}
-  - {id: skill.accounts_receivable, label: Accounts receivable, kind: METHODOLOGY, aliases: [A/R, accounts receivable management, comptes clients], parents: [field.accounting]}
-  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [bank reconciliation, bank reconciliations, account reconciliations, reconciliations, rapprochement bancaire], parents: [field.accounting]}
-  - {id: skill.budgeting, label: Budgeting, kind: METHODOLOGY, aliases: [budget management, budget planning, budgets, budget preparation, budgétisation]}
-  - {id: skill.forecasting, label: Forecasting, kind: METHODOLOGY, aliases: [financial forecasting, demand forecasting, sales forecasting, prévisions]}
-  - {id: skill.auditing, label: Auditing, kind: METHODOLOGY, aliases: [audit, audits, internal audit, external audit, financial audit, audit interne, vérification comptable, vérification interne], parents: [field.accounting]}
-  - {id: skill.taxation, label: Taxation, kind: DOMAIN, aliases: [tax preparation, tax returns, income tax, tax compliance, corporate tax, fiscalité], parents: [field.accounting]}
+  - {id: skill.bookkeeping, label: Bookkeeping, kind: METHODOLOGY, aliases: [book keeping, bookkeeper skills, tenue de livres], parents: [skill.accounting]}
+  - {id: skill.accounts_payable, label: Accounts payable, kind: METHODOLOGY, aliases: [A/P, accounts payable processing, comptes fournisseurs], parents: [skill.accounting]}
+  - {id: skill.accounts_receivable, label: Accounts receivable, kind: METHODOLOGY, aliases: [A/R, accounts receivable management, comptes clients], parents: [skill.accounting]}
+  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [bank reconciliation, bank reconciliations, account reconciliations, reconciliations, rapprochement bancaire], parents: [skill.accounting]}
+  - {id: skill.budgeting, label: Budgeting, kind: METHODOLOGY, aliases: [budget management, budget planning, budgets, budget preparation, budgétisation], parents: [skill.finance]}
+  - {id: skill.forecasting, label: Forecasting, kind: METHODOLOGY, aliases: [financial forecasting, demand forecasting, sales forecasting, prévisions financières, prévisions des ventes, prévision de la demande, prévisions budgétaires]}
+  - {id: skill.auditing, label: Auditing, kind: METHODOLOGY, aliases: [audit, audits, internal audit, external audit, financial audit, audit interne, vérification comptable, vérification interne], parents: [skill.accounting]}
+  - {id: skill.taxation, label: Taxation, kind: DOMAIN, aliases: [tax preparation, tax returns, income tax, tax compliance, corporate tax, fiscalité], parents: [skill.accounting]}
   - {id: skill.valuation, label: Valuation, kind: METHODOLOGY, aliases: [business valuation, company valuation, DCF, discounted cash flow, DCF analysis, évaluation d'entreprise], parents: [skill.financial_analysis]}
-  - {id: skill.investment_banking, label: Investment banking, kind: DOMAIN, aliases: [M&A, mergers and acquisitions, capital markets]}
+  - {id: skill.investment_banking, label: Investment banking, kind: DOMAIN, aliases: [M&A, mergers and acquisitions, capital markets], parents: [skill.finance]}
   - {id: skill.risk_management, label: Risk management, kind: METHODOLOGY, aliases: [risk assessment, risk analysis, enterprise risk management, gestion des risques]}
   - {id: skill.compliance, label: Regulatory compliance, kind: DOMAIN, aliases: [compliance, regulatory affairs, conformité réglementaire]}
   - {id: skill.pipeda, label: PIPEDA, kind: DOMAIN, aliases: [Personal Information Protection and Electronic Documents Act, LPRPDE], parents: [skill.compliance]}
@@ -496,17 +506,17 @@ skills:
   - {id: skill.stakeholder_management, label: Stakeholder management, kind: METHODOLOGY, aliases: [stakeholder engagement, stakeholder communication, gestion des parties prenantes], parents: [skill.project_management]}
   - {id: skill.strategic_planning, label: Strategic planning, kind: METHODOLOGY, aliases: [business strategy, strategy development, corporate strategy, planification stratégique]}
   - {id: skill.market_research, label: Market research, kind: METHODOLOGY, aliases: [market analysis, competitive analysis, étude de marché, études de marché]}
-  - {id: skill.procurement, label: Procurement, kind: METHODOLOGY, aliases: [purchasing, strategic sourcing, approvisionnement, achats], parents: [skill.supply_chain]}
+  - {id: skill.procurement, label: Procurement, kind: METHODOLOGY, aliases: [purchasing, strategic sourcing, gestion des achats, service des achats, achats stratégiques, gestion de l'approvisionnement, approvisionnement stratégique], parents: [skill.supply_chain]}
   - {id: skill.logistics, label: Logistics, kind: DOMAIN, aliases: [logistics management, logistique]}
   - {id: skill.inventory_management, label: Inventory management, kind: METHODOLOGY, aliases: [inventory control, stock management, gestion des stocks], parents: [skill.supply_chain]}
   - {id: skill.operations_management, label: Operations management, kind: METHODOLOGY, aliases: [business operations, gestion des opérations]}
   - {id: skill.human_resource_management, label: Human resource management, kind: DOMAIN, aliases: [HR management, human resources, HRM, gestion des ressources humaines]}
-  - {id: skill.recruiting, label: Recruiting, kind: METHODOLOGY, aliases: [recruitment, talent acquisition, recrutement, sourcing candidates], parents: [skill.human_resource_management]}
-  - {id: skill.sales, label: Sales, kind: METHODOLOGY, aliases: [sales skills, selling skills, consultative selling, solution selling, upselling, cross-selling, B2B sales, B2C sales, direct sales, inside sales, vente, ventes]}
+  - {id: skill.recruiting, label: Recruiting, kind: METHODOLOGY, aliases: [recruitment, talent acquisition, sourcing candidates, recrutement de personnel, recrutement et sélection, acquisition de talents], parents: [skill.human_resource_management]}
+  - {id: skill.sales, label: Sales, kind: METHODOLOGY, aliases: [sales skills, selling skills, consultative selling, solution selling, upselling, cross-selling, B2B sales, B2C sales, direct sales, inside sales, techniques de vente, vente-conseil, vente au détail, ventes B2B, vente B2B, ventes B2C, développement des ventes]}
   - {id: skill.business_development, label: Business development, kind: METHODOLOGY, aliases: [BD, biz dev, développement des affaires], parents: [skill.sales]}
   - {id: skill.lead_generation, label: Lead generation, kind: METHODOLOGY, aliases: [lead gen, sales prospecting, client prospecting, prospection commerciale, prospection de clients], parents: [skill.sales]}
   - {id: skill.account_management, label: Account management, kind: METHODOLOGY, aliases: [key account management, client account management, gestion de comptes], parents: [skill.sales]}
-  - {id: skill.digital_marketing, label: Digital marketing, kind: METHODOLOGY, aliases: [online marketing, internet marketing, marketing numérique], parents: [field.marketing]}
+  - {id: skill.digital_marketing, label: Digital marketing, kind: METHODOLOGY, aliases: [online marketing, internet marketing, marketing numérique], parents: [skill.marketing]}
   - {id: skill.social_media_marketing, label: Social media marketing, kind: METHODOLOGY, aliases: [social media, social media management, SMM, médias sociaux], parents: [skill.digital_marketing]}
   - {id: skill.instagram, label: Instagram, kind: TOOL, aliases: [Instagram marketing, Instagram Reels], parents: [skill.social_media_marketing]}
   - {id: skill.content_marketing, label: Content marketing, kind: METHODOLOGY, aliases: [content creation, content strategy, marketing de contenu], parents: [skill.digital_marketing]}
@@ -516,7 +526,7 @@ skills:
   - {id: skill.google_ads, label: Google Ads, kind: TOOL, aliases: [Google AdWords, AdWords], parents: [skill.sem]}
   - {id: skill.web_analytics, label: Web analytics, kind: METHODOLOGY, aliases: [website analytics, digital analytics], parents: [skill.digital_marketing]}
   - {id: skill.copywriting, label: Copywriting, kind: METHODOLOGY, aliases: [copy writing, marketing copy, rédaction publicitaire], parents: [skill.writing]}
-  - {id: skill.brand_management, label: Brand management, kind: METHODOLOGY, aliases: [branding, brand strategy, gestion de marque], parents: [field.marketing]}
+  - {id: skill.brand_management, label: Brand management, kind: METHODOLOGY, aliases: [branding, brand strategy, gestion de marque], parents: [skill.marketing]}
   - {id: skill.public_relations, label: Public relations, kind: METHODOLOGY, aliases: [media relations, relations publiques]}
   - {id: skill.event_planning, label: Event planning, kind: METHODOLOGY, aliases: [event management, event coordination, planification d'événements]}
   - {id: skill.technical_writing, label: Technical writing, kind: METHODOLOGY, aliases: [technical documentation, documentation writing, rédaction technique], parents: [skill.writing]}
@@ -558,7 +568,7 @@ skills:
   - {id: skill.classroom_management, label: Classroom management, kind: METHODOLOGY, aliases: [gestion de classe], parents: [field.education]}
   - {id: skill.tutoring, label: Tutoring, kind: METHODOLOGY, aliases: [tutor, peer tutoring, tutorat]}
   # ─── food service, retail, customer-facing ───────────────────────────────────────────────
-  - {id: skill.pos, label: Point of sale systems, kind: TOOL, aliases: [POS, POS systems, point of sale, point-of-sale, cash register, cash handling systems, Point of sale POS software]}
+  - {id: skill.pos, label: Point of sale systems, kind: TOOL, aliases: [POS, POS systems, point of sale, point-of-sale, cash register, cash handling systems, Point of sale POS software, point de vente, points de vente, système de point de vente, système point de vente, terminal de point de vente]}
   - {id: skill.cash_handling, label: Cash handling, kind: METHODOLOGY, aliases: [cash management, handling cash, cashiering, manipulation d'argent]}
   - {id: skill.merchandising, label: Merchandising, kind: METHODOLOGY, aliases: [visual merchandising, product merchandising, marchandisage], parents: [skill.sales]}
   - {id: skill.food_preparation, label: Food preparation, kind: METHODOLOGY, aliases: [food prep, cooking, meal preparation, préparation des aliments]}
@@ -592,10 +602,10 @@ skills:
   - {id: skill.active_listening, label: Active listening, kind: SOFT, aliases: [listen actively, listening skills, écoute active]}
   - {id: skill.empathy, label: Empathy, kind: SOFT, aliases: [show empathy, empathetic, empathie]}
   - {id: skill.accountability, label: Accountability, kind: SOFT, aliases: [assume responsibility, sens des responsabilités]}
-  - {id: skill.reliability, label: Reliability, kind: SOFT, aliases: [dependability, fiabilité]}
+  - {id: skill.reliability, label: Reliability, kind: SOFT, aliases: [dependability]}
   - {id: skill.willingness_to_learn, label: Willingness to learn, kind: SOFT, aliases: [demonstrate willingness to learn, eager to learn, quick learner, fast learner, continuous learning, volonté d'apprendre]}
   - {id: skill.cultural_competence, label: Intercultural competence, kind: SOFT, aliases: [demonstrate intercultural competence, cultural awareness, cultural competence, cross-cultural communication, compétence interculturelle]}
-  - {id: skill.research, label: Research, kind: METHODOLOGY, aliases: [research skills, conducting research, academic research, recherche]}
+  - {id: skill.research, label: Research, kind: METHODOLOGY, aliases: [research skills, conducting research, academic research, recherche scientifique, recherche universitaire, recherche académique, projet de recherche, projets de recherche, méthodes de recherche]}
   - {id: skill.writing, label: Writing, kind: SOFT, aliases: [writing skills, written skills, report writing, rédaction]}
 
 credentials:
@@ -703,7 +713,7 @@ fields:
   - {id: field.biomedical_engineering, label: Biomedical engineering, kind: DOMAIN, aliases: [bioengineering, génie biomédical], parents: [field.engineering]}
   - {id: field.environmental_engineering, label: Environmental engineering, kind: DOMAIN, aliases: [génie de l'environnement], parents: [field.engineering]}
   - {id: field.mathematics, label: Mathematics, kind: DOMAIN, aliases: [math, maths, applied mathematics, pure mathematics, mathématiques], parents: [field.science]}
-  - {id: field.statistics, label: Statistics, kind: DOMAIN, aliases: [stats, statistical science, statistiques], parents: [field.science]}
+  - {id: field.statistics, label: Statistics, kind: DOMAIN, aliases: [statistical science, statistics degree, statistiques], parents: [field.science]}
   - {id: field.data_science, label: Data science, kind: DOMAIN, aliases: [data science degree, science des données, sciences des données], parents: [field.science]}
   - {id: field.physics, label: Physics, kind: DOMAIN, aliases: [applied physics, engineering physics, physique], parents: [field.science]}
   - {id: field.chemistry, label: Chemistry, kind: DOMAIN, aliases: [biochemistry and chemistry, chimie], parents: [field.science]}
@@ -711,10 +721,10 @@ fields:
   - {id: field.biochemistry, label: Biochemistry, kind: DOMAIN, aliases: [biochimie], parents: [field.science]}
   - {id: field.environmental_science, label: Environmental science, kind: DOMAIN, aliases: [environmental studies, environmental sciences, sciences de l'environnement], parents: [field.science]}
   - {id: field.commerce, label: Commerce, kind: DOMAIN, aliases: [B.Comm, BComm, BCom, B.Com, Bachelor of Commerce, commerce degree], parents: [field.business_admin]}
-  - {id: field.finance, label: Finance, kind: DOMAIN, aliases: [corporate finance, financial management, finance degree], parents: [field.business_admin]}
-  - {id: field.accounting, label: Accounting, kind: DOMAIN, aliases: [accountancy, financial accounting, managerial accounting, accounting degree, comptabilité], parents: [field.business_admin]}
+  - {id: field.finance, label: Finance, kind: DOMAIN, aliases: [finance degree, Bachelor of Finance], parents: [field.business_admin]}
+  - {id: field.accounting, label: Accounting, kind: DOMAIN, aliases: [accounting degree, Bachelor of Accounting, comptabilité], parents: [field.business_admin]}
   - {id: field.economics, label: Economics, kind: DOMAIN, aliases: [econ, economics degree, économie, sciences économiques], parents: [field.social_sciences]}
-  - {id: field.marketing, label: Marketing, kind: DOMAIN, aliases: [marketing degree, marketing management, marketing strategy, mercatique], parents: [field.business_admin]}
+  - {id: field.marketing, label: Marketing, kind: DOMAIN, aliases: [marketing degree, Bachelor of Marketing, mercatique], parents: [field.business_admin]}
   - {id: field.supply_chain, label: Supply chain and logistics, kind: DOMAIN, aliases: [supply chain management degree, logistics and supply chain management, operations and supply chain management], parents: [field.business_admin]}
   - {id: field.human_resources, label: Human resources management, kind: DOMAIN, aliases: [human resources degree, HRM degree, industrial relations], parents: [field.business_admin]}
   - {id: field.information_technology, label: Information technology, kind: DOMAIN, aliases: [IT, information technologies, technologies de l'information], parents: []}
@@ -757,6 +767,7 @@ ambiguous:
   hibernate: Hibernate
   anaconda: Anaconda
   solidity: Solidity
+  cerner: Cerner
   initiative: Initiative
   reliability: Reliability
   final cut: Final Cut
@@ -773,11 +784,9 @@ ambiguous:
   react: React
   next: Next
   express: Express
-  chef: Chef
   lean: Lean
   access: Access
   word: Word
-  teams: Teams
   outlook: Outlook
   spark: Spark
   node: Node
@@ -830,7 +839,7 @@ ambiguous:
   vue: Vue
 
 blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbite, plan, Project, Office, Database, Analytics, Notes, Pages, Numbers, Keynote, Drive, Docs, Sheets, Slides, Classroom, Ads, Dynamics, Windows, Server, Mail, Calendar, Contacts, Photos, Maps, Chat, Meet, Forms, Sites, Groups, Translate, Voice, Cloud, Email, Scheduling, Teleconferencing, Publisher, Millennium, energy, Ant, Arena, Colleague, Navigator, Presenter, Scholar, Quest, Rio, Hive, Middleware, Persuasion, Concordance, Ovation, Painter, Opus, Beehive, Evolver, Cobalt, Helix, Darwin, Saber, Hercules, Dracula, Domino, environment, services, health, welfare, sports, languages, arts,
-  cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing]
+  cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing, Chef, Teams]
 
 # Phrases that are never skills although they contain one (D-27): in extraction a match consumes
 # its words and yields no mention ("American Express" is no Express.js); `resolve` gives NONE. The
@@ -838,7 +847,27 @@ blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbit
 blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, Chef de partie,
   Chef de cuisine, Executive Chef, Pastry Chef, Head Chef, "Vitamin [A-Z]", "Building [A-Z]",
   Hepatitis C, Hep C, Schedule C, Swift Current, Swift Water, Spring Break, Spring Term,
-  Spring Semester, Go-Live, Go-to-market, Go/No-Go, R&D, Unity Health, Epic Games]
+  Spring Semester, Go-Live, Go-to-market, Go/No-Go, R&D, Unity Health, Epic Games, Swift Transportation,
+  Express Employment Professionals,
+  # section headers that would otherwise read as a skill ("Technical Skills:")
+  Technical Skills, Language Skills, Platforms]
+
+# Professional licences (config/gates.yaml) -> the credential that holds their in-progress forms
+# (D-28). The build generates "<name> student|candidate|program|apprentice|apprenticeship|trainee|
+# in training|in progress|(in progress)" and "student|apprentice|candidate <name>" for every name
+# of the licence, plus "CPA <body> PEP[ student]", and fails when any of them reaches a licence.
+in_progress:
+  cred.registered_nurse: cred.nursing_student
+  cred.licensed_practical_nurse: cred.nursing_student
+  cred.cpa: cred.cpa_in_progress
+  cred.commercial_drivers_license: cred.cdl_trainee
+  cred.professional_engineer: cred.eit
+  cred.bar_admission: cred.articling_student
+  cred.medical_license: cred.medical_student
+  cred.pharmacist_license: cred.pharmacy_student
+  cred.teaching_license: cred.teacher_candidate
+  cred.electrician_license: cred.electrician_apprentice
+  cred.paramedic_license: cred.paramedic_student
 
 # Job titles that name no occupation by themselves: titles.json leaves them out (D-26).
 generic_titles: [intern, interns, internship, co-op, co-op student, coop student, student, students,
@@ -862,7 +891,7 @@ onet_knowledge:
   Computers and Electronics: field.information_technology
   Customer and Personal Service: skill.customer_service
   Design: skill.blueprint_reading
-  Economics and Accounting: field.accounting
+  Economics and Accounting: skill.accounting
   Education and Training: field.education
   Engineering and Technology: field.engineering
   English Language: esco.english
@@ -880,7 +909,7 @@ onet_knowledge:
   Production and Processing: esco.manufacturing_processes
   Psychology: field.psychology
   Public Safety and Security: esco.group.103
-  Sales and Marketing: field.marketing
+  Sales and Marketing: skill.marketing
   Sociology and Anthropology: field.sociology
   Telecommunications: esco.concepts_of_telecommunications
   Therapy and Counseling: skill.counselling

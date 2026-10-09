@@ -7,7 +7,8 @@ DECISIONS D-04) and the hand-curated config into the hash-pinned artifacts of da
     nodes.json.gz       every node (graph.loader format)
     idf.json            empty until Task 2.3 computes IDF from the posting corpus
     pmi_edges.json      the curated related edges (Task 2.3 adds the mined ones)
-    resolver.json       ambiguous and cased keys with the casing each requires; blocked phrases
+    resolver.json       ambiguous and cased keys with their casing; blocked phrases; the licences'
+                        in-progress nodes
     titles.json         normalised job title -> O*NET-SOC code, SOC major group, job zone
     mos_crosswalk.json  military occupation code -> branch, title, O*NET-SOC codes, skill ids
     naics.json          NAICS 2022 code -> title
@@ -17,18 +18,24 @@ DECISIONS D-04) and the hand-curated config into the hash-pinned artifacts of da
 Run from match-engine/ (after scripts/fetch_sources.py):
 
     .venv/Scripts/python.exe scripts/build_taxonomy.py [--raw DIR] [--out DIR] [--review DIR]
+        [--required ID ...]
 
 The output is a pure function of the raw inputs and the config: the same inputs give the same
 bytes. Rules, in the order they apply:
 
 1. Curated nodes (config/curated_taxonomy.yaml: skills, credentials, fields) come first. Their
    ids, labels, kinds, parents and release years are final, and their labels and aliases are
-   exempt from every alias filter.
+   exempt from every alias filter. Only a field of study and a skill may share a curated key
+   ("Statistics"). Each professional licence (`in_progress`) gives its in-progress node the
+   generated names "<name> student|candidate|program|..." and "student|apprentice|candidate
+   <name>" (DECISIONS D-28); the build fails when any in-progress name reaches a licence.
 2. An ESCO concept or skill group, an O*NET commodity class or an O*NET example whose name
    normalises (`normalize_surface`, hyphen variants included) to a curated node's label or alias
-   MERGES into that node: its names become the node's aliases (of an ESCO concept, its preferred
-   labels only), its parents are inherited only when the curated node declares no `parents` key,
-   and every reference to it points at the node.
+   MERGES into that node (into the skill when a field shares the key): its names become the
+   node's aliases (of an ESCO concept, its preferred labels, and an alternative or hidden label
+   only when it has several words one of which is a content word of the curated names, D-26),
+   its parents are inherited only when the curated node declares no `parents` key, and every
+   reference to it points at the node.
 3. Other ESCO concepts become `esco.<slug of the preferred label>` (a slug shared by several
    concepts gets `_` + the first 6 hex of each concept's UUID), skill groups `esco.group.<code>`
    (the four pillar roots are not nodes). Kinds: the transversal skills collection -> SOFT,
@@ -72,7 +79,7 @@ if str(ROOT / "src") not in sys.path:
 
 from matcher.graph.aliases import normalize_keep_case, normalize_surface, surface_variants  # noqa: E402
 from matcher.graph.loader import write_artifacts  # noqa: E402
-from matcher.graph.model import SkillNode  # noqa: E402
+from matcher.graph.model import SkillGraph, SkillNode  # noqa: E402
 from matcher.graph.pmi import build_edges  # noqa: E402
 from matcher.models import SkillKind  # noqa: E402
 
@@ -89,6 +96,26 @@ KNOWLEDGE_TOP = 5  # knowledge areas per occupation that feed a military code's 
 COMMON_WORD_MIN_COUNT = 2  # lower-case occurrences in the source prose that make a word "common"
 MOS_COMMON_KNOWLEDGE_SHARE = 0.25  # a knowledge area in more military codes than this says nothing
 PROGRAMMING_ID = "skill.programming"  # curated "Computer programming": ESCO languages sit under it
+FIELD_PREFIX = "field."  # fields of study
+# The in-progress forms generated for every alias of a professional licence (DECISIONS D-28):
+# "<alias> <suffix>" and "<prefix> <alias>", all owned by the licence's in-progress node.
+IN_PROGRESS_SUFFIXES = ("student", "candidate", "program", "apprentice", "apprenticeship", "trainee",
+                        "in training", "in progress", "(in progress)")
+IN_PROGRESS_PREFIXES = ("student", "apprentice", "candidate")
+# "CPA <body> PEP[ student]": the CPA Professional Education Program, run by CPA Canada and the
+# provincial and regional bodies; generated for the licence that owns the key "cpa".
+CPA_PEP_BODIES = ("Canada", "Ontario", "Quebec", "Québec", "British Columbia", "BC", "Alberta", "Manitoba",
+                  "Saskatchewan", "Nova Scotia", "New Brunswick", "Newfoundland and Labrador",
+                  "Prince Edward Island", "PEI", "Atlantic", "Western School of Business", "Yukon",
+                  "Northwest Territories", "Nunavut")
+# Words that carry no content when a merged concept's alternative label is compared with the
+# curated node it merged into (D-26): English and French function words.
+STOP_WORDS = frozenset({
+    "a", "an", "the", "of", "and", "or", "for", "to", "in", "on", "at", "by", "with", "from", "as", "into",
+    "its", "their", "your", "our", "this", "that", "these", "those", "be", "is", "are", "all", "any", "other",
+    "de", "des", "du", "la", "le", "les", "l", "d", "et", "ou", "en", "à", "au", "aux", "un", "une", "pour",
+    "par", "sur", "dans", "avec", "sans", "son", "sa", "ses", "leur", "leurs", "qu", "que", "qui", "s", "se",
+})
 GITATTRIBUTES = (
     "# These files are hash-pinned by MANIFEST.json: git must never rewrite their line endings\n"
     "# (core.autocrlf would turn LF into CRLF on a Windows checkout and break every sha256).\n"
@@ -381,6 +408,29 @@ class Curated:
     no_merge: frozenset[str]
     blocked_phrases: tuple[str, ...] = ()  # as written, "[A-Z]" expanded (resolver.json)
     generic_titles: frozenset[str] = frozenset()  # title keys that name no occupation
+    in_progress: dict[str, str] = field(default_factory=dict)  # licence id -> its in-progress node
+    generated: dict[str, tuple[str, ...]] = field(default_factory=dict)  # in-progress id -> generated forms
+
+
+def in_progress_forms(label: str, aliases: Sequence[str]) -> list[str]:
+    """The in-progress forms of a licence named `label` / `aliases` (D-28): "<name> student",
+    "<name> candidate", ..., "student <name>", ..., and "CPA <body> PEP[ student]" for CPA."""
+    names = [label, *aliases]
+    forms = [f"{name} {suffix}" for name in names for suffix in IN_PROGRESS_SUFFIXES]
+    forms += [f"{prefix} {name}" for name in names for prefix in IN_PROGRESS_PREFIXES]
+    if any("cpa" in _keys(name) for name in names):
+        forms += [f"CPA {body} PEP{tail}" for body in CPA_PEP_BODIES for tail in ("", " student")]
+    return forms
+
+
+def content_tokens(surface: str) -> frozenset[str]:
+    """The content words of a surface, for comparing labels (D-26): normalised, split at spaces,
+    hyphens, slashes and apostrophes, function words and one-letter words dropped ("C" in "C and
+    Smalltalk" says nothing about Objective-C), a plural "s" removed."""
+    text = normalize_surface(re.sub("['‘’]", " ", surface))
+    words = (word for word in re.split(r"[\s/\-]+", text) if len(word) > 1 and word not in STOP_WORDS)
+    return frozenset(word[:-1] if len(word) > 3 and word.endswith("s") and not word.endswith("ss") else word
+                     for word in words)
 
 
 _LETTER_SLOT = "[A-Z]"  # in a blocked phrase: one phrase per capital letter ("Building [A-Z]")
@@ -450,6 +500,25 @@ def load_curated(path: Path) -> Curated:
                                                   for k, v in knowledge.items()):
         raise BuildError(f"{path.name}: onet_knowledge must map O*NET knowledge areas to node ids")
     vendors = _strings(doc.get("onet_vendor_prefixes"), f"{path.name}: onet_vendor_prefixes")
+    in_progress = doc.get("in_progress") or {}
+    by_id = {node.id: node for node in nodes}
+    if not isinstance(in_progress, dict) or not all(
+            isinstance(k, str) and isinstance(v, str) and by_id.get(k) and by_id.get(v)
+            and by_id[k].kind is SkillKind.CREDENTIAL and by_id[v].kind is SkillKind.CREDENTIAL and k != v
+            for k, v in in_progress.items()):
+        raise BuildError(f"{path.name}: in_progress must map curated licence credentials to curated "
+                         "in-progress credentials")
+    generated: dict[str, list[str]] = defaultdict(list)
+    for licence, target in sorted(in_progress.items()):
+        known = {key for surface in (by_id[target].label, *by_id[target].aliases, *generated[target])
+                 for key in _keys(surface)}
+        for form in in_progress_forms(by_id[licence].label, by_id[licence].aliases):
+            if not set(_keys(form)) & known:
+                generated[target].append(form)
+                known.update(_keys(form))
+    nodes = [CuratedNode(id=node.id, label=node.label, kind=node.kind, aliases=(*node.aliases, *generated[node.id]),
+                         parents=node.parents, release_year=node.release_year) if generated.get(node.id) else node
+             for node in nodes]
     phrases = _expand_phrases(_strings(doc.get("blocked_phrases"), f"{path.name}: blocked_phrases"))
     curated_keys = {key for node in nodes for surface in (node.label, *node.aliases) for key in _keys(surface)}
     for phrase in phrases:
@@ -466,6 +535,8 @@ def load_curated(path: Path) -> Curated:
         no_merge=frozenset(_strings(doc.get("no_merge"), f"{path.name}: no_merge")),
         blocked_phrases=phrases,
         generic_titles=frozenset(key for title in generic for key in _keys(title)),
+        in_progress=dict(sorted(in_progress.items())),
+        generated={node_id: tuple(forms) for node_id, forms in sorted(generated.items()) if forms},
     )
 
 
@@ -679,6 +750,7 @@ class Report:
     label_ties: list[tuple[str, list[str]]] = field(default_factory=list)
     derived_single_words: list[tuple[str, str]] = field(default_factory=list)  # (surface, node id)
     auto_ambiguous: dict[str, str] = field(default_factory=dict)  # common-word labels -> their casing
+    synonym_imports: list[tuple[str, str]] = field(default_factory=list)  # (curated id, merged alt label kept)
     seconds: float = 0.0
 
 
@@ -693,6 +765,8 @@ class Assembler:
         self.cat_map: dict[str, str] = {}
         self.example_map: dict[str, str] = {}  # O*NET example text -> node id
         self.final_ids: set[str] = set()  # set once finish() has run
+        self.curated_tokens: dict[str, frozenset[str]] = {}  # curated node -> content words of its names
+        self.synonym_imports: list[tuple[str, str]] = []  # (curated id, merged alternative label kept)
         self._onet_keys: dict[str, str] = {}  # normalised O*NET example name -> node id
         self._group = 0
 
@@ -725,16 +799,24 @@ class Assembler:
     # curated ------------------------------------------------------------------------------
 
     def add_curated(self) -> None:
+        """Curated nodes and their keys. A field of study and a skill may share a key ("statistics":
+        the field in education lines, the skill elsewhere, D-27); source concepts named so merge
+        into the skill. Any other key two curated nodes claim fails the build."""
+        sides: dict[str, dict[bool, str]] = defaultdict(dict)  # key -> {is field: node id}
         for node in self.curated.nodes:
             draft = Draft(id=node.id, label=node.label, kind=node.kind, source="curated", curated=True,
                           explicit_parents=node.parents, release_year=node.release_year)
             group = self._next_group()
+            is_field = node.id.startswith(FIELD_PREFIX)
             for surface in (node.label, *node.aliases):
                 self._claim(draft, surface, CURATED, group, own=True)
                 for key in _keys(surface):
-                    owner = self.curated_keys.setdefault(key, node.id)
+                    owner = sides[key].setdefault(is_field, node.id)
                     if owner != node.id:
                         raise BuildError(f"curated nodes {owner} and {node.id} both claim {key!r}")
+                    self.curated_keys[key] = sides[key].get(False) or sides[key][True]
+            self.curated_tokens[node.id] = frozenset().union(
+                *(content_tokens(surface) for surface in (node.label, *node.aliases)))
             self.drafts[node.id] = draft
 
     # ESCO ---------------------------------------------------------------------------------
@@ -783,8 +865,11 @@ class Assembler:
         """The concept's labels as claims on `draft` (DECISIONS D-26). A one-word French preferred
         label stays only when it is the English one ("Python"): otherwise it is often an ordinary
         French word ("morale", "saisie"). A concept merged into a curated node brings its preferred
-        labels only: its alternative and hidden labels too often name a neighbour of the curated
-        sense ("web design" under computer programming, "make business decisions" under marketing)."""
+        labels, and an alternative or hidden label only when it has several words one of which is
+        a content word of the curated node's own names ("supervised learning" under machine
+        learning, "manage projects" under project management): the others too often name a
+        neighbour of the curated sense ("web design" under computer programming, "make business
+        decisions" under marketing)."""
         group = self._next_group()
         english = {normalize_surface(concept.pref)}
         for pref, strength in ((concept.pref, NAME), (concept.pref_fr, FR_NAME)):
@@ -800,11 +885,14 @@ class Assembler:
                 elif " " not in key and key not in english:
                     continue
                 self._claim(draft, surface, strength, group, own=True, derived=derived)
-        if merged:
-            return
+        tokens = self.curated_tokens.get(draft.id, frozenset())
         for labels, strength in ((concept.alt, ALT), (concept.hidden, HIDDEN), (concept.alt_fr, FR_ALT),
                                  (concept.hidden_fr, FR_ALT)):
             for label in labels:
+                if merged:
+                    if " " not in normalize_surface(label) or not content_tokens(label) & tokens:
+                        continue
+                    self.synonym_imports.append((draft.id, label))
                 self._claim(draft, label, strength, group)
 
     # O*NET --------------------------------------------------------------------------------
@@ -985,24 +1073,26 @@ class Assembler:
             entries = claims[key]
             curated = {node_id for strength, node_id, _ in entries if strength == CURATED}
             if curated:
-                owner = min(curated)
+                # A curated field of study and a curated skill may both keep a key (add_curated).
+                sides = ({n for n in curated if n.startswith(FIELD_PREFIX)},
+                         {n for n in curated if not n.startswith(FIELD_PREFIX)})
+                owners = sorted(min(side) for side in sides if side)
             elif key in label_owner:
                 owners = label_owner[key]
                 if len(owners) > 1:
                     continue  # the labels themselves are indexed; the resolver settles the tie
-                owner = owners[0]
             else:
                 best = min(strength for strength, _, _ in entries)
                 owners = sorted({node_id for strength, node_id, _ in entries if strength == best})
                 if len(owners) > 1:
                     self.report.ambiguous_keys.append((key, owners))
                     continue
-                owner = owners[0]
-            surfaces = sorted((strength, surface) for strength, node_id, surface in entries if node_id == owner)
-            if surfaces:
-                winners[owner].append(surfaces[0])
-                if surfaces[0][0] == DERIVED and " " not in key and not self.drafts[owner].curated:
-                    self.report.derived_single_words.append((surfaces[0][1], owner))
+            for owner in owners:
+                surfaces = sorted((strength, surface) for strength, node_id, surface in entries if node_id == owner)
+                if surfaces:
+                    winners[owner].append(surfaces[0])
+                    if surfaces[0][0] == DERIVED and " " not in key and not self.drafts[owner].curated:
+                        self.report.derived_single_words.append((surfaces[0][1], owner))
 
         out = {}
         for node_id, chosen in winners.items():
@@ -1338,10 +1428,13 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "",
         "## Rules worth knowing when reading the artifacts",
         "",
-        "- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels",
-        "  only, never its alternative or hidden labels; a one-word French preferred label is kept only when",
-        "  it is the English label. ESCO programming languages (labelled \"(computer programming)\" or under",
-        "  computer programming) are TECHNOLOGY.",
+        "- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,",
+        "  and an alternative or hidden label only when it has several words one of which is a content word",
+        f"  of the curated names ({len(report.synonym_imports):,} kept); a one-word French preferred label is",
+        "  kept only when it is the English label. ESCO programming languages (labelled \"(computer",
+        "  programming)\" or under computer programming) are TECHNOLOGY. Each professional licence's",
+        "  in-progress node holds the generated forms of the licence's names (DECISIONS D-28:",
+        f"  {report.counts.get('generated_in_progress', 0):,} names); none of them reaches a licence.",
         "- titles.json: a primary O*NET title maps to its occupation; an alternate or reported title claimed",
         "  by several occupations goes to the SOC major group most of them share (ties: the smaller group",
         "  code), then to that group's smallest code. Trailing parentheticals give two keys",
@@ -1364,8 +1457,9 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "  (a skills list waives it); `cased` holds, automatically, every one-word name with a capital on a",
         "  node that is not curated (O*NET products and tools, ESCO languages, acronyms), cased as written",
         "  everywhere: lower-case text never resolves to them and the fuzzy fallback never targets them.",
-        "  `blocked_phrases` (\"American Express\", \"Sous Chef\", \"Building C\") consume their words in",
-        "  extraction without a mention.",
+        "  `blocked_phrases` (\"American Express\", \"Sous Chef\", \"Building C\", \"Technical Skills\")",
+        "  consume their words in extraction without a mention. `in_progress` maps each professional",
+        "  licence to the node of its in-progress forms (DECISIONS D-28).",
         "",
         "## Counts",
         "",
@@ -1429,6 +1523,9 @@ def build(
     missing = sorted(set(required_ids) - ids)
     if missing:
         raise BuildError(f"required credential ids missing from the taxonomy: {missing}")
+    unguarded = sorted(set(required_ids) - set(curated.in_progress))
+    if unguarded:
+        raise BuildError(f"professional licences without an in_progress node (D-28): {unguarded}")
     for a, b, _ in curated_edges:
         for node_id in (a, b):
             if node_id not in ids:
@@ -1455,7 +1552,13 @@ def build(
         "ambiguous": dict(sorted(curated.ambiguous.items())),
         "cased": dict(sorted(report.auto_ambiguous.items())),
         "blocked_phrases": list(curated.blocked_phrases),
+        "in_progress": dict(curated.in_progress),
     }
+    leaks = check_in_progress(nodes, curated, resolver_settings)
+    if leaks:
+        raise BuildError(f"in-progress forms that reach a professional licence (D-28): {leaks[:20]}")
+    report.counts["generated_in_progress"] = sum(len(forms) for forms in curated.generated.values())
+    report.synonym_imports = list(assembler.synonym_imports)
     extras = {
         "resolver.json": resolver_settings,
         "titles.json": build_titles(raw, curated.generic_titles),
@@ -1469,9 +1572,33 @@ def build(
                             len(curated.ambiguous))
     (out_dir / "SOURCES.md").write_bytes(text.encode("utf-8"))
     (out_dir / ".gitattributes").write_bytes(GITATTRIBUTES.encode("utf-8"))
-    report.counts = {"nodes": len(nodes), "aliases": sum(len(n.aliases) for n in nodes)}
+    report.counts.update({"nodes": len(nodes), "aliases": sum(len(n.aliases) for n in nodes)})
     report.seconds = time.perf_counter() - started
     return report
+
+
+def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Mapping[str, Any]) -> list[str]:
+    """Every name of an in-progress node, generated or curated, read through the resolver the
+    artifacts will load: `resolve` and `extract` (list and prose) must never reach one of the
+    licences it stands for (D-28). Returns the offending names (empty: the build may go on)."""
+    from matcher.config import load_config
+    from matcher.normalize.resolver import Resolver
+
+    graph = SkillGraph({node.id: node for node in nodes}, {}, {}, "in-progress-check")
+    resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
+                        blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"])
+    licences = set(curated.in_progress)
+    leaks = []
+    for node in nodes:
+        if node.id not in set(curated.in_progress.values()):
+            continue
+        for name in (node.label, *node.aliases):
+            found = {resolver.resolve(name).canonical_id}
+            for context in ("list", "prose"):
+                found.update(m.canonical_id for m in resolver.extract(name, context=context))
+            if found & licences:
+                leaks.append(f"{name!r} -> {sorted(found & licences)}")
+    return leaks
 
 
 def _write_review(report: Report, review_dir: Path) -> None:
@@ -1486,6 +1613,7 @@ def _write_review(report: Report, review_dir: Path) -> None:
     dump("ambiguous_keys.tsv", ((key, " ".join(ids)) for key, ids in report.ambiguous_keys))
     dump("label_ties.tsv", ((key, " ".join(ids)) for key, ids in report.label_ties))
     dump("derived_single_words.tsv", sorted(report.derived_single_words, key=lambda r: r[0].casefold()))
+    dump("synonym_imports.tsv", sorted(set(report.synonym_imports)))
 
 
 def main(argv: Optional[list[str]] = None) -> int:
@@ -1508,7 +1636,9 @@ def main(argv: Optional[list[str]] = None) -> int:
         _write_review(report, args.review)
     print(f"built {report.counts['nodes']:,} nodes, {report.counts['aliases']:,} aliases into {args.out} "
           f"in {report.seconds:.1f} s; merges {len(report.merges):,}, dropped nodes {len(report.dropped_nodes):,}, "
-          f"ambiguous keys {len(report.ambiguous_keys):,}, label ties {len(report.label_ties):,}")
+          f"ambiguous keys {len(report.ambiguous_keys):,}, label ties {len(report.label_ties):,}, "
+          f"in-progress forms generated {report.counts['generated_in_progress']:,}, "
+          f"merged synonyms kept {len(report.synonym_imports):,}")
     return 0
 
 

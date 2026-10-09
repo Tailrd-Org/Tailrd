@@ -331,6 +331,8 @@ def test_load_resolver_reads_the_manifest_once(tmp_path: Path, config, monkeypat
         ({"format": 1, "ambiguous": {}, "cased": {"go": 1}}, "cased"),
         ({"format": 1, "ambiguous": {}, "blocked_phrases": "R&D"}, "blocked_phrases"),
         ({"format": 1, "ambiguous": {}, "blocked_phrases": ["R&D", ""]}, "blocked_phrases"),
+        ({"format": 1, "ambiguous": {}, "in_progress": ["cred.cpa"]}, "in_progress"),
+        ({"format": 1, "ambiguous": {}, "in_progress": {"cred.cpa": 1}}, "in_progress"),
     ],
 )
 def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, message: str) -> None:
@@ -338,6 +340,15 @@ def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, messa
                     extra={"resolver.json": settings})
     with pytest.raises(ArtifactError, match=message):
         load_resolver_settings(tmp_path)
+
+
+def test_load_resolver_applies_the_in_progress_map(tmp_path: Path, config) -> None:
+    settings = {"format": 1, "ambiguous": {}, "in_progress": {"skill.react": "skill.redux"}}
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings})
+    resolver = load_resolver(tmp_path, config)
+    mentions = resolver.extract("Shipped React (in progress) daily.")
+    assert [(m.canonical_id, m.surface) for m in mentions] == [("skill.redux", "React (in progress)")]
 
 
 def test_load_resolver_applies_cased_keys_and_blocked_phrases(tmp_path: Path, config) -> None:

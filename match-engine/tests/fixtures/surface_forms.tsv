@@ -5,17 +5,14 @@
 #
 # ─── programming languages ───
 Python	skill.python	EXACT
-python	skill.python	EXACT
 Python 3	skill.python	ALIAS
 Python (computer programming)	skill.python	ALIAS
 Java	skill.java	EXACT
 Java EE	skill.java	ALIAS
 J2EE	skill.java	ALIAS
-Core Java	skill.java	ALIAS
 JavaScript	skill.javascript	EXACT
 JS	skill.javascript	ALIAS
 ES6	skill.javascript	ALIAS
-Vanilla JS	skill.javascript	ALIAS
 TypeScript	skill.typescript	EXACT
 TS	skill.typescript	ALIAS
 C++	skill.cpp	EXACT
@@ -45,6 +42,7 @@ Structured query language	skill.sql	ALIAS
 HTML	skill.html	EXACT
 HTML5	skill.html	ALIAS
 CSS	skill.css	EXACT
+CSS3	skill.css	ALIAS
 Cascading style sheets	skill.css	ALIAS
 SCSS	skill.sass	ALIAS
 Sass	skill.sass	EXACT
@@ -80,7 +78,6 @@ WebAssembly	skill.webassembly	EXACT
 # ─── web, frameworks, testing ───
 React	skill.react	EXACT
 ReactJS	skill.react	ALIAS
-React.js	skill.react	ALIAS
 React Native	skill.react_native	EXACT
 React-Native	skill.react_native	ALIAS
 Angular	skill.angular	EXACT
@@ -93,7 +90,6 @@ Next	skill.nextjs	ALIAS
 Svelte	skill.svelte	EXACT
 SvelteKit	skill.svelte	ALIAS
 Node.js	skill.nodejs	EXACT
-NodeJS	skill.nodejs	ALIAS
 Node	skill.nodejs	ALIAS
 Express.js	skill.express	EXACT
 Express	skill.express	ALIAS
@@ -106,6 +102,7 @@ Spring	skill.spring	EXACT
 Spring Boot	skill.spring	ALIAS
 .NET	skill.dotnet	EXACT
 .NET Core	skill.dotnet	ALIAS
+dotnet	skill.dotnet	ALIAS
 ASP.NET	skill.dotnet	ALIAS
 jQuery	skill.jquery	EXACT
 Bootstrap	skill.bootstrap	EXACT
@@ -116,7 +113,6 @@ GraphQL	skill.graphql	EXACT
 REST	skill.rest	EXACT
 RESTful	skill.rest	ALIAS
 REST API	skill.rest	ALIAS
-RESTful APIs	skill.rest	ALIAS
 gRPC	skill.grpc	EXACT
 JSON	skill.json	EXACT
 XML	skill.xml	EXACT
@@ -200,6 +196,8 @@ Amazon Redshift	skill.redshift	EXACT
 Tableau	skill.tableau	EXACT
 Tableau Desktop	skill.tableau	ALIAS
 Power BI	skill.power_bi	EXACT
+PowerBI	skill.power_bi	ALIAS
+powerbi	skill.power_bi	ALIAS
 Looker	skill.looker	EXACT
 Qlik	skill.qlik	EXACT
 Business intelligence	skill.business_intelligence	EXACT
@@ -218,6 +216,7 @@ Alteryx	skill.alteryx	EXACT
 # ─── databases ───
 PostgreSQL	skill.postgresql	EXACT
 Postgres	skill.postgresql	ALIAS
+psql	skill.postgresql	ALIAS
 MySQL	skill.mysql	EXACT
 mysql	skill.mysql	EXACT
 SQLite	skill.sqlite	EXACT
@@ -263,7 +262,7 @@ k8s	skill.kubernetes	ALIAS
 Helm	skill.helm	EXACT
 Terraform	skill.terraform	EXACT
 Ansible	skill.ansible	EXACT
-Chef	skill.chef	EXACT
+Chef Infra	skill.chef	EXACT
 Puppet	skill.puppet	EXACT
 Jenkins	skill.jenkins	EXACT
 CI/CD	skill.ci_cd	EXACT
@@ -367,7 +366,6 @@ Microsoft Office	skill.ms_office	EXACT
 MS Office	skill.ms_office	ALIAS
 Excel	skill.excel	EXACT
 Microsoft Excel	skill.excel	ALIAS
-MS Excel	skill.excel	ALIAS
 Advanced Excel	skill.excel	ALIAS
 Microsoft Word	skill.ms_word	EXACT
 Word	skill.ms_word	ALIAS
@@ -379,7 +377,7 @@ Outlook	skill.outlook	ALIAS
 Microsoft Access	skill.ms_access	EXACT
 Access	skill.ms_access	ALIAS
 Microsoft Teams	skill.ms_teams	EXACT
-Teams	skill.ms_teams	ALIAS
+MS Teams	skill.ms_teams	ALIAS
 OneNote	skill.onenote	EXACT
 SharePoint	skill.sharepoint	EXACT
 Microsoft Project	skill.ms_project	EXACT
@@ -742,7 +740,6 @@ Smart Serve	cred.smart_serve	EXACT
 forklift licence	cred.forklift	ALIAS
 forklift certification	cred.forklift	EXACT
 Driver's licence	cred.drivers_license	EXACT
-driver's license	cred.drivers_license	ALIAS
 G licence	cred.drivers_license	ALIAS
 CDL	cred.commercial_drivers_license	ALIAS
 AZ licence	cred.commercial_drivers_license	ALIAS
@@ -773,8 +770,8 @@ Biomedical engineering	field.biomedical_engineering	EXACT
 Engineering	field.engineering	EXACT
 Mathematics	field.mathematics	EXACT
 math	field.mathematics	ALIAS
-Statistics	field.statistics	EXACT
-Data science	field.data_science	EXACT
+Statistics	skill.statistics	EXACT
+Data science	skill.data_science	EXACT
 Physics	field.physics	EXACT
 Chemistry	field.chemistry	EXACT
 Biology	field.biology	EXACT
@@ -785,14 +782,14 @@ MBA	field.business_admin	ALIAS
 Commerce	field.commerce	EXACT
 B.Comm	field.commerce	ALIAS
 BCom	field.commerce	ALIAS
-Finance	field.finance	EXACT
-Accounting	field.accounting	EXACT
-Economics	field.economics	EXACT
-Marketing	field.marketing	EXACT
+Finance	skill.finance	EXACT
+Accounting	skill.accounting	EXACT
+Economics	skill.economics	EXACT
+Marketing	skill.marketing	EXACT
 Psychology	field.psychology	EXACT
 Sociology	field.sociology	EXACT
 Political science	field.political_science	EXACT
-Nursing	field.nursing	EXACT
+Nursing	skill.nursing	EXACT
 BScN	field.nursing	ALIAS
 Health sciences	field.health_sciences	EXACT
 Public health	field.public_health	EXACT
@@ -800,7 +797,7 @@ Kinesiology	field.kinesiology	EXACT
 Pharmacy	field.pharmacy	EXACT
 Communications	field.communications	EXACT
 Journalism	field.journalism	EXACT
-Design	field.design	EXACT
+Design	skill.design	EXACT
 Architecture	field.architecture	EXACT
 Law	field.law	EXACT
 legal studies	field.law	ALIAS
@@ -817,14 +814,14 @@ génie mécanique	field.mechanical_engineering	ALIAS
 génie civil	field.civil_engineering	ALIAS
 génie informatique	field.computer_engineering	ALIAS
 mathématiques	field.mathematics	ALIAS
-statistiques	field.statistics	ALIAS
+statistiques	skill.statistics	ALIAS
 physique	field.physics	ALIAS
 chimie	field.chemistry	ALIAS
 biologie	field.biology	ALIAS
-comptabilité	field.accounting	ALIAS
+comptabilité	skill.accounting	ALIAS
 économie	field.economics	ALIAS
 psychologie	field.psychology	ALIAS
-science des données	field.data_science	ALIAS
+science des données	skill.data_science	ALIAS
 administration des affaires	field.business_admin	ALIAS
 sciences infirmières	field.nursing	ALIAS
 droit	field.law	ALIAS
@@ -833,7 +830,6 @@ apprentissage profond	skill.deep_learning	ALIAS
 intelligence artificielle	skill.ai	ALIAS
 gestion de projet	skill.project_management	ALIAS
 travail d'équipe	skill.teamwork	ALIAS
-travailler en équipe	skill.teamwork	ALIAS
 résolution de problèmes	skill.problem_solving	ALIAS
 pensée critique	skill.critical_thinking	ALIAS
 gestion du temps	skill.time_management	ALIAS
@@ -862,8 +858,6 @@ faire preuve de curiosité	esco.demonstrate_curiosity	ALIAS
 # ─── licences in progress are not licences (fix round 1; DECISIONS D-28) ───
 CPA candidate	cred.cpa_in_progress	EXACT
 C.P.A. candidate	cred.cpa_in_progress	ALIAS
-CPA student	cred.cpa_in_progress	ALIAS
-CPA PEP	cred.cpa_in_progress	ALIAS
 CPA PEP Core 2	cred.cpa_in_progress	ALIAS
 CPA Professional Education Program	cred.cpa_in_progress	ALIAS
 writing the CFE	cred.cpa_in_progress	ALIAS
@@ -876,7 +870,7 @@ CFA charterholder	cred.cfa	ALIAS
 nursing student	cred.nursing_student	EXACT
 RN student	cred.nursing_student	ALIAS
 student nurse	cred.nursing_student	ALIAS
-RN student completing a nursing practicum.	cred.nursing_student	ALIAS	prose
+RN student at Humber College.	cred.nursing_student	ALIAS	prose
 P.Eng candidate	cred.eit	ALIAS
 P.Eng. candidate with four years of experience.	cred.eit	ALIAS	prose
 articling student	cred.articling_student	EXACT
@@ -981,9 +975,15 @@ Leadershp	skill.leadership	FUZZY
 Comunication	skill.communication	FUZZY
 Creativty	skill.creativity	FUZZY
 Negotation	skill.negotiation	FUZZY
-Acounting	field.accounting	FUZZY
+Acounting	skill.accounting	FUZZY
 Psycology	field.psychology	FUZZY
 Bookeeping	skill.bookkeeping	FUZZY
+Pandass	skill.pandas	FUZZY
+Hadoopp	skill.hadoop	FUZZY
+Dockerr	skill.docker	FUZZY
+Wireshak	skill.wireshark	FUZZY
+Jupyterr	skill.jupyter	FUZZY
+Marketting	skill.marketing	FUZZY
 #
 # ─── strings that must not resolve ───
 synergy	-	NONE
