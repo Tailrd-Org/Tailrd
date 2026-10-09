@@ -610,6 +610,11 @@ signature for `score_seniority`, `score_domain`, `score_education`. Helpers expo
 config) -> float`, `experience_curve(ratio, config) -> float`, `candidate_level(resume) ->
 Optional[SeniorityLevel]`, `naics_credit(a, b, config) -> float`.
 
+**From Task 3.2 (reuse, don't duplicate):** `PreparedResume` carries `graph_version` and
+`config_hash`; every dimension must run the same binding check `coverage.py` uses (a prepared
+résumé built for another graph/config raises `EngineFault(INTERNAL_ERROR)`). Relation credits
+come from the existing helpers (`match_skill`-style logic and `traversal.related_neighbors(graph,
+id)` for SIBLING, never a scan over all résumé skills); ties use the same rounded-key rule.
 **Behaviour:** exactly DECISIONS D-35..D-41:
 - relevance = cosine in the posting's requirement space over ALL requirement ids (each member of
   an OR-group individually, each id once): `v_job[r] = idf(r)`, `v_role[r] = idf(r) × best relation
@@ -673,8 +678,12 @@ def aggregate(dimensions: Sequence[DimensionScore], config: EngineConfig) -> Opt
 `sponsorship_available is False` → FAIL `SPONSORSHIP_UNAVAILABLE`; citizenship required and the
 candidate's known citizenships miss every posting country → FAIL `CITIZENSHIP_REQUIRED`
 (unknown → WARN); known authorised countries missing the posting's countries → FAIL when the
-posting says no sponsorship, else WARN `WORK_AUTH_MISMATCH`. Licence: any credential id (or a
-descendant) among résumé certifications → PASS; else FAIL `LICENSE_MISSING` if any id is in
+posting says no sponsorship, else WARN `WORK_AUTH_MISMATCH`. Licence (taxonomy DECISIONS D-28,
+from Task 2.2's review): only refs with CERTIFICATION or ROLE_TITLE evidence count — never a
+bullet mention ("administered medications under RN supervision"), never a related edge, and never
+an in-progress node (`cred.*_in_progress`, `cred.nursing_student`, `cred.eit`,
+`cred.articling_student`, `cred.cfa_candidate`); any credential id (or a descendant) among those
+→ PASS; else FAIL `LICENSE_MISSING` if any id is in
 `professional_credential_ids`, else WARN `LICENSE_UNVERIFIED`. Clearance: candidate has it →
 PASS; active required → `active_missing_status` `CLEARANCE_MISSING`; else
 `obtainable_status` `CLEARANCE_OBTAINABLE`. Location: onsite required and the candidate's known
