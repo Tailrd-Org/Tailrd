@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest
 
 from matcher.graph.loader import load_graph
-from matcher.graph.traversal import Relation, ancestors, distance, relations
+from matcher.graph.traversal import Relation, ancestors, distance, related_neighbors, relations
 from matcher.models import RelationKind
 from tests.fixtures.build_graph_small import FIXTURE_DIR
 
@@ -142,3 +142,60 @@ def test_memoised_and_fresh_results_agree() -> None:
                 assert distance(warm, a, b, 3) == distance(cold, a, b, 3), (a, b)
             cold.cache.clear()
             assert dict(ancestors(warm, a, 3)) == dict(ancestors(cold, a, 3)), a
+
+
+# ─── related neighbours (both directions, related_weight precedence) ──────────────────────
+
+
+def _by_related_weight(graph, node_id: str) -> dict[str, float]:
+    """The reference: every other node `related_weight` gives a weight for, read from node_id."""
+    found = {}
+    for other in graph.nodes:
+        weight = graph.related_weight(node_id, other)
+        if other != node_id and weight is not None:
+            found[other] = weight
+    return found
+
+
+def test_related_neighbors_on_the_fixture(small_graph) -> None:
+    assert dict(related_neighbors(small_graph, "skill.react")) == {"skill.nextjs": 0.80, "skill.vue": 0.65}
+    assert dict(related_neighbors(small_graph, "skill.kubernetes")) == {"skill.docker": 0.70}
+    assert dict(related_neighbors(small_graph, "skill.python")) == {}
+    assert dict(related_neighbors(small_graph, "skill.does_not_exist")) == {}
+    assert list(related_neighbors(small_graph, "skill.react")) == ["skill.nextjs", "skill.vue"]  # sorted
+    for node_id in small_graph.nodes:
+        assert dict(related_neighbors(small_graph, node_id)) == _by_related_weight(small_graph, node_id)
+
+
+def test_related_neighbors_see_one_way_edges_and_prefer_the_edge_out_of_the_node() -> None:
+    from tests.builders import tiny_graph
+
+    graph = tiny_graph({}, one_way=[("skill.b", "skill.a", 0.7), ("skill.a", "skill.c", 0.5),
+                                    ("skill.c", "skill.a", 0.6), ("skill.d", "skill.d", 0.9)])
+    # b -> a stored only one way: both ends see it. a -> c 0.5 and c -> a 0.6: each end reads its own.
+    assert dict(related_neighbors(graph, "skill.a")) == {"skill.b": 0.7, "skill.c": 0.5}
+    assert dict(related_neighbors(graph, "skill.b")) == {"skill.a": 0.7}
+    assert dict(related_neighbors(graph, "skill.c")) == {"skill.a": 0.6}
+    assert graph.related_weight("skill.a", "skill.c") == 0.5 and graph.related_weight("skill.c", "skill.a") == 0.6
+    assert dict(related_neighbors(graph, "skill.d")) == {}  # a stored self-edge is no neighbour
+
+
+def test_related_neighbors_agree_with_related_weight_on_a_random_graph() -> None:
+    from tests.builders import random_graph
+
+    graph = random_graph(seed=5, n_nodes=250)
+    for node_id in graph.nodes:
+        assert dict(related_neighbors(graph, node_id)) == _by_related_weight(graph, node_id), node_id
+
+
+def test_related_neighbors_are_memoised_and_read_only() -> None:
+    graph = load_graph(FIXTURE_DIR)
+    before = len(graph.cache)
+    first = related_neighbors(graph, "skill.react")
+    assert related_neighbors(graph, "skill.react") is first
+    assert len(graph.cache) == before + 1  # one index for the whole graph; unknown ids add nothing
+    related_neighbors(graph, "skill.unknown")
+    related_neighbors(graph, "skill.python")
+    assert len(graph.cache) == before + 1
+    with pytest.raises(TypeError):
+        first["skill.python"] = 0.5  # type: ignore[index]
