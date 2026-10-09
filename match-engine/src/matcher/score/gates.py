@@ -1,41 +1,50 @@
 """Gates: eligibility, evaluated before scoring and never part of the weighted sum (SPEC §4).
 
-Policy: DECISIONS D-60 and config/gates.yaml; licence evidence: taxonomy DECISIONS D-28.
+Policy: DECISIONS D-60..D-64 and config/gates.yaml; licence evidence: taxonomy DECISIONS D-28.
 `evaluate_gates` returns the overall status (FAIL if any gate fails, else WARN if any warns, else
 PASS; PASS for a posting without gates) and one `GateResult` per posting gate, grouped by kind in
 SPEC §4's order (work authorisation, licence, clearance, location), the posting's order within a
 kind. A gate of a disabled kind passes. `reason` names the rule that fired, also when a configured
 status made it a PASS; `detail` says what the posting asks, never anything about the candidate.
 
-Work authorisation (D-60: an unknown status never fails, a stated one that contradicts the posting
-does). The countries a candidate may work in are `authorized_countries` and `citizenships`.
-* No statement (no `work_auth`, or one naming no country, no citizenship and no sponsorship need)
-  → `unknown_status` (WARN) WORK_AUTH_UNKNOWN.
-* Needs sponsorship, the posting says none, and not authorised in any posting country → FAIL
-  SPONSORSHIP_UNAVAILABLE. Authorised in a posting country, the candidate needs no sponsorship for
-  this job ("Canadian citizen; will need sponsorship for US roles" meets no contradiction in Canada).
-* Citizenship required: a citizenship of a posting country passes; known citizenships that miss
-  every posting country → FAIL CITIZENSHIP_REQUIRED; no known citizenship, or no posting country to
-  compare with → `unknown_status` CITIZENSHIP_REQUIRED (never a vacuous FAIL).
-* Known countries that miss every posting country → WORK_AUTH_MISMATCH: FAIL when the posting says
-  no sponsorship, else WARN.
-Several findings on one gate: the worst status wins; among equals sponsorship, then citizenship,
-then countries.
+Work authorisation: the D-61 decision table (D-60: an unknown status never fails). C, the posting's
+countries, is the gate's `countries`, else the countries of the posting's `locations` ("We are
+unable to sponsor" names none); it may be empty. A, where the candidate may work, is
+`authorized_countries` and `citizenships` (a citizenship implies authorisation, never the reverse).
+A country missing from A is no evidence on its own: a FAIL needs a stated sponsorship need or a
+stated citizenship that misses a citizenship requirement. One row decides; every WARN of the table
+is an unknown and takes `unknown_status`.
+0. Nothing stated (no `work_auth`, or no country, citizenship or sponsorship need) → WARN
+   WORK_AUTH_UNKNOWN.
+1. Citizenship required: a citizenship in C → PASS; known citizenships missing C → FAIL
+   CITIZENSHIP_REQUIRED; no known citizenship, or C empty → WARN CITIZENSHIP_REQUIRED.
+2. A meets C → PASS ("Canadian citizen; needs sponsorship for US roles" passes in Canada).
+3. Otherwise: the posting sponsors → PASS. The posting refuses sponsorship, or its gate names
+   countries: needs sponsorship → FAIL (SPONSORSHIP_UNAVAILABLE when sponsorship is refused, else
+   WORK_AUTH_MISMATCH), but WARN SPONSORSHIP_UNAVAILABLE when C is empty and A is not (the job may be
+   where they are authorised); no sponsorship needed → PASS; need unknown → WARN WORK_AUTH_MISMATCH
+   (WORK_AUTH_UNKNOWN when C is empty). A gate with no country and no sponsorship policy → PASS.
 
-Licence (D-60; D-28). The candidate holds the credentials of their AFFIRMED mentions with
+Licence (D-60, D-62; D-28). The candidate holds the credentials of their AFFIRMED mentions with
 CERTIFICATION or ROLE_TITLE evidence, in any section: never a bullet ("administered medications
 under RN supervision"), a skills-list entry, a negated or an aspirational mention. A gate passes
-when a held credential is one it lists, or a descendant of one (within `relations.max_depth`);
-never through a related edge. A formal in-progress designation (`license.in_progress_credential_ids`,
-an explicit list) never passes as a descendant of a licence; it counts only for a gate that lists
-it itself ("P.Eng. or EIT"). Otherwise FAIL LICENSE_MISSING when the gate lists a professional
-licence (`license.professional_credential_ids`: the config alone decides which credentials are
-gated licences, never the graph), else WARN LICENSE_UNVERIFIED ("valid driver's licence").
+when a held credential is one it lists or sits below one on the is-a chain, at any depth (the
+graph's parent links: eligibility facts, not the scoring knob `relations.max_depth`); never through
+a related edge. The walk up never passes an in-progress designation
+(`license.in_progress_credential_ids`, an explicit list): a designation, or anything below it,
+meets only a gate that lists the designation itself ("P.Eng. or EIT"). Otherwise FAIL
+LICENSE_MISSING when the gate lists a professional licence (`license.professional_credential_ids`:
+the config alone decides which credentials are gated licences, never the graph), else WARN
+LICENSE_UNVERIFIED ("valid driver's licence").
 
-Security clearance (D-60). A clearance on the résumé (`work_auth.clearances`) equal to the gate's
-level (case and edge spaces ignored; an unstated level takes any clearance) → PASS. Otherwise an
-active one required → `active_missing_status` (FAIL) CLEARANCE_MISSING; "able to obtain" →
-`obtainable_status` (WARN) CLEARANCE_OBTAINABLE.
+Security clearance (D-60, D-63). Tokens are compared upper-case with each run of other characters
+read as one underscore. A held clearance meets the gate's level when it is the same token or at or
+above it on the same configured ladder (`security_clearance.ladders`, lowest first: "Top Secret"
+meets "Secret"); a token on no ladder matches only itself; a gate that states no level takes any
+clearance. Not met: the configured unknown-level token (an active clearance of unknown country and
+level, all Tailrd stores) meets an "able to obtain" gate and gives WARN CLEARANCE_UNVERIFIED against
+an active one, never a FAIL; otherwise an active clearance required → `active_missing_status` (FAIL)
+CLEARANCE_MISSING, "able to obtain" → `obtainable_status` (WARN) CLEARANCE_OBTAINABLE.
 
 Location (SPEC §4: soft, people relocate; D-60: always a warning). Only an onsite gate counts,
 against its places (the posting's when it lists none). The candidate is elsewhere only when each of
@@ -51,6 +60,7 @@ This is the only `score/` module that reads `work_auth`, `locations` and certifi
 
 from __future__ import annotations
 
+import re
 from collections.abc import Iterable, Sequence
 from itertools import chain
 from typing import NamedTuple, Optional, Union
@@ -58,7 +68,6 @@ from typing import NamedTuple, Optional, Union
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph
-from matcher.graph.traversal import ancestors
 from matcher.models import (
     ClearanceGate,
     Evidence,
@@ -89,7 +98,7 @@ _LICENCE_EVIDENCE = frozenset({Evidence.CERTIFICATION, Evidence.ROLE_TITLE})
 _MAX_DETAIL = 2000  # GateResult.detail's limit; a long posting list is cut, never an error
 
 _Gate = Union[WorkAuthGate, LicenseGate, ClearanceGate, LocationGate]
-_Finding = tuple[GateStatus, Flag]
+_PASS = GateStatus.PASS
 
 
 def evaluate_gates(
@@ -116,7 +125,7 @@ def _evaluate(gate: _Gate, resume: Resume, posting: JobPosting, graph: SkillGrap
     if not enabled:
         return GateResult(kind=kind, status=GateStatus.PASS, detail="gate disabled")
     if isinstance(gate, WorkAuthGate):
-        return _work_authorization(gate, resume.work_auth, config)
+        return _work_authorization(gate, posting, resume.work_auth, config)
     if isinstance(gate, LicenseGate):
         return _licence(gate, resume, graph, config)
     if isinstance(gate, ClearanceGate):
@@ -124,27 +133,30 @@ def _evaluate(gate: _Gate, resume: Resume, posting: JobPosting, graph: SkillGrap
     return _location(gate, resume, posting, config)
 
 
-def _result(kind: GateKind, findings: Sequence[_Finding], detail: str) -> GateResult:
-    """The worst finding, the first of equals in rule order; PASS without a reason when none fired."""
+def _result(kind: GateKind, detail: str, status: GateStatus = _PASS, reason: Optional[Flag] = None) -> GateResult:
+    """One gate's result; a PASS by evidence carries no reason. A long detail is cut, never refused."""
     if len(detail) > _MAX_DETAIL:
         detail = detail[: _MAX_DETAIL - 1] + "…"
-    if not findings:
-        return GateResult(kind=kind, status=GateStatus.PASS, detail=detail)
-    worst = max(_SEVERITY[status] for status, _ in findings)
-    status, reason = next(finding for finding in findings if _SEVERITY[finding[0]] == worst)
     return GateResult(kind=kind, status=status, reason=reason, detail=detail)
 
 
 # ─── Work authorisation ─────────────────────────────────────────────────────────────────────
 
 
-def _work_authorization(gate: WorkAuthGate, work_auth: Optional[WorkAuth], config: EngineConfig) -> GateResult:
+def _work_authorization(
+    gate: WorkAuthGate, posting: JobPosting, work_auth: Optional[WorkAuth], config: EngineConfig
+) -> GateResult:
+    """DECISIONS D-61: one row of the decision table decides; every WARN is an unknown (D-60)."""
     kind = GateKind.WORK_AUTHORIZATION
     unknown = GateStatus(config.gates.work_authorization.unknown_status)
-    countries = frozenset(gate.countries)
+    named = frozenset(gate.countries)
+    located = frozenset(country for country in (_part(place.country) for place in posting.locations) if country)
+    countries = named or located  # C: the gate's countries, else the posting's locations'
     parts = []
-    if countries:
-        parts.append("countries=" + ",".join(sorted(countries)))
+    if named:
+        parts.append("countries=" + ",".join(sorted(named)))
+    elif located:
+        parts.append("location countries=" + ",".join(sorted(located)))
     if gate.sponsorship_available is not None:
         parts.append("sponsorship=" + ("yes" if gate.sponsorship_available else "no"))
     if gate.citizenship_required:
@@ -153,20 +165,32 @@ def _work_authorization(gate: WorkAuthGate, work_auth: Optional[WorkAuth], confi
     if work_auth is None or not (
         work_auth.authorized_countries or work_auth.citizenships or work_auth.needs_sponsorship is not None
     ):
-        return _result(kind, [(unknown, Flag.WORK_AUTH_UNKNOWN)], detail)
+        return _result(kind, detail, unknown, Flag.WORK_AUTH_UNKNOWN)  # 0. nothing stated
     citizenships = frozenset(work_auth.citizenships)
-    authorised = frozenset(work_auth.authorized_countries) | citizenships
-    authorised_here = not countries.isdisjoint(authorised)
-    findings: list[_Finding] = []
-    if work_auth.needs_sponsorship is True and gate.sponsorship_available is False and not authorised_here:
-        findings.append((GateStatus.FAIL, Flag.SPONSORSHIP_UNAVAILABLE))
-    if gate.citizenship_required and countries.isdisjoint(citizenships):
-        known = bool(countries) and bool(citizenships)  # known citizenships that miss every posting country
-        findings.append((GateStatus.FAIL if known else unknown, Flag.CITIZENSHIP_REQUIRED))
-    if countries and authorised and not authorised_here:
-        no_sponsorship = gate.sponsorship_available is False
-        findings.append((GateStatus.FAIL if no_sponsorship else GateStatus.WARN, Flag.WORK_AUTH_MISMATCH))
-    return _result(kind, findings, detail)
+    authorised = frozenset(work_auth.authorized_countries) | citizenships  # A
+    if gate.citizenship_required:  # 1.
+        if not countries or not citizenships:
+            return _result(kind, detail, unknown, Flag.CITIZENSHIP_REQUIRED)
+        if not citizenships.isdisjoint(countries):
+            return _result(kind, detail)
+        return _result(kind, detail, GateStatus.FAIL, Flag.CITIZENSHIP_REQUIRED)  # stated, non-matching
+    if not authorised.isdisjoint(countries):  # 2. authorised in a posting country
+        return _result(kind, detail)
+    # 3. Not established as authorised there: a country missing from A is no evidence on its own.
+    if gate.sponsorship_available is True:
+        return _result(kind, detail)  # the employer sponsors
+    if gate.sponsorship_available is False or named:
+        needs = work_auth.needs_sponsorship
+        if needs is True:
+            if not countries and authorised:  # the job may be where they are authorised
+                return _result(kind, detail, unknown, Flag.SPONSORSHIP_UNAVAILABLE)
+            refused = gate.sponsorship_available is False
+            return _result(kind, detail, GateStatus.FAIL,
+                           Flag.SPONSORSHIP_UNAVAILABLE if refused else Flag.WORK_AUTH_MISMATCH)
+        if needs is False:
+            return _result(kind, detail)  # they state no sponsorship is needed
+        return _result(kind, detail, unknown, Flag.WORK_AUTH_MISMATCH if countries else Flag.WORK_AUTH_UNKNOWN)
+    return _result(kind, detail)  # no country named and no sponsorship policy stated
 
 
 # ─── Licences ───────────────────────────────────────────────────────────────────────────────
@@ -177,10 +201,10 @@ def _licence(gate: LicenseGate, resume: Resume, graph: SkillGraph, config: Engin
     wanted = frozenset(gate.credential_ids)
     detail = "credentials=" + ",".join(sorted(wanted))
     if _shows_any(wanted, resume, graph, config):
-        return _result(kind, (), detail)
+        return _result(kind, detail)
     if not wanted.isdisjoint(config.gates.license.professional_credential_ids):
-        return _result(kind, [(GateStatus.FAIL, Flag.LICENSE_MISSING)], detail)
-    return _result(kind, [(GateStatus.WARN, Flag.LICENSE_UNVERIFIED)], detail)
+        return _result(kind, detail, GateStatus.FAIL, Flag.LICENSE_MISSING)
+    return _result(kind, detail, GateStatus.WARN, Flag.LICENSE_UNVERIFIED)
 
 
 def _mentions(resume: Resume) -> Iterable[SkillRef]:
@@ -202,38 +226,64 @@ def _held_credentials(resume: Resume) -> frozenset[str]:
 
 
 def _shows_any(wanted: frozenset[str], resume: Resume, graph: SkillGraph, config: EngineConfig) -> bool:
-    """A held credential is one the gate lists, or (unless it is an in-progress designation) a
-    descendant of one. Related edges never count."""
     in_progress = frozenset(config.gates.license.in_progress_credential_ids)
-    depth = config.scoring.relations.max_depth
-    for credential in sorted(_held_credentials(resume)):
-        if credential in wanted:
+    return any(_reaches(credential, wanted, in_progress, graph) for credential in sorted(_held_credentials(resume)))
+
+
+def _reaches(credential: str, wanted: frozenset[str], in_progress: frozenset[str], graph: SkillGraph) -> bool:
+    """`credential` is a listed id, or sits below one on the is-a chain (any depth: is-a links are
+    eligibility facts, not the scoring knob `relations.max_depth`). The walk never climbs past an
+    in-progress designation, which matches only a gate that lists it (D-28, D-62). Related edges are
+    never followed; `seen` makes a parent cycle harmless."""
+    seen = {credential}
+    stack = [credential]
+    while stack:
+        node_id = stack.pop()
+        if node_id in wanted:
             return True
-        if credential in in_progress:
-            continue  # never a licence through the graph (D-28)
-        if not wanted.isdisjoint(ancestors(graph, credential, depth)):
-            return True
+        node = graph.node(node_id)
+        if node is None or node_id in in_progress:
+            continue
+        for parent in node.parents:
+            if parent not in seen:
+                seen.add(parent)
+                stack.append(parent)
     return False
 
 
 # ─── Security clearance ─────────────────────────────────────────────────────────────────────
 
 
-def _fold(text: str) -> str:
-    return text.strip().casefold()
+def _clearance_token(text: str) -> str:
+    """Upper case, each run of other characters one underscore: "us ts/sci" reads "US_TS_SCI"."""
+    return re.sub(r"[^A-Z0-9]+", "_", text.upper()).strip("_")
+
+
+def _meets(held: str, required: str, ladders: Sequence[Sequence[str]]) -> bool:
+    """The same token, or one at or above it on the same ladder (lowest first, D-63)."""
+    if held == required:
+        return True
+    for ladder in ladders:
+        if held in ladder and required in ladder:
+            return ladder.index(held) >= ladder.index(required)
+    return False
 
 
 def _clearance(gate: ClearanceGate, work_auth: Optional[WorkAuth], config: EngineConfig) -> GateResult:
     kind = GateKind.SECURITY_CLEARANCE
     rules = config.gates.security_clearance
-    level = _fold(gate.level)
-    held = frozenset(filter(None, map(_fold, work_auth.clearances))) if work_auth is not None else frozenset()
-    detail = f"level={gate.level.strip() or 'unstated'}; " + ("active" if gate.active_required else "obtainable")
-    if held and (not level or level in held):
-        return _result(kind, (), detail)
+    level = _clearance_token(gate.level)
+    held = frozenset(filter(None, map(_clearance_token, work_auth.clearances))) if work_auth is not None else frozenset()
+    detail = f"level={level or 'unstated'}; " + ("active" if gate.active_required else "obtainable")
+    if held and (not level or any(_meets(token, level, rules.ladders) for token in held)):
+        return _result(kind, detail)
+    if rules.unknown_level_token in held:  # an active clearance of unknown country and level
+        if not gate.active_required:
+            return _result(kind, detail)
+        return _result(kind, detail, GateStatus.WARN, Flag.CLEARANCE_UNVERIFIED)  # unknown: never FAIL
     if gate.active_required:
-        return _result(kind, [(GateStatus(rules.active_missing_status), Flag.CLEARANCE_MISSING)], detail)
-    return _result(kind, [(GateStatus(rules.obtainable_status), Flag.CLEARANCE_OBTAINABLE)], detail)
+        return _result(kind, detail, GateStatus(rules.active_missing_status), Flag.CLEARANCE_MISSING)
+    return _result(kind, detail, GateStatus(rules.obtainable_status), Flag.CLEARANCE_OBTAINABLE)
 
 
 # ─── Location ───────────────────────────────────────────────────────────────────────────────
@@ -280,7 +330,7 @@ def _location(gate: LocationGate, resume: Resume, posting: JobPosting, config: E
     detail = "; ".join(parts)
     mine = [place for place in map(_place, resume.locations) if place is not None]
     if not gate.onsite_required or not theirs or not mine:
-        return _result(kind, (), detail)  # nothing to compare: unknown → PASS
+        return _result(kind, detail)  # nothing to compare: unknown → PASS
     if all(_same_area(own, wanted) is False for own in mine for wanted in theirs):
-        return _result(kind, [(GateStatus(config.gates.location.mismatch_status), Flag.LOCATION_MISMATCH)], detail)
-    return _result(kind, (), detail)
+        return _result(kind, detail, GateStatus(config.gates.location.mismatch_status), Flag.LOCATION_MISMATCH)
+    return _result(kind, detail)

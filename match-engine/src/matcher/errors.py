@@ -86,6 +86,7 @@ class Flag(str, Enum):
     LICENSE_UNVERIFIED = "LICENSE_UNVERIFIED"
     CLEARANCE_MISSING = "CLEARANCE_MISSING"
     CLEARANCE_OBTAINABLE = "CLEARANCE_OBTAINABLE"
+    CLEARANCE_UNVERIFIED = "CLEARANCE_UNVERIFIED"
     LOCATION_MISMATCH = "LOCATION_MISMATCH"
 
     # --- Calibration (SPEC §7) ---------------------------------------------------------------------
@@ -172,6 +173,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.LICENSE_UNVERIFIED: "This role asks for a licence or certification that isn't on your résumé.",
     Flag.CLEARANCE_MISSING: "This role requires an active security clearance that isn't on your résumé.",
     Flag.CLEARANCE_OBTAINABLE: "This role requires being able to obtain a security clearance.",
+    Flag.CLEARANCE_UNVERIFIED: "This role requires a specific security clearance; check that yours meets it.",
     Flag.LOCATION_MISMATCH: "This role is on-site somewhere other than where you're based.",
     Flag.UNCALIBRATED: "No reference group was available, so no percentage is shown.",
     Flag.CALIBRATION_FALLBACK: "Too few candidates were scored for this posting; similar roles were used for comparison.",

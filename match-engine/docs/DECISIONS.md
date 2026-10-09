@@ -254,10 +254,16 @@ what that credential actually added after the cap.
 **D-42 Redistribution.** An abstaining dimension's weight goes proportionally to the dimensions
 that scored. Special case (§14.5): when §5.1 abstains because the posting has no REQUIRED
 requirements and §5.2 scored, §5.1's whole weight goes to §5.2. If nothing scores, the result is
-`NEEDS_REVIEW: NOTHING_SCORABLE`.
+`NEEDS_REVIEW: NOTHING_SCORABLE`. `Aggregate.scored_weight` is the configured weight the scoring
+dimensions carry, the moved §5.1 weight included (it counts as scored): 1.0 when nothing
+abstained, and for a posting that lists only PREFERRED skills, which is the posting's nature, not
+missing data. It is the renormalisation denominator, and §17.1's dimension coverage reads it
+(Task 3.5).
 
 **D-43 Critical-miss cap** (§5.1) counts REQUIRED requirements/groups with `idf > 0.7` and
-`m_final < 0.2`: one caps the final raw score at 0.70, two or more at 0.55.
+`m_final < 0.2`: one caps the final raw score at 0.70, two or more at 0.55. A `CapApplied` is
+recorded only when the cap binds (the raw score was above it): "applied" means it lowered the
+score. A critical miss under a lower score stays visible as the requirement's own fact and gap.
 
 **D-44 Confidence (§17.1).** Weighted geometric mean; a component that is undefined for this pair
 (e.g. evidence density when nothing matched, temporal completeness with no roles) is left out
@@ -300,7 +306,60 @@ when the candidate's stated status contradicts the posting (e.g. needs sponsorsh
 none). Licence gates fail only for professional licences listed in `config/gates.yaml` (RN, CPA,
 CDL, P.Eng, ...) that the résumé does not show; "valid driver's licence" warns. Clearance fails
 only for an *active* clearance the résumé does not show; "able to obtain" warns. Location is
-always a warning.
+always a warning. Every gate result names what the posting asks in its detail, never the
+candidate's citizenship, places or credentials.
+
+**D-61 Work authorisation: one decision table. [Tailrd]** C, the posting's countries, is the
+gate's `countries`, else the countries of the posting's `locations` ("We are unable to sponsor"
+names no country); C may be empty. A is `authorized_countries` with `citizenships` (a citizenship
+implies authorisation there, never the reverse). A country missing from A is not evidence that the
+candidate cannot work there: a FAIL needs an explicit statement, a sponsorship need or a stated
+citizenship that misses a citizenship requirement. One row decides, in order:
+0. Nothing stated (no work authorisation, or one with no country, no citizenship and no
+   sponsorship answer): WARN `WORK_AUTH_UNKNOWN`.
+1. Citizenship required: a citizenship in C passes; known citizenships that all miss C fail
+   (`CITIZENSHIP_REQUIRED`); no known citizenship, or C empty, warns (`CITIZENSHIP_REQUIRED`).
+2. A meets C: PASS (a Canadian citizen who needs sponsorship for US roles passes in Canada).
+3. Otherwise: the posting sponsors, PASS. The posting refuses sponsorship, or the gate names
+   countries: a stated sponsorship need fails (`SPONSORSHIP_UNAVAILABLE` when sponsorship is
+   refused, else `WORK_AUTH_MISMATCH`), except that it warns (`SPONSORSHIP_UNAVAILABLE`) when C is
+   empty and A is not, since the job may be where they are authorised; no sponsorship needed
+   passes; an unknown need warns (`WORK_AUTH_MISMATCH`, or `WORK_AUTH_UNKNOWN` when C is empty).
+   A gate with no country and no sponsorship policy passes.
+Every WARN of the table is an unknown (D-60) and takes `work_authorization.unknown_status`.
+
+**D-62 Licence evidence. [Tailrd]** Held credentials are the AFFIRMED mentions with
+CERTIFICATION or ROLE_TITLE evidence (never a bullet such as "administered medications under RN
+supervision", a skills-list entry, a negated or an aspirational mention). A gate passes when a held
+credential is one it lists or sits below one on the is-a chain, at any depth: parent links are
+eligibility facts, so the walk is the full closure (cycle-safe), never the scoring knob
+`relations.max_depth`. Related edges are never followed. The formal in-progress designations of
+taxonomy D-28 are an explicit list, `license.in_progress_credential_ids` (never guessed from an
+id's spelling; a test checks it covers the taxonomy's `in_progress` VALUES); the walk never climbs
+past one, so a designation, or anything below it, meets only a gate that lists the designation
+itself ("P.Eng. or EIT"). Not shown: FAIL `LICENSE_MISSING` when the gate lists a professional
+licence, else WARN `LICENSE_UNVERIFIED`. Which credentials are gated licences is
+`license.professional_credential_ids` alone, never the graph and never the keys of the taxonomy's
+`in_progress` map (cred.cfa is one of those keys and is no gated licence). No id is on both lists.
+
+**D-63 Clearance ladders. [Tailrd]** `security_clearance.ladders` holds ordered lists, lowest
+first, one country each: CA reliability, enhanced reliability, secret, top secret; US public
+trust, confidential, secret, top secret, TS/SCI. A held clearance meets the gate's level when it is
+the same token or at or above it on the same ladder; a token on no ladder matches only itself; a
+gate that states no level takes any clearance. Tokens are `<CC>_<LEVEL>`, read upper-case with each
+run of other characters as one underscore, and config validation refuses a malformed token, a
+token listed twice and a ladder that is empty or spans two countries. The reserved
+`security_clearance.unknown_level_token` (`ACTIVE_UNKNOWN_LEVEL`, named in config only, never on a
+ladder) is an active clearance of unknown country and level, all Tailrd stores: it meets an "able
+to obtain" gate and an active gate that states no level, and gives WARN `CLEARANCE_UNVERIFIED`
+(unknown, never FAIL) against an active clearance of a stated level.
+
+**D-64 Location. [Tailrd]** Only an onsite gate is checked, against its places, else the
+posting's. The candidate is elsewhere only when each of their known places is known to differ from
+each posting place: another country, another region, or another country than a country-wide
+posting place. The same city in a compatible country, or the same country and region, is the same
+area; what cannot be told (a place known only by its country, a city without its region) is no
+mismatch, so the warning never says "based elsewhere" without evidence.
 
 ## Tailrd integration [Tailrd]
 

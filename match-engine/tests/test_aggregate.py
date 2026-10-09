@@ -3,7 +3,8 @@
 raw = Σ(effective weight × value) over the dimensions that scored (weights redistributed as
 tests/test_weight_redistribution.py pins), then the critical-miss cap from the required dimension's
 CRITICAL_MISS facts: one caps the final raw score at 0.70, two or more at 0.55, as a cap (min), never
-a subtraction. Nothing scored → None (the engine's NEEDS_REVIEW: NOTHING_SCORABLE). A NaN or an
+a subtraction, recorded as a CapApplied only when it lowered the score. Nothing scored → None (the
+engine's NEEDS_REVIEW: NOTHING_SCORABLE). A NaN or an
 infinity reaching the aggregator raises EngineFault(NUMERIC_FAULT); it is never coerced to 0.
 
 Expected values are closed-form arithmetic over the SPEC §5 weights (EVAL §2.2).
@@ -128,14 +129,24 @@ def test_more_than_two_critical_misses_still_cap_at_0_55(config) -> None:
     assert cap.requirement_ids == ("skill.s0", "skill.s1", "skill.s2")
 
 
-@pytest.mark.parametrize("misses,cap", [(1, CAP_ONE), (2, CAP_TWO)])
-def test_the_cap_never_raises_a_lower_raw(config, misses: int, cap: float) -> None:
+@pytest.mark.parametrize("misses", [1, 2])
+def test_the_cap_never_raises_a_lower_raw(config, misses: int) -> None:
     facts = tuple(_critical(f"skill.s{i}") for i in range(misses))
     agg = aggregate(_all(0.40, required_facts=facts), config)
     assert _close(agg.raw, 0.40)  # min(0.40, cap)
-    # The cap is still in force (it bounds what the rest of the résumé could reach) and recorded.
-    assert agg.caps == (CapApplied(reason=Flag.CRITICAL_MISS, cap=cap,
-                                   requirement_ids=tuple(f"skill.s{i}" for i in range(misses))),)
+    # "Applied" means it lowered the score (D-43): a cap that does not bind is not recorded. The
+    # missed skills stay visible as the required dimension's own facts.
+    assert agg.caps == ()
+    assert sum(fact.code == "CRITICAL_MISS" for fact in agg.dimensions[REQUIRED.value].facts) == misses
+
+
+def test_a_cap_is_recorded_only_when_it_lowers_the_score(config) -> None:
+    facts = (_critical("skill.kubernetes"),)
+    just_below = aggregate(_all(0.69, required_facts=facts), config)
+    just_above = aggregate(_all(0.71, required_facts=facts), config)
+    assert _close(just_below.raw, 0.69) and just_below.caps == ()
+    assert _close(just_above.raw, CAP_ONE) and just_above.caps == (
+        CapApplied(reason=Flag.CRITICAL_MISS, cap=CAP_ONE, requirement_ids=("skill.kubernetes",)),)
 
 
 def test_only_the_required_dimensions_critical_misses_cap(config) -> None:

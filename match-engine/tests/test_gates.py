@@ -1,18 +1,22 @@
 """Gates: eligibility, evaluated before scoring, never part of the weighted sum (SPEC §4).
 
-Tailrd policy (DECISIONS D-60, config/gates.yaml): unknown candidate status never fails a gate, it
-warns. Work authorisation fails only when the candidate's stated status contradicts the posting.
-A licence gate fails only for a professional licence (config `professional_credential_ids`) the
-résumé does not show, and only CERTIFICATION or ROLE_TITLE evidence of the licence id (or a
-descendant) shows one: never a bullet mention, never a related edge, never an in-progress
-designation (taxonomy DECISIONS D-28; config `in_progress_credential_ids`). Clearance fails only for
-an active clearance the résumé does not show. Location only ever warns. A disabled gate kind passes.
+Tailrd policy (DECISIONS D-60..D-64, config/gates.yaml): unknown candidate status never fails a
+gate, it warns. Work authorisation follows the D-61 decision table: the posting's countries are the
+gate's, else those of the posting's locations; a country missing from the candidate's list is no
+evidence they can't work there, so a FAIL needs a stated sponsorship need or a stated, non-matching
+citizenship. A licence gate fails only for a professional licence (config
+`professional_credential_ids`) the résumé does not show, and only CERTIFICATION or ROLE_TITLE
+evidence of the licence id (or anything below it on the is-a chain) shows one: never a bullet
+mention, never a related edge, never through an in-progress designation (taxonomy DECISIONS D-28;
+config `in_progress_credential_ids`). Clearance climbs the configured ladders and fails only for an
+active clearance the résumé does not show. Location only ever warns. A disabled gate kind passes.
 The overall status is the worst gate's.
 """
 
 from __future__ import annotations
 
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -41,7 +45,7 @@ from matcher.models import (
     WorkAuthGate,
 )
 from matcher.score.gates import evaluate_gates
-from tests.builders import tiny_graph, with_gates
+from tests.builders import tiny_graph, with_gates, with_scoring
 
 PASS, WARN, FAIL = GateStatus.PASS, GateStatus.WARN, GateStatus.FAIL
 RN = "cred.registered_nurse"
@@ -67,59 +71,81 @@ def titled(credential_id: str) -> Role:
                 skills=(SkillRef(canonical_id=credential_id, evidence=Evidence.ROLE_TITLE, source=SkillSource.ROLE),))
 
 
-# ─── Work authorisation ─────────────────────────────────────────────────────────────────────
+# ─── Work authorisation (D-61 decision table) ───────────────────────────────────────────────
+
+TORONTO = Location(country="CA", region="ON", city="Toronto")
+OTTAWA = Location(country="CA", region="ON", city="Ottawa")
+MONTREAL = Location(country="CA", region="QC", city="Montréal")
+SEATTLE = Location(country="US", region="WA", city="Seattle")
+LONDON_ON = Location(country="CA", region="ON", city="London")
+LONDON_UK = Location(country="GB", region="ENG", city="London")
+CANADA = Location(country="CA")
 
 _CA = ("CA",)
+_NO_SPONSOR = WorkAuthGate(sponsorship_available=False)  # "We are unable to sponsor": no country named
 _NO_SPONSOR_CA = WorkAuthGate(countries=_CA, sponsorship_available=False)
 _CITIZEN_CA = WorkAuthGate(countries=_CA, citizenship_required=True)
+_CANADIAN_NEEDS_US_SPONSOR = WorkAuth(needs_sponsorship=True, citizenships=_CA)
 
 
-@pytest.mark.parametrize("work_auth,gate,expected", [
-    # Status unknown → WARN, whatever the posting asks (D-60).
-    (None, WorkAuthGate(countries=_CA), (WARN, Flag.WORK_AUTH_UNKNOWN)),
-    (None, _NO_SPONSOR_CA, (WARN, Flag.WORK_AUTH_UNKNOWN)),
-    (WorkAuth(), _NO_SPONSOR_CA, (WARN, Flag.WORK_AUTH_UNKNOWN)),  # a status that states nothing
-    (WorkAuth(clearances=("CA_SECRET",)), _NO_SPONSOR_CA, (WARN, Flag.WORK_AUTH_UNKNOWN)),
-    # Needs sponsorship and the posting says none → FAIL.
-    (WorkAuth(needs_sponsorship=True), _NO_SPONSOR_CA, (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),
-    (WorkAuth(needs_sponsorship=True), WorkAuthGate(sponsorship_available=False), (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),
-    (WorkAuth(needs_sponsorship=True), WorkAuthGate(countries=_CA, sponsorship_available=True), (PASS, None)),
-    (WorkAuth(needs_sponsorship=True), WorkAuthGate(countries=_CA), (PASS, None)),  # posting silent on it
-    (WorkAuth(needs_sponsorship=False), _NO_SPONSOR_CA, (PASS, None)),
-    # "Canadian citizen; will need sponsorship for US roles" meets no contradiction in Canada.
-    (WorkAuth(needs_sponsorship=True, citizenships=_CA), _NO_SPONSOR_CA, (PASS, None)),
-    (WorkAuth(needs_sponsorship=True, authorized_countries=_CA), _NO_SPONSOR_CA, (PASS, None)),
-    # Citizenship required.
-    (WorkAuth(citizenships=_CA), _CITIZEN_CA, (PASS, None)),
-    (WorkAuth(citizenships=("US",), authorized_countries=_CA), _CITIZEN_CA, (FAIL, Flag.CITIZENSHIP_REQUIRED)),
-    (WorkAuth(authorized_countries=_CA), _CITIZEN_CA, (WARN, Flag.CITIZENSHIP_REQUIRED)),  # citizenship unknown
-    (WorkAuth(citizenships=_CA), WorkAuthGate(citizenship_required=True), (WARN, Flag.CITIZENSHIP_REQUIRED)),  # whose?
-    (WorkAuth(citizenships=("US",)), WorkAuthGate(countries=("CA", "US"), citizenship_required=True), (PASS, None)),
-    # Known authorised countries (citizenship included) missing every posting country.
-    (WorkAuth(authorized_countries=("US",)), _NO_SPONSOR_CA, (FAIL, Flag.WORK_AUTH_MISMATCH)),
-    (WorkAuth(authorized_countries=("US",)), WorkAuthGate(countries=_CA), (WARN, Flag.WORK_AUTH_MISMATCH)),
-    (WorkAuth(authorized_countries=("US",)), WorkAuthGate(countries=_CA, sponsorship_available=True),
-     (WARN, Flag.WORK_AUTH_MISMATCH)),
-    (WorkAuth(citizenships=_CA), WorkAuthGate(countries=("US",), sponsorship_available=False),
-     (FAIL, Flag.WORK_AUTH_MISMATCH)),
-    (WorkAuth(authorized_countries=("US",)), WorkAuthGate(countries=("CA", "US"), sponsorship_available=False),
-     (PASS, None)),  # authorised in one of the posting's countries
-    (WorkAuth(authorized_countries=("US",), citizenships=_CA), _NO_SPONSOR_CA, (PASS, None)),
-    (WorkAuth(authorized_countries=("ca",)), WorkAuthGate(countries=("Ca",), sponsorship_available=False),
+@pytest.mark.parametrize("work_auth,gate,located,expected", [
+    # 0. No statement at all: unknown (D-60), whatever the gate says.
+    (None, WorkAuthGate(countries=_CA), (), (WARN, Flag.WORK_AUTH_UNKNOWN)),
+    (None, _NO_SPONSOR, (TORONTO,), (WARN, Flag.WORK_AUTH_UNKNOWN)),
+    (None, WorkAuthGate(sponsorship_available=True), (), (WARN, Flag.WORK_AUTH_UNKNOWN)),
+    (WorkAuth(), _NO_SPONSOR_CA, (), (WARN, Flag.WORK_AUTH_UNKNOWN)),  # a status that states nothing
+    (WorkAuth(clearances=("CA_SECRET",)), _NO_SPONSOR_CA, (), (WARN, Flag.WORK_AUTH_UNKNOWN)),
+    # The posting's countries: the gate's, else its locations' (review A1, A2, A4).
+    (_CANADIAN_NEEDS_US_SPONSOR, _NO_SPONSOR, (TORONTO,), (PASS, None)),  # A1
+    (_CANADIAN_NEEDS_US_SPONSOR, _NO_SPONSOR_CA, (TORONTO,), (PASS, None)),  # A2
+    (WorkAuth(needs_sponsorship=True, authorized_countries=_CA), _NO_SPONSOR, (SEATTLE,),
+     (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),  # A4: needs sponsorship, in Seattle, none offered
+    (WorkAuth(authorized_countries=_CA), _NO_SPONSOR, (SEATTLE,),
+     (WARN, Flag.WORK_AUTH_MISMATCH)),  # A4 as probed: the need is unknown
+    (WorkAuth(authorized_countries=("US",)), _NO_SPONSOR, (TORONTO, SEATTLE), (PASS, None)),  # any posting country
+    # 1. Citizenship required: a match passes, a stated mismatch fails, anything else is unknown.
+    (WorkAuth(citizenships=_CA), _CITIZEN_CA, (), (PASS, None)),
+    (WorkAuth(citizenships=_CA), WorkAuthGate(citizenship_required=True), (TORONTO,), (PASS, None)),
+    (WorkAuth(citizenships=("US",)), WorkAuthGate(countries=("CA", "US"), citizenship_required=True), (), (PASS, None)),
+    (WorkAuth(citizenships=("US",), authorized_countries=_CA), _CITIZEN_CA, (), (FAIL, Flag.CITIZENSHIP_REQUIRED)),
+    (WorkAuth(authorized_countries=_CA, needs_sponsorship=False), _CITIZEN_CA, (),
+     (WARN, Flag.CITIZENSHIP_REQUIRED)),  # citizenship unknown (a permanent resident, say)
+    (WorkAuth(citizenships=_CA), WorkAuthGate(citizenship_required=True), (),
+     (WARN, Flag.CITIZENSHIP_REQUIRED)),  # no country to compare with
+    # 2. Authorised in a posting country: PASS, whatever they need elsewhere.
+    (WorkAuth(authorized_countries=("ca",)), WorkAuthGate(countries=("Ca",), sponsorship_available=False), (),
      (PASS, None)),  # country codes compare upper-case
-    (WorkAuth(authorized_countries=_CA), WorkAuthGate(), (PASS, None)),  # nothing stated to contradict
-    # One gate, several findings: the worst status, then sponsorship > citizenship > countries.
-    (WorkAuth(needs_sponsorship=True, authorized_countries=("US",)), _NO_SPONSOR_CA,
-     (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),
-    (WorkAuth(authorized_countries=("US",)), WorkAuthGate(countries=_CA, sponsorship_available=False,
-                                                         citizenship_required=True),
-     (FAIL, Flag.WORK_AUTH_MISMATCH)),  # citizenship unknown (WARN) never hides the FAIL
-    (WorkAuth(citizenships=("US",)), WorkAuthGate(countries=_CA, sponsorship_available=False,
-                                                 citizenship_required=True),
-     (FAIL, Flag.CITIZENSHIP_REQUIRED)),
+    (WorkAuth(authorized_countries=("US",), citizenships=_CA), _NO_SPONSOR_CA, (), (PASS, None)),
+    # 3. Not established as authorised in a posting country.
+    (WorkAuth(needs_sponsorship=True), WorkAuthGate(countries=_CA, sponsorship_available=True), (),
+     (PASS, None)),  # the employer sponsors
+    (WorkAuth(needs_sponsorship=True), _NO_SPONSOR_CA, (), (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),
+    (WorkAuth(needs_sponsorship=True), WorkAuthGate(countries=_CA), (),
+     (FAIL, Flag.WORK_AUTH_MISMATCH)),  # authorisation required there, and they need sponsorship
+    (WorkAuth(needs_sponsorship=False), _NO_SPONSOR_CA, (), (PASS, None)),
+    (WorkAuth(needs_sponsorship=False, authorized_countries=("US",)), _NO_SPONSOR_CA, (),
+     (PASS, None)),  # they state no sponsorship is needed
+    (WorkAuth(citizenships=_CA), WorkAuthGate(countries=("US",), sponsorship_available=False), (),
+     (WARN, Flag.WORK_AUTH_MISMATCH)),  # review minor 4: a missing country is no evidence
+    (WorkAuth(authorized_countries=("US",)), WorkAuthGate(countries=_CA), (), (WARN, Flag.WORK_AUTH_MISMATCH)),
+    # No posting country at all (remote, no location).
+    (WorkAuth(needs_sponsorship=True), _NO_SPONSOR, (), (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)),
+    (_CANADIAN_NEEDS_US_SPONSOR, _NO_SPONSOR, (),
+     (WARN, Flag.SPONSORSHIP_UNAVAILABLE)),  # the job may be where they are authorised
+    (WorkAuth(citizenships=_CA), _NO_SPONSOR, (), (WARN, Flag.WORK_AUTH_UNKNOWN)),
+    # A gate that names no country and no sponsorship policy.
+    (_CANADIAN_NEEDS_US_SPONSOR, WorkAuthGate(), (SEATTLE,), (PASS, None)),
+    (WorkAuth(needs_sponsorship=True), WorkAuthGate(), (), (PASS, None)),
 ])
-def test_work_authorisation(small_graph, config, work_auth, gate, expected) -> None:
-    assert _one(Resume(work_auth=work_auth), gate, small_graph, config) == expected
+def test_work_authorisation(small_graph, config, work_auth, gate, located, expected) -> None:
+    assert _one(Resume(work_auth=work_auth), gate, small_graph, config, locations=located) == expected
+
+
+def test_split_work_authorisation_gates_read_the_postings_location(small_graph, config) -> None:
+    # Review A3: "Must be authorised to work in Canada" and "We are unable to sponsor" as two gates.
+    post = JobPosting(locations=(TORONTO,), gates=(WorkAuthGate(countries=_CA), _NO_SPONSOR))
+    status, results = evaluate_gates(Resume(work_auth=_CANADIAN_NEEDS_US_SPONSOR), post, small_graph, config)
+    assert status is PASS and [result.status for result in results] == [PASS, PASS]
 
 
 def test_unknown_work_authorisation_follows_the_config(small_graph, config) -> None:
@@ -127,9 +153,16 @@ def test_unknown_work_authorisation_follows_the_config(small_graph, config) -> N
     assert _one(Resume(), WorkAuthGate(countries=_CA), small_graph, lenient) == (PASS, Flag.WORK_AUTH_UNKNOWN)
     assert _one(Resume(work_auth=WorkAuth(authorized_countries=_CA)), _CITIZEN_CA, small_graph,
                 lenient) == (PASS, Flag.CITIZENSHIP_REQUIRED)
-    # A contradiction still fails: only unknown status follows `unknown_status`.
+    us_only = WorkAuthGate(countries=("US",), sponsorship_available=False)
+    assert _one(Resume(work_auth=WorkAuth(citizenships=_CA)), us_only, small_graph, lenient) == (
+        PASS, Flag.WORK_AUTH_MISMATCH)
+    assert _one(Resume(work_auth=_CANADIAN_NEEDS_US_SPONSOR), _NO_SPONSOR, small_graph, lenient) == (
+        PASS, Flag.SPONSORSHIP_UNAVAILABLE)
+    # A stated contradiction still fails: only what is unknown follows `unknown_status`.
     assert _one(Resume(work_auth=WorkAuth(needs_sponsorship=True)), _NO_SPONSOR_CA, small_graph,
                 lenient) == (FAIL, Flag.SPONSORSHIP_UNAVAILABLE)
+    assert _one(Resume(work_auth=WorkAuth(citizenships=("US",))), _CITIZEN_CA, small_graph, lenient) == (
+        FAIL, Flag.CITIZENSHIP_REQUIRED)
 
 
 def test_a_posting_without_a_work_authorisation_gate_never_asks(small_graph, config) -> None:
@@ -217,6 +250,41 @@ def test_an_in_progress_designation_never_shows_its_licence(config, designation,
         assert _one(cv, LicenseGate(credential_ids=(licence,)), graph, config) == (status, reason)
 
 
+def test_nothing_below_an_in_progress_designation_shows_the_licence(config) -> None:
+    # Review minor 1: cred.eit_ontario is-a cred.eit is-a cred.professional_engineer. The walk up
+    # stops at the designation, which still matches a gate that names it.
+    graph = tiny_graph({"cred.professional_engineer": 0.9},
+                       parents={"cred.eit_ontario": ("cred.eit",), "cred.eit": ("cred.professional_engineer",)})
+    ontario_eit = Resume(certifications=(cert("cred.eit_ontario"),))
+    assert _one(ontario_eit, LicenseGate(credential_ids=("cred.professional_engineer",)), graph, config) == (
+        FAIL, Flag.LICENSE_MISSING)
+    either = LicenseGate(credential_ids=("cred.professional_engineer", "cred.eit"))
+    assert _one(ontario_eit, either, graph, config) == (PASS, None)  # an Ontario EIT is an EIT
+    # A credential that is also directly a kind of the licence still shows it.
+    both = tiny_graph({"cred.professional_engineer": 0.9},
+                      parents={"cred.x": ("cred.eit", "cred.professional_engineer"),
+                               "cred.eit": ("cred.professional_engineer",)})
+    assert _one(Resume(certifications=(cert("cred.x"),)), LicenseGate(credential_ids=("cred.professional_engineer",)),
+                both, config) == (PASS, None)
+
+
+def test_licence_descent_follows_the_whole_is_a_chain(config) -> None:
+    # Review minor 2: is-a links are eligibility facts; `relations.max_depth` is a scoring knob.
+    chain = {f"cred.l{i}": (f"cred.l{i - 1}",) for i in range(2, 7)}
+    graph = tiny_graph({RN: 0.9}, parents={"cred.l1": (RN,), **chain})
+    gate = LicenseGate(credential_ids=(RN,))
+    for depth in range(1, 7):
+        assert _one(Resume(certifications=(cert(f"cred.l{depth}"),)), gate, graph, config) == (PASS, None), depth
+    shallow = with_scoring(config, "relations", max_depth=1)
+    assert _one(Resume(certifications=(cert("cred.l6"),)), gate, graph, shallow) == (PASS, None)
+
+
+def test_a_parent_cycle_never_hangs_the_licence_walk(config) -> None:
+    graph = tiny_graph({RN: 0.9}, parents={"cred.a": ("cred.b",), "cred.b": ("cred.a",)})
+    assert _one(Resume(certifications=(cert("cred.a"),)), LicenseGate(credential_ids=(RN,)), graph, config) == (
+        FAIL, Flag.LICENSE_MISSING)
+
+
 def test_a_gate_that_names_the_designation_itself_accepts_it(config) -> None:
     # "The ideal candidate: P.Eng. or EIT with five years of design experience." (D-28 licence probe):
     # the posting accepts an EIT, so holding the EIT designation meets it; it never stands in for P.Eng.
@@ -287,27 +355,121 @@ def test_every_in_progress_node_the_taxonomy_marks_is_listed(config) -> None:
     assert marked <= set(config.gates.license.in_progress_credential_ids)
 
 
-# ─── Security clearance ─────────────────────────────────────────────────────────────────────
+# ─── Security clearance (D-63: ladders, the unknown-level token) ────────────────────────────
 
 _SECRET_ACTIVE = ClearanceGate(level="US_SECRET", active_required=True)
-_RELIABILITY = ClearanceGate(level="CA_RELIABILITY")  # "able to obtain"
+_SECRET_OBTAINABLE = ClearanceGate(level="US_SECRET")  # "able to obtain"
+_RELIABILITY = ClearanceGate(level="CA_RELIABILITY")
+_ANY_ACTIVE = ClearanceGate(level="", active_required=True)  # "active security clearance", no level
+_UNKNOWN_LEVEL = "ACTIVE_UNKNOWN_LEVEL"  # what Tailrd stores for "Active clearance: yes"
+SHIPPED_LADDERS = (
+    ("CA_RELIABILITY", "CA_ENHANCED_RELIABILITY", "CA_SECRET", "CA_TOP_SECRET"),
+    ("US_PUBLIC_TRUST", "US_CONFIDENTIAL", "US_SECRET", "US_TOP_SECRET", "US_TS_SCI"),
+)
+LADDER_TOKEN = re.compile(r"[A-Z]{2}(?:_[A-Z0-9]+)+")  # <CC>_<LEVEL>
+RESERVED_TOKEN = re.compile(r"[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)*")
 
 
-@pytest.mark.parametrize("work_auth,gate,expected", [
-    (WorkAuth(clearances=("US_SECRET",)), _SECRET_ACTIVE, (PASS, None)),
-    (WorkAuth(clearances=(" us_secret",)), _SECRET_ACTIVE, (PASS, None)),  # case and edge spaces ignored
-    (WorkAuth(clearances=("CA_RELIABILITY",)), _SECRET_ACTIVE, (FAIL, Flag.CLEARANCE_MISSING)),
-    (WorkAuth(), _SECRET_ACTIVE, (FAIL, Flag.CLEARANCE_MISSING)),
-    (None, _SECRET_ACTIVE, (FAIL, Flag.CLEARANCE_MISSING)),
-    (WorkAuth(clearances=("CA_RELIABILITY",)), _RELIABILITY, (PASS, None)),
-    (WorkAuth(), _RELIABILITY, (WARN, Flag.CLEARANCE_OBTAINABLE)),
-    (None, _RELIABILITY, (WARN, Flag.CLEARANCE_OBTAINABLE)),
-    # No level stated ("active security clearance required"): any clearance on the résumé shows one.
-    (WorkAuth(clearances=("CA_SECRET",)), ClearanceGate(level="", active_required=True), (PASS, None)),
-    (WorkAuth(), ClearanceGate(level=" ", active_required=True), (FAIL, Flag.CLEARANCE_MISSING)),
+def _clearance(held, gate, graph, config) -> tuple[GateStatus, str | None]:
+    """(status, reason code) for a candidate holding `held` clearances (None: no work_auth at all)."""
+    work_auth = None if held is None else WorkAuth(clearances=held)
+    status, reason = _one(Resume(work_auth=work_auth), gate, graph, config)
+    return status, (reason.value if reason is not None else None)
+
+
+@pytest.mark.parametrize("held,gate,expected", [
+    (("US_SECRET",), _SECRET_ACTIVE, (PASS, None)),
+    ((" us_secret",), _SECRET_ACTIVE, (PASS, None)),  # case and edge spaces ignored
+    (("US_TOP_SECRET",), _SECRET_ACTIVE, (PASS, None)),  # review C1: higher on the same ladder
+    (("US_TOP_SECRET",), _SECRET_OBTAINABLE, (PASS, None)),  # review C2
+    (("us ts/sci",), _SECRET_ACTIVE, (PASS, None)),  # separators normalised: US_TS_SCI
+    (("US_CONFIDENTIAL",), _SECRET_ACTIVE, (FAIL, "CLEARANCE_MISSING")),  # lower on the ladder
+    (("CA_TOP_SECRET",), _SECRET_ACTIVE, (FAIL, "CLEARANCE_MISSING")),  # another country's ladder
+    ((), _SECRET_ACTIVE, (FAIL, "CLEARANCE_MISSING")),
+    (None, _SECRET_ACTIVE, (FAIL, "CLEARANCE_MISSING")),
+    (("CA_RELIABILITY",), _RELIABILITY, (PASS, None)),
+    (("CA_ENHANCED_RELIABILITY",), _RELIABILITY, (PASS, None)),
+    (("CA_RELIABILITY",), ClearanceGate(level="CA_SECRET"), (WARN, "CLEARANCE_OBTAINABLE")),  # still to obtain
+    ((), _RELIABILITY, (WARN, "CLEARANCE_OBTAINABLE")),
+    (None, _RELIABILITY, (WARN, "CLEARANCE_OBTAINABLE")),
+    # A token on no ladder matches exactly or not at all.
+    (("XX_COSMIC",), ClearanceGate(level="XX_COSMIC", active_required=True), (PASS, None)),
+    (("XX_COSMIC",), ClearanceGate(level="XX_ATOMAL", active_required=True), (FAIL, "CLEARANCE_MISSING")),
+    (("TOP_SECRET",), _SECRET_ACTIVE, (FAIL, "CLEARANCE_MISSING")),  # no country: no ladder
+    # Tailrd's "Active clearance" (country and level unknown): unknown against a stated active level.
+    ((_UNKNOWN_LEVEL,), _SECRET_ACTIVE, (WARN, "CLEARANCE_UNVERIFIED")),
+    ((_UNKNOWN_LEVEL,), _SECRET_OBTAINABLE, (PASS, None)),
+    ((_UNKNOWN_LEVEL,), _ANY_ACTIVE, (PASS, None)),
+    ((_UNKNOWN_LEVEL, "US_TOP_SECRET"), _SECRET_ACTIVE, (PASS, None)),  # a known level that meets it
+    ((_UNKNOWN_LEVEL, "US_CONFIDENTIAL"), _SECRET_ACTIVE, (WARN, "CLEARANCE_UNVERIFIED")),
+    # No level stated: any clearance on the résumé shows one.
+    (("CA_SECRET",), _ANY_ACTIVE, (PASS, None)),
+    ((), ClearanceGate(level=" ", active_required=True), (FAIL, "CLEARANCE_MISSING")),
 ])
-def test_security_clearance(small_graph, config, work_auth, gate, expected) -> None:
-    assert _one(Resume(work_auth=work_auth), gate, small_graph, config) == expected
+def test_security_clearance(small_graph, config, held, gate, expected) -> None:
+    assert _clearance(held, gate, small_graph, config) == expected
+
+
+def test_the_ladders_come_from_the_config(small_graph, config) -> None:
+    flat = with_gates(config, "security_clearance", ladders=())
+    assert _clearance(("US_TOP_SECRET",), _SECRET_ACTIVE, small_graph, flat) == (FAIL, "CLEARANCE_MISSING")
+    assert _clearance(("US_SECRET",), _SECRET_ACTIVE, small_graph, flat) == (PASS, None)
+
+
+def test_the_unknown_level_token_is_named_by_the_config(small_graph, config) -> None:
+    renamed = with_gates(config, "security_clearance", unknown_level_token="CLEARANCE_HELD")
+    assert _clearance(("CLEARANCE_HELD",), _SECRET_ACTIVE, small_graph, renamed) == (WARN, "CLEARANCE_UNVERIFIED")
+    # The old spelling is now an ordinary token on no ladder.
+    assert _clearance((_UNKNOWN_LEVEL,), _SECRET_ACTIVE, small_graph, renamed) == (FAIL, "CLEARANCE_MISSING")
+
+
+def test_the_shipped_clearance_config(config) -> None:
+    rules = config.gates.security_clearance
+    assert rules.ladders == SHIPPED_LADDERS
+    assert rules.unknown_level_token == _UNKNOWN_LEVEL
+
+
+def test_every_clearance_token_named_in_the_config_is_well_formed(config) -> None:
+    rules = config.gates.security_clearance
+    tokens = [token for ladder in rules.ladders for token in ladder]
+    assert tokens and len(tokens) == len(set(tokens))  # no token twice, on one ladder or two
+    for ladder in rules.ladders:
+        assert ladder and all(LADDER_TOKEN.fullmatch(token) for token in ladder), ladder
+        assert len({token[:2] for token in ladder}) == 1, ladder  # one country per ladder
+    assert RESERVED_TOKEN.fullmatch(rules.unknown_level_token)
+    assert rules.unknown_level_token not in tokens
+
+
+def _write_clearance(tmp_path: Path, **changes: object) -> Path:
+    root = tmp_path / "config"
+    shutil.copytree(default_config_dir(), root)
+    path = root / "gates.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    for key, value in changes.items():
+        if value is None:
+            data["security_clearance"].pop(key, None)
+        else:
+            data["security_clearance"][key] = value
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    return root
+
+
+@pytest.mark.parametrize("changes,pattern", [
+    ({"ladders": [["US_SECRET", "US_SECRET"]]}, r"listed twice: US_SECRET"),  # twice on one ladder
+    ({"ladders": [["US_SECRET"], ["US_SECRET", "US_TOP_SECRET"]]}, r"listed twice: US_SECRET"),  # on two
+    ({"ladders": [["US-SECRET"]]}, r"not <CC>_<LEVEL>: 'US-SECRET'"),
+    ({"ladders": [["SECRET"]]}, r"not <CC>_<LEVEL>: 'SECRET'"),
+    ({"ladders": [["USA_SECRET"]]}, r"not <CC>_<LEVEL>: 'USA_SECRET'"),
+    ({"ladders": [["us_secret"]]}, r"not <CC>_<LEVEL>: 'us_secret'"),
+    ({"ladders": [["US_SECRET", "CA_SECRET"]]}, r"spans more than one country"),
+    ({"ladders": [[]]}, r"a clearance ladder is empty"),
+    ({"unknown_level_token": "US_SECRET"}, r"unknown-level token is on a ladder: US_SECRET"),
+    ({"unknown_level_token": "active unknown"}, r"unknown-level token is not an upper-case token: 'active unknown'"),
+    ({"unknown_level_token": None}, r"unknown_level_token\s+Field required"),  # named in config, never in code
+])
+def test_the_clearance_config_is_validated(tmp_path: Path, changes: dict, pattern: str) -> None:
+    with pytest.raises(ConfigError, match=pattern):
+        load_config(_write_clearance(tmp_path, **changes))
 
 
 def test_clearance_statuses_come_from_the_config(small_graph, config) -> None:
@@ -319,14 +481,6 @@ def test_clearance_statuses_come_from_the_config(small_graph, config) -> None:
 
 
 # ─── Location ───────────────────────────────────────────────────────────────────────────────
-
-TORONTO = Location(country="CA", region="ON", city="Toronto")
-OTTAWA = Location(country="CA", region="ON", city="Ottawa")
-MONTREAL = Location(country="CA", region="QC", city="Montréal")
-SEATTLE = Location(country="US", region="WA", city="Seattle")
-LONDON_ON = Location(country="CA", region="ON", city="London")
-LONDON_UK = Location(country="GB", region="ENG", city="London")
-CANADA = Location(country="CA")
 
 
 @pytest.mark.parametrize("mine,theirs,expected", [

@@ -19,9 +19,14 @@ then a clamp to [0, 1]:
 * Critical-miss cap (§5.1, D-43): the required dimension's CRITICAL_MISS facts (one per critical
   REQUIRED group, Task 3.2) cap the final raw score: one at `critical_miss.cap_one` (0.70), two or
   more at `cap_two_or_more` (0.55). A cap, never a subtraction: it never raises a lower score and
-  never drives one below 0. It is recorded as a `CapApplied` whenever a critical miss puts it in
-  force, also when the score is already below it, since it still bounds what the rest of the résumé
-  can reach. An abstaining required dimension never caps, and §5.2 / §5.7 never do.
+  never drives one below 0. It is recorded as a `CapApplied` only when it binds, i.e. the raw score
+  was above it ("applied" means it lowered the score); a critical miss under a lower score stays
+  visible as the requirement's own fact. An abstaining required dimension never caps, and §5.2 /
+  §5.7 never do.
+* `scored_weight` (D-42): the configured weight the dimensions that scored carry, the §14.5 transfer
+  included, so the weight moved from §5.1 to §5.2 counts as scored: 1.0 when nothing abstained and
+  for a posting that lists only PREFERRED skills (its nature, not missing data). It is the
+  renormalisation denominator, and SPEC §17.1's dimension coverage reads it (Task 3.5).
 * Nothing scored → None (the engine's NEEDS_REVIEW: NOTHING_SCORABLE, D-42).
 
 Inputs are checked: exactly one `DimensionScore` per configured dimension, anything else is an
@@ -61,9 +66,10 @@ class Aggregate(Frozen):
 
     raw: float = Field(ge=0.0, le=1.0)  # after the critical-miss cap and the clamp
     dimensions: dict[str, DimensionScore]  # every dimension by name, in SPEC order; read-only
-    caps: tuple[CapApplied, ...] = ()
-    # The configured weight the scoring dimensions carry, §14.5's transfer included (1.0 when nothing
-    # abstained): the renormalisation denominator, i.e. the share of the weight that actually scored.
+    caps: tuple[CapApplied, ...] = ()  # the caps that lowered `raw` (none when a cap did not bind)
+    # The configured weight the scoring dimensions carry, the §14.5 transfer included (the weight
+    # moved from §5.1 to §5.2 counts as scored): 1.0 when nothing abstained, and for a posting that
+    # lists only PREFERRED skills. The renormalisation denominator; §17.1's dimension coverage (D-42).
     scored_weight: float = Field(gt=0.0, le=1.0)
 
     @field_validator("dimensions", mode="after")
@@ -99,9 +105,10 @@ def aggregate(dimensions: Sequence[DimensionScore], config: EngineConfig) -> Opt
             contribution=clamp01(effective * value), abstained=False, facts=score.facts,
         )
     raw = clamp01(math.fsum(weighted[name.value].contribution for name in scoring))
-    caps = _critical_miss_cap(weighted[_REQUIRED.value], config)
-    for cap in caps:
-        raw = min(raw, cap.cap)  # a cap, never a subtraction (SPEC §5.1)
+    caps: tuple[CapApplied, ...] = ()
+    cap = _critical_miss_cap(weighted[_REQUIRED.value], config)
+    if cap is not None and raw > cap.cap:  # a cap, never a subtraction (SPEC §5.1); "applied" = it bound
+        raw, caps = cap.cap, (cap,)
     return Aggregate(raw=clamp01(raw), dimensions=weighted, caps=caps, scored_weight=clamp01(total))
 
 
@@ -140,14 +147,14 @@ def _base_weights(by_name: Mapping[DimensionName, DimensionScore], config: Engin
     return base
 
 
-def _critical_miss_cap(required: DimensionScore, config: EngineConfig) -> tuple[CapApplied, ...]:
-    """The cap in force: none, or one `CapApplied` naming the critical requirements (SPEC §5.1, D-43)."""
+def _critical_miss_cap(required: DimensionScore, config: EngineConfig) -> Optional[CapApplied]:
+    """The cap the critical misses put in force, naming them (SPEC §5.1, D-43); None without one."""
     if required.abstained:
-        return ()  # an abstaining dimension carries no facts and caps nothing
+        return None  # an abstaining dimension carries no facts and caps nothing
     misses = [fact for fact in required.facts if fact.code == _CRITICAL_MISS]
     if not misses:
-        return ()
+        return None
     rules = config.scoring.critical_miss
     cap = clamp01(rules.cap_one if len(misses) == 1 else rules.cap_two_or_more)
     ids = tuple(fact.subject for fact in misses if fact.subject)
-    return (CapApplied(reason=Flag.CRITICAL_MISS, cap=cap, requirement_ids=ids),)
+    return CapApplied(reason=Flag.CRITICAL_MISS, cap=cap, requirement_ids=ids)
