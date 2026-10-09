@@ -130,7 +130,14 @@ tools, while "web design" under computer programming, "regulatory systems" under
 machines" under milling machines, "show courtesy" under empathy, "entrepôt de données" under
 databases and "systèmes électroniques et informatiques" under embedded systems stay out, and no
 paraphrase lands in a field ("computer software development" is software development, not
-computer engineering). A one-word French preferred label stays only when it is the English
+computer engineering). A label whose content words are all words of the curated label itself, up
+to a plural ("analyses" is "analysis"), is that label rephrased and comes in although its words
+are generic: "control system" and "system control" (Control systems), "business analyses" and
+"analysis of businesses" (Business analysis), "science of data" (Data science). An alternative
+label that a merge leaves to one unrelated concept is blocked by hand ("record information",
+otherwise forensic "document evidence"), and a curated anchor gives an ESCO concept a spelling
+ESCO lacks ("programme management" reaches `skill.program_management`, ESCO's "program
+management"). A one-word French preferred label stays only when it is the English
 one: otherwise it is often an ordinary French word ("morale", "saisie"). One-word names with a
 capital on nodes that are not curated are automatic `cased` keys in `resolver.json`: they need
 their casing everywhere, skills lists included ("Excel (pivot tables)" never yields the O*NET
@@ -154,7 +161,11 @@ skill unless `prefer_fields=True`. A source concept so named merges into the ski
 (related at 0.8 to `field.design`) has multi-word names only ("design thinking", "product design",
 "industrial design", "interior design"; the disciplines graphic, UX, UI, web and mechanical design
 are nodes of their own): bare "design" is the verb in most postings ("Design, build and maintain",
-"design reviews") and reads only as the field, in education lines. (2) Reads the curated
+"design reviews") and reads only as the field, in education lines. Industrial, interior and
+product design are field names too, so an education line ("Diploma in Interior Design",
+`include_fields=True`) reads the field and general text the skill; `skill.design` takes no parents
+(`parents: []`), the merged ESCO "design thinking" concept sitting under arts and under marketing
+and advertising. (2) Reads the curated
 `blocked_phrases` as non-skills that consume their words, such as American Express, Express
 Entry, Express Employment Professionals, Swift Transportation, Statistics Canada, Department of
 Finance, Sous Chef, Vitamin C, Building A-Z, Swift Current, Spring Break, Go-Live, Go/No-Go, R&D,
@@ -168,14 +179,24 @@ capitalised words that are not skills ("Mary C Jones") or is followed by a perio
 words ("John R. Smith", "Dr. Mary C. Jones"); the word before may be a title or an initial with its
 own period ("Dr. R. Smith", "J. R. R. Tolkien"). "Wrote firmware in C." keeps C. (5) Never reads a
 currency code (CAD, USD, EUR, GBP) as a skill in a money context: after "$" or a salary word on its
-line ("$25/hr CAD", "Salary (CAD)"), before an amount or a rate ("CAD $80k", "CAD 2M",
-"CAD/hr"), inside a currency pair ("USD/CAD", "EUR/USD"), or after a number that a rate or a
-money word follows ("25 CAD per hour", "a 2M CAD budget") or, when the number is an amount
-(thousands, cents, a magnitude, four digits or more), that ends its clause ("The budget was
-80,000 CAD."). A four-digit year is never a number ("the 2024 CAD standards manual", "SolidWorks
-2022 CAD."), a count or a version is no amount ("1,200 CAD drawings", "10 CAD models", "Fusion
-360 CAD.") and a number before a list comma ends the item before ("Office 365, CAD"): all keep
-CAD, as does "Proficient in CAD (SolidWorks)". (6) Like `resolve`, reads past a leading French
+line ("$25/hr CAD", "Salary (CAD)"); before an amount or a rate unit on its line ("CAD $80k",
+"CAD 2M", "CAD/hr"); inside a currency pair ("USD/CAD", "EUR/USD"); after an amount (thousands,
+cents, a magnitude, four digits or more) unless the next word is one of the curated
+`currency_skill_nouns` (plural nouns of CAD work: drawings, models, files, parts, sheets,
+assemblies, licences, standards, ...), so "85,000 CAD plus benefits", "Base: 120,000 CAD | Bonus",
+"a 2,500 CAD scholarship" and "120K CAD + equity" are money and "1,200 CAD drawings" is the skill;
+after a smaller number when a rate phrase or a money or pay word ("25 CAD hourly", "a 500 CAD
+prize"), a range to another number ("25 CAD - 30 CAD"), an addition ("40 CAD + HST") or a
+separator ("500 CAD (monthly)", "20 CAD | weekends") follows. A rate phrase ("annually", "per
+hour", "a year") needs a number before the code: "Taught CAD annually" and "Spent 10 hours in CAD
+per week" keep CAD, while a rate unit on the code ("CAD/h") is money by itself. A four-digit year
+is never a number ("the 2024 CAD standards manual", "SolidWorks 2022 CAD."), nor is a number glued
+to letters ("CATIA V5 CAD") or inside the skill name the code follows ("Fusion 360 CAD (cloud)"),
+and a number before a list comma ends the item before ("Office 365, CAD"); "Proficient in CAD
+(SolidWorks)" keeps CAD too. Deviations kept: a small count or version before a clause end or ")"
+keeps CAD ("Fusion 360 CAD.", "10 CAD models"), so "Paid 25 CAD." reads as the skill; and only
+the very next word is checked for a noun, so "1,500 CAD shop drawings" reads as money. (6) Like
+`resolve`, reads past a leading French
 elision (l' d' qu' j' n' s' c' m' t', straight or curly apostrophe, any case): "d'Excel" gives
 Excel, the mention starting at "Excel". Inside a window the elision stays, as labels have it
 ("gestion de l'information"); a label that opens with one is indexed past it.

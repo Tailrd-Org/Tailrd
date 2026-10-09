@@ -1,4 +1,4 @@
-"""Extraction precision on realistic résumé and posting lines (Task 2.2 fix rounds 1-3; DECISIONS D-25..D-28).
+"""Extraction precision on realistic résumé and posting lines (Task 2.2 fix rounds 1-4; DECISIONS D-25..D-28).
 
 Each case runs `Resolver.extract` over the committed data/taxonomy and asserts the EXACT mentions,
 as (canonical id, surface) in text order: no false positive and every expected skill. The first
@@ -10,6 +10,8 @@ co-op lines and French. Where a review quoted a fragment ("Executed equity trade
 keeps the fragment verbatim and completes it. Round 3 (D-28): a status written around a licence
 ("RN student", "CPA (in progress)") reads as the licence concept, the status being the résumé
 parser's business; only formal designations ("CPA PEP", "articling student") are in progress.
+Round 4 (D-26, D-27): pay lines are money ("85,000 CAD plus benefits"), CAD stays the skill before
+a noun of its work ("1,200 CAD drawings"), and "control system" is control systems again.
 """
 
 from __future__ import annotations
@@ -157,6 +159,43 @@ CASES = [
      [("skill.ms_office", "Microsoft Office"), ("skill.cad", "CAD"), ("skill.solidworks", "SolidWorks")]),
     ("prose", "Experience with Fusion 360 CAD.", [("skill.fusion360", "Fusion 360"), ("skill.cad", "CAD")]),
     ("prose", "Managed a 2M CAD budget.", []),  # a magnitude, then a money word
+    # ─── fix round 4: an amount before a currency code is money unless a noun of CAD work follows ─
+    ("prose", "Pay range: 70,000 - 85,000 CAD depending on experience.", []),
+    ("prose", "We offer 85,000 CAD plus benefits.", []),
+    ("prose", "100,000 CAD base salary plus bonus.", []),
+    ("prose", "Range: 90,000 - 110,000 CAD + equity", []),
+    ("prose", "The expected range is 95,000 CAD to 120,000 CAD.", []),
+    ("prose", "Pay range: 70,000 CAD - 85,000 CAD", []),
+    ("prose", "Starting pay of 22.50 CAD with tips.", []),
+    ("prose", "Base: 120,000 CAD | Bonus: 10%", []),
+    ("prose", "OTE 140,000 CAD (50/50 split).", []),
+    ("prose", "120K CAD + equity", []),
+    ("prose", "Awarded a 2,500 CAD scholarship for academic excellence.", []),
+    ("prose", "Raised 3,000 CAD for the food bank.", []),
+    ("prose", "Won a 1,000 CAD prize at the science fair.", []),
+    ("prose", "Paid 25 CAD/hr.", []),
+    ("prose", "Rates quoted in CAD/h.", []),
+    ("prose", "80,000 CAD/year", []),
+    ("prose", "Earning 80,000 CAD annually.", []),
+    ("prose", "Paid 25 CAD hourly.", []),
+    ("prose", "The range is 120,000 - 150,000 CAD, plus bonus.", []),
+    ("prose", "Budget of 1.2M CAD.", []),
+    ("prose", "Managed 1,500 CAD licences for the design team.", [("skill.cad", "CAD")]),
+    ("prose", "Experience with Fusion 360 CAD (cloud) and SolidWorks.",  # 360 belongs to the name before
+     [("skill.fusion360", "Fusion 360"), ("skill.cad", "CAD"), ("skill.solidworks", "SolidWorks")]),
+    # a rate phrase needs a number before the code
+    ("prose", "Taught CAD annually to new hires.", [("skill.cad", "CAD")]),
+    ("prose", "Learned CAD a year ago.", [("skill.cad", "CAD")]),
+    ("prose", "Reviewed CAD hourly during the shift.", [("skill.cad", "CAD")]),
+    # ─── fix round 4: control system, record information, teamwork (D-26) ─────────────────────
+    ("prose", "Developed the control system for a robotic arm.", [("skill.control_systems", "control system")]),
+    ("prose", "PLC programming, control system design, SCADA",
+     [("skill.plc", "PLC programming"), ("skill.control_systems", "control system"), ("skill.scada", "SCADA")]),
+    ("list", "PLC programming, control system design, SCADA",
+     [("skill.plc", "PLC programming"), ("skill.control_systems", "control system"), ("skill.scada", "SCADA")]),
+    ("prose", "Accurately record information in the inventory system.", []),
+    ("prose", "Record information in the CRM after each call.", [("skill.crm", "CRM")]),
+    ("prose", "Ability to work in groups and independently.", [("skill.teamwork", "work in groups")]),
     # ─── fix round 2: French one-word aliases, and the round-1 fragments verbatim (D-27) ──────
     ("prose", "Nous sommes à la recherche d'un stagiaire en développement logiciel pour notre équipe.",
      [("skill.software_development", "développement logiciel")]),
@@ -305,6 +344,26 @@ def test_fields_of_study_come_back_when_asked_for(resolver) -> None:
     assert resolver.extract(line) == ()
     assert [(m.canonical_id, m.surface) for m in resolver.extract(line, include_fields=True)] == [
         ("field.science", "B.Sc"), ("field.computer_science", "Computer Science"), ("field.physics", "Physics")]
+
+
+def test_control_system_design_is_control_systems_not_system_design(resolver) -> None:
+    # Fix round 4: "control system" is the curated domain (an alias, and the merged ESCO concept's
+    # own label rephrased, D-26); "system design" (a software skill) never takes its second word.
+    for text in ("Control system design and tuning (PID).", "PLC programming, control system design, SCADA"):
+        found = [m.canonical_id for m in resolver.extract(text)]
+        assert "skill.control_systems" in found and "skill.system_design" not in found, (text, found)
+    assert resolver.resolve("control system").canonical_id == "skill.control_systems"
+
+
+def test_design_disciplines_are_fields_in_education_lines(resolver) -> None:
+    # Fix round 4 (D-27): interior and product design name the field of study too, so an education
+    # line reads the field; general text reads the skill.
+    for discipline in ("Interior Design", "Product Design", "Industrial Design"):
+        line = f"Diploma in {discipline}, Humber College"
+        assert [(m.canonical_id, m.surface) for m in resolver.extract(line, include_fields=True)] == [
+            ("field.design", discipline)], line
+        assert [(m.canonical_id, m.surface) for m in resolver.extract(line)] == [("skill.design", discipline)], line
+        assert resolver.resolve(discipline, prefer_fields=True).canonical_id == "field.design"
 
 
 def test_licences_in_progress_never_reach_the_licence(resolver, config) -> None:

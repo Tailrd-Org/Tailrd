@@ -11,6 +11,7 @@ Java	skill.java	EXACT
 Java EE	skill.java	ALIAS
 JavaScript	skill.javascript	EXACT
 JS	skill.javascript	ALIAS
+ES6	skill.javascript	ALIAS
 TypeScript	skill.typescript	EXACT
 TS	skill.typescript	ALIAS
 C++	skill.cpp	EXACT
@@ -368,7 +369,6 @@ Microsoft Excel	skill.excel	ALIAS
 Advanced Excel	skill.excel	ALIAS
 Microsoft Word	skill.ms_word	EXACT
 Word	skill.ms_word	ALIAS
-MS Word	skill.ms_word	ALIAS
 PowerPoint	skill.powerpoint	EXACT
 Microsoft PowerPoint	skill.powerpoint	ALIAS
 Microsoft Outlook	skill.outlook	EXACT
@@ -444,9 +444,11 @@ DCF	skill.valuation	ALIAS
 Investment banking	skill.investment_banking	EXACT
 Risk management	skill.risk_management	EXACT
 Business analysis	skill.business_analysis	EXACT
+business analyses	skill.business_analysis	ALIAS
 Stakeholder management	skill.stakeholder_management	EXACT
 Strategic planning	skill.strategic_planning	EXACT
 Project management	skill.project_management	EXACT
+programme management	skill.program_management	ALIAS
 Product management	skill.product_management	EXACT
 Agile	skill.agile	EXACT
 Agile methodology	skill.agile	ALIAS
@@ -588,6 +590,7 @@ multimeter	skill.multimeter	ALIAS
 Soldering	skill.soldering	EXACT
 Signal processing	skill.signal_processing	EXACT
 Control systems	skill.control_systems	EXACT
+control system	skill.control_systems	ALIAS
 Robotics	skill.robotics	EXACT
 ROS	skill.ros	EXACT
 Industrial automation	skill.industrial_automation	EXACT
@@ -623,6 +626,8 @@ Communication	skill.communication	EXACT
 communication skills	skill.communication	ALIAS
 Teamwork	skill.teamwork	EXACT
 team player	skill.teamwork	ALIAS
+work in groups	skill.teamwork	ALIAS
+ability to work together	skill.teamwork	ALIAS
 collaboration	skill.teamwork	ALIAS
 Leadership	skill.leadership	EXACT
 lead others	skill.leadership	ALIAS
@@ -858,12 +863,10 @@ faire preuve de curiosité	esco.demonstrate_curiosity	ALIAS
 CPA candidate	cred.cpa_in_progress	EXACT
 C.P.A. candidate	cred.cpa_in_progress	ALIAS
 CPA PEP Core 2	cred.cpa_in_progress	ALIAS
-CPA Professional Education Program	cred.cpa_in_progress	ALIAS
 writing the CFE	cred.cpa_in_progress	ALIAS
 Currently writing the CFE in September.	cred.cpa_in_progress	ALIAS	prose
 Completed the C.P.A. candidate orientation.	cred.cpa_in_progress	ALIAS	prose
 CFA candidate	cred.cfa_candidate	EXACT
-CFA Level II	cred.cfa_candidate	ALIAS
 Passed CFA Level III in 2025.	cred.cfa_candidate	ALIAS	prose
 CFA charterholder	cred.cfa	ALIAS
 nursing student	cred.nursing_student	EXACT
@@ -908,16 +911,12 @@ tables	-	NONE	list
 Volunteered in education and commerce; studied physics and law.	-	NONE	prose
 # ─── French elisions (fix round 1; DECISIONS D-27) ───
 d'Excel	skill.excel	EXACT
-d’Excel	skill.excel	EXACT
 d'AWS	skill.aws	EXACT
 qu'Azure	skill.azure	ALIAS
 d'Access	skill.ms_access	ALIAS
 l'apprentissage automatique	skill.machine_learning	ALIAS
-l'infonuagique	skill.cloud_computing	ALIAS
 L’informatique en nuage	skill.cloud_computing	ALIAS
 l'intelligence artificielle	skill.ai	ALIAS
-d'analyse de données	skill.data_analysis	ALIAS
-Maîtrise d'Excel avancée.	skill.excel	EXACT	prose
 Bonne connaissance de l'apprentissage automatique.	skill.machine_learning	ALIAS	prose
 Projets d'infonuagique pour des PME.	skill.cloud_computing	ALIAS	prose
 # ─── coverage added in fix round 1 ───
@@ -990,6 +989,7 @@ synergy	-	NONE
 rockstar	-	NONE
 ninja	-	NONE
 guru	-	NONE
+record information	-	NONE
 go-getter	-	NONE
 hard worker	-	NONE
 passionate	-	NONE

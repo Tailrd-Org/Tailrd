@@ -26,8 +26,9 @@ An ambiguous key is never a fuzzy target: a near miss cannot have the required c
 an education line); lets a blocked phrase ("American Express", "Sous Chef", "Technical Skills")
 consume its words without a mention; never reads a season word followed by a year or a term word,
 or next to another season ("Spring 2024", "Fall and Spring"), a person's initial ("John R.
-Smith"), or a currency code in a money context ("80,000 CAD.") as a skill; and, like `resolve`,
-reads past a French elision ("d'Excel" -> Excel). A formal in-progress designation ("CPA
+Smith"), or a currency code in a money context ("85,000 CAD plus benefits", while "1,200 CAD
+drawings" is the skill) as a skill; and, like `resolve`, reads past a French elision ("d'Excel"
+-> Excel). A formal in-progress designation ("CPA
 candidate") is read only as written, never across ":" or a dash; whether a credential is held,
 pursued or required is the context's business, not the taxonomy's (D-28).
 """
@@ -91,37 +92,46 @@ _SEASON_LINKS = frozenset({"and", "or", "&", "to", "through", "until"})
 _NEAR_MARKS = frozenset(",/&" + DASHES + "-" + APOSTROPHES)  # what may stand between a season and its year
 _YEAR_RE = re.compile(r"(?:19|20)\d\d|\d\d")
 # Currency codes in a money context are money, never the skill (D-27): after "$" or a salary
-# word on their line ("$25/hr CAD", "Salary (CAD)"), before an amount or a rate ("CAD $80k",
-# "CAD 2M", "CAD/hr"), in a currency pair ("USD/CAD"), or after a number, never a year, that a
-# rate or a money word follows ("25 CAD per hour", "a 2M CAD budget") or, when it is an amount
-# (thousands, cents, a magnitude, four digits or more), that ends its clause ("80,000 CAD.").
-# A count or a version keeps the skill ("1,200 CAD drawings", "Fusion 360 CAD.", "the 2024 CAD
-# standards"), and so does a number before a list comma ("Office 365, CAD").
+# word on their line ("$25/hr CAD", "Salary (CAD)"); before an amount or a rate unit on their line
+# ("CAD $80k", "CAD 2M", "CAD/hr"); in a currency pair ("USD/CAD"); after an amount (thousands,
+# cents, a magnitude, four digits or more) unless a curated noun of the skill's work follows
+# ("85,000 CAD plus benefits" is money, "1,200 CAD drawings" the skill; the nouns come from the
+# resolver settings); after a smaller number when a rate or money word, a range to another number,
+# an addition or a separator follows ("25 CAD hourly", "25 CAD - 30 CAD", "40 CAD + HST", "500 CAD
+# (monthly)"). A year is never a number ("the 2024 CAD standards"), nor is a number glued to
+# letters ("CATIA V5 CAD") or inside the skill name the code follows ("Fusion 360 CAD (cloud)"),
+# and a rate phrase needs a number before the code ("Taught CAD annually" keeps CAD). A small
+# count or version before a clause end keeps the skill ("Fusion 360 CAD.", "10 CAD models"), and
+# a number before a list comma is no number for the code ("Office 365, CAD").
 _CURRENCIES = frozenset({"cad", "usd", "eur", "gbp"})
 _CURRENCY_CODES = _CURRENCIES | frozenset(
     {"jpy", "chf", "aud", "nzd", "cny", "hkd", "sgd", "mxn", "inr", "sek", "nok", "dkk"}
 )
-_RATE = (
-    r"(?:/\s*(?:hr|h|hour|yr|year|annum)|per\s+(?:hour|year|annum|month|week|day|hr)|annually|hourly"
-    r"|an\s+hour|a\s+year)\b"
-)
+_NBSP = chr(0xA0)  # no-break space: a space within a line, like " " and tab
+_RATE_UNIT = r"/\s*(?:hr|h|hour|yr|year|annum)\b"  # written on the code ("CAD/hr"): money by itself
+_RATE_PHRASE = r"(?:per\s+(?:hour|year|annum|month|week|day|hr)|annually|hourly|an\s+hour|a\s+year)\b"
 _MAGNITUDE = r"(?:k|m|b|bn|million|billion|thousand)"
 _DOLLAR_BEFORE = re.compile(rf"\$\s*[\d,.\u00a0]*\s*{_MAGNITUDE}?\s*(?:/\s*[A-Za-z]+)?\s*$", re.IGNORECASE)
-_NUMBER_BEFORE = re.compile(rf"(\d(?:[\d,.\u00a0]*\d)?)\s*({_MAGNITUDE})?\s*$", re.IGNORECASE)
+# The number right before the code; one glued to letters ("V5", "S3") is part of a name.
+_NUMBER_BEFORE = re.compile(rf"(?<![^\W\d])(\d(?:[\d,.\u00a0]*\d)?)\s*({_MAGNITUDE})?\s*$", re.IGNORECASE)
 _YEAR_ONLY = re.compile(r"(?:19|20)\d\d")
 _THOUSANDS = re.compile(r"\d[,\u00a0]\d{3}(?!\d)")
 _CENTS = re.compile(r"\d+\.\d\d")
 _AMOUNT_AFTER = re.compile(
-    rf"\s*(?:\$|\d{{1,3}}(?:[,\u00a0 ]\d{{3}})+|\d+(?:\.\d+)?\s*{_MAGNITUDE}\b|\d+\.\d\d\b"
-    rf"|(?!(?:19|20)\d\d\b)\d{{4,}}|{_RATE})",
+    rf"[ \t{_NBSP}]*(?:\$|\d{{1,3}}(?:[,\u00a0 ]\d{{3}})+|\d+(?:\.\d+)?\s*{_MAGNITUDE}\b|\d+\.\d\d\b"
+    rf"|(?!(?:19|20)\d\d\b)\d{{4,}}|{_RATE_UNIT})",
     re.IGNORECASE,
 )
-_MONEY_AFTER = re.compile(
-    rf"[ \t]*(?:{_RATE}|(?:salary|wages?|budgets?|revenues?|funding|savings|costs?|fees?|income"
-    r"|bonus(?:es)?)\b)",
+# After a small number: a rate phrase, a money or pay word (the award words singular only: "2 CAD
+# awards" counts awards), a range to another number, an addition or a separator.
+_SMALL_NUMBER_MONEY_AFTER = re.compile(
+    rf"[ \t{_NBSP}]*(?:{_RATE_PHRASE}|(?:salary|wages?|budgets?|revenues?|funding|savings|costs?|fees?"
+    r"|income|bonus(?:es)?|benefits|equity|depending|DOE|OTE|scholarship|prize|award|grant|bursary"
+    rf"|stipend)\b|(?:[\-{DASHES}]|to\b)[ \t{_NBSP}]*\$?[ \t{_NBSP}]*\d|\+|plus\b|[(|])",
     re.IGNORECASE,
 )
-_CLAUSE_END_AFTER = re.compile(r"[ \t]*(?:$|[\n\r.;,)\]])")
+# The word right after the code, on its line: a curated noun there keeps the code a skill.
+_NEXT_WORD = re.compile(rf"[ \t{_NBSP}]+([^\W_][\w\-{APOSTROPHES}]*)")
 _SALARY_WORDS = re.compile(r"\b(?:salary|salaire|wages?|compensation|rémunération)\b", re.IGNORECASE)
 # A formal in-progress designation ("CPA candidate", "articling student") is read only as written,
 # never across ":" or a dash: "Elementary Teacher - Candidate must hold OCT" names no teacher
@@ -197,13 +207,17 @@ class Resolver:
         cased: Mapping[str, str] = _NO_AMBIGUOUS,
         blocked_phrases: Iterable[str] = (),
         in_progress: Mapping[str, str] = _NO_AMBIGUOUS,
+        currency_skill_nouns: Iterable[str] = (),
         fuzzy_log: Optional[FuzzyLog] = None,
     ) -> None:
         """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
         lists waive it. `cased` keys (automatic, D-26) need their casing in lists too.
         `blocked_phrases` are non-skill phrases ("American Express") whose words never yield a
-        mention. `in_progress` maps a professional licence to the node of its formal in-progress
-        designations ("cred.cpa" -> "cred.cpa_in_progress", D-28): those are read only as written."""
+        mention. `in_progress` maps a credential to the node of its formal in-progress
+        designations ("cred.cpa" -> "cred.cpa_in_progress", D-28): those are read only as written.
+        `currency_skill_nouns` are the nouns that, right after an amount and a currency code that
+        is also a skill, make the code the skill ("1,200 CAD drawings"); otherwise it is money
+        ("85,000 CAD plus benefits", D-27)."""
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
@@ -216,6 +230,7 @@ class Resolver:
         self._index = _build_index(graph, fields=False)
         self._field_index = _build_index(graph, fields=True)
         self._formal = frozenset(in_progress.values())
+        self._currency_nouns = frozenset(normalize_surface(noun) for noun in currency_skill_nouns) - {""}
 
         self._ambiguous: dict[str, str] = {}
         for key, casing in (*ambiguous.items(), *cased.items()):
@@ -330,28 +345,30 @@ class Resolver:
             raise ValueError(f"unknown context {context!r} (expected 'prose' or 'list')")
         tokens = _tokenize(text)
         mentions: list[Mention] = []
+        floor = 0  # where the last matched window ends: a number before it belongs to that name
         i = 0
         while i < len(tokens):
-            matched = self._match_window(text, tokens, i, context, include_fields)
+            matched = self._match_window(text, tokens, i, context, include_fields, floor)
             if matched is not None:
                 width, mention = matched
                 if mention is not None:
                     mentions.append(mention)
+                floor = tokens[i + width - 1].end
                 i += width
                 continue
-            mentions.extend(self._match_parts(text, tokens[i], context, include_fields))
+            mentions.extend(self._match_parts(text, tokens[i], context, include_fields, floor))
             i += 1
         return tuple(sorted(mentions, key=lambda mention: (mention.start, mention.end)))
 
     def _match_window(
-        self, text: str, tokens: list[_Token], i: int, context: str, include_fields: bool
+        self, text: str, tokens: list[_Token], i: int, context: str, include_fields: bool, floor: int
     ) -> Optional[tuple[int, Optional[Mention]]]:
         """The longest window starting at token i that is a key or a blocked phrase, as (tokens
         consumed, mention). The mention is None when the window is a blocked phrase or a field of
         study the caller left out: the span is consumed all the same. At equal width a blocked
         phrase wins ("R&D"). A one-token match on a season that dates something ("Spring 2024"),
         on a person's initial ("John R. Smith") or on a currency code in a money context ("80,000
-        CAD.") is no match."""
+        CAD.") is no match. `floor` is where the previous window ended (see `_is_money`)."""
         last = i
         while last + 1 < len(tokens) and last + 1 - i < _MAX_WINDOW and tokens[last + 1].joined:
             last += 1
@@ -381,7 +398,7 @@ class Resolver:
                 if j == i and (
                     (key in _SEASONS and _dates_a_season(text, tokens, i))
                     or (len(key) == 1 and self._is_initial(text, tokens, i, start, end))
-                    or (key in _CURRENCIES and _is_money(text, start, end))
+                    or (key in _CURRENCIES and _is_money(text, start, end, floor, self._currency_nouns))
                 ):
                     continue
                 return j - i + 1, self._mention(text, start, end, node_id, key)
@@ -420,7 +437,9 @@ class Resolver:
             and token.norm not in self._field_index
         )
 
-    def _match_parts(self, text: str, token: _Token, context: str, include_fields: bool) -> list[Mention]:
+    def _match_parts(
+        self, text: str, token: _Token, context: str, include_fields: bool, floor: int
+    ) -> list[Mention]:
         """Each "/"- or "-"-separated part of an unmatched token, looked up on its own (D-25).
 
         An ambiguous key may match as a slash part only when another part of the token is a
@@ -428,6 +447,7 @@ class Resolver:
         position: "Python/R" yields R, "A/R", "Go/No-Go" and "Spring/Summer" yield nothing. An
         all-capital acronym key needs no companion ("AI/ML", "BI/reporting"). As a hyphen part
         an ambiguous key needs a "<key>-<suffix>" compound ("Go-based"). Other keys match freely.
+        `floor` is where the previous window ended (see `_is_money`).
         """
         if "/" not in token.norm and "-" not in token.norm:
             return []
@@ -439,7 +459,7 @@ class Resolver:
         # Which parts are non-ambiguous skills on their own (the companions a slash part needs).
         plain = [
             self._match_part(
-                text, part, context, include_fields, sentence_start=False, ambiguous_allowed=False
+                text, part, context, include_fields, floor, sentence_start=False, ambiguous_allowed=False
             )
             is not None
             for part in parts
@@ -456,6 +476,7 @@ class Resolver:
                 part,
                 context,
                 include_fields,
+                floor,
                 sentence_start=token.sentence_start and k == 0,
                 ambiguous_allowed=ambiguous_allowed,
                 acronym_allowed=not hyphen,
@@ -470,6 +491,7 @@ class Resolver:
         part: _Part,
         context: str,
         include_fields: bool,
+        floor: int,
         *,
         sentence_start: bool,
         ambiguous_allowed: bool,
@@ -477,7 +499,7 @@ class Resolver:
     ) -> Optional[Mention]:
         """The part as written, then without a possessive "'s", through the same lookup. A blocked
         part, a field of study the caller left out, or a currency code in a money context yields
-        nothing."""
+        nothing ("25 CAD/hr")."""
         for end, form in _forms(text, part.start, part.end):
             variants = surface_variants(form)
             if any(key in self._blocked for key in variants):
@@ -496,7 +518,7 @@ class Resolver:
                 node_id, key = hit
                 if node_id.startswith(_FIELD_PREFIX) and not include_fields:
                     return None
-                if key in _CURRENCIES and _is_money(text, part.start, end):
+                if key in _CURRENCIES and _is_money(text, part.start, end, floor, self._currency_nouns):
                     return None
                 return self._mention(text, part.start, end, node_id, key)
         return None
@@ -569,23 +591,28 @@ def _is_acronym(casing: str) -> bool:
     return casing.isupper() and sum(ch.isalpha() for ch in casing) >= 2
 
 
-def _is_money(text: str, start: int, end: int) -> bool:
+def _is_money(text: str, start: int, end: int, floor: int, nouns: frozenset[str]) -> bool:
     """Whether the currency code text[start:end] stands in a money context (D-27): after "$" or a
-    salary word on its line, before an amount or a rate, or after a number (never a year) that a
-    rate or a money word follows, or an amount that ends its clause. "Proficient in CAD", "1,200
-    CAD drawings", "Fusion 360 CAD." and "the 2024 CAD standards" are the skill."""
+    salary word on its line; before an amount or a rate unit on its line ("CAD 80,000", "CAD/hr");
+    after an amount unless one of `nouns` follows ("85,000 CAD plus benefits" is money, "1,200 CAD
+    drawings" the skill); after a smaller number that a rate or money word, a range to another
+    number, an addition or a separator follows ("25 CAD hourly", "40 CAD + HST"). A year is no
+    number, nor is one glued to letters ("V5") or before `floor`, where the previous window ended
+    ("Fusion 360 CAD (cloud)": 360 belongs to the name). "Proficient in CAD", "Taught CAD
+    annually", "the 2024 CAD standards" and "Fusion 360 CAD." are the skill."""
     line_start = max(text.rfind("\n", 0, start), text.rfind("\r", 0, start)) + 1
     before = text[max(line_start, start - 30) : start]
     if _DOLLAR_BEFORE.search(before) or _SALARY_WORDS.search(before):
         return True
     if _AMOUNT_AFTER.match(text, end):
         return True
-    number = _NUMBER_BEFORE.search(before)
+    number = _NUMBER_BEFORE.search(text, max(line_start, floor, start - 30), start)
     if number is None or _YEAR_ONLY.fullmatch(number.group(1)):
         return False
-    if _MONEY_AFTER.match(text, end):
-        return True
-    return _is_amount(number) and _CLAUSE_END_AFTER.match(text, end) is not None
+    if _is_amount(number):
+        word = _NEXT_WORD.match(text, end)
+        return word is None or normalize_surface(word.group(1)) not in nouns
+    return _SMALL_NUMBER_MONEY_AFTER.match(text, end) is not None
 
 
 def _is_amount(number: re.Match[str]) -> bool:

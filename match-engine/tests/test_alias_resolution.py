@@ -747,7 +747,8 @@ def test_a_key_both_a_field_and_a_skill_claim(config) -> None:
 )
 def test_a_currency_code_in_a_money_context_is_money(config, text: str, expected: list[str]) -> None:
     graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"), _node("skill.cam", "CAM"))
-    r = Resolver(graph, config, ambiguous={"cad": "CAD"})
+    # Round 4: the nouns that keep CAD after an amount ("1,200 CAD drawings") come from the settings.
+    r = Resolver(graph, config, ambiguous={"cad": "CAD"}, currency_skill_nouns=("drawings",))
     assert _ids(r, text) == expected
 
 
@@ -757,6 +758,85 @@ def test_a_number_before_a_list_comma_is_no_amount(config) -> None:
     r = Resolver(graph, config, ambiguous={"cad": "CAD"})
     for context in ("list", "prose"):
         assert _ids(r, "Microsoft Office 365, CAD, SolidWorks", context=context) == ["skill.cad", "skill.solidworks"]
+
+
+# Fix round 4 (D-27). An amount (thousands, cents, a magnitude, four digits or more that are no
+# year) right before a currency code is money unless one of the settings' nouns follows the code
+# ("1,200 CAD drawings"); a small number is money only before a rate or money word, a range, an
+# addition or a separator; a rate phrase ("annually", "per hour") needs a number before the code.
+# A number inside the skill name before the code ("Fusion 360") or glued to letters ("V9") is none.
+_CAD_NOUNS = ("drawings", "licences", "models", "standards")
+
+
+def _cad_resolver(config, nouns=_CAD_NOUNS) -> Resolver:
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"),
+                   _node("skill.fusion360", "Fusion 360"))
+    return Resolver(graph, config, ambiguous={"cad": "CAD"}, currency_skill_nouns=nouns)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Pay range: 70,000 - 85,000 CAD depending on experience.",
+        "We offer 85,000 CAD plus benefits.",
+        "100,000 CAD base salary plus bonus.",
+        "Range: 90,000 - 110,000 CAD + equity",
+        "The expected range is 95,000 CAD to 120,000 CAD.",
+        "Pay range: 70,000 CAD - 85,000 CAD",
+        "Starting pay of 22.50 CAD with tips.",
+        "Base: 120,000 CAD | Bonus: 10%",
+        "OTE 140,000 CAD (50/50 split).",
+        "120K CAD + equity",
+        "Awarded a 2,500 CAD scholarship for academic excellence.",
+        "Raised 3,000 CAD for the food bank.",
+        "Won a 1,000 CAD prize at the science fair.",
+        "Spent 5000 CAD on parts.",  # four digits that are no year
+        "Earning 80,000 CAD annually.",
+        "80,000 CAD/year",
+        # a small number: a rate or money word, a range, an addition or a separator follows
+        "Paid 25 CAD hourly.",
+        "25 CAD/hr",
+        "Paid 25 CAD - 30 CAD per hour.",
+        "Rate: 40 CAD + HST",
+        "Stipend: 500 CAD (monthly)",
+        "Tips: 20 CAD | weekends",
+        "Won a 500 CAD prize.",
+        "Awarded a 500 CAD scholarship.",
+        "Rates quoted in CAD/h.",  # a rate unit after the code needs no number
+    ],
+)
+def test_an_amount_before_a_currency_code_is_money(config, text: str) -> None:
+    assert _ids(_cad_resolver(config), text) == []
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Produced 1,200 CAD drawings for the plant.", ["skill.cad"]),  # a noun of the skill's work follows
+        ("Managed 1,500 CAD licences for the firm.", ["skill.cad"]),
+        ("Updated the 2024 CAD standards manual.", ["skill.cad"]),  # a year is no number
+        ("Taught CAD annually to new hires.", ["skill.cad"]),  # a rate phrase needs a number before the code
+        ("Learned CAD a year ago.", ["skill.cad"]),
+        ("Reviewed CAD hourly during the shift.", ["skill.cad"]),
+        ("Spent 10 hours in CAD per week.", ["skill.cad"]),
+        ("Built 12 CAD assemblies to spec.", ["skill.cad"]),  # a count: nothing money-like follows
+        ("Ported 2 CAD to Onshape.", ["skill.cad"]),  # "to" makes a range only before a number
+        ("Experience with Fusion 360 CAD (cloud) and SolidWorks.",  # the number is part of the name before
+         ["skill.fusion360", "skill.cad", "skill.solidworks"]),
+        ("Fusion 360 CAD | SolidWorks", ["skill.fusion360", "skill.cad", "skill.solidworks"]),
+        ("Modelled the housing in Creo V9 CAD (surfacing).", ["skill.cad"]),  # glued to a letter: a version
+        ("Skills: SolidWorks, CAD\n80,000 units shipped", ["skill.solidworks", "skill.cad"]),  # another line
+    ],
+)
+def test_a_count_a_version_or_a_rate_without_a_number_keeps_the_skill(config, text: str,
+                                                                      expected: list[str]) -> None:
+    assert _ids(_cad_resolver(config), text) == expected
+
+
+def test_the_nouns_that_keep_a_currency_code_a_skill_come_from_the_settings(config) -> None:
+    text = "Produced 1,200 CAD drawings for the plant."
+    assert _ids(_cad_resolver(config, nouns=()), text) == []  # no noun: an amount before the code is money
+    assert _ids(_cad_resolver(config, nouns=("Drawings",)), text) == ["skill.cad"]  # normalised like a key
 
 
 def test_spring_of_a_year_is_a_date(config) -> None:

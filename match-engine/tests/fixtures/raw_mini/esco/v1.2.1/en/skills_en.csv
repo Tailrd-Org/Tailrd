@@ -26,3 +26,8 @@ KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-800
 synergy",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About think critically.
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000015,knowledge,cross-sector,morality,moral standards,,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About morality.
 KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000016,knowledge,sector-specific,Common Lisp,CL programming,,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About Common Lisp.
+KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000017,knowledge,cross-sector,control systems,"control system
+system control
+regulatory systems",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About control systems.
+KnowledgeSkillCompetence,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-000000000018,skill/competence,cross-sector,business analysis,"business analyses
+commercial analysis",,released,2024-01-01T00:00:00Z,,,http://data.europa.eu/esco/concept-scheme/skills,About business analysis.

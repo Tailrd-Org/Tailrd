@@ -8,7 +8,7 @@ DECISIONS D-04) and the hand-curated config into the hash-pinned artifacts of da
     idf.json            empty until Task 2.3 computes IDF from the posting corpus
     pmi_edges.json      the curated related edges (Task 2.3 adds the mined ones)
     resolver.json       ambiguous and cased keys with their casing; blocked phrases; the licences'
-                        in-progress nodes
+                        in-progress nodes; the nouns that keep CAD a skill after an amount
     titles.json         normalised job title -> O*NET-SOC code, SOC major group, job zone
     mos_crosswalk.json  military occupation code -> branch, title, O*NET-SOC codes, skill ids
     naics.json          NAICS 2022 code -> title
@@ -35,7 +35,7 @@ bytes. Rules, in the order they apply:
    MERGES into that node (into the skill when a field shares the key): its names become the
    node's aliases (of an ESCO concept, its preferred labels, and, for a skill but never a field
    of study, an alternative or hidden label of several words sharing a specific content word
-   with the curated names, D-26),
+   with the curated names or made only of the curated label's own words, D-26),
    its parents are inherited only when the curated node declares no `parents` key, and every
    reference to it points at the node.
 3. Other ESCO concepts become `esco.<slug of the preferred label>` (a slug shared by several
@@ -423,6 +423,7 @@ class Curated:
     generic_titles: frozenset[str] = frozenset()  # title keys that name no occupation
     in_progress: dict[str, str] = field(default_factory=dict)  # licence id -> its formal in-progress node
     licence_probes: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (posting line, its exact credential ids)
+    currency_skill_nouns: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-27)
 
 
 def content_tokens(surface: str) -> frozenset[str]:
@@ -435,6 +436,8 @@ def content_tokens(surface: str) -> frozenset[str]:
 
 
 def _singular(word: str) -> str:
+    if len(word) > 5 and word.endswith("yses"):  # "analyses" -> "analysi", as "analysis" -> "analysi"
+        return word[:-2] + "i"
     if len(word) > 4 and word.endswith(("sses", "xes", "ches", "shes")):
         return word[:-2]
     if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
@@ -448,6 +451,14 @@ _GENERIC_TOKENS = frozenset(map(_singular, GENERIC_WORDS))  # "analysis" is the 
 def shares_specific_word(label: str, tokens: frozenset[str]) -> bool:
     """Whether `label` has a content word, not a generic one, among the curated `tokens` (D-26)."""
     return bool((content_tokens(label) - _GENERIC_TOKENS) & tokens)
+
+
+def names_the_node(label: str, own: frozenset[str]) -> bool:
+    """Whether every content word of `label` is one of `own`, the content words of the curated
+    node's label, up to a plural (D-26): "control system" and "system control" name "Control
+    systems", "business analyses" names "Business analysis", generic words or not."""
+    words = content_tokens(label)
+    return bool(words) and words <= own
 
 
 _LETTER_SLOT = "[A-Z]"  # in a blocked phrase: one phrase per capital letter ("Building [A-Z]")
@@ -532,6 +543,10 @@ def load_curated(path: Path) -> Curated:
         if clash:
             raise BuildError(f"{path.name}: blocked phrase {phrase!r} is also a curated label or alias")
     generic = _strings(doc.get("generic_titles"), f"{path.name}: generic_titles")
+    nouns = {normalize_surface(noun) for noun in _strings(doc.get("currency_skill_nouns"),
+                                                          f"{path.name}: currency_skill_nouns")}
+    if any(not noun or " " in noun for noun in nouns):
+        raise BuildError(f"{path.name}: currency_skill_nouns are single words (the word after a currency code)")
     return Curated(
         nodes=nodes,
         ambiguous={normalize_surface(key): normalize_keep_case(casing) for key, casing in ambiguous.items()},
@@ -543,6 +558,7 @@ def load_curated(path: Path) -> Curated:
         generic_titles=frozenset(key for title in generic for key in _keys(title)),
         in_progress=dict(sorted(in_progress.items())),
         licence_probes=_licence_probes(doc.get("licence_probes"), path.name, set(in_progress)),
+        currency_skill_nouns=tuple(sorted(nouns)),
     )
 
 
@@ -784,6 +800,7 @@ class Assembler:
         self.example_map: dict[str, str] = {}  # O*NET example text -> node id
         self.final_ids: set[str] = set()  # set once finish() has run
         self.curated_tokens: dict[str, frozenset[str]] = {}  # curated node -> content words of its names
+        self.curated_label_tokens: dict[str, frozenset[str]] = {}  # curated node -> content words of its label
         self.synonym_imports: list[tuple[str, str]] = []  # (curated id, merged alternative label kept)
         self._onet_keys: dict[str, str] = {}  # normalised O*NET example name -> node id
         self._group = 0
@@ -835,6 +852,7 @@ class Assembler:
                     self.curated_keys[key] = sides[key].get(False) or sides[key][True]
             self.curated_tokens[node.id] = frozenset().union(
                 *(content_tokens(surface) for surface in (node.label, *node.aliases)))
+            self.curated_label_tokens[node.id] = content_tokens(node.label)
             self.drafts[node.id] = draft
 
     # ESCO ---------------------------------------------------------------------------------
@@ -886,7 +904,9 @@ class Assembler:
         labels, and, when the node is not a field of study, an alternative or hidden label only
         when it has several words one of which is a specific (not generic) content word of the
         curated node's own names ("supervised learning" under machine learning, "manage projects"
-        under project management): the others too often name a neighbour of the curated sense
+        under project management), or all of whose content words are words of the curated label
+        itself, generic or not ("control system" under "Control systems", "business analyses"
+        under "Business analysis"): the others too often name a neighbour of the curated sense
         ("web design" under computer programming, "financial planning" under forecasting)."""
         group = self._next_group()
         english = {normalize_surface(concept.pref)}
@@ -904,12 +924,13 @@ class Assembler:
                     continue
                 self._claim(draft, surface, strength, group, own=True, derived=derived)
         tokens = self.curated_tokens.get(draft.id, frozenset())
+        own = self.curated_label_tokens.get(draft.id, frozenset())
         for labels, strength in ((concept.alt, ALT), (concept.hidden, HIDDEN), (concept.alt_fr, FR_ALT),
                                  (concept.hidden_fr, FR_ALT)):
             for label in labels:
                 if merged:
                     if (draft.id.startswith(FIELD_PREFIX) or " " not in normalize_surface(label)
-                            or not shares_specific_word(label, tokens)):
+                            or not (shares_specific_word(label, tokens) or names_the_node(label, own))):
                         continue
                     self.synonym_imports.append((draft.id, label))
                 self._claim(draft, label, strength, group)
@@ -1449,7 +1470,8 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "",
         "- Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,",
         "  and, into a skill (never a field of study), an alternative or hidden label of several words that",
-        f"  shares a specific content word with the curated names ({len(report.synonym_imports):,} kept); a",
+        "  shares a specific content word with the curated names or is made of the curated label's own",
+        f"  words (\"control system\"; {len(report.synonym_imports):,} kept); a",
         "  one-word French preferred label is kept only when it is the English label. ESCO programming",
         "  languages (labelled \"(computer programming)\" or under computer programming) are TECHNOLOGY.",
         "  The formal in-progress designations of a professional licence or of the CFA charter (\"CPA",
@@ -1479,7 +1501,8 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "  `blocked_phrases` (\"American Express\", \"Sous Chef\", \"Building C\", \"Technical Skills\")",
         "  consume their words in extraction without a mention. `in_progress` maps each professional",
         "  licence, and the CFA charter, to the node of its formal in-progress designations, read only as",
-        "  written (D-28).",
+        "  written (D-28). `currency_skill_nouns` (curated) keep a currency code that is also a skill (CAD)",
+        "  the skill after an amount (\"1,200 CAD drawings\"); before any other word it is money (D-27).",
         "",
         "## Counts",
         "",
@@ -1573,6 +1596,7 @@ def build(
         "cased": dict(sorted(report.auto_ambiguous.items())),
         "blocked_phrases": list(curated.blocked_phrases),
         "in_progress": dict(curated.in_progress),
+        "currency_skill_nouns": list(curated.currency_skill_nouns),
     }
     leaks = check_in_progress(nodes, curated, resolver_settings)
     if leaks:
@@ -1606,7 +1630,8 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
 
     graph = SkillGraph({node.id: node for node in nodes}, {}, {}, "in-progress-check")
     resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
-                        blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"])
+                        blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"],
+                        currency_skill_nouns=settings["currency_skill_nouns"])
     licences = set(curated.in_progress)
     targets = set(curated.in_progress.values())
     failures = []

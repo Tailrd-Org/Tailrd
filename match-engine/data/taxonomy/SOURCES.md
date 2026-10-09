@@ -42,7 +42,8 @@ as downloaded.
 
 - Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,
   and, into a skill (never a field of study), an alternative or hidden label of several words that
-  shares a specific content word with the curated names (818 kept); a
+  shares a specific content word with the curated names or is made of the curated label's own
+  words ("control system"; 827 kept); a
   one-word French preferred label is kept only when it is the English label. ESCO programming
   languages (labelled "(computer programming)" or under computer programming) are TECHNOLOGY.
   The formal in-progress designations of a professional licence or of the CFA charter ("CPA
@@ -71,7 +72,8 @@ as downloaded.
   `blocked_phrases` ("American Express", "Sous Chef", "Building C", "Technical Skills")
   consume their words in extraction without a mention. `in_progress` maps each professional
   licence, and the CFA charter, to the node of its formal in-progress designations, read only as
-  written (D-28).
+  written (D-28). `currency_skill_nouns` (curated) keep a currency code that is also a skill (CAD)
+  the skill after an amount ("1,200 CAD drawings"); before any other word it is money (D-27).
 
 ## Counts
 
@@ -86,10 +88,10 @@ as downloaded.
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 703 | 3,324 |
-| esco | 14,296 | 102,817 |
+| curated | 704 | 3,339 |
+| esco | 14,295 | 102,813 |
 | onet | 29,745 | 1,990 |
 
-- Total: 44,744 nodes, 108,131 aliases; 157 curated related edges; 85 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 83 blocked phrases.
-- Merged into curated nodes: 620 source concepts; dropped nodes: 26; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
+- Total: 44,744 nodes, 108,142 aliases; 157 curated related edges; 85 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 83 blocked phrases.
+- Merged into curated nodes: 621 source concepts; dropped nodes: 26; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.

@@ -19,6 +19,8 @@ skills:
   - {id: skill.go, label: Go, kind: TECHNOLOGY, aliases: [Golang], release_year: 2009}
   - {id: skill.forklift, label: Forklift, kind: TOOL, aliases: [forklift operation]}
   - {id: skill.programming, label: Computer programming, kind: DOMAIN}
+  - {id: skill.control_systems, label: Control systems, kind: DOMAIN}
+  - {id: skill.business_analysis, label: Business analysis, kind: METHODOLOGY}
 
 credentials:
   - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN]}
@@ -35,6 +37,8 @@ ambiguous:
 blocked_aliases: [Scratch, synergy, Analytics]
 
 blocked_phrases: [American Express, "Building [A-Z]"]
+
+currency_skill_nouns: [drawings, Licences]
 
 generic_titles: [intern, co-op]
 

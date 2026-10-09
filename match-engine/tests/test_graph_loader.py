@@ -333,6 +333,8 @@ def test_load_resolver_reads_the_manifest_once(tmp_path: Path, config, monkeypat
         ({"format": 1, "ambiguous": {}, "blocked_phrases": ["R&D", ""]}, "blocked_phrases"),
         ({"format": 1, "ambiguous": {}, "in_progress": ["cred.cpa"]}, "in_progress"),
         ({"format": 1, "ambiguous": {}, "in_progress": {"cred.cpa": 1}}, "in_progress"),
+        ({"format": 1, "ambiguous": {}, "currency_skill_nouns": "drawings"}, "currency_skill_nouns"),
+        ({"format": 1, "ambiguous": {}, "currency_skill_nouns": ["drawings", ""]}, "currency_skill_nouns"),
     ],
 )
 def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, message: str) -> None:
@@ -353,6 +355,21 @@ def test_load_resolver_applies_the_in_progress_map(tmp_path: Path, config, line:
                         extra={"resolver.json": settings})
         found[name] = [m.canonical_id for m in load_resolver(tmp_path / name, config).extract(line)]
     assert found == {"plain": ["skill.react_native"], "mapped": ["skill.react"]}
+
+
+def test_load_resolver_applies_the_currency_skill_nouns(tmp_path: Path, config) -> None:
+    # D-27: after an amount a currency code is money unless one of these nouns follows it.
+    nodes = (*NODES, SkillNode(id="skill.cad", label="CAD", kind=SkillKind.TOOL, source="curated"))
+    found = {}
+    for name, nouns in (("plain", None), ("nouns", ["drawings"])):
+        settings = {"format": 1, "ambiguous": {"cad": "CAD"}}
+        if nouns is not None:
+            settings["currency_skill_nouns"] = nouns
+        write_artifacts(tmp_path / name, nodes, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                        extra={"resolver.json": settings})
+        found[name] = [m.canonical_id for m in load_resolver(tmp_path / name, config).extract(
+            "Produced 1,200 CAD drawings for the plant.")]
+    assert found == {"plain": [], "nouns": ["skill.cad"]}
 
 
 def test_load_resolver_applies_cased_keys_and_blocked_phrases(tmp_path: Path, config) -> None:

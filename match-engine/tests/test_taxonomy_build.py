@@ -196,6 +196,33 @@ def test_a_synonym_needs_a_specific_shared_word(label: str, shares: bool) -> Non
     assert builder.shares_specific_word(label, builder.content_tokens(curated)) is shares
 
 
+@pytest.mark.parametrize(
+    "label, own, named",
+    [
+        ("control system", "Control systems", True),  # generic words, every one the node's own
+        ("system control", "Control systems", True),
+        ("business analyses", "Business analysis", True),  # the plural of "analysis"
+        ("analysis of businesses", "Business analysis", True),
+        ("regulatory systems", "Control systems", False),  # a word of its own
+        ("process engineering", "Control systems", False),
+        ("commercial analysis", "Business analysis", False),
+        ("gestion des programmes", "Program management", False),  # French words are other words
+        ("of the", "Control systems", False),  # no content word at all
+    ],
+)
+def test_a_label_in_the_curated_labels_own_words_names_the_node(label: str, own: str, named: bool) -> None:
+    # D-26, fix round 4: such a label is the curated label rephrased, generic words or not.
+    assert builder.names_the_node(label, builder.content_tokens(own)) is named
+
+
+def test_a_merged_concept_keeps_the_curated_label_rephrased(graph) -> None:
+    # "control system" and "business analyses" share only generic words with their curated node,
+    # all of them its label's own: kept. "regulatory systems" and "commercial analysis" have words
+    # of their own: out.
+    assert _aliases(graph, "skill.control_systems") == {"control system", "system control", "systèmes de contrôle"}
+    assert _aliases(graph, "skill.business_analysis") == {"business analyses", "analyse commerciale"}
+
+
 def test_a_field_of_study_imports_no_alternative_label(graph) -> None:
     # D-26: "maths knowledge" (ESCO mathematics) stays out of field.mathematics; a field's names are
     # its curated ones, so no ESCO paraphrase ever consumes prose as a field.
@@ -406,6 +433,26 @@ def test_load_resolver_uses_the_ambiguous_casings(built: Path, config) -> None:
     assert [m.surface for m in resolver.extract("go, sql, SQL", context="list")] == ["go", "SQL"]
     assert resolver.extract("Lab work in Building C with Python.")[0].surface == "Python"
     assert resolver.resolve("American Express").method == "NONE"
+
+
+def test_currency_skill_nouns_are_written_for_the_resolver(built: Path, config) -> None:
+    # D-27, fix round 4: after an amount a currency code is money unless one of these curated nouns
+    # follows it; written normalised and sorted.
+    assert _json(built, "resolver.json")["currency_skill_nouns"] == ["drawings", "licences"]
+    resolver = load_resolver(built, config)
+    assert [m.canonical_id for m in resolver.extract("Produced 1,200 CAD drawings.")] == ["skill.cad"]
+    assert [m.canonical_id for m in resolver.extract("Managed 1,500 CAD licences.")] == ["skill.cad"]
+    assert resolver.extract("We offer 85,000 CAD plus benefits.") == ()
+
+
+@pytest.mark.parametrize("nouns", ["drawings", "[shop drawings]", '[drawings, ""]'])
+def test_bad_currency_skill_nouns_fail_the_build(tmp_path: Path, nouns: str) -> None:
+    text = CURATED.read_text(encoding="utf-8").replace("currency_skill_nouns: [drawings, Licences]",
+                                                       f"currency_skill_nouns: {nouns}")
+    path = tmp_path / "curated.yaml"
+    path.write_text(text, encoding="utf-8")
+    with pytest.raises(builder.BuildError, match="currency_skill_nouns"):
+        _build(tmp_path / "out", curated_path=path)
 
 
 def test_formal_designations_are_read_as_written(graph, built: Path, config) -> None:

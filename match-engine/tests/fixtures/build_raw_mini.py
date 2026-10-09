@@ -59,6 +59,12 @@ CONCEPTS = (
     # A programming language ESCO files as knowledge under "computer programming".
     ("00000000-0000-4000-8000-000000000016", "knowledge", "sector-specific", "Common Lisp",
      ["CL programming"], [], "Common Lisp", []),
+    # Labels made only of generic words: the curated label rephrased ("control system", "business
+    # analyses") is kept, a label with a word of its own ("regulatory systems") is not (D-26).
+    ("00000000-0000-4000-8000-000000000017", "knowledge", "cross-sector", "control systems",
+     ["control system", "system control", "regulatory systems"], [], "systèmes de contrôle", []),
+    ("00000000-0000-4000-8000-000000000018", "skill/competence", "cross-sector", "business analysis",
+     ["business analyses", "commercial analysis"], [], "analyse commerciale", []),
 )
 
 # (code, uuid or isced uri suffix, preferred en, preferred fr)

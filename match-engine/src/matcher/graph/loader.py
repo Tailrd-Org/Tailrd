@@ -10,7 +10,8 @@ Formats (all UTF-8 JSON carrying `"format": 1`):
   next to the graph by `write_artifacts(extra=...)` and pinned in the same MANIFEST. The resolver
   settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"},
   "cased":{"<key>":"<required casing>"},"blocked_phrases":["<phrase>", ...],
-  "in_progress":{"<licence id>":"<in-progress id>"}}`.
+  "in_progress":{"<credential id>":"<id of its formal in-progress designations>"},
+  "currency_skill_nouns":["<noun>", ...]}`.
 
 Every reader refuses an artifact whose bytes do not match the manifest: `load_graph` checks the
 three graph files it reads, `load_json_artifact` the document it is asked for. The graph version
@@ -248,9 +249,14 @@ def _json_artifact(root: Path, name: str, artifacts: Mapping[str, str]) -> dict[
 
 def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
     """The hash-verified `resolver.json`: `{"format": 1, "ambiguous": {key: required casing},
-    "cased": {key: required casing}, "blocked_phrases": [phrase, ...], "in_progress": {licence id:
-    in-progress id}}`. `ambiguous` holds the curated keys, `cased` the automatic ones (D-26),
-    `in_progress` the professional licences (D-28); all but `ambiguous` may be absent (empty)."""
+    "cased": {key: required casing}, "blocked_phrases": [phrase, ...], "in_progress": {credential
+    id: in-progress id}, "currency_skill_nouns": [noun, ...]}`. `ambiguous` holds the curated keys,
+    `cased` the automatic ones (D-26). `in_progress` links each credential that has formal
+    in-progress designations to their node (D-28: the professional licences and the CFA charter,
+    which is no gated licence); which licences the gate requires is `config/gates.yaml`
+    (`license.professional_credential_ids`), not this map. `currency_skill_nouns` keep a currency
+    code that is also a skill after an amount ("1,200 CAD drawings", D-27). All but `ambiguous`
+    may be absent (empty)."""
     root = Path(taxonomy_dir)
     return _resolver_settings(root, _manifest_artifacts(root))
 
@@ -265,9 +271,10 @@ def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, An
             isinstance(key, str) and isinstance(value, str) for key, value in mapping.items()
         ):
             raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map strings to strings")
-    phrases = settings.get("blocked_phrases", [])
-    if not isinstance(phrases, list) or not all(isinstance(phrase, str) and phrase for phrase in phrases):
-        raise ArtifactError(f"{RESOLVER_JSON}: 'blocked_phrases' must be a list of phrases")
+    for name in ("blocked_phrases", "currency_skill_nouns"):
+        values = settings.get(name, [])
+        if not isinstance(values, list) or not all(isinstance(value, str) and value for value in values):
+            raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must be a list of non-empty strings")
     return settings
 
 
@@ -287,6 +294,7 @@ def load_resolver(
         cased=settings.get("cased", {}),
         blocked_phrases=settings.get("blocked_phrases", ()),
         in_progress=settings.get("in_progress", {}),
+        currency_skill_nouns=settings.get("currency_skill_nouns", ()),
         fuzzy_log=fuzzy_log,
     )
 

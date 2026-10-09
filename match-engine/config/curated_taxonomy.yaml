@@ -168,6 +168,8 @@ skills:
   - {id: skill.solidity, label: Solidity, kind: TECHNOLOGY, aliases: [Solidity programming], parents: [skill.blockchain], release_year: 2014}
   - {id: skill.product_management, label: Product management, kind: METHODOLOGY, aliases: [product manager skills, gestion de produit]}
   - {id: skill.project_management, label: Project management, kind: METHODOLOGY, aliases: [project-management, managing projects, project planning, perform project management, gestion de projet, gestion de projets]}
+  # Anchor for ESCO's "program management": the British and Canadian spelling reaches it too.
+  - {id: skill.program_management, label: Program management, kind: DOMAIN, aliases: [programme management, gestion des programmes]}
   - {id: skill.ux, label: UX design, kind: METHODOLOGY, aliases: [ux, user experience, user experience design, UX research, UX/UI, UI/UX, UX/UI design, UI/UX design, user-centered design, conception UX], parents: [skill.design]}
   - {id: skill.ui, label: UI design, kind: METHODOLOGY, aliases: [ui, user interface, user interface design, UI development, interface design], parents: [skill.design]}
   - {id: skill.accessibility, label: Accessibility, kind: METHODOLOGY, aliases: [a11y, web accessibility, WCAG, digital accessibility, AODA compliance], parents: [skill.ux]}
@@ -243,7 +245,7 @@ skills:
   - {id: skill.economics, label: Economics, kind: DOMAIN, aliases: [economic analysis, sciences économiques]}
   - {id: skill.data_science, label: Data science, kind: DOMAIN, aliases: [science des données, sciences des données]}
   - {id: skill.nursing, label: Nursing, kind: DOMAIN, aliases: [nursing care, nursing practice, soins infirmiers]}
-  - {id: skill.design, label: Design skills, kind: DOMAIN, aliases: [product design, industrial design, interior design, design thinking]}
+  - {id: skill.design, label: Design skills, kind: DOMAIN, aliases: [product design, industrial design, interior design, design thinking], parents: []}
   - {id: skill.regression, label: Regression analysis, kind: METHODOLOGY, aliases: [linear regression, logistic regression, regression models, regression modeling, regression modelling, multiple regression], parents: [skill.statistical_analysis]}
   - {id: skill.ab_testing, label: A/B testing, kind: METHODOLOGY, aliases: [AB testing, A/B tests, split testing], parents: [skill.statistical_analysis]}
   - {id: skill.sas, label: SAS, kind: TOOL, aliases: [SAS software, SAS programming, SAS Base, SAS/STAT, SAS Enterprise Guide], parents: [skill.statistical_analysis]}
@@ -370,7 +372,7 @@ skills:
   - {id: skill.thermodynamics, label: Thermodynamics, kind: DOMAIN, aliases: [thermodynamique, heat transfer and thermodynamics]}
   - {id: skill.fluid_mechanics, label: Fluid mechanics, kind: DOMAIN, aliases: [fluid dynamics, mécanique des fluides]}
   - {id: skill.signal_processing, label: Signal processing, kind: DOMAIN, aliases: [digital signal processing, DSP, traitement du signal]}
-  - {id: skill.control_systems, label: Control systems, kind: DOMAIN, aliases: [control theory, control engineering, feedback control, PID control, systèmes de contrôle, process control, process control systems, industrial control systems]}
+  - {id: skill.control_systems, label: Control systems, kind: DOMAIN, aliases: [control system, control theory, control engineering, feedback control, PID control, systèmes de contrôle, process control, process control systems, industrial control systems]}
   - {id: skill.power_systems, label: Power systems, kind: DOMAIN, aliases: [electrical power systems, power engineering, power distribution]}
   - {id: skill.microcontrollers, label: Microcontrollers, kind: TECHNOLOGY, aliases: [microcontroller, MCU, STM32, PIC microcontrollers, AVR microcontrollers], parents: [skill.embedded_systems]}
   - {id: skill.rtos, label: RTOS, kind: TECHNOLOGY, aliases: [real-time operating system, real-time operating systems, FreeRTOS], parents: [skill.embedded_systems]}
@@ -576,7 +578,7 @@ skills:
   - {id: skill.barista, label: Barista skills, kind: METHODOLOGY, aliases: [espresso preparation, coffee preparation, latte art]}
   # ─── soft skills (anchor the ESCO transversal concepts; ESCO's single-word alternatives drop) ─
   - {id: skill.communication, label: Communication, kind: SOFT, aliases: [communication skills, communications skills, verbal communication, written communication, oral communication, effective communication, written and verbal communication, verbal and written communication, compétences en communication]}
-  - {id: skill.teamwork, label: Teamwork, kind: SOFT, aliases: [team work, team player, teamworking, team-working, work in teams, working in teams, collaboration, collaborative, team collaboration, travail d'équipe, travail en équipe, esprit d'équipe, team spirit, work in a team, working in a team]}
+  - {id: skill.teamwork, label: Teamwork, kind: SOFT, aliases: [team work, team player, teamworking, team-working, work in teams, working in teams, collaboration, collaborative, team collaboration, travail d'équipe, travail en équipe, esprit d'équipe, team spirit, work in a team, working in a team, work in groups, working in groups, ability to work together]}
   - {id: skill.leadership, label: Leadership, kind: SOFT, aliases: [lead others, leadership skills, team leadership, leading teams, people leadership, leadership abilities, diriger les autres]}
   - {id: skill.problem_solving, label: Problem solving, kind: SOFT, aliases: [problem-solving, solve problems, problem solving skills, problem-solving skills, résolution de problèmes]}
   - {id: skill.critical_thinking, label: Critical thinking, kind: SOFT, aliases: [think critically, critical-thinking, pensée critique, esprit critique]}
@@ -739,7 +741,7 @@ fields:
   - {id: field.pharmacy, label: Pharmacy, kind: DOMAIN, aliases: [PharmD, pharmaceutical sciences, pharmacie], parents: [field.health_sciences]}
   - {id: field.communications, label: Communications, kind: DOMAIN, aliases: [communication studies, communications degree, media studies, mass communication], parents: [field.social_sciences]}
   - {id: field.journalism, label: Journalism, kind: DOMAIN, aliases: [journalisme], parents: [field.communications]}
-  - {id: field.design, label: Design, kind: DOMAIN, aliases: [design degree, Bachelor of Design, BDes, B.Des, industrial design], parents: [field.arts]}
+  - {id: field.design, label: Design, kind: DOMAIN, aliases: [design degree, Bachelor of Design, BDes, B.Des, industrial design, interior design, product design], parents: [field.arts]}
   - {id: field.architecture, label: Architecture, kind: DOMAIN, aliases: [architectural studies, B.Arch, M.Arch], parents: []}
   - {id: field.law, label: Law, kind: DOMAIN, aliases: [legal studies, LLB, Juris Doctor, droit], parents: []}
   - {id: field.education, label: Education, kind: DOMAIN, aliases: [B.Ed, BEd, Bachelor of Education, teacher education, éducation, sciences de l'éducation], parents: []}
@@ -840,7 +842,17 @@ ambiguous:
   vue: Vue
 
 blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbite, plan, Project, Office, Database, Analytics, Notes, Pages, Numbers, Keynote, Drive, Docs, Sheets, Slides, Classroom, Ads, Dynamics, Windows, Server, Mail, Calendar, Contacts, Photos, Maps, Chat, Meet, Forms, Sites, Groups, Translate, Voice, Cloud, Email, Scheduling, Teleconferencing, Publisher, Millennium, energy, Ant, Arena, Colleague, Navigator, Presenter, Scholar, Quest, Rio, Hive, Middleware, Persuasion, Concordance, Ovation, Painter, Opus, Beehive, Evolver, Cobalt, Helix, Darwin, Saber, Hercules, Dracula, Domino, environment, services, health, welfare, sports, languages, arts,
-  cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing, Chef, Teams]
+  cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing, Chef, Teams,
+  # ESCO's label for both "document evidence" (forensics) and organising information: neither sense
+  record information]
+
+# After an amount, a currency code that is also a skill (CAD) is money ("85,000 CAD plus benefits",
+# "a 2,500 CAD scholarship") unless the word right after it is one of these nouns of CAD work, which
+# the amount then counts ("1,200 CAD drawings", "1,500 CAD licences"; D-27). Plural nouns only:
+# after an amount a singular noun is usually what the money buys ("a 5,000 CAD design prize").
+currency_skill_nouns: [assemblies, blocks, designs, details, diagrams, drafts, drawings, files, layouts,
+  libraries, licences, licenses, models, parts, plans, renderings, revisions, schematics, seats, sheets,
+  standards, templates, users, workstations]
 
 # Phrases that are never skills although they contain one (D-27): in extraction a match consumes
 # its words and yields no mention ("American Express" is no Express.js); `resolve` gives NONE. The

@@ -180,6 +180,23 @@ def test_resolver_settings_hold_the_rounds_rules() -> None:
     # Round 2: bare "Teams" and "Chef" are no keys at all; French "cerner" (to grasp) needs "Cerner".
     assert not {"teams", "chef"} & (set(settings["ambiguous"]) | set(settings["cased"]))
     assert settings["ambiguous"]["cerner"] == "Cerner"
+    # Round 4 (D-27): the curated nouns that keep CAD the skill after an amount ("1,200 CAD drawings").
+    nouns = settings["currency_skill_nouns"]
+    assert nouns == sorted(set(nouns)) and all(noun == noun.lower() and " " not in noun for noun in nouns)
+    assert {"drawings", "models", "files", "parts", "sheets", "assemblies", "licences", "licenses",
+            "standards"} <= set(nouns)
+
+
+def test_round_4_names(graph, resolver) -> None:
+    # The British and Canadian spelling reaches the node the American one does: a curated anchor
+    # the ESCO concept merges into, keeping its parent.
+    assert resolver.resolve("programme management").canonical_id == "skill.program_management"
+    assert resolver.resolve("program management").canonical_id == "skill.program_management"
+    assert graph.nodes["skill.program_management"].parents == ("esco.group.0413",)
+    # Design (D-27): the disciplines are field names too; the skill takes no ESCO parents from the
+    # merged "design thinking" concept (arts, marketing and advertising).
+    assert {"interior design", "product design", "industrial design"} <= set(graph.nodes["field.design"].aliases)
+    assert graph.nodes["skill.design"].parents == ()
 
 
 IN_PROGRESS = {
