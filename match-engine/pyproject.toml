@@ -32,6 +32,9 @@ eval = [
   "Jinja2==3.1.6",
   "cryptography==50.0.2",
   "pillow==12.3.0",
+  # The synthetic corpus writes .docx files and rasterises PDFs (same pins as the ingest extra).
+  "python-docx==1.2.0",
+  "pymupdf==1.28.2",
 ]
 dev = [
   "pytest==9.1.1",
@@ -48,6 +51,11 @@ testpaths = ["tests"]
 addopts = "-p no:cacheprovider"
 markers = [
   "slow: long-running checks (50k-input totality, 1,000-run determinism); `make eval-fast` runs them",
+]
+filterwarnings = [
+  # reportlab 4.2.5 probes `ast.NameConstant` when it is imported (removed in Python 3.14): noise
+  # from a third-party module, so only that warning from that module is silenced.
+  "ignore:ast.NameConstant is deprecated:DeprecationWarning:reportlab.lib.rl_safe_eval",
 ]
 
 [tool.ruff]

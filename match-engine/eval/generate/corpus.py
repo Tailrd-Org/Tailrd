@@ -12,6 +12,10 @@ writes, under the output directory,
 The same arguments always give byte-identical files and manifest: nothing reads the clock, and a
 file's randomness comes only from (seed, profile, template, format). `eval/corpora/synthetic/` is
 git-ignored; the corpus is generated, never committed.
+
+The output directory must be empty or hold a corpus this tool wrote: stale files of an earlier run
+would otherwise sit next to the new ones and be mistaken for part of it. `--force` replaces such a
+corpus; anything else found in the directory is never touched (the run is refused instead).
 """
 
 from __future__ import annotations
@@ -20,6 +24,8 @@ import argparse
 import hashlib
 import json
 import os
+import re
+import shutil
 import sys
 import time
 from collections.abc import Sequence
@@ -40,12 +46,50 @@ from matcher.models import JobPosting
 
 DEFAULT_OUT = "eval/corpora/synthetic"
 
+_META_FILES = ("manifest.json", "profiles.jsonl", "postings.jsonl")
+_PROFILE_DIR = re.compile(r"p\d{4,}")
+_RENDERING = re.compile(r"[a-z_]+__[a-z0-9_]+\.(?:pdf|docx|txt)")
+
 
 def render_seed(corpus_seed: int, profile_id: str, template: str) -> int:
     """The render seed of one (profile, template): shared by its six formats, so they differ only
     in layout, while every profile and template still gets its own date style and colours."""
     digest = hashlib.sha256(f"{corpus_seed}:{profile_id}:{template}".encode()).digest()
     return int.from_bytes(digest[:6], "big")
+
+
+class OutputDirectoryError(ValueError):
+    """The output directory is used: it holds a corpus (and `force` is off) or a file that is not ours."""
+
+
+def _prepare_out(out: Path, *, force: bool) -> None:
+    """Leave `out` empty. What this tool writes (the three metadata files, `p<NNNN>/` folders of
+    `<template>__<format>.<ext>` files) is removed on `force`; any other entry is never deleted."""
+    out.mkdir(parents=True, exist_ok=True)
+    ours: list[Path] = []
+    for entry in sorted(out.iterdir()):
+        is_metadata = entry.is_file() and entry.name in _META_FILES
+        is_profile = (
+            entry.is_dir()
+            and _PROFILE_DIR.fullmatch(entry.name) is not None
+            and all(f.is_file() and _RENDERING.fullmatch(f.name) for f in entry.iterdir())
+        )
+        if not (is_metadata or is_profile):
+            raise OutputDirectoryError(
+                f"{out} holds {entry.name!r}, which this tool did not write; refusing to touch it"
+            )
+        ours.append(entry)
+    if not ours:
+        return
+    if not force:
+        raise OutputDirectoryError(
+            f"{out} already holds a generated corpus ({len(ours)} entries); pass --force to replace it"
+        )
+    for entry in ours:
+        if entry.is_dir():
+            shutil.rmtree(entry)
+        else:
+            entry.unlink()
 
 
 def read_profiles(path: Path | str) -> tuple[CandidateProfile, ...]:
@@ -111,12 +155,16 @@ def generate_corpus(
     formats: Sequence[str] = FORMATS,
     jobs: int = 1,
     vocab: Vocabulary | None = None,
+    force: bool = False,
     log=None,
 ) -> dict:
-    """Write the corpus under `out` and return the manifest (also written as manifest.json)."""
+    """Write the corpus under `out` and return the manifest (also written as manifest.json).
+
+    Raises `OutputDirectoryError` when `out` holds anything but a corpus this tool wrote, or such a
+    corpus without `force`: nothing is written or deleted in that case."""
     vocab = vocab or default_vocabulary()
     out = Path(out)
-    out.mkdir(parents=True, exist_ok=True)
+    _prepare_out(out, force=force)
     postings = generate_postings(vocab, postings_per_family, seed)
     people = generate_profiles(vocab, postings, profiles, seed)
 
@@ -207,6 +255,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--templates", default=",".join(TEMPLATES), help="comma-separated subset of templates"
     )
     parser.add_argument("--formats", default=",".join(FORMATS), help="comma-separated subset of formats")
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help="replace a corpus this tool generated earlier in --out (other files are never deleted)",
+    )
     parser.add_argument("--quiet", action="store_true", help="no progress output")
     return parser
 
@@ -221,16 +274,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     jobs = args.jobs if args.jobs > 0 else max(1, min(os.cpu_count() or 1, 8))
     log = None if args.quiet else (lambda line: print(line, file=sys.stderr, flush=True))
     started = time.perf_counter()
-    manifest = generate_corpus(
-        args.out,
-        profiles=args.profiles,
-        seed=args.seed,
-        postings_per_family=args.postings_per_family,
-        templates=templates,
-        formats=formats,
-        jobs=jobs,
-        log=log,
-    )
+    try:
+        manifest = generate_corpus(
+            args.out,
+            profiles=args.profiles,
+            seed=args.seed,
+            postings_per_family=args.postings_per_family,
+            templates=templates,
+            formats=formats,
+            jobs=jobs,
+            force=args.force,
+            log=log,
+        )
+    except OutputDirectoryError as refused:  # nothing was written or deleted
+        parser.error(str(refused))
     if log:
         counts = manifest["counts"]
         log(

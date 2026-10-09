@@ -23,7 +23,7 @@ import pymupdf
 import pytest
 from pydantic import ValidationError
 
-from eval.generate import corpus, doc, lexicon, postings, profiles, render, vocabulary
+from eval.generate import bullets, corpus, doc, lexicon, postings, profiles, render, vocabulary
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph, SkillNode
 from matcher.models import (
@@ -31,12 +31,14 @@ from matcher.models import (
     DegreeLevel,
     Evidence,
     Necessity,
+    Polarity,
     Resume,
     SkillKind,
     SkillSource,
     Track,
     VerbClass,
 )
+from matcher.score.evidence import BulletMention, analyze_bullet, is_quantified
 
 AS_OF = profiles.GENERATION_AS_OF
 
@@ -380,20 +382,10 @@ def test_lower_levels_are_visibly_weaker_on_years_and_seniority(vocab, profs, po
 
 def _scrub(vocab, text: str) -> str:
     """The text with every skill mention blanked: a skill's own spelling ("Design Systems", "Lead
-    Generation") may contain a verb of the lexicon without being one."""
+    Generation") is a name, not prose."""
     for m in reversed(vocabulary.find_mentions(vocab, text)):
         text = text[: m.start] + " " + text[m.end :]
     return text
-
-
-def _verb_classes_in(config, scrubbed: str) -> set[VerbClass]:
-    padded = " " + re.sub(r"[^a-z]+", " ", scrubbed.lower()) + " "
-    return {
-        cls
-        for cls, cfg in config.verbs.classes.items()
-        for verb in cfg.verbs
-        if f" {verb.lower()} " in padded
-    }
 
 
 def _negation_terms(config) -> list[str]:
@@ -407,54 +399,64 @@ def _all_bullets(profile):
         yield from project.bullets
 
 
-def test_phrase_banks_are_free_of_stray_verbs_negations_and_skills(vocab, config) -> None:
-    """The banks bullets are built from must not smuggle in a second verb, a negation or a skill:
-    each bullet then has exactly the verb and the mentions its ground truth claims."""
+def _read(vocab, config, text: str):
+    """What the engine makes of a bullet: one `MentionEvidence` per skill the vocabulary finds."""
+    mentions = [
+        BulletMention(canonical_id=m.skill_id, start=m.start, end=m.end)
+        for m in vocabulary.find_mentions(vocab, text)
+    ]
+    return analyze_bullet(text, mentions, config)
+
+
+ALL_PROFESSIONS = (*lexicon.FAMILY_DATA.values(), lexicon.GENERIC_FAMILY)
+
+
+def test_phrase_banks_spell_no_skill_negation_or_stray_digit(vocab, config) -> None:
+    """The banks bullets are built from must not smuggle in a skill, a negation or aspiration
+    term, or a number: each bullet then has exactly the mentions and the polarity its ground truth
+    claims. Which verb a sentence reads as is the engine's call, tested against the engine below."""
     negations = _negation_terms(config)
 
-    def problems(text: str, *, verbs: bool) -> list[str]:
-        scrubbed = _scrub(vocab, text)
-        padded = " " + re.sub(r"[^a-z]+", " ", scrubbed.lower()) + " "
+    def problems(text: str) -> list[str]:
+        padded = " " + re.sub(r"[^a-z]+", " ", _scrub(vocab, text).lower()) + " "
         found = []
         if vocabulary.find_mentions(vocab, text):
             found.append("spells a skill")
         if any(f" {term} " in padded for term in negations):
             found.append("negation or aspiration")
-        if verbs and _verb_classes_in(config, scrubbed):
-            found.append("verb of the lexicon")
         if not text.isascii():
             found.append("not ascii")
         return found
 
-    plain: list[str] = []  # phrases with no verb, no skill, no digit
-    for fam in (*lexicon.FAMILY_DATA.values(), lexicon.GENERIC_FAMILY):
+    plain: list[str] = []  # phrases without a skill, a negation or a digit
+    for fam in ALL_PROFESSIONS:
         plain += [*fam.objects, *fam.metrics]
     plain += [*lexicon.TEAMS, *lexicon.PLAIN_TAILS, *lexicon.INSTRUMENT_JOINERS]
     for phrase in plain:
-        assert not problems(phrase, verbs=True), phrase
+        assert not problems(phrase), phrase
         assert not re.search(r"\d", phrase), phrase
     # the numbered tails: nothing but the number is a digit
-    fam_tails = [f.scale_tail for f in (*lexicon.FAMILY_DATA.values(), lexicon.GENERIC_FAMILY)]
+    fam_tails = [f.scale_tail for f in ALL_PROFESSIONS]
     tails = [t for t, _ in lexicon.METRIC_TAILS] + [t for t, _ in lexicon.FIXED_TAILS] + fam_tails
     for tail in tails:
         rendered = tail.format(metric="latency", n=7)
-        assert not problems(rendered, verbs=True), rendered
+        assert not problems(rendered), rendered
         assert len(re.findall(r"\d+", rendered)) == 1, rendered
-    # each verb phrase carries its own class and nothing else
+    # every verb phrase opens with an entry of the lexicon of its own class
+    entries = {cls: {v.lower() for v in c.verbs} for cls, c in config.verbs.classes.items()}
     for verb_class, phrases in lexicon.VERB_PHRASES.items():
         assert phrases
         for prefix, layout in phrases:
             assert layout in {"obj", "first", "only"}
-            assert _verb_classes_in(config, prefix) == {verb_class}, prefix
-            assert not problems(prefix, verbs=False), prefix
+            words = prefix.lower().split()
+            assert words[0] in entries[verb_class] or " ".join(words[:2]) in entries[verb_class], prefix
+            assert not problems(prefix), prefix
     assert set(lexicon.VERB_PHRASES) == set(VerbClass) - {VerbClass.NO_VERB}
-    # summaries: no skill, no digit-free promise needed, but no verb of the lexicon either
-    summaries = [*lexicon.SUMMARY_ADJECTIVES, *lexicon.SUMMARY_CLAUSES]
-    summaries.append(lexicon.STUDENT_SUMMARY.format(adj="Detail-oriented", field="computer science"))
-    for phrase in summaries:
-        assert not problems(phrase, verbs=True), phrase
-    # presentation extras: they must not spell a skill, because the ground truth does not claim one
+    # summaries and presentation extras: no skill is spelled, because the ground truth claims none
     extras = [
+        *lexicon.SUMMARY_ADJECTIVES,
+        *lexicon.SUMMARY_CLAUSES,
+        lexicon.STUDENT_SUMMARY.format(adj="Detail-oriented", field="computer science"),
         *lexicon.PUB_ADJECTIVES,
         *lexicon.PUB_NOUNS,
         *lexicon.PUB_TOPICS,
@@ -472,10 +474,70 @@ def test_phrase_banks_are_free_of_stray_verbs_negations_and_skills(vocab, config
         for _code, title, translation in fam.mos:
             extras += [title, translation]
     for phrase in extras:
-        assert not problems(phrase, verbs=False), phrase
+        assert not problems(phrase), phrase
+
+
+# Skills of each kind of bullet, spelled as they are in the vocabulary: plain names, and names with
+# punctuation, a hyphen, a slash or a space at either edge (".NET", "C#", "C++", "Node.js",
+# "scikit-learn", "CI/CD", "A/B Testing", "Go-to-Market Strategy", "Month-End Close") that must not
+# change how the engine splits a bullet into clauses.
+FORMS_BY_GROUP = {
+    "instrument": (
+        ("Python", "SQL", "Airflow"),
+        ("C++", "Node.js", "Go language"),
+        (".NET", "C#", "scikit-learn"),
+        ("Git",),
+    ),
+    "method": (("Agile",), ("A/B Testing",), ("CI/CD",), ("Go-to-Market Strategy",)),
+    "domain": (("Machine Learning",), ("Month-End Close",)),
+}
+
+
+def test_every_sentence_the_templates_can_write_reads_as_declared_by_the_engine(vocab, config) -> None:
+    """The ground truth follows the engine's current reading rules (SPEC 15.1, DECISIONS D-34a..f),
+    not a word list: every sentence `compose_bullet` can produce, for every profession, verb class
+    and kind of skill, goes through `analyze_bullet` and `is_quantified`. A change of the lexicon
+    that makes a template read differently fails here, naming the sentence."""
+    checked = 0
+    for fam in ALL_PROFESSIONS:
+        for verb_class in VerbClass:
+            for group, form_sets in FORMS_BY_GROUP.items():
+                for forms in form_sets:
+                    wanted = [vocabulary.resolve_form(vocab, form) for form in forms]
+                    for core in bullets.iter_cores(fam, verb_class, group, forms):
+                        evidence = _read(vocab, config, core)
+                        assert [e.canonical_id for e in evidence] == wanted, core
+                        for e in evidence:
+                            assert (e.verb_class, e.polarity) == (verb_class, Polarity.AFFIRMED), (core, e)
+                        assert not is_quantified(core, config), core
+                        checked += 1
+            # a filler bullet (the work alone) has no mention: probe it with a verbless clause holding
+            # one, which takes the class of the clause before it
+            for core in bullets.iter_cores(fam, verb_class, "", ()):
+                probe = f"{core}, Python"
+                (e,) = _read(vocab, config, probe)
+                assert (e.verb_class, e.polarity) == (verb_class, Polarity.AFFIRMED), probe
+                checked += 1
+    assert checked > 10_000  # the check is not vacuous
+
+
+def test_quantified_tails_read_as_quantified_and_plain_tails_do_not(config) -> None:
+    core = "Built backend services using Python"
+    for fam in ALL_PROFESSIONS:
+        lo, hi = fam.scale_range
+        tails = [
+            t.format(metric=m, n=n) for t, (a, b) in lexicon.METRIC_TAILS for m in fam.metrics for n in (a, b)
+        ]
+        tails += [t.format(n=n) for t, (a, b) in lexicon.FIXED_TAILS for n in (a, b)]
+        tails += [fam.scale_tail.format(n=n) for n in (lo, hi)]
+        for tail in tails:
+            assert is_quantified(core + tail, config), (fam.key, tail)
+    for tail in ("", *lexicon.PLAIN_TAILS):
+        assert not is_quantified(core + tail, config), tail
 
 
 def test_bullets_are_unambiguous_ground_truth(vocab, config, profs) -> None:
+    """Every bullet of 128 generated profiles, read by the engine itself."""
     classes_seen: set[VerbClass] = set()
     quantified_seen = [False, False]
     negations = _negation_terms(config)
@@ -484,12 +546,15 @@ def test_bullets_are_unambiguous_ground_truth(vocab, config, profs) -> None:
         for b in _all_bullets(p):
             assert b.text not in texts, "duplicate bullet inside one profile"
             texts.add(b.text)
-            # exactly the mentions the ground truth claims, in order
-            assert [m.skill_id for m in vocabulary.find_mentions(vocab, b.text)] == list(b.skill_ids)
-            # the verb of the lexicon is the declared class, and is the only verb in the bullet
-            hits = _verb_classes_in(config, _scrub(vocab, b.text))
-            assert hits == (set() if b.verb_class is VerbClass.NO_VERB else {b.verb_class}), b.text
-            # quantified <=> the bullet carries a number
+            # exactly the mentions the ground truth claims, in order ...
+            evidence = _read(vocab, config, b.text)
+            assert [e.canonical_id for e in evidence] == list(b.skill_ids), b.text
+            # ... each read with the declared verb class and neither negated nor aspirational
+            for e in evidence:
+                assert (e.verb_class, e.polarity) == (b.verb_class, Polarity.AFFIRMED), (b.text, e)
+            # a quantified outcome exactly when the ground truth says so; by the generator's own
+            # convention that is also exactly when the bullet holds a digit
+            assert is_quantified(b.text, config) == b.quantified, b.text
             assert b.quantified == bool(re.search(r"\d", b.text)), b.text
             padded = " " + re.sub(r"[^a-z]+", " ", _scrub(vocab, b.text).lower()) + " "
             assert not any(f" {term} " in padded for term in negations), b.text
@@ -1157,3 +1222,42 @@ def test_corpus_parallel_run_matches_the_serial_run(tmp_path: Path) -> None:
         == 0
     )
     assert (serial / "manifest.json").read_bytes() == (parallel / "manifest.json").read_bytes()
+
+
+def test_corpus_refuses_a_used_directory_unless_forced_and_never_deletes_foreign_files(
+    tmp_path: Path,
+) -> None:
+    out = tmp_path / "synthetic"
+    subset = ("--templates", "ats_plain", "--formats", "txt")
+    assert _run_corpus(out, *subset) == 0
+    stale = out / "p0099"  # what an earlier, larger run would have left behind
+    stale.mkdir()
+    (stale / "chronological__txt.txt").write_text("stale", encoding="utf-8")
+
+    def snapshot() -> dict[Path, bytes]:
+        return {p: p.read_bytes() for p in out.rglob("*") if p.is_file()}
+
+    before = snapshot()
+    with pytest.raises(SystemExit) as refused:  # a corpus is there already: no --force, no run
+        _run_corpus(out, *subset)
+    assert refused.value.code == 2 and snapshot() == before  # and nothing was touched
+
+    assert _run_corpus(out, *subset, "--force") == 0
+    assert not stale.exists()  # the stale folder is gone, the new corpus stands alone
+    assert sorted(p.name for p in out.iterdir()) == [
+        "manifest.json",
+        "p0001",
+        "p0002",
+        "postings.jsonl",
+        "profiles.jsonl",
+    ]
+
+    (out / "notes.txt").write_text(
+        "not ours", encoding="utf-8"
+    )  # --force never deletes what it did not write
+    with pytest.raises(SystemExit):
+        _run_corpus(out, *subset, "--force")
+    assert (out / "notes.txt").read_text(encoding="utf-8") == "not ours"
+    assert (out / "p0001" / "ats_plain__txt.txt").is_file()
+    with pytest.raises(corpus.OutputDirectoryError):
+        corpus.generate_corpus(out, profiles=2, force=True)
