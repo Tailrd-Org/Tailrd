@@ -1,0 +1,13 @@
+conceptType,conceptUri,preferredLabel,altLabels,hiddenLabels,status,modifiedDate,scopeNote,inScheme,description,code
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f1,knowledge,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,K
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f2,skills,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f3,transversal skills and competences,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f4,language skills and knowledge,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,L
+SkillGroup,http://data.europa.eu/esco/isced-f/06,information and communication technologies (icts),,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,06
+SkillGroup,http://data.europa.eu/esco/isced-f/0613,software and applications development and analysis,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,0613
+SkillGroup,http://data.europa.eu/esco/isced-f/0541,mathematics,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,0541
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f5,social and communication skills and competences,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T4
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f6,collaborating in teams and networks,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,T4.3
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f7,working with computers,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S5
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f8,working with machinery and specialised equipment,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,S8
+SkillGroup,http://data.europa.eu/esco/skill/00000000-0000-4000-8000-0000000000f9,languages,,,released,,,http://data.europa.eu/esco/concept-scheme/skills,,L1

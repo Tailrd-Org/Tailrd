@@ -79,6 +79,27 @@ def test_normalize_surface_is_idempotent_and_tidy(text: str) -> None:
     assert once == " ".join(once.split())
 
 
+def _reference_normalize(text: str, fold: bool) -> str:
+    """The Unicode pipeline the ASCII fast path in graph.aliases must agree with."""
+    import unicodedata
+
+    from matcher.graph import aliases
+
+    text = unicodedata.normalize("NFKC", text.translate(aliases._BEFORE_NFKC)).translate(aliases._TABLE)
+    if fold:
+        text = text.casefold()
+    tokens = (token.lstrip(aliases._LEAD).rstrip(aliases._TRAIL) for token in text.split())
+    return " ".join(token for token in tokens if token)
+
+
+@given(st.text(alphabet=string.printable + _ALPHABET, max_size=60))
+def test_the_fast_paths_agree_with_the_unicode_pipeline(text: str) -> None:
+    from matcher.graph.aliases import normalize_keep_case
+
+    assert normalize_surface(text) == _reference_normalize(text, fold=True)
+    assert normalize_keep_case(text) == _reference_normalize(text, fold=False)
+
+
 def test_surface_variants() -> None:
     assert surface_variants("front-end") == ("front-end", "front end", "frontend")
     assert surface_variants("front-end developer") == ("front-end developer", "front end developer",
@@ -469,7 +490,8 @@ def test_extract_handles_decomposed_accents(config) -> None:
         ("Completed a Spring/Summer 2027 co-op term.", "prose", []),  # a term, not the framework
         ("Excel/Word", "prose", []),
         ("Kept the budget in Excel/Word files.", "prose", []),
-        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes"]),  # Go, REST: both ambiguous
+        # REST, an all-capital acronym, needs no companion; Go still does, and an acronym is none.
+        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes", "skill.rest"]),
         ("Skills: A/R, A/P, Excel", "list", ["skill.excel"]),  # lists need the companion too
         ("Spring/Summer 2027", "list", []),
         # Hyphen parts: only "<key>-<suffix>" compounds such as "Go-based" (D-25).
@@ -510,3 +532,364 @@ def test_resolution_is_deterministic_across_node_order(small_graph, config, reso
     assert resolver.extract(TEXT) == resolver.extract(TEXT) == other.extract(TEXT)
     for surface in ("React", "front end", "kubernets", "Golang", "go", "Excel", "AWS SAA", "nothing at all"):
         assert resolver.resolve(surface) == other.resolve(surface), surface
+
+
+# ─── extraction precision rules (DECISIONS D-27) ────────────────────────────────────────────
+
+
+def _ids(r: Resolver, text: str, **kwargs) -> list[str]:
+    return [m.canonical_id for m in r.extract(text, **kwargs)]
+
+
+def test_fields_of_study_are_left_out_of_extraction_unless_asked_for(config) -> None:
+    r = Resolver(_graph(_node("field.computer_science", "Computer science", "CS"), _node("skill.computer", "Computer"),
+                        _node("field.physics", "Physics"), _node("skill.python", "Python")), config)
+    text = "Studied computer science and physics with Python."
+    assert _ids(r, text) == ["skill.python"]
+    # The field consumes its words: "computer" alone does not surface instead.
+    assert _ids(r, text, include_fields=True) == ["field.computer_science", "field.physics", "skill.python"]
+    assert _ids(r, "Physics/Python", context="list") == ["skill.python"]  # a slash part too
+    assert _ids(r, "Physics/Python", context="list", include_fields=True) == ["field.physics", "skill.python"]
+    assert r.resolve("Computer science").canonical_id == "field.computer_science"  # resolve is unchanged
+
+
+def test_blocked_phrases_consume_their_words_without_a_mention(config) -> None:
+    graph = _graph(_node("skill.express", "Express.js", "Express"), _node("skill.c", "C"),
+                   _node("skill.go", "Go"), _node("skill.express_entry_tool", "Express Entry Builder"))
+    r = Resolver(graph, config, ambiguous={"express": "Express", "c": "C", "go": "Go"},
+                 blocked_phrases=["American Express", "Express Entry", "Vitamin C", "Go-Live", "R&D"])
+    assert _ids(r, "Analyst at American Express, Summer 2024") == []
+    assert _ids(r, "Took Vitamin C daily.") == []
+    assert _ids(r, "Led the Go Live of SAP.") == []  # hyphen variants of a blocked phrase are blocked too
+    assert _ids(r, "Applied through Express Entry in 2023.") == []
+    # The longest match wins: a longer skill name beats the blocked phrase inside it.
+    assert _ids(r, "Used the Express Entry Builder daily.") == ["skill.express_entry_tool"]
+    assert _ids(r, "Built the API with Express and C.") == ["skill.express", "skill.c"]
+    assert _ids(r, "Express, American Express", context="list") == ["skill.express"]
+    assert r.resolve("American Express").method == "NONE"
+    assert r.resolve("R&D").method == "NONE"
+    assert r.resolve("Express").canonical_id == "skill.express"
+
+
+def test_a_blocked_phrase_wins_a_tie_with_a_key(config) -> None:
+    r = Resolver(_graph(_node("skill.rnd", "Research and development", "R&D")), config, blocked_phrases=["R&D"])
+    assert _ids(r, "Managed the R&D budget.") == []
+    assert _ids(r, "Led research and development.") == ["skill.rnd"]
+
+
+def test_automatic_cased_keys_keep_their_casing_in_lists(config) -> None:
+    graph = _graph(_node("cat.tables", "Tables"), _node("skill.excel", "Excel"), _node("skill.pivot", "Pivot tables"))
+    r = Resolver(graph, config, ambiguous={"excel": "Excel"}, cased={"tables": "Tables"})
+    assert _ids(r, "Excel (pivot tables, VLOOKUP)", context="list") == ["skill.excel", "skill.pivot"]
+    assert _ids(r, "excel, tables", context="list") == ["skill.excel"]  # curated: any casing; cased: not
+    assert _ids(r, "Excel, Tables", context="list") == ["skill.excel", "cat.tables"]
+    assert r.resolve("tables").method == "NONE"
+    assert r.resolve("Tables").canonical_id == "cat.tables"
+    # A key in both maps keeps the stricter rule.
+    both = Resolver(graph, config, ambiguous={"tables": "Tables"}, cased={"tables": "Tables"})
+    assert _ids(both, "tables", context="list") == []
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Dean's List, Fall 2023 and Spring 2024.", []),
+        ("Software Developer Intern, Spring 2024 (Shopify)", []),
+        ("Co-op terms: Fall and Spring", []),
+        ("Available Summer, Fall, Spring", []),
+        ("Completed a Spring '24 co-op.", []),
+        ("Starting a Spring term at Waterloo.", []),
+        ("Hired for a Spring co-op.", []),
+        ("Fall & Spring semesters", []),
+        ("Built REST APIs with Spring and Hibernate.", ["skill.spring", "skill.hibernate"]),
+        ("Migrated to Spring Boot in 2024.", ["skill.spring_boot"]),
+        ("Used Spring, 2 years.", ["skill.spring"]),  # the comma: not "Spring <year>"
+    ],
+)
+def test_a_season_that_dates_something_is_never_a_skill(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.spring", "Spring"), _node("skill.spring_boot", "Spring Boot"),
+                   _node("skill.hibernate", "Hibernate"), _node("skill.summer", "Summer"))
+    r = Resolver(graph, config, ambiguous={"spring": "Spring", "summer": "Summer"})
+    assert _ids(r, text) == expected
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("John R. Smith | Toronto, ON", []),
+        ("Dr. Mary C. Jones", []),
+        ("Mary C Jones, Analyst", []),
+        ("Dr. R. Smith", []),
+        ("J. R. R. Tolkien", []),
+        ("Wrote firmware in C.", ["skill.c"]),
+        ("Analysed data in R and Python.", ["skill.r", "skill.python"]),
+        ("Wrote Python C Java daily", ["skill.python", "skill.c", "skill.java"]),  # neighbours are skills
+        ("Programmed in C. Then moved to Java.", ["skill.c", "skill.java"]),  # "in" is no name
+        ("Learned C.", ["skill.c"]),  # nothing follows: not between two names
+    ],
+)
+def test_a_persons_initial_is_never_a_skill(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.c", "C"), _node("skill.r", "R"), _node("skill.python", "Python"),
+                   _node("skill.java", "Java"))
+    r = Resolver(graph, config, ambiguous={"c": "C", "r": "R"})
+    assert _ids(r, text) == expected
+
+
+def test_a_leading_french_elision_is_read_past(config) -> None:
+    graph = _graph(_node("skill.excel", "Excel"), _node("skill.aws", "AWS"), _node("skill.ml", "Machine learning",
+                   "apprentissage automatique"), _node("skill.info", "Gestion de l'information"),
+                   _node("skill.adapt", "Adapt to change", "s’adapter au changement"), _node("skill.dart", "Dart"))
+    r = Resolver(graph, config, ambiguous={"excel": "Excel", "dart": "Dart"})
+    text = "Maîtrise d'Excel et connaissance d’AWS; projets en l'apprentissage automatique."
+    mentions = r.extract(text)
+    assert _found(mentions) == [
+        ("skill.excel", "Excel", "EXACT"),
+        ("skill.aws", "AWS", "EXACT"),
+        ("skill.ml", "apprentissage automatique", "ALIAS"),
+    ]
+    assert all(text[m.start:m.end] == m.surface for m in mentions)  # offsets point past the elision
+    assert r.resolve("d'Excel").canonical_id == "skill.excel"
+    assert r.resolve("L’apprentissage automatique").canonical_id == "skill.ml"
+    assert r.resolve("qu'AWS").canonical_id == "skill.aws"
+    assert r.resolve("d'excel").method == "NONE"  # the word after the elision keeps its casing rule
+    # An elision inside a window stays, as labels have it; a label opening with one is reached either way.
+    assert _ids(r, "Bonne gestion de l'information.") == ["skill.info"]
+    assert _ids(r, "Capable de s'adapter au changement.") == ["skill.adapt"]
+    assert r.resolve("adapter au changement").canonical_id == "skill.adapt"
+    assert _ids(r, "Des objets d'art.") == []  # "d'art" is not read as Dart
+    assert _ids(r, "O'Reilly books") == []  # not an elision
+
+
+def test_a_dotted_abbreviations_period_does_not_end_a_window(config) -> None:
+    # D-28: "P.Eng. candidate" must reach the in-progress node, never the licence "P.Eng".
+    r = Resolver(_graph(_node("cred.peng", "Professional Engineer", "P.Eng"),
+                        _node("cred.eit", "Engineer in Training", "P.Eng candidate")), config)
+    assert _ids(r, "P.Eng. candidate with 4 years of experience.") == ["cred.eit"]
+    assert _ids(r, "Licensed P.Eng. Leads the design team.") == ["cred.peng"]
+    assert _ids(r, "Reports to the engineer. Candidate pool grew.") == []  # a plain word's period ends it
+
+
+@pytest.mark.parametrize(
+    "text,context,expected",
+    [
+        ("Experience with AI/ML frameworks such as PyTorch.", "prose", ["skill.ai", "skill.ml", "skill.pytorch"]),
+        ("We are hiring an AI/ML Engineer Intern.", "prose", ["skill.ai", "skill.ml"]),
+        ("AI/ML, NLP", "list", ["skill.ai", "skill.ml", "skill.nlp"]),
+        ("ai/ml, nlp", "list", ["skill.ai", "skill.ml", "skill.nlp"]),  # lists waive the casing
+        ("Built ML/AI pipelines on AWS.", "prose", ["skill.ml", "skill.ai", "skill.aws"]),
+        ("Worked on BI/reporting dashboards.", "prose", ["skill.bi"]),
+        ("Strong grasp of OS/networking fundamentals.", "prose", ["skill.os"]),
+        ("Did ai/ml work.", "prose", []),  # prose keeps the casing
+        ("AI/ML is our focus.", "prose", ["skill.ml"]),  # the first part keeps the sentence start
+        ("Granted R/W access to shares.", "prose", []),  # single letters keep the companion rule
+        ("Go/Excel", "prose", []),  # word-like keys too, and an acronym is no companion
+        ("Shipped AI-powered search.", "prose", ["skill.ai"]),  # hyphens: still "<key>-<suffix>" only
+        ("Paid bi-weekly.", "prose", []),
+    ],
+)
+def test_all_capital_acronyms_need_no_slash_companion(config, text: str, context: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.ai", "Artificial intelligence", "AI"), _node("skill.ml", "Machine learning", "ML"),
+                   _node("skill.bi", "Business intelligence", "BI"), _node("skill.os", "Operating systems", "OS"),
+                   _node("skill.r", "R"), _node("skill.go", "Go"), _node("skill.excel", "Excel"),
+                   _node("skill.pytorch", "PyTorch"), _node("skill.nlp", "NLP"), _node("skill.aws", "AWS"))
+    r = Resolver(graph, config, ambiguous={"ai": "AI", "ml": "ML", "bi": "BI", "os": "OS", "r": "R", "go": "Go",
+                                           "excel": "Excel"})
+    assert _ids(r, text, context=context) == expected
+
+
+def test_a_key_both_a_field_and_a_skill_claim(config) -> None:
+    # D-27: the skill in general text, the field in education lines; a field-only key still
+    # consumes its words when fields are left out.
+    graph = _graph(_node("skill.statistics", "Statistics", source="curated"),
+                   _node("field.statistics", "Statistics", "statistical science", source="curated"),
+                   _node("field.physics", "Physics", source="curated"), _node("skill.python", "Python"))
+    r = Resolver(graph, config)
+    assert _ids(r, "Applied statistics and physics with Python.") == ["skill.statistics", "skill.python"]
+    assert _ids(r, "Applied statistics and physics with Python.", include_fields=True) == [
+        "field.statistics", "field.physics", "skill.python"]
+    assert _ids(r, "BSc in statistical science") == []  # field-only: consumed, no mention
+    assert r.resolve("Statistics").canonical_id == "skill.statistics"  # resolve: the skill first
+    assert r.resolve("Statistics", prefer_fields=True).canonical_id == "field.statistics"  # an education field
+    assert r.resolve("statistical science").canonical_id == "field.statistics"
+    assert r.resolve("Statistcs").canonical_id == "skill.statistics"  # fuzzy: the same order
+    assert r.resolve("Statistcs", prefer_fields=True).canonical_id == "field.statistics"
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        ("Salary: 80,000 CAD per year", []),
+        ("$25/hr CAD", []),
+        ("Pay: CAD $80k", []),
+        ("Compensation (CAD) is competitive.", []),
+        ("Earned 52,000.00 USD", []),
+        ("Proficient in CAD (SolidWorks)", ["skill.cad", "skill.solidworks"]),
+        ("Designed over 10 CAD models.", ["skill.cad"]),  # a small count is no amount
+        ("Built 3D CAD assemblies.", ["skill.cad"]),
+        ("Used CAD/CAM programming daily.", ["skill.cad", "skill.cam"]),
+        ("Drafting in CAD, $25/hr.", ["skill.cad"]),  # the rate is not next to the code
+        ("Traded USD/CAD and EUR/USD currency pairs.", []),  # currency pairs
+        ("Produced 1,200 CAD drawings for the plant.", ["skill.cad"]),  # a count, more words follow
+        ("Updated the 2024 CAD standards manual.", ["skill.cad"]),  # a year is no amount
+        ("Paid 25 CAD per hour.", []),  # a number, then a rate
+        ("The budget was 80,000 CAD.", []),  # an amount, then the clause ends
+        ("Salary: 80,000 CAD\nBenefits included", []),  # the line ends
+        ("Paid 25.50 CAD.", []),  # cents
+        ("Budget of 1.2M CAD.", []),  # a magnitude
+        ("Managed a 2M CAD budget.", []),  # a money word follows
+        ("Managed a CAD 2M budget.", []),  # an amount follows
+        ("Experience with Fusion 360 CAD.", ["skill.cad"]),  # a version is no amount
+        ("Experience with SolidWorks 2022 CAD.", ["skill.solidworks", "skill.cad"]),  # nor a year
+        ("Proficient in CAD 2024.", ["skill.cad"]),  # nor a year after the code
+        ("Tools: Office 365, CAD, SolidWorks", ["skill.cad", "skill.solidworks"]),  # a list comma
+        ("Skills: Python 3, CAD.", ["skill.cad"]),
+    ],
+)
+def test_a_currency_code_in_a_money_context_is_money(config, text: str, expected: list[str]) -> None:
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"), _node("skill.cam", "CAM"))
+    # Round 4: the nouns that keep CAD after an amount ("1,200 CAD drawings") come from the settings.
+    r = Resolver(graph, config, ambiguous={"cad": "CAD"}, currency_skill_nouns=("drawings",))
+    assert _ids(r, text) == expected
+
+
+def test_a_number_before_a_list_comma_is_no_amount(config) -> None:
+    # D-27: in a skills list "365, CAD" is two items, whatever ends the clause after the code.
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"))
+    r = Resolver(graph, config, ambiguous={"cad": "CAD"})
+    for context in ("list", "prose"):
+        assert _ids(r, "Microsoft Office 365, CAD, SolidWorks", context=context) == ["skill.cad", "skill.solidworks"]
+
+
+# Fix round 4 (D-27). An amount (thousands, cents, a magnitude, four digits or more that are no
+# year) right before a currency code is money unless one of the settings' nouns follows the code
+# ("1,200 CAD drawings"); a small number is money only before a rate or money word, a range, an
+# addition or a separator; a rate phrase ("annually", "per hour") needs a number before the code.
+# A number inside the skill name before the code ("Fusion 360") or glued to letters ("V9") is none.
+_CAD_NOUNS = ("drawings", "licences", "models", "standards")
+
+
+def _cad_resolver(config, nouns=_CAD_NOUNS) -> Resolver:
+    graph = _graph(_node("skill.cad", "CAD"), _node("skill.solidworks", "SolidWorks"),
+                   _node("skill.fusion360", "Fusion 360"))
+    return Resolver(graph, config, ambiguous={"cad": "CAD"}, currency_skill_nouns=nouns)
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        "Pay range: 70,000 - 85,000 CAD depending on experience.",
+        "We offer 85,000 CAD plus benefits.",
+        "100,000 CAD base salary plus bonus.",
+        "Range: 90,000 - 110,000 CAD + equity",
+        "The expected range is 95,000 CAD to 120,000 CAD.",
+        "Pay range: 70,000 CAD - 85,000 CAD",
+        "Starting pay of 22.50 CAD with tips.",
+        "Base: 120,000 CAD | Bonus: 10%",
+        "OTE 140,000 CAD (50/50 split).",
+        "120K CAD + equity",
+        "Awarded a 2,500 CAD scholarship for academic excellence.",
+        "Raised 3,000 CAD for the food bank.",
+        "Won a 1,000 CAD prize at the science fair.",
+        "Spent 5000 CAD on parts.",  # four digits that are no year
+        "Earning 80,000 CAD annually.",
+        "80,000 CAD/year",
+        # a small number: a rate or money word, a range, an addition or a separator follows
+        "Paid 25 CAD hourly.",
+        "25 CAD/hr",
+        "Paid 25 CAD - 30 CAD per hour.",
+        "Rate: 40 CAD + HST",
+        "Stipend: 500 CAD (monthly)",
+        "Tips: 20 CAD | weekends",
+        "Won a 500 CAD prize.",
+        "Awarded a 500 CAD scholarship.",
+        "Rates quoted in CAD/h.",  # a rate unit after the code needs no number
+    ],
+)
+def test_an_amount_before_a_currency_code_is_money(config, text: str) -> None:
+    assert _ids(_cad_resolver(config), text) == []
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Produced 1,200 CAD drawings for the plant.", ["skill.cad"]),  # a noun of the skill's work follows
+        ("Managed 1,500 CAD licences for the firm.", ["skill.cad"]),
+        ("Updated the 2024 CAD standards manual.", ["skill.cad"]),  # a year is no number
+        ("Taught CAD annually to new hires.", ["skill.cad"]),  # a rate phrase needs a number before the code
+        ("Learned CAD a year ago.", ["skill.cad"]),
+        ("Reviewed CAD hourly during the shift.", ["skill.cad"]),
+        ("Spent 10 hours in CAD per week.", ["skill.cad"]),
+        ("Built 12 CAD assemblies to spec.", ["skill.cad"]),  # a count: nothing money-like follows
+        ("Ported 2 CAD to Onshape.", ["skill.cad"]),  # "to" makes a range only before a number
+        ("Experience with Fusion 360 CAD (cloud) and SolidWorks.",  # the number is part of the name before
+         ["skill.fusion360", "skill.cad", "skill.solidworks"]),
+        ("Fusion 360 CAD | SolidWorks", ["skill.fusion360", "skill.cad", "skill.solidworks"]),
+        ("Modelled the housing in Creo V9 CAD (surfacing).", ["skill.cad"]),  # glued to a letter: a version
+        ("Skills: SolidWorks, CAD\n80,000 units shipped", ["skill.solidworks", "skill.cad"]),  # another line
+    ],
+)
+def test_a_count_a_version_or_a_rate_without_a_number_keeps_the_skill(config, text: str,
+                                                                      expected: list[str]) -> None:
+    assert _ids(_cad_resolver(config), text) == expected
+
+
+def test_the_nouns_that_keep_a_currency_code_a_skill_come_from_the_settings(config) -> None:
+    text = "Produced 1,200 CAD drawings for the plant."
+    assert _ids(_cad_resolver(config, nouns=()), text) == []  # no noun: an amount before the code is money
+    assert _ids(_cad_resolver(config, nouns=("Drawings",)), text) == ["skill.cad"]  # normalised like a key
+
+
+def test_spring_of_a_year_is_a_date(config) -> None:
+    r = Resolver(_graph(_node("skill.spring", "Spring")), config, ambiguous={"spring": "Spring"})
+    assert _ids(r, "Graduated in the Spring of 2024.") == []
+    assert _ids(r, "Built services with Spring of all kinds.") == ["skill.spring"]
+
+
+def test_an_initialisms_period_joins_only_a_lower_case_word(config) -> None:
+    r = Resolver(_graph(_node("cred.peng", "Professional Engineer", "P.Eng"),
+                        _node("cred.eit", "Engineer in Training", "P.Eng candidate"),
+                        _node("skill.dotnet", ".NET", "ASP.NET", "ASP.NET Core")), config)
+    assert _ids(r, "P.Eng. candidate with four years of experience.") == ["cred.eit"]
+    assert _ids(r, "Licensed P.Eng. Candidate pool screening is ongoing.") == ["cred.peng"]
+    assert _found(r.extract("Built the portal in ASP.NET. Core features included search.")) == [
+        ("skill.dotnet", "ASP.NET", "ALIAS")]
+
+
+@pytest.mark.parametrize(
+    "text,expected",
+    [
+        # Status is the context's business (D-28): the credential concept, whatever surrounds it.
+        ("CPA (in progress)", [("cred.cpa", "CPA")]),
+        ("RN (student) at Humber", [("cred.registered_nurse", "RN")]),
+        ("309A Electrical Apprentice", [("cred.electrician", "309A"), ("cred.apprentice", "Electrical Apprentice")]),
+        # A formal designation is read only as written, never across ":" or a dash.
+        ("Applied as a CPA candidate in 2024.", [("cred.cpa_wip", "CPA candidate")]),
+        ("Ideal candidate: CPA with five years.", [("cred.cpa", "CPA")]),
+        ("Ideal Candidate - CPA, Toronto", [("cred.cpa", "CPA")]),
+        ("CPA candidate - Toronto", [("cred.cpa_wip", "CPA candidate")]),
+        ("Apprentice Electrician: 309A licence", [("cred.apprentice", "Apprentice Electrician"),
+                                                   ("cred.electrician", "309A licence")]),
+    ],
+)
+def test_credential_status_is_left_to_the_context(config, text: str, expected: list) -> None:
+    graph = _graph(_node("cred.cpa", "Chartered Professional Accountant", "CPA"),
+                   _node("cred.cpa_wip", "CPA candidate", "candidate CPA"),
+                   _node("cred.registered_nurse", "Registered Nurse", "RN"),
+                   _node("cred.electrician", "Electrician licence", "309A", "309A licence"),
+                   _node("cred.apprentice", "Electrical apprentice", "Apprentice Electrician"))
+    r = Resolver(graph, config, in_progress={"cred.cpa": "cred.cpa_wip", "cred.electrician": "cred.apprentice"})
+    mentions = r.extract(text)
+    assert [(m.canonical_id, m.surface) for m in mentions] == expected
+    assert all(text[m.start:m.end] == m.surface for m in mentions)
+    assert r.resolve("candidate CPA").canonical_id == "cred.cpa_wip"  # resolve reads the name as given
+
+
+def test_new_settings_are_deterministic_across_input_order(config) -> None:
+    graph = _graph(_node("skill.c", "C"), _node("skill.express", "Express.js", "Express"))
+    a = Resolver(graph, config, ambiguous={"c": "C"}, cased={"express": "Express"},
+                 blocked_phrases=["Vitamin C", "American Express"])
+    b = Resolver(graph, config, ambiguous={"c": "C"}, cased={"express": "Express"},
+                 blocked_phrases=["American Express", "Vitamin C"])
+    text = "Vitamin C, American Express, Express and C."
+    assert a.extract(text) == b.extract(text)
+    assert _ids(a, text) == ["skill.express", "skill.c"]

@@ -1,0 +1,55 @@
+# Curated taxonomy for the raw_mini build tests (tests/test_taxonomy_build.py). Same schema as
+# config/curated_taxonomy.yaml.
+format: 1
+
+skills:
+  - {id: skill.python, label: Python, kind: TECHNOLOGY, aliases: [Python 3], release_year: 1991}
+  - {id: skill.javascript, label: JavaScript, kind: TECHNOLOGY, aliases: [JS], parents: []}
+  - {id: skill.js_framework, label: JavaScript framework, kind: TECHNOLOGY, parents: [skill.javascript]}
+  - id: skill.react
+    label: React
+    kind: TECHNOLOGY
+    aliases: [ReactJS, React.js]
+    parents: [skill.js_framework]
+    release_year: 2013
+  - {id: skill.excel, label: Excel, kind: TOOL, aliases: [MS Excel, Microsoft Office Excel]}
+  - {id: skill.aws, label: AWS, kind: TECHNOLOGY, aliases: [Amazon Web Services], release_year: 2006}
+  - {id: skill.cad, label: CAD, kind: TOOL, aliases: [computer-aided design]}
+  - {id: skill.machine_learning, label: Machine learning, kind: DOMAIN, aliases: [ML]}
+  - {id: skill.go, label: Go, kind: TECHNOLOGY, aliases: [Golang], release_year: 2009}
+  - {id: skill.forklift, label: Forklift, kind: TOOL, aliases: [forklift operation]}
+  - {id: skill.programming, label: Computer programming, kind: DOMAIN}
+  - {id: skill.control_systems, label: Control systems, kind: DOMAIN}
+  - {id: skill.business_analysis, label: Business analysis, kind: METHODOLOGY}
+
+credentials:
+  - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN]}
+  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [student nurse]}
+
+fields:
+  - {id: field.science, label: Science, kind: DOMAIN}
+  - {id: field.mathematics, label: Mathematics, kind: DOMAIN, aliases: [Math, Maths], parents: [field.science]}
+  - {id: field.computer_programming, label: Computer programming, kind: DOMAIN, parents: [field.science]}
+
+ambiguous:
+  go: Go
+
+blocked_aliases: [Scratch, synergy, Analytics]
+
+blocked_phrases: [American Express, "Building [A-Z]"]
+
+currency_skill_nouns: [drawings, Licences]
+
+generic_titles: [intern, co-op]
+
+in_progress:
+  cred.registered_nurse: cred.nursing_student
+
+licence_probes:
+  - ["Ideal candidate: RN with 3+ years.", cred.registered_nurse]
+
+onet_vendor_prefixes: [Microsoft, Atlassian, Autodesk, Amazon, Google]
+
+onet_knowledge:
+  Mathematics: field.mathematics
+  Computers and Electronics: skill.python

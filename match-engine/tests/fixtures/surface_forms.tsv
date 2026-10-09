@@ -1,0 +1,1046 @@
+# Milestone 2 gate (Task 2.2): 1,000 hand-picked surface forms and the node each must reach.
+# surface<TAB>expected_id<TAB>method[<TAB>context]; method EXACT | ALIAS | FUZZY | NONE ("-");
+# context resolve (default) | list | prose (Resolver.extract finds exactly that one mention).
+# EXACT: the surface normalises to the node's label; ALIAS: to one of its aliases.
+#
+# ─── programming languages ───
+Python	skill.python	EXACT
+Python 3	skill.python	ALIAS
+Python (computer programming)	skill.python	ALIAS
+Java	skill.java	EXACT
+Java EE	skill.java	ALIAS
+JavaScript	skill.javascript	EXACT
+JS	skill.javascript	ALIAS
+ES6	skill.javascript	ALIAS
+TypeScript	skill.typescript	EXACT
+TS	skill.typescript	ALIAS
+C++	skill.cpp	EXACT
+cpp	skill.cpp	ALIAS
+C++17	skill.cpp	ALIAS
+C#	skill.csharp	EXACT
+csharp	skill.csharp	ALIAS
+C sharp	skill.csharp	ALIAS
+Go	skill.go	EXACT
+Golang	skill.go	ALIAS
+Rust	skill.rust	EXACT
+Rustlang	skill.rust	ALIAS
+Ruby	skill.ruby	EXACT
+PHP	skill.php	EXACT
+Swift	skill.swift	EXACT
+Kotlin	skill.kotlin	EXACT
+Scala	skill.scala	EXACT
+R	skill.r	EXACT
+R programming	skill.r	ALIAS
+RStudio	skill.r	ALIAS
+MATLAB	skill.matlab	EXACT
+Matlab	skill.matlab	EXACT
+SQL	skill.sql	EXACT
+T-SQL	skill.sql	ALIAS
+Structured query language	skill.sql	ALIAS
+HTML	skill.html	EXACT
+HTML5	skill.html	ALIAS
+CSS	skill.css	EXACT
+CSS3	skill.css	ALIAS
+Cascading style sheets	skill.css	ALIAS
+SCSS	skill.sass	ALIAS
+Sass	skill.sass	EXACT
+Bash	skill.bash	EXACT
+Bash scripting	skill.bash	ALIAS
+Shell scripting	skill.shell_scripting	EXACT
+PowerShell	skill.powershell	EXACT
+Perl	skill.perl	EXACT
+Objective-C	skill.objective_c	EXACT
+Objective C	skill.objective_c	ALIAS
+Dart	skill.dart	EXACT
+Elixir	skill.elixir	EXACT
+Haskell	skill.haskell	EXACT
+Lua	skill.lua	EXACT
+Julia	skill.julia	EXACT
+FORTRAN	skill.fortran	EXACT
+COBOL	skill.cobol	EXACT
+VBA	skill.vba	EXACT
+Visual Basic for Applications	skill.vba	ALIAS
+Visual Basic	skill.visual_basic	EXACT
+VB.NET	skill.visual_basic	ALIAS
+Assembly language	skill.assembly	EXACT
+C	skill.c	EXACT
+C programming	skill.c	ALIAS
+Clojure	skill.clojure	EXACT
+Erlang	skill.erlang	EXACT
+Pascal	skill.pascal	EXACT
+Prolog	skill.prolog	EXACT
+Lisp	skill.lisp	EXACT
+Solidity	skill.solidity	EXACT
+WebAssembly	skill.webassembly	EXACT
+#
+# ─── web, frameworks, testing ───
+React	skill.react	EXACT
+ReactJS	skill.react	ALIAS
+React.js	skill.react	ALIAS
+React Native	skill.react_native	EXACT
+React-Native	skill.react_native	ALIAS
+Angular	skill.angular	EXACT
+AngularJS	skill.angularjs	EXACT
+Angular.js	skill.angularjs	ALIAS
+Vue.js	skill.vue	EXACT
+Vue	skill.vue	ALIAS
+Next.js	skill.nextjs	EXACT
+Next	skill.nextjs	ALIAS
+Svelte	skill.svelte	EXACT
+SvelteKit	skill.svelte	ALIAS
+Node.js	skill.nodejs	EXACT
+NodeJS	skill.nodejs	ALIAS
+Node	skill.nodejs	ALIAS
+Express.js	skill.express	EXACT
+Express	skill.express	ALIAS
+Django	skill.django	EXACT
+Flask	skill.flask	EXACT
+FastAPI	skill.fastapi	EXACT
+Ruby on Rails	skill.rails	EXACT
+Rails	skill.rails	ALIAS
+Spring	skill.spring	EXACT
+Spring Boot	skill.spring	ALIAS
+.NET	skill.dotnet	EXACT
+.NET Core	skill.dotnet	ALIAS
+dotnet	skill.dotnet	ALIAS
+ASP.NET	skill.dotnet	ALIAS
+jQuery	skill.jquery	EXACT
+Bootstrap	skill.bootstrap	EXACT
+Tailwind CSS	skill.tailwind	EXACT
+Tailwind	skill.tailwind	ALIAS
+Redux	skill.redux	EXACT
+GraphQL	skill.graphql	EXACT
+REST	skill.rest	EXACT
+RESTful	skill.rest	ALIAS
+REST API	skill.rest	ALIAS
+gRPC	skill.grpc	EXACT
+JSON	skill.json	EXACT
+XML	skill.xml	EXACT
+Webpack	skill.webpack	EXACT
+npm	skill.npm	EXACT
+Jest	skill.jest	EXACT
+Cypress	skill.cypress	EXACT
+Selenium	skill.selenium	EXACT
+Selenium WebDriver	skill.selenium	ALIAS
+Playwright	skill.playwright	EXACT
+JUnit	skill.junit	EXACT
+pytest	skill.pytest	EXACT
+TDD	skill.tdd	ALIAS
+Laravel	skill.laravel	EXACT
+WordPress	skill.wordpress	EXACT
+Flutter	skill.flutter	EXACT
+Unit testing	skill.unit_testing	EXACT
+Test automation	skill.test_automation	EXACT
+APIs	skill.apis	EXACT
+API development	skill.apis	ALIAS
+Microservices	skill.microservices	EXACT
+front-end	skill.frontend	ALIAS
+frontend	skill.frontend	ALIAS
+Back-end development	skill.backend	EXACT
+backend	skill.backend	ALIAS
+full stack	skill.full_stack	ALIAS
+Web development	skill.web_development	EXACT
+Mobile development	skill.mobile_development	EXACT
+iOS	skill.ios	EXACT
+Android	skill.android	EXACT
+Object-oriented programming	skill.oop	EXACT
+OOP	skill.oop	ALIAS
+data structures	skill.data_structures	ALIAS
+#
+# ─── data, ML, analytics ───
+Machine learning	skill.machine_learning	EXACT
+ML	skill.machine_learning	ALIAS
+Deep learning	skill.deep_learning	EXACT
+Artificial intelligence	skill.ai	EXACT
+AI	skill.ai	ALIAS
+Generative AI	skill.generative_ai	EXACT
+GenAI	skill.generative_ai	ALIAS
+Natural language processing	skill.nlp	EXACT
+NLP	skill.nlp	ALIAS
+Computer vision	skill.computer_vision	EXACT
+Large language models	skill.llm	EXACT
+LLM	skill.llm	ALIAS
+Prompt engineering	skill.prompt_engineering	EXACT
+PyTorch	skill.pytorch	EXACT
+TensorFlow	skill.tensorflow	EXACT
+Keras	skill.keras	EXACT
+scikit-learn	skill.scikit_learn	EXACT
+sklearn	skill.scikit_learn	ALIAS
+pandas	skill.pandas	EXACT
+NumPy	skill.numpy	EXACT
+Matplotlib	skill.matplotlib	EXACT
+Jupyter	skill.jupyter	EXACT
+Jupyter Notebook	skill.jupyter	ALIAS
+XGBoost	skill.xgboost	EXACT
+OpenCV	skill.opencv	EXACT
+Hugging Face	skill.hugging_face	EXACT
+Data analysis	skill.data_analysis	EXACT
+data analytics	skill.data_analysis	ALIAS
+Data engineering	skill.data_engineering	EXACT
+ETL	skill.etl	EXACT
+Data warehousing	skill.data_warehousing	EXACT
+Big data	skill.big_data	EXACT
+Apache Spark	skill.spark	EXACT
+Spark	skill.spark	ALIAS
+Hadoop	skill.hadoop	ALIAS
+Apache Kafka	skill.kafka	EXACT
+Kafka	skill.kafka	ALIAS
+Airflow	skill.airflow	ALIAS
+Apache Airflow	skill.airflow	EXACT
+dbt	skill.dbt	EXACT
+Databricks	skill.databricks	EXACT
+Snowflake	skill.snowflake	EXACT
+BigQuery	skill.bigquery	EXACT
+Google BigQuery	skill.bigquery	ALIAS
+Amazon Redshift	skill.redshift	EXACT
+Tableau	skill.tableau	EXACT
+Tableau Desktop	skill.tableau	ALIAS
+Power BI	skill.power_bi	EXACT
+PowerBI	skill.power_bi	ALIAS
+powerbi	skill.power_bi	ALIAS
+Looker	skill.looker	EXACT
+Qlik	skill.qlik	EXACT
+Business intelligence	skill.business_intelligence	EXACT
+BI	skill.business_intelligence	ALIAS
+Data visualization	skill.data_visualization	EXACT
+data visualisation	skill.data_visualization	ALIAS
+Statistical analysis	skill.statistical_analysis	EXACT
+Regression analysis	skill.regression	EXACT
+A/B testing	skill.ab_testing	EXACT
+SAS	skill.sas	EXACT
+SPSS	skill.spss	EXACT
+Stata	skill.stata	EXACT
+Minitab	skill.minitab	EXACT
+Alteryx	skill.alteryx	EXACT
+#
+# ─── databases ───
+PostgreSQL	skill.postgresql	EXACT
+Postgres	skill.postgresql	ALIAS
+psql	skill.postgresql	ALIAS
+MySQL	skill.mysql	EXACT
+mysql	skill.mysql	EXACT
+SQLite	skill.sqlite	EXACT
+MongoDB	skill.mongodb	EXACT
+Mongo	skill.mongodb	ALIAS
+Redis	skill.redis	EXACT
+Elasticsearch	skill.elasticsearch	EXACT
+Cassandra	skill.cassandra	ALIAS
+DynamoDB	skill.dynamodb	EXACT
+Oracle Database	skill.oracle_db	EXACT
+Oracle	skill.oracle_db	ALIAS
+PL/SQL	skill.oracle_db	ALIAS
+Microsoft SQL Server	skill.sql_server	EXACT
+SQL Server	skill.sql_server	ALIAS
+MariaDB	skill.mariadb	EXACT
+Firebase	skill.firebase	EXACT
+Neo4j	skill.neo4j	EXACT
+NoSQL	skill.nosql	EXACT
+Databases	skill.databases	EXACT
+RDBMS	skill.databases	ALIAS
+Teradata	skill.teradata	ALIAS
+IBM Informix	skill.informix	EXACT
+#
+# ─── cloud, DevOps, infrastructure, developer tools ───
+AWS	skill.aws	EXACT
+Amazon Web Services	skill.aws	ALIAS
+Amazon EC2	skill.aws_ec2	EXACT
+EC2	skill.aws_ec2	ALIAS
+Amazon S3	skill.aws_s3	EXACT
+AWS Lambda	skill.aws_lambda	EXACT
+AWS CloudFormation	skill.cloudformation	EXACT
+Amazon SageMaker	skill.sagemaker	EXACT
+Microsoft Azure	skill.azure	EXACT
+Azure	skill.azure	ALIAS
+Google Cloud Platform	skill.gcp	EXACT
+GCP	skill.gcp	ALIAS
+Cloud computing	skill.cloud_computing	EXACT
+Serverless	skill.serverless	EXACT
+Docker	skill.docker	EXACT
+Docker Compose	skill.docker	ALIAS
+Kubernetes	skill.kubernetes	EXACT
+k8s	skill.kubernetes	ALIAS
+Helm	skill.helm	EXACT
+Terraform	skill.terraform	EXACT
+Ansible	skill.ansible	EXACT
+Chef Infra	skill.chef	EXACT
+Puppet	skill.puppet	EXACT
+Jenkins	skill.jenkins	EXACT
+CI/CD	skill.ci_cd	EXACT
+continuous integration	skill.ci_cd	ALIAS
+GitHub Actions	skill.github_actions	EXACT
+DevOps	skill.devops	EXACT
+Infrastructure as code	skill.infrastructure_as_code	EXACT
+IaC	skill.infrastructure_as_code	ALIAS
+Git	skill.git	EXACT
+GitHub	skill.github	EXACT
+GitLab	skill.gitlab	EXACT
+Bitbucket	skill.bitbucket	EXACT
+SVN	skill.svn	ALIAS
+Version control	skill.version_control	EXACT
+Linux	skill.linux	EXACT
+RHEL	skill.linux	ALIAS
+Unix	skill.unix	EXACT
+Microsoft Windows	skill.windows	EXACT
+macOS	skill.macos	EXACT
+Operating systems	skill.operating_systems	EXACT
+Nginx	skill.nginx	EXACT
+Apache Tomcat	skill.apache_tomcat	EXACT
+OpenShift	skill.openshift	ALIAS
+Prometheus	skill.prometheus	EXACT
+Grafana	skill.grafana	EXACT
+Splunk	skill.splunk	EXACT
+Datadog	skill.datadog	EXACT
+SRE	skill.sre	ALIAS
+VMware	skill.vmware	EXACT
+Virtualization	skill.virtualization	EXACT
+Containerization	skill.containerization	EXACT
+Maven	skill.maven	ALIAS
+Visual Studio Code	skill.vscode	EXACT
+VS Code	skill.vscode	ALIAS
+Visual Studio	skill.visual_studio	EXACT
+IntelliJ	skill.intellij	ALIAS
+Eclipse	skill.eclipse	ALIAS
+Xcode	skill.xcode	EXACT
+#
+# ─── security, networking, IT support ───
+Cybersecurity	skill.cybersecurity	EXACT
+information security	skill.cybersecurity	ALIAS
+Penetration testing	skill.penetration_testing	EXACT
+pentesting	skill.penetration_testing	ALIAS
+ethical hacking	skill.penetration_testing	ALIAS
+Computer networking	skill.networking	EXACT
+TCP/IP	skill.tcp_ip	EXACT
+DNS	skill.dns	EXACT
+VPN	skill.vpn	EXACT
+Firewalls	skill.firewalls	EXACT
+SIEM	skill.siem	EXACT
+Wireshark	skill.wireshark	EXACT
+Nmap	skill.nmap	EXACT
+Metasploit	skill.metasploit	EXACT
+Kali Linux	skill.kali_linux	EXACT
+Active Directory	skill.active_directory	EXACT
+IT support	skill.it_support	EXACT
+help desk	skill.it_support	ALIAS
+Troubleshooting	skill.troubleshooting	EXACT
+ITSM	skill.itsm	ALIAS
+ServiceNow	skill.servicenow	EXACT
+#
+# ─── design and media tools ───
+Figma	skill.figma	EXACT
+Sketch	skill.sketch	EXACT
+Adobe XD	skill.adobe_xd	EXACT
+Adobe Photoshop	skill.photoshop	EXACT
+Photoshop	skill.photoshop	ALIAS
+Adobe Illustrator	skill.illustrator	EXACT
+Illustrator	skill.illustrator	ALIAS
+InDesign	skill.indesign	ALIAS
+Premiere Pro	skill.premiere	ALIAS
+After Effects	skill.after_effects	ALIAS
+Lightroom	skill.lightroom	ALIAS
+Adobe Acrobat	skill.acrobat	EXACT
+Adobe Creative Cloud	skill.adobe_creative_suite	EXACT
+Adobe Creative Suite	skill.adobe_creative_suite	ALIAS
+Canva	skill.canva	EXACT
+InVision	skill.invision	EXACT
+Blender	skill.blender	EXACT
+Autodesk Maya	skill.maya	EXACT
+SketchUp	skill.sketchup	EXACT
+Final Cut Pro	skill.final_cut	EXACT
+DaVinci Resolve	skill.davinci_resolve	EXACT
+Graphic design	skill.graphic_design	EXACT
+UX design	skill.ux	EXACT
+UX	skill.ux	ALIAS
+user experience	skill.ux	ALIAS
+UI design	skill.ui	EXACT
+UI	skill.ui	ALIAS
+Wireframing	skill.wireframing	EXACT
+Prototyping	skill.prototyping	EXACT
+User research	skill.user_research	EXACT
+usability testing	skill.user_research	ALIAS
+Accessibility	skill.accessibility	EXACT
+WCAG	skill.accessibility	ALIAS
+Video editing	skill.video_editing	EXACT
+#
+# ─── office and collaboration tools ───
+Microsoft Office	skill.ms_office	EXACT
+MS Office	skill.ms_office	ALIAS
+Excel	skill.excel	EXACT
+Microsoft Excel	skill.excel	ALIAS
+Advanced Excel	skill.excel	ALIAS
+Microsoft Word	skill.ms_word	EXACT
+Word	skill.ms_word	ALIAS
+PowerPoint	skill.powerpoint	EXACT
+Microsoft PowerPoint	skill.powerpoint	ALIAS
+Microsoft Outlook	skill.outlook	EXACT
+Outlook	skill.outlook	ALIAS
+Microsoft Access	skill.ms_access	EXACT
+Access	skill.ms_access	ALIAS
+Microsoft Teams	skill.ms_teams	EXACT
+MS Teams	skill.ms_teams	ALIAS
+OneNote	skill.onenote	EXACT
+SharePoint	skill.sharepoint	EXACT
+Microsoft Project	skill.ms_project	EXACT
+MS Project	skill.ms_project	ALIAS
+Visio	skill.visio	ALIAS
+Spreadsheets	skill.spreadsheets	EXACT
+Google Workspace	skill.google_workspace	EXACT
+G Suite	skill.google_workspace	ALIAS
+Google Sheets	skill.google_workspace	ALIAS
+Slack	skill.slack	EXACT
+Zoom	skill.zoom	EXACT
+Jira	skill.jira	EXACT
+Atlassian JIRA	skill.jira	ALIAS
+Confluence	skill.confluence	EXACT
+Trello	skill.trello	EXACT
+Asana	skill.asana	EXACT
+Notion	skill.notion	EXACT
+monday.com	skill.monday	EXACT
+Data entry	skill.data_entry	EXACT
+Typing	skill.typing	EXACT
+#
+# ─── business, finance, accounting, operations ───
+QuickBooks	skill.quickbooks	EXACT
+Xero	skill.xero	EXACT
+Sage 50	skill.sage	EXACT
+Accounting software	skill.accounting_software	EXACT
+NetSuite	skill.netsuite	EXACT
+SAP	skill.sap	EXACT
+SAP ERP	skill.sap	ALIAS
+ERP	skill.erp	EXACT
+enterprise resource planning	skill.erp	ALIAS
+Microsoft Dynamics 365	skill.dynamics_365	EXACT
+Workday	skill.workday	EXACT
+PeopleSoft	skill.peoplesoft	EXACT
+HRIS	skill.hris	EXACT
+ADP	skill.adp	EXACT
+Payroll	skill.payroll	EXACT
+CRM	skill.crm	EXACT
+customer relationship management	skill.crm	ALIAS
+Salesforce	skill.salesforce	EXACT
+Salesforce CRM	skill.salesforce	ALIAS
+HubSpot	skill.hubspot	EXACT
+Bloomberg Terminal	skill.bloomberg	EXACT
+Bloomberg	skill.bloomberg	ALIAS
+Capital IQ	skill.capital_iq	ALIAS
+FactSet	skill.factset	EXACT
+GAAP	skill.gaap	EXACT
+US GAAP	skill.gaap	ALIAS
+IFRS	skill.ifrs	EXACT
+International Financial Reporting Standards	skill.ifrs	ALIAS
+Financial modeling	skill.financial_modeling	EXACT
+financial modelling	skill.financial_modeling	ALIAS
+Financial analysis	skill.financial_analysis	EXACT
+Financial reporting	skill.financial_reporting	EXACT
+Bookkeeping	skill.bookkeeping	EXACT
+Accounts payable	skill.accounts_payable	EXACT
+Accounts receivable	skill.accounts_receivable	EXACT
+bank reconciliation	skill.reconciliation	ALIAS
+Budgeting	skill.budgeting	EXACT
+Forecasting	skill.forecasting	EXACT
+Auditing	skill.auditing	EXACT
+Taxation	skill.taxation	EXACT
+Valuation	skill.valuation	EXACT
+DCF	skill.valuation	ALIAS
+Investment banking	skill.investment_banking	EXACT
+Risk management	skill.risk_management	EXACT
+Business analysis	skill.business_analysis	EXACT
+business analyses	skill.business_analysis	ALIAS
+Stakeholder management	skill.stakeholder_management	EXACT
+Strategic planning	skill.strategic_planning	EXACT
+Project management	skill.project_management	EXACT
+programme management	skill.program_management	ALIAS
+Product management	skill.product_management	EXACT
+Agile	skill.agile	EXACT
+Agile methodology	skill.agile	ALIAS
+Scrum	skill.scrum	EXACT
+Kanban	skill.kanban	EXACT
+Lean manufacturing	skill.lean	EXACT
+Lean	skill.lean	ALIAS
+Six Sigma	skill.six_sigma	EXACT
+Lean Six Sigma	skill.six_sigma	ALIAS
+Supply chain management	skill.supply_chain	EXACT
+supply chain	skill.supply_chain	ALIAS
+Logistics	skill.logistics	EXACT
+Procurement	skill.procurement	EXACT
+Inventory management	skill.inventory_management	EXACT
+Operations management	skill.operations_management	EXACT
+Human resource management	skill.human_resource_management	EXACT
+Recruiting	skill.recruiting	EXACT
+talent acquisition	skill.recruiting	ALIAS
+Quality assurance	skill.qa	EXACT
+QA	skill.qa	ALIAS
+Quality control	skill.quality_control	EXACT
+Process improvement	skill.process_improvement	EXACT
+Root cause analysis	skill.root_cause_analysis	EXACT
+ISO 9001	skill.iso_9001	EXACT
+Technical writing	skill.technical_writing	EXACT
+#
+# ─── marketing and sales ───
+SEO	skill.seo	EXACT
+search engine optimization	skill.seo	ALIAS
+SEM	skill.sem	EXACT
+PPC	skill.sem	ALIAS
+Google Analytics	skill.google_analytics	EXACT
+GA4	skill.google_analytics	ALIAS
+Google Ads	skill.google_ads	EXACT
+Google AdWords	skill.google_ads	ALIAS
+Digital marketing	skill.digital_marketing	EXACT
+Social media marketing	skill.social_media_marketing	EXACT
+social media	skill.social_media_marketing	ALIAS
+Content marketing	skill.content_marketing	EXACT
+Email marketing	skill.email_marketing	EXACT
+Marketing automation	skill.marketing_automation	EXACT
+Marketo	skill.marketo	EXACT
+Mailchimp	skill.mailchimp	EXACT
+Hootsuite	skill.hootsuite	EXACT
+Copywriting	skill.copywriting	EXACT
+Market research	skill.market_research	EXACT
+Brand management	skill.brand_management	EXACT
+branding	skill.brand_management	ALIAS
+Public relations	skill.public_relations	EXACT
+Event planning	skill.event_planning	EXACT
+Sales	skill.sales	EXACT
+B2B sales	skill.sales	ALIAS
+Business development	skill.business_development	EXACT
+Lead generation	skill.lead_generation	EXACT
+Account management	skill.account_management	EXACT
+#
+# ─── healthcare and education ───
+Electronic health records	skill.emr	EXACT
+EMR	skill.emr	ALIAS
+EHR	skill.emr	ALIAS
+Epic	skill.epic	EXACT
+Epic Systems	skill.epic	ALIAS
+Cerner	skill.cerner	EXACT
+MEDITECH	skill.meditech	EXACT
+HIPAA	skill.hipaa	EXACT
+Patient care	skill.patient_care	EXACT
+Vital signs	skill.vital_signs	EXACT
+Medication administration	skill.medication_administration	EXACT
+Phlebotomy	skill.phlebotomy	EXACT
+venipuncture	skill.phlebotomy	ALIAS
+Medical terminology	skill.medical_terminology	EXACT
+Medical billing	skill.medical_billing	EXACT
+ICD-10	skill.icd_10	EXACT
+CPT coding	skill.cpt_coding	EXACT
+Infection control	skill.infection_control	EXACT
+Wound care	skill.wound_care	EXACT
+Triage	skill.triage	EXACT
+Clinical research	skill.clinical_research	EXACT
+clinical trials	skill.clinical_research	ALIAS
+Laboratory techniques	skill.lab_techniques	EXACT
+PCR	skill.pcr	EXACT
+Cell culture	skill.cell_culture	EXACT
+Microscopy	skill.microscopy	EXACT
+HPLC	skill.hplc	EXACT
+Counselling	skill.counselling	EXACT
+counseling	skill.counselling	ALIAS
+CBT	skill.cbt	ALIAS
+human anatomy	esco.human_anatomy	EXACT
+pharmacology	esco.pharmacology	EXACT
+Personal protective equipment	skill.ppe	EXACT
+PPE	skill.ppe	ALIAS
+Early childhood education	skill.early_childhood_education	EXACT
+Lesson planning	skill.lesson_planning	EXACT
+Classroom management	skill.classroom_management	EXACT
+#
+# ─── engineering, trades, operations on site ───
+AutoCAD	skill.autocad	EXACT
+Autodesk AutoCAD	skill.autocad	ALIAS
+SolidWorks	skill.solidworks	EXACT
+CATIA	skill.catia	EXACT
+Revit	skill.revit	EXACT
+Fusion 360	skill.fusion360	EXACT
+Autodesk Inventor	skill.inventor	EXACT
+Creo	skill.creo	ALIAS
+Siemens NX	skill.siemens_nx	EXACT
+ANSYS	skill.ansys	EXACT
+FEA	skill.fea	ALIAS
+CFD	skill.cfd	ALIAS
+CAD	skill.cad	EXACT
+computer-aided design	skill.cad	ALIAS
+BIM	skill.bim	EXACT
+GD&T	skill.gdt	EXACT
+CNC machining	skill.cnc	EXACT
+CNC	skill.cnc	ALIAS
+3D printing	skill.three_d_printing	EXACT
+PLC programming	skill.plc	EXACT
+PLC	skill.plc	ALIAS
+ladder logic	skill.plc	ALIAS
+SCADA	skill.scada	EXACT
+HMI	skill.hmi	EXACT
+LabVIEW	skill.labview	EXACT
+Simulink	skill.simulink	EXACT
+Verilog	skill.verilog	EXACT
+SystemVerilog	skill.verilog	ALIAS
+VHDL	skill.vhdl	EXACT
+FPGA	skill.fpga	EXACT
+Embedded systems	skill.embedded_systems	EXACT
+Embedded C	skill.embedded_systems	ALIAS
+Microcontrollers	skill.microcontrollers	EXACT
+RTOS	skill.rtos	EXACT
+Arduino	skill.arduino	EXACT
+Raspberry Pi	skill.raspberry_pi	EXACT
+PCB design	skill.pcb_design	EXACT
+Altium Designer	skill.altium	EXACT
+KiCad	skill.kicad	EXACT
+Circuit design	skill.circuit_design	EXACT
+Oscilloscopes	skill.oscilloscope	EXACT
+multimeter	skill.multimeter	ALIAS
+Soldering	skill.soldering	EXACT
+Signal processing	skill.signal_processing	EXACT
+Control systems	skill.control_systems	EXACT
+control system	skill.control_systems	ALIAS
+Robotics	skill.robotics	EXACT
+ROS	skill.ros	EXACT
+Industrial automation	skill.industrial_automation	EXACT
+Thermodynamics	skill.thermodynamics	EXACT
+Fluid mechanics	skill.fluid_mechanics	EXACT
+Mechanical design	skill.mechanical_design	EXACT
+Welding	skill.welding	EXACT
+TIG welding	skill.welding	ALIAS
+Blueprint reading	skill.blueprint_reading	EXACT
+Electrical wiring	skill.electrical_wiring	EXACT
+HVAC	skill.hvac	EXACT
+Plumbing	skill.plumbing	EXACT
+Carpentry	skill.carpentry	EXACT
+Power tools	skill.power_tools	EXACT
+Hand tools	skill.hand_tools	EXACT
+Forklift operation	skill.forklift	EXACT
+forklift	skill.forklift	ALIAS
+Pallet jack	skill.pallet_jack	EXACT
+OSHA	skill.osha	ALIAS
+Workplace safety	skill.workplace_safety	EXACT
+occupational health and safety	skill.workplace_safety	ALIAS
+GIS	skill.gis	EXACT
+ArcGIS	skill.arcgis	EXACT
+QGIS	skill.qgis	EXACT
+Point of sale systems	skill.pos	EXACT
+POS	skill.pos	ALIAS
+Cash handling	skill.cash_handling	EXACT
+Food safety	skill.food_safety	EXACT
+HACCP	skill.food_safety	ALIAS
+#
+# ─── soft skills ───
+Communication	skill.communication	EXACT
+communication skills	skill.communication	ALIAS
+Teamwork	skill.teamwork	EXACT
+team player	skill.teamwork	ALIAS
+work in groups	skill.teamwork	ALIAS
+ability to work together	skill.teamwork	ALIAS
+collaboration	skill.teamwork	ALIAS
+Leadership	skill.leadership	EXACT
+lead others	skill.leadership	ALIAS
+Problem solving	skill.problem_solving	EXACT
+solve problems	skill.problem_solving	ALIAS
+Critical thinking	skill.critical_thinking	EXACT
+think critically	skill.critical_thinking	ALIAS
+Analytical skills	skill.analytical_thinking	EXACT
+analytical thinking	skill.analytical_thinking	ALIAS
+Time management	skill.time_management	EXACT
+prioritise tasks	skill.time_management	ALIAS
+Attention to detail	skill.attention_to_detail	EXACT
+detail-oriented	skill.attention_to_detail	ALIAS
+Adaptability	skill.adaptability	EXACT
+adapt to change	skill.adaptability	ALIAS
+Creativity	skill.creativity	EXACT
+Decision making	skill.decision_making	EXACT
+Public speaking	skill.public_speaking	EXACT
+presentation skills	skill.public_speaking	ALIAS
+Negotiation	skill.negotiation	EXACT
+Conflict resolution	skill.conflict_resolution	EXACT
+Organizational skills	skill.organization	EXACT
+organisational skills	skill.organization	ALIAS
+work independently	skill.work_independently	ALIAS
+self-motivated	skill.work_independently	ALIAS
+Initiative	skill.initiative	EXACT
+self-starter	skill.initiative	ALIAS
+Multitasking	skill.multitasking	EXACT
+Interpersonal skills	skill.interpersonal_skills	EXACT
+Emotional intelligence	skill.emotional_intelligence	EXACT
+Mentoring	skill.mentoring	EXACT
+Work ethic	skill.work_ethic	EXACT
+Stress management	skill.stress_management	EXACT
+handle pressure	skill.stress_management	ALIAS
+Active listening	skill.active_listening	EXACT
+Empathy	skill.empathy	EXACT
+Accountability	skill.accountability	EXACT
+Willingness to learn	skill.willingness_to_learn	EXACT
+quick learner	skill.willingness_to_learn	ALIAS
+Intercultural competence	skill.cultural_competence	EXACT
+Customer service	skill.customer_service	EXACT
+demonstrate curiosity	esco.demonstrate_curiosity	EXACT
+cope with uncertainty	esco.cope_with_uncertainty	EXACT
+motivate others	esco.motivate_others	EXACT
+think innovatively	esco.think_innovatively	EXACT
+delegate responsibilities	esco.delegate_responsibilities	EXACT
+build team spirit	esco.build_team_spirit	EXACT
+#
+# ─── credentials (DECISIONS D-13; the license gate's professional ids included) ───
+Registered Nurse	cred.registered_nurse	EXACT
+RN	cred.registered_nurse	ALIAS
+Licensed Practical Nurse	cred.licensed_practical_nurse	EXACT
+LPN	cred.licensed_practical_nurse	ALIAS
+RPN	cred.licensed_practical_nurse	ALIAS
+Chartered Professional Accountant	cred.cpa	EXACT
+CPA	cred.cpa	ALIAS
+CPA Canada	cred.cpa	ALIAS
+CMA	cred.cma	ALIAS
+Chartered Financial Analyst	cred.cfa	EXACT
+CFA	cred.cfa	ALIAS
+CFA Level I	cred.cfa_candidate	ALIAS
+PMP	cred.pmp	EXACT
+Project Management Professional	cred.pmp	ALIAS
+CAPM	cred.capm	EXACT
+Certified ScrumMaster	cred.csm	EXACT
+CSM	cred.csm	ALIAS
+Professional Scrum Master	cred.psm	EXACT
+PSM	cred.psm	ALIAS
+Six Sigma Green Belt	cred.six_sigma_green_belt	EXACT
+Lean Six Sigma Green Belt	cred.six_sigma_green_belt	ALIAS
+Six Sigma Black Belt	cred.six_sigma_black_belt	EXACT
+Six Sigma Yellow Belt	cred.six_sigma_yellow_belt	EXACT
+ITIL	cred.itil	ALIAS
+ITIL Foundation	cred.itil	EXACT
+AWS Certified Solutions Architect – Associate	cred.aws_saa	EXACT
+AWS Solutions Architect Associate	cred.aws_saa	ALIAS
+AWS SAA	cred.aws_saa	ALIAS
+AWS Certified Cloud Practitioner	cred.aws_cloud_practitioner	EXACT
+AWS Certified Developer – Associate	cred.aws_developer	EXACT
+AZ-900	cred.azure_fundamentals	ALIAS
+Azure Fundamentals	cred.azure_fundamentals	ALIAS
+AZ-104	cred.azure_administrator	ALIAS
+Google Associate Cloud Engineer	cred.gcp_ace	EXACT
+Google Professional Cloud Architect	cred.gcp_pca	EXACT
+CompTIA A+	cred.comptia_a_plus	EXACT
+CompTIA Network+	cred.comptia_network_plus	EXACT
+CompTIA Security+	cred.comptia_security_plus	EXACT
+Security+	cred.comptia_security_plus	ALIAS
+CISSP	cred.cissp	EXACT
+CCNA	cred.ccna	EXACT
+CCNP	cred.ccnp	EXACT
+Certified Ethical Hacker	cred.ceh	EXACT
+CISA	cred.cisa	EXACT
+CKA	cred.cka	ALIAS
+CHRP	cred.chrp	ALIAS
+CHRL	cred.chrl	ALIAS
+Engineer in Training	cred.eit	EXACT
+EIT	cred.eit	ALIAS
+P.Eng	cred.professional_engineer	ALIAS
+P.Eng.	cred.professional_engineer	ALIAS
+Professional Engineer	cred.professional_engineer	EXACT
+LEED AP	cred.leed	ALIAS
+Red Seal	cred.red_seal	EXACT
+First Aid	cred.first_aid	ALIAS
+Standard First Aid	cred.first_aid	ALIAS
+CPR	cred.cpr	ALIAS
+CPR certified	cred.cpr	ALIAS
+BLS	cred.bls	ALIAS
+Basic Life Support	cred.bls	EXACT
+ACLS	cred.acls	ALIAS
+WHMIS	cred.whmis	EXACT
+Food Handler certificate	cred.food_handler	EXACT
+Smart Serve	cred.smart_serve	EXACT
+forklift licence	cred.forklift	ALIAS
+forklift certification	cred.forklift	EXACT
+Driver's licence	cred.drivers_license	EXACT
+G licence	cred.drivers_license	ALIAS
+CDL	cred.commercial_drivers_license	ALIAS
+AZ licence	cred.commercial_drivers_license	ALIAS
+Bar admission	cred.bar_admission	EXACT
+Medical licence	cred.medical_license	EXACT
+Pharmacist licence	cred.pharmacist_license	EXACT
+Teaching licence	cred.teaching_license	EXACT
+Ontario Certified Teacher	cred.teaching_license	ALIAS
+309A	cred.electrician_license	ALIAS
+Paramedic licence	cred.paramedic_license	EXACT
+Working at Heights	cred.working_at_heights	EXACT
+TESOL	cred.tesol	ALIAS
+#
+# ─── fields of study ───
+Computer science	field.computer_science	EXACT
+CS	field.computer_science	ALIAS
+Software engineering	field.software_engineering	EXACT
+Computer engineering	field.computer_engineering	EXACT
+Electrical engineering	field.electrical_engineering	EXACT
+EE	field.electrical_engineering	ALIAS
+Mechanical engineering	field.mechanical_engineering	EXACT
+Civil engineering	field.civil_engineering	EXACT
+Chemical engineering	field.chemical_engineering	EXACT
+Industrial engineering	field.industrial_engineering	EXACT
+Mechatronics engineering	field.mechatronics_engineering	EXACT
+Aerospace engineering	field.aerospace_engineering	EXACT
+Biomedical engineering	field.biomedical_engineering	EXACT
+Engineering	field.engineering	EXACT
+Mathematics	field.mathematics	EXACT
+math	field.mathematics	ALIAS
+Statistics	skill.statistics	EXACT
+Data science	skill.data_science	EXACT
+Physics	field.physics	EXACT
+Chemistry	field.chemistry	EXACT
+Biology	field.biology	EXACT
+Biochemistry	field.biochemistry	EXACT
+Environmental science	field.environmental_science	EXACT
+Business administration	field.business_admin	EXACT
+MBA	field.business_admin	ALIAS
+Commerce	field.commerce	EXACT
+B.Comm	field.commerce	ALIAS
+BCom	field.commerce	ALIAS
+Finance	skill.finance	EXACT
+Accounting	skill.accounting	EXACT
+Economics	skill.economics	EXACT
+Marketing	skill.marketing	EXACT
+Psychology	field.psychology	EXACT
+Sociology	field.sociology	EXACT
+Political science	field.political_science	EXACT
+Nursing	skill.nursing	EXACT
+BScN	field.nursing	ALIAS
+Health sciences	field.health_sciences	EXACT
+Public health	field.public_health	EXACT
+Kinesiology	field.kinesiology	EXACT
+Pharmacy	field.pharmacy	EXACT
+Communications	field.communications	EXACT
+Journalism	field.journalism	EXACT
+Design	field.design	EXACT
+Architecture	field.architecture	EXACT
+Law	field.law	EXACT
+legal studies	field.law	ALIAS
+Education	field.education	EXACT
+Information technology	field.information_technology	EXACT
+IT	field.information_technology	ALIAS
+Information systems	field.information_systems	EXACT
+#
+# ─── French ───
+génie logiciel	field.software_engineering	ALIAS
+informatique	field.computer_science	ALIAS
+génie électrique	field.electrical_engineering	ALIAS
+génie mécanique	field.mechanical_engineering	ALIAS
+génie civil	field.civil_engineering	ALIAS
+génie informatique	field.computer_engineering	ALIAS
+mathématiques	field.mathematics	ALIAS
+statistiques	skill.statistics	ALIAS
+physique	field.physics	ALIAS
+chimie	field.chemistry	ALIAS
+biologie	field.biology	ALIAS
+comptabilité	skill.accounting	ALIAS
+économie	field.economics	ALIAS
+psychologie	field.psychology	ALIAS
+science des données	skill.data_science	ALIAS
+administration des affaires	field.business_admin	ALIAS
+sciences infirmières	field.nursing	ALIAS
+droit	field.law	ALIAS
+apprentissage automatique	skill.machine_learning	ALIAS
+apprentissage profond	skill.deep_learning	ALIAS
+intelligence artificielle	skill.ai	ALIAS
+gestion de projet	skill.project_management	ALIAS
+travail d'équipe	skill.teamwork	ALIAS
+résolution de problèmes	skill.problem_solving	ALIAS
+pensée critique	skill.critical_thinking	ALIAS
+gestion du temps	skill.time_management	ALIAS
+service à la clientèle	skill.customer_service	ALIAS
+souci du détail	skill.attention_to_detail	ALIAS
+prise de décision	skill.decision_making	ALIAS
+prise de parole en public	skill.public_speaking	ALIAS
+créativité	skill.creativity	ALIAS
+adaptabilité	skill.adaptability	ALIAS
+négociation	skill.negotiation	ALIAS
+bases de données	skill.databases	ALIAS
+développement web	skill.web_development	ALIAS
+programmation informatique	skill.programming	ALIAS
+cybersécurité	skill.cybersecurity	ALIAS
+infonuagique	skill.cloud_computing	ALIAS
+analyse de données	skill.data_analysis	ALIAS
+gestion des ressources humaines	skill.human_resource_management	ALIAS
+santé et sécurité au travail	skill.workplace_safety	ALIAS
+permis de conduire	cred.drivers_license	ALIAS
+secourisme	cred.first_aid	ALIAS
+infirmière autorisée	cred.registered_nurse	ALIAS
+soudage	skill.welding	ALIAS
+chariot élévateur	skill.forklift	ALIAS
+faire preuve de curiosité	esco.demonstrate_curiosity	ALIAS
+#
+# ─── licences in progress are not licences (fix round 1; DECISIONS D-28) ───
+CPA candidate	cred.cpa_in_progress	EXACT
+C.P.A. candidate	cred.cpa_in_progress	ALIAS
+CPA PEP Core 2	cred.cpa_in_progress	ALIAS
+writing the CFE	cred.cpa_in_progress	ALIAS
+Currently writing the CFE in September.	cred.cpa_in_progress	ALIAS	prose
+Completed the C.P.A. candidate orientation.	cred.cpa_in_progress	ALIAS	prose
+CFA candidate	cred.cfa_candidate	EXACT
+Passed CFA Level III in 2025.	cred.cfa_candidate	ALIAS	prose
+CFA charterholder	cred.cfa	ALIAS
+nursing student	cred.nursing_student	EXACT
+BScN student	cred.nursing_student	ALIAS
+student nurse	cred.nursing_student	ALIAS
+RN student at Humber College.	cred.registered_nurse	ALIAS	prose
+Engineer-in-Training	cred.eit	ALIAS
+P.Eng. candidate with four years of experience.	cred.professional_engineer	ALIAS	prose
+articling student	cred.articling_student	EXACT
+student-at-law	cred.articling_student	ALIAS
+Articling student at a Toronto law firm.	cred.articling_student	EXACT	prose
+309A apprentice	cred.electrician_apprentice	ALIAS
+309A apprentice electrician.	cred.electrician_apprentice	ALIAS	prose
+teacher candidate	cred.teacher_candidate	EXACT
+Teacher candidate in the B.Ed program.	cred.teacher_candidate	EXACT	prose
+PharmD student	cred.pharmacy_student	ALIAS
+medical student	cred.medical_student	EXACT
+Commercial learner's permit	cred.cdl_trainee	EXACT
+paramedic student	cred.paramedic_student	EXACT
+# ─── words that are not the skill here (fix round 1; DECISIONS D-27) ───
+Dean's List, Fall 2023 and Spring 2024.	-	NONE	prose
+Software Developer Intern, Spring 2024 (Shopify)	-	NONE	prose
+Hired for the Spring 2024 co-op term.	-	NONE	prose
+Analyst at American Express, Summer 2024	-	NONE	prose
+American Express	-	NONE
+Sous Chef: managed a team of six.	-	NONE	prose
+John R. Smith, Toronto ON	-	NONE	prose
+Dr. Mary C. Jones	-	NONE	prose
+Took Vitamin C daily.	-	NONE	prose
+Worked in Building C on campus.	-	NONE	prose
+Played for the Swift Current Broncos.	-	NONE	prose
+Administered 10 mL of saline.	-	NONE	prose
+ml	-	NONE
+Changed the hospital bed linens.	-	NONE	prose
+Attended networking events with alumni.	-	NONE	prose
+Loaded shipping containers at the port.	-	NONE	prose
+Skilled in the trades.	-	NONE	prose
+Ran a regression on the housing data.	-	NONE	prose
+Holds a black belt in karate.	-	NONE	prose
+Passed the NCLEX-RN in 2024.	-	NONE	prose
+tables	-	NONE	list
+Volunteered in education and commerce; studied physics and law.	-	NONE	prose
+# ─── French elisions (fix round 1; DECISIONS D-27) ───
+d'Excel	skill.excel	EXACT
+d'AWS	skill.aws	EXACT
+qu'Azure	skill.azure	ALIAS
+d'Access	skill.ms_access	ALIAS
+l'apprentissage automatique	skill.machine_learning	ALIAS
+L’informatique en nuage	skill.cloud_computing	ALIAS
+l'intelligence artificielle	skill.ai	ALIAS
+Bonne connaissance de l'apprentissage automatique.	skill.machine_learning	ALIAS	prose
+Projets d'infonuagique pour des PME.	skill.cloud_computing	ALIAS	prose
+# ─── coverage added in fix round 1 ───
+agile	skill.agile	EXACT
+LISP	skill.lisp	EXACT
+PROLOG	skill.prolog	EXACT
+instagram	skill.instagram	EXACT
+pivot tables	skill.pivot_tables	EXACT
+VLOOKUP	skill.vlookup	EXACT
+data cleaning	skill.data_cleaning	EXACT
+Kibana	skill.kibana	EXACT
+Logstash	skill.logstash	EXACT
+OCaml	skill.ocaml	EXACT
+Azure DevOps	skill.azure_devops	EXACT
+Hibernate	skill.hibernate	EXACT
+CircleCI	skill.circleci	EXACT
+PyCharm	skill.pycharm	EXACT
+Anaconda	skill.anaconda	EXACT
+Scrum Master	skill.scrum_master	EXACT
+Power Apps	skill.power_apps	ALIAS
+software architecture	skill.software_architecture	EXACT
+system design	skill.system_design	EXACT
+regression testing	skill.regression_testing	EXACT
+PIPEDA	skill.pipeda	EXACT
+web design	skill.web_design	EXACT
+# ─── typos that must fuzzy-match (one token, >= 6 characters, <= 2 edits) ───
+Pyhton	skill.python	FUZZY
+Pythonn	skill.python	FUZZY
+Javascipt	skill.javascript	FUZZY
+Typscript	skill.typescript	FUZZY
+Kubernets	skill.kubernetes	FUZZY
+Kubernates	skill.kubernetes	FUZZY
+Postgress	skill.postgresql	FUZZY
+Postgrsql	skill.postgresql	FUZZY
+Tensorflw	skill.tensorflow	FUZZY
+Pytorh	skill.pytorch	FUZZY
+Djangoo	skill.django	FUZZY
+Photoshp	skill.photoshop	FUZZY
+Salesforse	skill.salesforce	FUZZY
+Quickbook	skill.quickbooks	FUZZY
+Solidwork	skill.solidworks	FUZZY
+Autocadd	skill.autocad	FUZZY
+Jenkis	skill.jenkins	FUZZY
+Terrafrom	skill.terraform	FUZZY
+Ansibel	skill.ansible	FUZZY
+Grafanna	skill.grafana	FUZZY
+Elasticsaerch	skill.elasticsearch	FUZZY
+Mongodbb	skill.mongodb	FUZZY
+Kotlinn	skill.kotlin	FUZZY
+Haskel	skill.haskell	FUZZY
+Matplotlb	skill.matplotlib	FUZZY
+Databrick	skill.databricks	FUZZY
+Wordpres	skill.wordpress	FUZZY
+Leadershp	skill.leadership	FUZZY
+Comunication	skill.communication	FUZZY
+Creativty	skill.creativity	FUZZY
+Negotation	skill.negotiation	FUZZY
+Acounting	skill.accounting	FUZZY
+Psycology	field.psychology	FUZZY
+Bookeeping	skill.bookkeeping	FUZZY
+Pandass	skill.pandas	FUZZY
+Hadoopp	skill.hadoop	FUZZY
+Dockerr	skill.docker	FUZZY
+Wireshak	skill.wireshark	FUZZY
+Jupyterr	skill.jupyter	FUZZY
+Marketting	skill.marketing	FUZZY
+#
+# ─── strings that must not resolve ───
+synergy	-	NONE
+rockstar	-	NONE
+ninja	-	NONE
+guru	-	NONE
+record information	-	NONE
+go-getter	-	NONE
+hard worker	-	NONE
+passionate	-	NONE
+motivated	-	NONE
+results-driven	-	NONE
+dynamic	-	NONE
+hustle	-	NONE
+wizard	-	NONE
+unicorn	-	NONE
+thought leader	-	NONE
+growth mindset	-	NONE
+fast-paced	-	NONE
+excellent	-	NONE
+experience	-	NONE
+responsibilities	-	NONE
+team	-	NONE
+company	-	NONE
+benefits	-	NONE
+full-time	-	NONE
+skills	-	NONE
+stakeholders	-	NONE
+go	-	NONE
+GO	-	NONE
+r	-	NONE
+rest	-	NONE
+spring	-	NONE
+swift	-	NONE
+express	-	NONE
+access	-	NONE
+word	-	NONE
+teams	-	NONE
+lean	-	NONE
+spark	-	NONE
+excel	-	NONE
+less	-	NONE
+analyze	-	NONE
+rules	-	NONE
+#
+# ─── extraction: ambiguous words in a skills list (any casing) and in prose ───
+go	skill.go	EXACT	list
+r	skill.r	EXACT	list
+c	skill.c	EXACT	list
+excel	skill.excel	EXACT	list
+rest	skill.rest	EXACT	list
+swift	skill.swift	EXACT	list
+react	skill.react	EXACT	list
+spring	skill.spring	EXACT	list
+node	skill.nodejs	ALIAS	list
+word	skill.ms_word	ALIAS	list
+Most of our services are written in Go these days.	skill.go	EXACT	prose
+Let's go over the plan.	-	NONE	prose
+We rest on Sunday and spring into action.	-	NONE	prose
+Reports were drafted in Word by the team.	skill.ms_word	ALIAS	prose
+Analyze the data and excel at it.	-	NONE	prose

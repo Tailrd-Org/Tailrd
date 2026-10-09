@@ -1,0 +1,2 @@
+conceptType,conceptUri,iscoGroup,preferredLabel,altLabels,hiddenLabels,status,modifiedDate,regulatedProfessionNote,scopeNote,definition,inScheme,description,code,naceCode
+Occupation,http://data.europa.eu/esco/occupation/00000000-0000-4000-8000-0000000000c1,2512,software developer,,,released,,,,,,Software developers write code.,2512.1,

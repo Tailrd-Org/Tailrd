@@ -1,0 +1,5 @@
+# Hand-curated related edges for the raw_mini build tests: [a, b, weight], weight in [0.4, 0.8].
+format: 1
+edges:
+  - [skill.react, skill.javascript, 0.6]
+  - [cred.registered_nurse, field.science, 0.5]

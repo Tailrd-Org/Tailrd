@@ -1,0 +1,4 @@
+O*NET-SOC Code	Reported Job Title	Shown in My Next Move
+15-1252.00	Software Developer	Y
+11-1011.00	CEO (Chief Executive Officer)	Y
+17-2141.00	Co-op	Y

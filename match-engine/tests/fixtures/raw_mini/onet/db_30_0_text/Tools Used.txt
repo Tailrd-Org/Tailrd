@@ -1,0 +1,6 @@
+O*NET-SOC Code	Example	Commodity Code	Commodity Title
+53-7051.00	Forklifts	24101622	Forklifts
+15-1252.00	Laptop computers	43211503	Notebook computers
+29-2043.00	Stethoscopes	42181604	Stethoscopes
+29-2043.00	Laptop computers	43211503	Notebook computers
+47-2031.00	Levels	41111604	Levels
