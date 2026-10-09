@@ -83,14 +83,19 @@ def normalize_line(line: str) -> str:
     return text
 
 
-def _joinable(current: str, following: str) -> bool:
-    if not current or not following:
+def _joinable(tail: str, first: str) -> bool:
+    """Whether a line ending in `tail` continues with a word whose first character is `first`."""
+    if not tail or not first:
         return False
-    first = following[0]
-    if current.endswith(SOFT_HYPHEN):  # an explicit break opportunity inside a word
+    if tail.endswith(SOFT_HYPHEN):  # an explicit break opportunity inside a word
         return first.isalpha() and (first.islower() or first.isupper())
-    return (len(current) >= 2 and current[-1] in _HYPHENS and current[-2].isalpha()
-            and first.islower())
+    return len(tail) >= 2 and tail[-1] in _HYPHENS and tail[-2].isalpha() and first.islower()
+
+
+def _line_start(text: str) -> str:
+    """The part of step 4 that depends on starting a line (a bullet glyph becomes "- "). The
+    rest of a normalised line after a space is already normalised otherwise."""
+    return _BULLET_START.sub("- ", text, count=1).rstrip() if text else text
 
 
 def _tail(pieces: Sequence[str]) -> str:
@@ -105,8 +110,11 @@ def _tail(pieces: Sequence[str]) -> str:
 
 def join_hyphenated(lines: Sequence[str]) -> list[Optional[str]]:
     """Step 5 over already-normalised lines. One entry per input line: its text, or None when a
-    join moved all of it onto the previous line. Linear time: a line that absorbs thousands of
-    continuations collects them as pieces and is joined once."""
+    join moved all of it onto the previous line.
+
+    Linear time: the words of a following line are visited by offset, once each, and the line
+    that absorbs them collects pieces and is joined once. (Re-splitting the remainder for every
+    absorbed word was quadratic on a long line of hyphen-ending words.)"""
     out: list[Optional[str]] = list(lines)
     for i in range(len(out)):
         current = out[i]
@@ -116,17 +124,24 @@ def join_hyphenated(lines: Sequence[str]) -> list[Optional[str]]:
         j = i + 1
         while j < len(out):
             following = out[j]
-            if following is None or not _joinable(_tail(pieces), following):
+            if not following:  # a blank line is a paragraph break
                 break
-            word, _, rest = following.partition(" ")
-            pieces[-1] = pieces[-1][:-1]  # drop the hyphen or soft hyphen
-            pieces.append(word)
-            rest = normalize_line(rest)  # what is left now starts a line (it may start with a bullet)
-            if rest:
-                out[j] = rest
-            else:
+            start = 0
+            while start < len(following) and _joinable(_tail(pieces), following[start]):
+                end = following.find(" ", start)
+                if end < 0:
+                    end = len(following)
+                pieces[-1] = pieces[-1][:-1]  # drop the hyphen or soft hyphen
+                pieces.append(following[start:end])
+                start = end + 1
+            if start == 0:
+                break
+            if start >= len(following):  # the whole line moved up: the chain may go on below
                 out[j] = None
                 j += 1
+                continue
+            out[j] = _line_start(following[start:])  # what is left now starts a line
+            break
         joined = pieces[0] if len(pieces) == 1 else "".join(pieces)
         out[i] = joined.replace(SOFT_HYPHEN, "").rstrip(" ")  # a dropped final soft hyphen may expose a space
     return out

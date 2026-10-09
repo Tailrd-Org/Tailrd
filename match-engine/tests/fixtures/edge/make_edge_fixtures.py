@@ -760,6 +760,96 @@ def _pdf_truncated_eof_appended() -> bytes:
     return full[: len(full) // 2] + b"\n%%EOF\n"
 
 
+# Hand-built one-page PDFs with a plain FlateDecode content stream, to tell a stream whose data was
+# fully recovered (a bad or missing Adler-32 checksum: MuPDF warns, every line is there) from one
+# that lost data (fix round 2: damage warnings alone must not make a file CORRUPT).
+HANDMADE_LINES = [
+    NAME, "alex.example@example.com | 555-0100 | Toronto, ON", "SUMMARY",
+    "Data analyst who builds reporting pipelines for finance teams.", "EXPERIENCE",
+    "Data Analyst, Example Corp   2021 - 2024",
+    "- Built weekly reports in SQL and Python for the sales team",
+    "- Reduced reporting time by 40 percent with automated pipelines",
+    "- Presented monthly results to the regional managers",
+    "Junior Analyst, Sample Industries   2019 - 2021",
+    "- Cleaned and validated sales data with Excel and SQL",
+    "- Maintained the shared dashboard used by twelve teams",
+    "Intern, Example Lab   2018 - 2019",
+    "- Wrote survey reports and checked data quality",
+    "EDUCATION", "BSc Statistics, Example University   2014 - 2018",
+    "- Thesis on forecasting retail demand", "SKILLS",
+    "Python, SQL, Excel, Tableau, statistics", "Forecasting, data cleaning, reporting",
+    "CERTIFICATIONS", "Example Certified Data Analyst (2022)", "Example Cloud Practitioner (2023)",
+    "LANGUAGES", "English and French", "PROJECTS",
+    "- Open data dashboard for a city transit network",
+    "- Survey sampling simulator in Python",
+    "VOLUNTEERING", "Treasurer, Example Chess Club   2016 - 2018",
+]
+
+
+def _handmade_content() -> bytes:
+    def escape(text: str) -> bytes:
+        return text.replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)").encode("latin-1")
+
+    return (b"BT /F1 10 Tf 13 TL 72 760 Td\n" + b"".join(b"(" + escape(line) + b") Tj T*\n"
+                                                       for line in HANDMADE_LINES) + b"ET\n")
+
+
+def handmade_pdf(stream_data: bytes) -> bytes:
+    """A minimal PDF (catalog, pages, one page, a FlateDecode content stream, Helvetica)."""
+    objects = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R "
+        b"/Resources << /Font << /F1 5 0 R >> >> >>",
+        b"<< /Length %d /Filter /FlateDecode >>\nstream\n" % len(stream_data) + stream_data + b"\nendstream",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>",
+    ]
+    out = bytearray(b"%PDF-1.4\n")
+    offsets = []
+    for number, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += b"%d 0 obj\n" % number + body + b"\nendobj\n"
+    xref = len(out)
+    out += b"xref\n0 %d\n0000000000 65535 f \n" % (len(objects) + 1)
+    out += b"".join(b"%010d 00000 n \n" % offset for offset in offsets)
+    out += b"trailer\n<< /Size %d /Root 1 0 R >>\nstartxref\n%d\n%%%%EOF\n" % (len(objects) + 1, xref)
+    return bytes(out)
+
+
+def _handmade_deflate() -> bytes:
+    import zlib
+
+    return zlib.compress(_handmade_content(), 9)
+
+
+@fixture("pdf_recovered_checksum.pdf")
+def _pdf_recovered_checksum() -> bytes:
+    """Adler-32 checksum wrong; every byte decodes ("ignoring zlib error: incorrect data check")."""
+    good = _handmade_deflate()
+    return handmade_pdf(good[:-4] + b"\x00\x00\x00\x00")
+
+
+@fixture("pdf_missing_checksum.pdf")
+def _pdf_missing_checksum() -> bytes:
+    """No Adler-32 checksum at all (a common writer bug): "premature end of data", no data lost."""
+    return handmade_pdf(_handmade_deflate()[:-4])
+
+
+@fixture("pdf_damaged_partial.pdf")
+def _pdf_damaged_partial() -> bytes:
+    """The last third of the deflate data zeroed: the first lines survive, the rest is garbage."""
+    good = _handmade_deflate()
+    keep = 2 * len(good) // 3
+    return handmade_pdf(good[:keep] + bytes(len(good) - keep))
+
+
+@fixture("pdf_deflate_cut_short.pdf")
+def _pdf_deflate_cut_short() -> bytes:
+    """The deflate data cut at 60 % (and /Length says so): the stream ends before its data does."""
+    good = _handmade_deflate()
+    return handmade_pdf(good[: len(good) * 6 // 10])
+
+
 @fixture("pdf_garbled.pdf")
 def _pdf_garbled() -> bytes:
     rng = random.Random(20261008)
@@ -1255,6 +1345,26 @@ def _docx_corrupt_zip() -> bytes:
     _docx_resume_body(doc)
     data = _docx_bytes(doc)
     return data[: len(data) // 2]
+
+
+@fixture("docx_without_body.docx")
+def _docx_without_body() -> bytes:
+    """A well-formed word/document.xml whose w:document has no w:body."""
+    import re
+
+    doc = _new_docx()
+    _docx_resume_body(doc)
+    source = zipfile.ZipFile(io.BytesIO(_docx_bytes(doc)))
+    out = io.BytesIO()
+    with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as target:
+        for info in source.infolist():
+            content = source.read(info.filename)
+            if info.filename == "word/document.xml":
+                content = re.sub(rb"<w:body>.*</w:body>", b"", content, flags=re.S)
+            member = zipfile.ZipInfo(info.filename, date_time=(2020, 1, 1, 0, 0, 0))
+            member.compress_type = zipfile.ZIP_DEFLATED  # a ZipInfo ignores the archive's default
+            target.writestr(member, content)
+    return out.getvalue()
 
 
 @fixture("docx_zip_without_document.docx")

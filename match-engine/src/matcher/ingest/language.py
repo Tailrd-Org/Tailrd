@@ -159,18 +159,22 @@ def _line_counts(text: str) -> Counter[str]:
     return Counter(code for line in text.splitlines() if (code := detect_line_language(line)))
 
 
-def language_shares(text: str) -> dict[str, float]:
-    """Share of the lines that have a language, per language, keys in alphabetical order."""
+def language_profile(text: str) -> tuple[Optional[str], float, dict[str, float]]:
+    """(majority language, its share, the share of every language) from one pass over the lines."""
     counts = _line_counts(text)
     total = sum(counts.values())
-    return {code: counts[code] / total for code in sorted(counts)} if total else {}
+    if not total:
+        return None, 0.0, {}
+    best = min(counts, key=lambda code: (-counts[code], code not in SUPPORTED_LANGUAGES, code))
+    return best, counts[best] / total, {code: counts[code] / total for code in sorted(counts)}
+
+
+def language_shares(text: str) -> dict[str, float]:
+    """Share of the lines that have a language, per language, keys in alphabetical order."""
+    return language_profile(text)[2]
 
 
 def detect_language(text: str) -> tuple[Optional[str], float]:
     """(ISO 639-1 code of the majority of lines, its share), or (None, 0.0) with no signal."""
-    counts = _line_counts(text)
-    total = sum(counts.values())
-    if not total:
-        return None, 0.0
-    best = min(counts, key=lambda code: (-counts[code], code not in SUPPORTED_LANGUAGES, code))
-    return best, counts[best] / total
+    best, share, _ = language_profile(text)
+    return best, share

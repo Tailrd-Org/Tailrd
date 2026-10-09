@@ -87,6 +87,10 @@ EXPECTED: dict[str, Expect] = {
     "pdf_truncated.pdf": review(Flag.CORRUPT, language=None),
     "pdf_damaged_stream.pdf": review(Flag.CORRUPT, language=None),
     "pdf_truncated_eof_appended.pdf": review(Flag.CORRUPT, language=None),
+    "pdf_recovered_checksum.pdf": ok(),  # MuPDF warns, nothing is lost
+    "pdf_missing_checksum.pdf": ok(),
+    "pdf_damaged_partial.pdf": review(Flag.CORRUPT, language=None),
+    "pdf_deflate_cut_short.pdf": review(Flag.CORRUPT, language=None),
     "pdf_garbled.pdf": review(Flag.CORRUPT, language=None),
     "pdf_junk_prefix.pdf": ok(),
     # Scans, images, photos
@@ -123,6 +127,7 @@ EXPECTED: dict[str, Expect] = {
     "docx_white_on_dark.docx": ok(),
     "docx_corrupt_zip.docx": review(Flag.CORRUPT, language=None),
     "docx_zip_without_document.docx": review(Flag.CORRUPT, language=None),
+    "docx_without_body.docx": review(Flag.CORRUPT, language=None),
     # Plain text
     "text_utf8.txt": ok(),
     "text_utf8_bom.txt": ok(),
@@ -286,30 +291,98 @@ def test_owner_password_only_pdf_is_readable(ingested: _Cache) -> None:
 
 
 @pytest.mark.parametrize("name", ["pdf_truncated.pdf", "pdf_garbled.pdf", "pdf_damaged_stream.pdf",
-                                  "pdf_truncated_eof_appended.pdf", "docx_corrupt_zip.docx",
-                                  "docx_zip_without_document.docx"])
+                                  "pdf_truncated_eof_appended.pdf", "pdf_damaged_partial.pdf",
+                                  "pdf_deflate_cut_short.pdf", "docx_corrupt_zip.docx",
+                                  "docx_zip_without_document.docx", "docx_without_body.docx"])
 def test_damaged_files_are_corrupt(ingested: _Cache, name: str) -> None:
     result = ingested(name)
     assert result.reasons == (Flag.CORRUPT,) and result.lines == ()
 
 
+@pytest.mark.parametrize("name", ["pdf_recovered_checksum.pdf", "pdf_missing_checksum.pdf"])
+def test_recovered_streams_are_read_in_full(ingested: _Cache, name: str) -> None:
+    """MuPDF warns about the checksum ("ignoring zlib error", "premature end of data") but every
+    byte decodes: a warning without a loss is not damage (fix round 2)."""
+    result = ingested(name)
+    assert result.ok and len(result.lines) == len(gen.HANDMADE_LINES)
+    assert _lines(result)[-1] == "Treasurer, Example Chess Club 2016 - 2018"
+
+
+def test_deflate_cut_short_tells_lost_data_from_a_bad_checksum() -> None:
+    import zlib
+
+    import pymupdf
+
+    from matcher.ingest.pdf import _deflate_cut_short
+
+    good = zlib.compress(gen._handmade_content(), 9)
+    cases = {
+        "intact": (good, False),
+        "bad checksum": (good[:-4] + b"\x00\x00\x00\x00", False),
+        "missing checksum": (good[:-4], False),
+        "cut at 60 %": (good[: len(good) * 6 // 10], True),
+        "header only": (good[:2], True),
+    }
+    for label, (stream, lost) in cases.items():
+        doc = pymupdf.open(stream=gen.handmade_pdf(stream), filetype="pdf")
+        try:
+            assert _deflate_cut_short(doc, doc[0].get_contents()[0]) is lost, label
+        finally:
+            doc.close()
+
+
+def _message_sink(monkeypatch: pytest.MonkeyPatch):
+    """Send PyMuPDF's printed MuPDF messages to a buffer for this test. PyMuPDF binds its output
+    stream when first imported, so capsys/capfd cannot see it once another test imported it."""
+    import io
+
+    import pymupdf
+
+    sink = io.StringIO()
+    monkeypatch.setattr(pymupdf, "_g_out_message", sink)
+    return sink
+
+
 @pytest.mark.parametrize("name", ["pdf_damaged_stream.pdf", "pdf_truncated_eof_appended.pdf", "pdf_garbled.pdf",
-                                  "pdf_truncated.pdf", "pdf_encrypted.pdf", "pdf_clean_one_column.pdf"])
-def test_pdf_reading_is_silent_and_restores_mupdf_settings(config: EngineConfig, capfd: pytest.CaptureFixture,
+                                  "pdf_truncated.pdf", "pdf_encrypted.pdf", "pdf_damaged_partial.pdf",
+                                  "pdf_recovered_checksum.pdf", "pdf_clean_one_column.pdf"])
+def test_pdf_reading_is_silent_and_restores_mupdf_settings(config: EngineConfig, monkeypatch: pytest.MonkeyPatch,
                                                            name: str) -> None:
     import pymupdf
 
+    sink = _message_sink(monkeypatch)
     tools = pymupdf.TOOLS
     errors_before, warnings_before = tools.mupdf_display_errors(), tools.mupdf_display_warnings()
-    capfd.readouterr()
     result = ingest_bytes((EDGE / name).read_bytes(), name, config=config)
-    out, err = capfd.readouterr()
-    assert (out, err) == ("", ""), "MuPDF wrote to stdout/stderr"
+    assert sink.getvalue() == "", "MuPDF printed messages"
     assert result.reasons == EXPECTED[name].reasons
     assert (tools.mupdf_display_errors(), tools.mupdf_display_warnings()) == (errors_before, warnings_before)
 
 
-def test_clean_pdfs_log_no_damage(config: EngineConfig) -> None:
+def test_the_silence_check_catches_a_noisy_reader(config: EngineConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Control for the test above: with MuPDF's error display left on, the same sink fills up."""
+    import contextlib
+
+    import matcher.ingest.pdf as pdf
+
+    sink = _message_sink(monkeypatch)
+
+    @contextlib.contextmanager
+    def noisy(fitz):
+        with pdf._MUPDF_LOCK:
+            before = fitz.TOOLS.mupdf_display_errors()
+            fitz.TOOLS.mupdf_display_errors(True)
+            try:
+                yield lambda: fitz.TOOLS.mupdf_warnings(reset=False)
+            finally:
+                fitz.TOOLS.mupdf_display_errors(bool(before))
+
+    monkeypatch.setattr(pdf, "_quiet_mupdf", noisy)
+    ingest_bytes((EDGE / "pdf_damaged_stream.pdf").read_bytes(), config=config)
+    assert "MuPDF error" in sink.getvalue()
+
+
+def test_damage_markers() -> None:
     from matcher.ingest.pdf import damaged
 
     assert not damaged("")
@@ -426,6 +499,47 @@ def test_title_and_right_aligned_dates_stay_on_one_line(ingested: _Cache) -> Non
                 "Intern, Example Lab May 2017 - Aug 2017", "BSc Statistics, Example University 2014 - 2018"):
         assert row in lines, lines
     assert {line.column for line in result.lines} == {0} and result.tier is A
+
+
+def test_many_right_aligned_years_stay_beside_their_titles(config: EngineConfig) -> None:
+    """80 rows of a title with a right-aligned year (a publication list): one column, one line per
+    row. Fix round 2 removed a 60-line cap that turned this into two columns, and stopped years in
+    the top/bottom 8 % band (sharing a row with a title) from being dropped as page numbers."""
+    import io
+    import re
+
+    from reportlab.pdfgen import canvas
+
+    buf = io.BytesIO()
+    page = canvas.Canvas(buf, pagesize=(612, 792), invariant=1)
+    page.setFont("Helvetica", 8)
+    for row in range(80):
+        y = 780 - row * 9.6
+        page.drawString(72, y, f"Paper {row:02d} on survey methods")
+        page.drawRightString(540, y, str(1990 + row % 30))
+    page.showPage()
+    page.save()
+    result = ingest_bytes(buf.getvalue(), "publications.pdf", config=config)
+    rows = [line for line in _lines(result) if line.startswith("Paper ")]
+    assert len(rows) == 80, _lines(result)[:5]
+    assert all(re.fullmatch(r"Paper \d\d on survey methods (19|20)\d\d", row) for row in rows), rows[:3]
+    assert {line.column for line in result.lines} == {0}
+
+
+_GRID = st.integers(0, 1600).map(lambda v: v / 4)  # quarter points: exact float halves
+_HEIGHTS = st.integers(1, 60).map(lambda v: v / 4)
+
+
+@settings(max_examples=300)
+@given(st.lists(st.tuples(_GRID, _HEIGHTS), max_size=40), st.lists(st.tuples(_GRID, _HEIGHTS), max_size=40))
+def test_fast_row_alignment_equals_the_all_pairs_count(left: list, right: list) -> None:
+    from matcher.ingest.pdf import Fragment, _aligned, _same_row
+
+    def frags(boxes):
+        return [Fragment(0, "x", 0.0, y0, 10.0, y0 + height) for y0, height in boxes]
+
+    lefts, rights = frags(left), frags(right)
+    assert _aligned(rights, lefts) == sum(1 for r in rights if any(_same_row(r, other) for other in lefts))
 
 
 # ─── Row 5: repeated headers, footers and page numbers ───────────────────────────────────────
@@ -585,6 +699,22 @@ def test_ocr_engine_is_built_again_after_a_failure(monkeypatch: pytest.MonkeyPat
     assert "model file locked" in caplog.text
     assert ocr.get_engine() is built and ocr.engine_error() is None
     assert ocr.get_engine() is built and len(attempts) == 2  # cached once built
+
+
+def test_ocr_runs_outside_the_mupdf_lock(config: EngineConfig, monkeypatch: pytest.MonkeyPatch) -> None:
+    """One slow scan must not block every other PDF ingest in the process (fix round 2)."""
+    import matcher.ingest.ocr as ocr
+    import matcher.ingest.pdf as pdf
+
+    held: list[bool] = []
+
+    def fake_ocr(rgb):
+        held.append(pdf._MUPDF_LOCK.locked())
+        return ()
+
+    monkeypatch.setattr(ocr, "run_ocr", fake_ocr)
+    ingest_bytes((EDGE / "scan_300dpi.pdf").read_bytes(), config=config)
+    assert held == [False]
 
 
 def test_ocr_sessions_are_single_threaded() -> None:
@@ -760,8 +890,19 @@ def test_contact_email_shapes() -> None:
 
     for text in ("alex.example@example.com", "Email:alex@example.com", "<alex@example.com>.", "x (a.b+c@d-e.co.uk)"):
         assert _has_email(text), text
+    # Junk glued to an address must not hide it (fix round 2): an icon-font glyph, an envelope
+    # symbol, trailing punctuation.
+    for text in (chr(0xF0E0) + "a@b.c", chr(0x2709) + "a@b.c", "a@b.c!", "a@b.c="):
+        assert _has_email(text), text
     for text in ("a@a" * 100, "@" * 50, "alex@localhost", "user@", "@example.com", "a" * 300 + "@example.com"):
         assert not _has_email(text), text
+
+
+def test_an_icon_glued_to_the_address_keeps_a_two_line_resume(config: EngineConfig) -> None:
+    # Contact details decide this one: without them the two lines fall below the threshold.
+    text = f"{gen.NAME} | {chr(0xF0E0)}alex.example@example.com\nData Analyst, Example Corp 2020 - 2024"
+    assert ingest_text(text, config=config).ok
+    assert not ingest_text(f"{gen.NAME}\nData Analyst, Example Corp 2020 - 2024", config=config).ok
 
 
 def test_threshold_comes_from_config(config: EngineConfig) -> None:
@@ -933,13 +1074,18 @@ def test_seeded_mutations_reach_every_reader_and_never_raise(config: EngineConfi
     ("matcher.ingest.ocr", "MAX_IMAGE_SIDE", "photo_no_text.jpg"),  # inside image decoding
 ])
 def test_a_defect_in_a_reader_is_reported_as_internal_error(config: EngineConfig, monkeypatch: pytest.MonkeyPatch,
-                                                            module_name: str, constant: str, fixture: str) -> None:
+                                                            caplog: pytest.LogCaptureFixture, module_name: str,
+                                                            constant: str, fixture: str) -> None:
     """The readers' damage handlers must not disguise the engine's own bugs as damaged files."""
     import importlib
+    import logging
 
     monkeypatch.setattr(importlib.import_module(module_name), constant, None)  # comparisons now raise TypeError
-    result = ingest_bytes((EDGE / fixture).read_bytes(), fixture, config=config)
+    with caplog.at_level(logging.WARNING, logger="matcher.ingest"):
+        result = ingest_bytes((EDGE / fixture).read_bytes(), fixture, config=config)
     assert result.reasons == (Flag.INTERNAL_ERROR,)
+    logged = [record for record in caplog.records if record.name == "matcher.ingest"]
+    assert logged and logged[-1].exc_info and logged[-1].exc_info[0] is TypeError  # diagnosable
 
 
 def test_ingest_text_matches_the_text_file(ingested: _Cache, config: EngineConfig) -> None:
@@ -963,7 +1109,10 @@ HOSTILE_TEXT = {
     "www. run": b"www." * 25_000,
     "url-ish run": b"a://" * 25_000,
     "hyphenated chain": b"a-\n" * 33_334,
-    "soft-hyphen chain": "a\u00ad\n".encode("utf-8") * 25_000,
+    "soft-hyphen chain": (chr(0x61) + chr(0xAD) + "\n").encode("utf-8") * 25_000,
+    # Hyphen-ending words on ONE line after a hyphen-ending line: absorbed word by word (fix round 2).
+    "same-line hyphen chain": b"x-\n" + b"a- " * 33_333,
+    "same-line soft-hyphen chain": ("x" + chr(0xAD) + "\n").encode("utf-8") + ("a" + chr(0xAD) + " ").encode("utf-8") * 25_000,
     "a year then spaces": b"2019" + b" " * 100_000,
     "date ranges": b"Jan 2019 - " * 9_000,
     "digits": b"5" * 100_000,

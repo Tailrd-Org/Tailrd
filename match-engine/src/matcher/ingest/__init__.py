@@ -29,6 +29,7 @@ plain text, DOCX and images, 0 when the file could not be opened.
 
 from __future__ import annotations
 
+import logging
 import math
 from typing import Any, Optional, Sequence
 
@@ -37,7 +38,7 @@ from pydantic import Field, model_validator
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.ingest import detect, docx, ocr, pdf
-from matcher.ingest.language import SUPPORTED_LANGUAGES, detect_language, language_shares
+from matcher.ingest.language import SUPPORTED_LANGUAGES, detect_language, language_profile
 from matcher.ingest.normalize_text import normalize_lines, normalize_text, split_lines
 from matcher.ingest.quality import resume_likelihood
 from matcher.models import Frozen, ParseTier
@@ -54,6 +55,7 @@ __all__ = [
 ]
 
 MIXED_LANGUAGE_SHARE = 0.20  # brief row 10
+_logger = logging.getLogger(__name__)
 
 
 class TextLine(Frozen):
@@ -121,8 +123,7 @@ def _result(raw: Sequence[Any], *, flags: set[Flag], page_count: int, ocr_confid
                                   size=max(0.0, _finite(getattr(line, "size", 0.0))),
                                   bold=bool(getattr(line, "bold", False))))
     text = "\n".join(line.text for line in lines)
-    shares = language_shares(text)
-    language, _ = detect_language(text)
+    language, _, shares = language_profile(text)
     flags = set(flags)
     if sum(1 for code in SUPPORTED_LANGUAGES if shares.get(code, 0.0) >= MIXED_LANGUAGE_SHARE) >= 2:
         flags.add(Flag.MIXED_LANGUAGE)
@@ -224,6 +225,9 @@ def ingest_bytes(data: bytes, filename: str = "", *, config: EngineConfig) -> In
             return _failed(Flag.INVALID_INPUT)
         return _ingest(data, filename if isinstance(filename, str) else "", config)
     except Exception:  # SPEC §13: nothing escapes; an engine defect is reported, not raised
+        size = len(data) if isinstance(data, (bytes, bytearray, memoryview)) else -1
+        name = filename if isinstance(filename, str) else "?"
+        _logger.warning("ingest_bytes: internal error (%d bytes, %r)", size, name, exc_info=True)
         return _failed(Flag.INTERNAL_ERROR)
 
 
@@ -234,4 +238,5 @@ def ingest_text(text: str, *, config: EngineConfig) -> IngestResult:
             return _failed(Flag.INVALID_INPUT)
         return _from_text(text, config)
     except Exception:
+        _logger.warning("ingest_text: internal error (%d characters)", len(text), exc_info=True)
         return _failed(Flag.INTERNAL_ERROR)

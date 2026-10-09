@@ -125,21 +125,31 @@ _RANGE_END = (rf"(?:(?:{_MONTH}\s*)?{_YEAR}|present|current|now|today|ongoing|da
               rf"actuel|actuellement|en cours|maintenant)")
 _DATE_RANGE = re.compile(rf"(?<!\d)(?:{_MONTH}\s*)?{_YEAR}\s*{_RANGE_SEPARATOR}\s*{_RANGE_END}(?!\w)",
                          re.IGNORECASE)
-# Checked per whitespace token with fullmatch and bounded parts, so a hostile 100 KB token costs
-# linear time (an unanchored `[\w.+-]+@...` search retries from every position: quadratic).
-_EMAIL = re.compile(r"[\w.+-]{1,64}@[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
-_EMAIL_SEPARATORS = re.compile(r"[:;,|<>()\[\]\"'/]")
-MAX_EMAIL_LENGTH = 254
+# Each "@" is examined in a bounded window: up to 64 local-part characters to its left, a domain of
+# up to 253 characters to its right. That costs linear time on a hostile 100 KB token (an
+# unanchored `[\w.+-]+@...` search retried from every position: quadratic) and, unlike a check on
+# whole tokens, junk glued to an address (an icon-font glyph before it, "!" after it) cannot hide it.
+_DOMAIN = re.compile(r"[\w-]{1,63}(?:\.[\w-]{1,63}){1,8}")
+MAX_LOCAL_PART = 64
+MAX_DOMAIN = 253
+
+
+def _local_part_length(text: str, at: int) -> int:
+    """Length of the run of local-part characters (letters, digits, "._+-") just before `at`;
+    0 when there is none or it is longer than an address allows."""
+    start = at
+    while start > 0 and at - start <= MAX_LOCAL_PART and (text[start - 1].isalnum() or text[start - 1] in "._+-"):
+        start -= 1
+    length = at - start
+    return 0 if length > MAX_LOCAL_PART else length
 
 
 def _has_email(text: str) -> bool:
-    for token in text.split():
-        if "@" not in token:
-            continue
-        for piece in _EMAIL_SEPARATORS.split(token):
-            piece = piece.rstrip(".")
-            if "@" in piece and len(piece) <= MAX_EMAIL_LENGTH and _EMAIL.fullmatch(piece):
-                return True
+    at = text.find("@")
+    while at != -1:
+        if _local_part_length(text, at) and _DOMAIN.match(text, at + 1, at + 1 + MAX_DOMAIN):
+            return True
+        at = text.find("@", at + 1)
     return False
 
 

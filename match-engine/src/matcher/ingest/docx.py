@@ -319,6 +319,8 @@ def extract_docx(data: bytes) -> DocxResult:
         document = docx.Document(io.BytesIO(data))
         reader = _Reader(document)
         header = [line for part in _parts(document, _RT_HEADER) for line in reader.blocks(part.element)]
+        if document.element.body is None:  # a w:document without w:body: nothing to read
+            return DocxResult([], set(), Flag.CORRUPT)
         body = reader.blocks(document.element.body)
         footer = [line for part in _parts(document, _RT_FOOTER) for line in reader.blocks(part.element)]
     except Exception as exc:  # bad zip, missing parts, not a Word document, malformed XML
