@@ -97,7 +97,15 @@ equals a skill listed once.
 
 **D-24 Provisional nodes** (§16) multiply the credit by 0.8 until confirmed.
 
-**D-25 Ambiguous skill words inside slash/hyphen tokens. [Spec: clarified]** In extraction, an ambiguous key ("Go", "R", "REST", "Spring") that is one part of a slash token keeps the usual rules (exact casing; in prose not the first word of a sentence, the token's first part taking the token's position), so "Python/R" yields R; as part of a hyphen token it matches only in a two-part `<key>-<suffix>` compound with suffix based, powered, driven, backed, first, centric, enabled, native, heavy or only, so "Go-based" yields Go while "Go-Live" and "Go-to-market" yield nothing.
+**D-25 Ambiguous skill words inside slash/hyphen tokens. [Spec: clarified]** In extraction, an
+ambiguous key ("Go", "R", "REST", "Spring") that is one part of a slash token matches only when
+another part of the same token resolves to a non-ambiguous skill, and then under the usual rules
+(exact casing; in prose not the first word of a sentence, the token's first part taking the
+token's position): "Python/R" and "Java/Spring" yield both skills, while "A/R", "Go/No-Go", "R/W",
+"Excel/Word" and "Spring/Summer 2027" (a co-op term) yield no ambiguous skill. As part of a hyphen
+token it matches only in a two-part `<key>-<suffix>` compound with suffix based, powered, driven,
+backed, first, centric, enabled, native, heavy or only: "Go-based" yields Go; "Go-Live" and
+"Go-to-market" yield nothing. Both rules hold in prose and in skills lists.
 
 ## Scoring
 

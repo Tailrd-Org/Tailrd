@@ -10,10 +10,11 @@ required casing ("Go") and resolves only under these rules:
 
 - `resolve` (one standalone surface): the surface must have the required casing.
 - `extract`, prose: the required casing, and not the first word of the text or of a sentence
-  (after `.`, `!`, `?` or a line break). Inside a slash token the same rules hold, the first part
-  keeping the token's position ("Python/R"); inside a hyphen token only a "<key>-<suffix>"
+  (after `.`, `!`, `?` or a line break). Inside a slash token an ambiguous part also needs
+  another part that is a non-ambiguous skill ("Python/R", never "A/R" or "Spring/Summer"), the
+  first part keeping the token's position; inside a hyphen token only a "<key>-<suffix>"
   compound with a known suffix matches ("Go-based", never "Go-Live"; DECISIONS D-25).
-- `extract`, list: any casing, any position; the hyphen rule still holds.
+- `extract`, list: any casing, any position; the slash and hyphen rules still hold.
 
 An ambiguous key is never a fuzzy target: a near miss cannot have the required casing.
 """
@@ -249,28 +250,50 @@ class Resolver:
         return None
 
     def _match_parts(self, text: str, token: _Token, context: str) -> list[Mention]:
-        """Each "/"- or "-"-separated part of an unmatched token, looked up on its own. For an
-        ambiguous key a slash part keeps the usual rules (the first part has the token's position);
-        a hyphen part needs a "<key>-<suffix>" compound (D-25)."""
+        """Each "/"- or "-"-separated part of an unmatched token, looked up on its own (D-25).
+
+        An ambiguous key may match as a slash part only when another part of the token is a
+        non-ambiguous skill, and then under the usual rules, the first part having the token's
+        position: "Python/R" yields R, "A/R", "Go/No-Go" and "Spring/Summer" yield nothing. As a
+        hyphen part it needs a "<key>-<suffix>" compound ("Go-based"). Other keys match freely.
+        """
         if "/" not in token.norm and "-" not in token.norm:
             return []
         parts = _split_parts(text, token)
+        # Which parts are non-ambiguous skills on their own (the companions a slash part needs).
+        plain = [
+            self._match_part(text, part, context, sentence_start=False, ambiguous_allowed=False) is not None
+            for part in parts
+        ]
         found = []
         for k, part in enumerate(parts):
-            hyphenated = part.before in _DASH_CHARS or part.after in _DASH_CHARS
-            ambiguous_allowed = not hyphenated or _suffix_compound(text, parts, k)
-            for end, form in _forms(text, part.start, part.end):
-                hit = self._lookup(
-                    form,
-                    text[part.start : end],
-                    context,
-                    sentence_start=token.sentence_start and k == 0,
-                    ambiguous_allowed=ambiguous_allowed,
-                )
-                if hit is not None:
-                    found.append(self._mention(text, part.start, end, *hit))
-                    break
+            if part.before in _DASH_CHARS or part.after in _DASH_CHARS:
+                ambiguous_allowed = _suffix_compound(text, parts, k)
+            else:
+                ambiguous_allowed = any(plain[m] for m in range(len(parts)) if m != k)
+            mention = self._match_part(
+                text,
+                part,
+                context,
+                sentence_start=token.sentence_start and k == 0,
+                ambiguous_allowed=ambiguous_allowed,
+            )
+            if mention is not None:
+                found.append(mention)
         return found
+
+    def _match_part(
+        self, text: str, part: _Part, context: str, *, sentence_start: bool, ambiguous_allowed: bool
+    ) -> Optional[Mention]:
+        """The part as written, then without a possessive "'s", through the same lookup."""
+        for end, form in _forms(text, part.start, part.end):
+            original = text[part.start : end]
+            hit = self._lookup(
+                form, original, context, sentence_start=sentence_start, ambiguous_allowed=ambiguous_allowed
+            )
+            if hit is not None:
+                return self._mention(text, part.start, end, *hit)
+        return None
 
     def _lookup(
         self,

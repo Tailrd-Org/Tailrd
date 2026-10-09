@@ -450,15 +450,30 @@ def test_extract_handles_decomposed_accents(config) -> None:
         ("python, go, sql", "list", ["skill.python", "skill.go", "skill.sql"]),
         ("Go, Python", "list", ["skill.go", "skill.python"]),
         ("Go/Python", "list", ["skill.go", "skill.python"]),
-        # Slash parts follow the same rules; the first part has the token's position (D-25).
+        # Slash parts (D-25): an ambiguous part needs another part that is a non-ambiguous skill,
+        # then the usual rules apply, the first part having the token's position.
         ("Analysed survey data with Python/R.", "prose", ["skill.python", "skill.r"]),
         ("Built REST/GraphQL APIs in Java/Spring.", "prose",
          ["skill.rest", "skill.graphql", "skill.java", "skill.spring"]),
+        ("Automated reports with Python/Excel.", "prose", ["skill.python", "skill.excel"]),
+        ("Analysed data with Python/SAS/R.", "prose", ["skill.python", "skill.r"]),  # one companion is enough
         ("R/Python are my tools.", "prose", ["skill.python"]),  # "R" opens the sentence
         ("Data work in python/r", "prose", ["skill.python"]),  # wrong casing
+        ("A/R and A/P", "prose", []),  # no companion skill: accounts receivable, not the language
+        ("Reconciled A/R and A/P weekly.", "prose", []),
+        ("Go/No-Go", "prose", []),
+        ("Chaired the Go/No-Go review.", "prose", []),
+        ("R/W", "prose", []),
+        ("Granted R/W access to shares.", "prose", []),
+        ("Spring/Summer 2027", "prose", []),
+        ("Completed a Spring/Summer 2027 co-op term.", "prose", []),  # a term, not the framework
+        ("Excel/Word", "prose", []),
+        ("Kept the budget in Excel/Word files.", "prose", []),
+        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes"]),  # Go, REST: both ambiguous
+        ("Skills: A/R, A/P, Excel", "list", ["skill.excel"]),  # lists need the companion too
+        ("Spring/Summer 2027", "list", []),
         # Hyphen parts: only "<key>-<suffix>" compounds such as "Go-based" (D-25).
         ("Shipped Go-based microservices.", "prose", ["skill.go"]),
-        ("Ran Kubernetes-native Go/REST services", "prose", ["skill.kubernetes", "skill.go", "skill.rest"]),
         ("Python/R-based tooling", "prose", ["skill.python", "skill.r"]),
         ("Shipped go-based tools", "prose", []),  # the suffix does not waive the casing
         ("Led the Go-Live of SAP.", "prose", []),  # a hyphen phrase, not the language
