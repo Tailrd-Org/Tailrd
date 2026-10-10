@@ -1672,7 +1672,8 @@ Test `backend/tests/test_fit_engine_adapter.py`.
    from the user's saved answers/settings (find where `needs_sponsorship` and the location live;
    unknown stays None).
    Use `backend/services/profile_facts.py` (Task 9.1a, the Python port of the extension's
-   profileFacts.ts) for the facts; never treat a bare `settings.location` equal to the default
+   profileFacts.ts) for the facts, truncating every profile text field to 2,000 characters first
+   (bounds sweep time; ledger ruling); never treat a bare `settings.location` equal to the default
    "United States" as residence (ledger ruling); map the "Security clearance" answer "Active
    clearance" to `config.gates.security_clearance.unknown_level_token`, never a literal.
 3. `posting_for_job(job) -> JobPosting` per D-84: cached in `scraped_jobs.match_terms` as
