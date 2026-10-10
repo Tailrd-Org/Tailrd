@@ -32,7 +32,9 @@ What it says
     * An explicit per-country answer ("Authorized to work in the US: No") wins over the
       free-text reading for that country.
 
-Pure: no I/O, no database, no clock, no network.
+Pure: no I/O, no database, no clock, no network. And linear: profile text has no length limit
+upstream, so every function costs time proportional to the length of its input (pinned by the
+hostile-input tests in test_profile_facts.py).
 
 JavaScript regular expressions
     The patterns are the TypeScript's, copied as written. Two are re-expressed because Python
@@ -67,7 +69,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
 from types import MappingProxyType
-from typing import Any, Generic, Literal, Optional, TypeVar
+from typing import Any, Generic, Literal, Optional, Protocol, TypeVar, Union
 
 __all__ = [
     "CA_PROVINCES",
@@ -82,6 +84,7 @@ __all__ = [
     "LocationFacts",
     "ParsedAddress",
     "PostalCode",
+    "ProfileFields",
     "ProfileInput",
     "Region",
     "WorkAuthFacts",
@@ -101,9 +104,30 @@ T = TypeVar("T")
 Confidence = Literal["high", "medium", "low"]
 AuthBasis = Literal["citizen", "permanent_resident", "work_permit", "student", "statement", "denied", "stated"]
 
-# An ApplicationProfileOut, any object with the same camelCase attributes (the /api/fill
-# ApplicantProfile), or the dict the extension receives as JSON. Read through _text().
-ProfileInput = Mapping[str, Any] | object
+
+class ProfileFields(Protocol):
+    """The text fields the facts read, under the names the profile schema gives them (camelCase).
+
+    An ``ApplicationProfileOut`` (what ``build_application_profile`` returns) and the /api/fill
+    ``ApplicantProfile`` have all ten. A test pins this list to the fields the code actually reads
+    and to both schemas, so a renamed schema field cannot silently read as blank.
+    """
+
+    location: str
+    addressStreet: str
+    addressCity: str
+    addressState: str
+    postalCode: str
+    country: str
+    workAuthorization: str
+    requiresSponsorship: str
+    authorizedUS: str
+    authorizedCanada: str
+
+
+#: What every ``profile`` argument accepts: the dict the extension receives as JSON (the fields above
+#: as keys), or an object that has them as attributes. Both are read through ``_text``.
+ProfileInput = Union[Mapping[str, Any], ProfileFields]
 
 
 # ---------------------------------------------------------------------------
@@ -174,9 +198,36 @@ class CountryAuth:
     basis: AuthBasis
 
 
+class _ReadOnlyDict(dict):
+    """A dict that refuses every change after construction.
+
+    Still a ``dict`` (equality, JSON, ``dataclasses.asdict``), and it pickles, deep-copies and hashes
+    as itself. The same pattern as ``ReadOnlyDict`` in match-engine/src/matcher/score/prepare.py,
+    copied rather than imported (this package does not depend on match-engine); the ``__hash__`` is
+    this copy's addition, so that the frozen facts holding one are hashable. ``__reduce__`` matters:
+    pickle and copy rebuild a dict subclass with ``obj[key] = value``, which this class refuses, so
+    they must rebuild it through the constructor instead.
+    """
+
+    __slots__ = ()
+
+    def _refuse(self, *args: object, **kwargs: object) -> None:
+        raise TypeError(f"{type(self).__name__} is read-only")
+
+    __setitem__ = __delitem__ = __ior__ = _refuse  # type: ignore[assignment]
+    clear = pop = popitem = setdefault = update = _refuse  # type: ignore[assignment]
+
+    def __reduce__(self) -> tuple[type, tuple[dict]]:
+        return (type(self), (dict(self),))
+
+    def __hash__(self) -> int:  # equal dicts hash alike: the order of the items does not matter
+        return hash(frozenset(self.items()))
+
+
 @dataclass(frozen=True)
 class WorkAuthFacts:
     #: Per ISO country code, in the order they were found. Only countries the profile speaks about.
+    #: A read-only dict (``_ReadOnlyDict``); typed as the read-only ``Mapping`` it is used as.
     by_country: Mapping[str, CountryAuth]
     #: The applicant's own yes/no on "do you require sponsorship", if stated.
     stated_sponsorship: Optional[bool]
@@ -314,6 +365,10 @@ COUNTRIES: tuple[Country, ...] = (
     Country("GH", "Ghana", "Africa", ("ghanaian",)),
 )
 
+# CA_PROVINCES and US_STATES intentionally duplicate location_parser.CA_PROVINCES / US_STATES. They
+# are the extension's geo.ts tables, which carry what location_parser's code-to-name dicts do not:
+# Puerto Rico, the aliases ("pei", "pq", "washington dc", the French province names), and parity
+# with the TypeScript depends on every row. Do not dedupe them into location_parser's.
 CA_PROVINCES: tuple[Region, ...] = (
     Region("AB", "Alberta", "CA"),
     Region("BC", "British Columbia", "CA", ("colombie britannique",)),
@@ -330,6 +385,7 @@ CA_PROVINCES: tuple[Region, ...] = (
     Region("YT", "Yukon", "CA", ("yukon territory",)),
 )
 
+# (See the note above CA_PROVINCES: a deliberate duplicate of location_parser's table, for TS parity.)
 US_STATES: tuple[Region, ...] = (
     Region("AL", "Alabama", "US"),
     Region("AK", "Alaska", "US"),
@@ -388,7 +444,7 @@ US_STATES: tuple[Region, ...] = (
 # Cities common enough in our users' profiles that a bare "Toronto" is evidence of its
 # country. Evidence, not proof (there is a London, Ontario): facts derived from this table
 # are capped at MEDIUM confidence.
-_CITY_COUNTRY: dict[str, str] = {
+_CITY_COUNTRY: Mapping[str, str] = MappingProxyType({
     "toronto": "CA", "montreal": "CA", "vancouver": "CA", "ottawa": "CA", "calgary": "CA", "edmonton": "CA",
     "winnipeg": "CA", "mississauga": "CA", "brampton": "CA", "hamilton": "CA", "kitchener": "CA",
     "waterloo": "CA", "markham": "CA", "quebec city": "CA", "halifax": "CA", "victoria": "CA",
@@ -397,7 +453,7 @@ _CITY_COUNTRY: dict[str, str] = {
     "san francisco": "US", "seattle": "US", "boston": "US", "chicago": "US", "austin": "US",
     "los angeles": "US", "san jose": "US", "palo alto": "US", "denver": "US", "atlanta": "US",
     "miami": "US", "dallas": "US", "houston": "US", "washington dc": "US", "philadelphia": "US",
-}
+})
 
 # The EU, the rest of the EEA and Switzerland: a citizen of one may work in any other
 # (freedom of movement).
@@ -418,20 +474,32 @@ def _geo_norm(text: Optional[str]) -> str:
     return _NOT_ALNUM.sub(" ", _COMBINING_MARKS.sub("", decomposed).lower()).strip()
 
 
-_COUNTRY_BY_KEY: dict[str, Country] = {}
-for _c in COUNTRIES:
-    _COUNTRY_BY_KEY[_geo_norm(_c.name)] = _c
-    _COUNTRY_BY_KEY[_c.code.lower()] = _c
-    for _alias in _c.aliases:
-        _COUNTRY_BY_KEY[_geo_norm(_alias)] = _c
+def _index_countries(countries: tuple[Country, ...]) -> Mapping[str, Country]:
+    """Every spelling a country answers to (name, code, aliases), as a read-only mapping.
 
-_COUNTRY_BY_CODE: dict[str, Country] = {c.code: c for c in COUNTRIES}
+    A later country wins a clash, as in the extension's table.
+    """
+    index: dict[str, Country] = {}
+    for country in countries:
+        index[_geo_norm(country.name)] = country
+        index[country.code.lower()] = country
+        for alias in country.aliases:
+            index[_geo_norm(alias)] = country
+    return MappingProxyType(index)
 
-# Every spelling a state or province answers to, in table order (provinces first).
-_REGIONS_BY_KEY: dict[str, list[Region]] = {}
-for _r in (*CA_PROVINCES, *US_STATES):
-    for _key in {_r.code.lower(), _geo_norm(_r.name), *(_geo_norm(a) for a in _r.aliases)}:
-        _REGIONS_BY_KEY.setdefault(_key, []).append(_r)
+
+def _index_regions(regions: tuple[Region, ...]) -> Mapping[str, tuple[Region, ...]]:
+    """Every spelling a state or province answers to, with the regions that answer to it (table order)."""
+    found: dict[str, list[Region]] = {}
+    for region in regions:
+        for key in {region.code.lower(), _geo_norm(region.name), *(_geo_norm(a) for a in region.aliases)}:
+            found.setdefault(key, []).append(region)
+    return MappingProxyType({key: tuple(hits) for key, hits in found.items()})
+
+
+_COUNTRY_BY_KEY = _index_countries(COUNTRIES)
+_COUNTRY_BY_CODE: Mapping[str, Country] = MappingProxyType({c.code: c for c in COUNTRIES})
+_REGIONS_BY_KEY = _index_regions((*CA_PROVINCES, *US_STATES))  # provinces first, then states
 
 
 def _country_from_name(text: Optional[str]) -> Optional[Country]:
@@ -457,7 +525,7 @@ def _region_from_text(text: Optional[str], prefer: Optional[str] = None) -> Opti
     key = _geo_norm(text)
     if not key:
         return None
-    hits = _REGIONS_BY_KEY.get(key, [])
+    hits = _REGIONS_BY_KEY.get(key, ())
     if not hits:
         return None
     if len(hits) == 1:
@@ -495,7 +563,18 @@ def _country_hint_for_city(city: str) -> Optional[str]:
 # Location
 # ---------------------------------------------------------------------------
 
-_PART_SEPARATOR = _js_regex(r"\s*[,;\n]\s*")
+# Parts are split on the bare separator and each part is trimmed afterwards. That reads every input
+# the way the extension's /\s*[,;\n]\s*/ does (the whitespace padding a separator is trimmed off the
+# parts it touches) but in one pass: the padded pattern is quadratic on a long whitespace run, and
+# profile text has no length limit upstream (10,000 spaces cost 0.4 s, 40,000 cost 6 s).
+_PART_SEPARATOR = _js_regex(r"[,;\n]")
+
+
+def _split_parts(raw: str) -> list[str]:
+    """The non-blank parts of an address: split on , ; and newline, each trimmed."""
+    return [part for part in (_trim(piece) for piece in _PART_SEPARATOR.split(raw)) if part]
+
+
 _SPACE_OR_HYPHEN = _js_regex(r"[\s-]")
 _STREET_NUMBER = _js_regex(r"^\d+[A-Za-z]?\b\s+\S")
 _STREET_WORD = _js_regex(r"^(unit|apt|suite)\b", re.IGNORECASE)
@@ -534,7 +613,7 @@ def parse_address(text: Optional[str]) -> ParsedAddress:
     if not raw:
         return ParsedAddress()
     postal = _find_postal_code(raw)
-    parts = [p for p in (_trim(piece) for piece in _PART_SEPARATOR.split(raw)) if p]
+    parts = _split_parts(raw)
 
     # Country: the last part naming one.
     country: Optional[Country] = None
@@ -680,6 +759,13 @@ def residence_of(location: LocationFacts) -> Optional[str]:
     The rule the extension uses to fill the ``residence`` argument of ``authorized_in`` /
     ``needs_sponsorship_in`` (questionResolver.ts ``residenceOf``): the country, and only at
     high confidence. A bare "Toronto" (medium) is not a residence.
+
+    Warning: a location that is just the default "United States" yields ``"US"`` here, at high
+    confidence, exactly as it does in the extension. ``UserSettings.location`` is created with that
+    value and ``build_application_profile`` falls back to it, so it says nothing about where the
+    applicant lives. This function keeps the extension's reading on purpose; the match-engine
+    integration (Task 9.1) ignores that default when it maps these facts. Do not hide the default
+    here, or the port and the extension stop agreeing.
     """
     country = location.country
     return country.value.code if country is not None and country.confidence == "high" else None
@@ -729,7 +815,7 @@ _NAME_CA = _js_regex(r" (canada|canadian) ")
 _NAME_GB = _js_regex(r" (united kingdom|great britain|britain|british|england|uk|u k) ")
 _NAME_PATTERNS = ((_NAME_US, "US"), (_NAME_CA, "CA"), (_NAME_GB, "GB"))
 # "US Citizen": "US" in capitals is the country (lowercase "us" stays a pronoun).
-_CAPITAL_US = re.compile(r"(^|[^A-Za-z])U\.?S\.?(?![A-Za-z])")
+_CAPITAL_US = _js_regex(r"(^|[^A-Za-z])U\.?S\.?(?![A-Za-z])")
 _US_ONLY_STATUS = _js_regex(r" (green card|h ?1 ?b|h ?4|l ?1|tn|e ?3|o ?1|f ?1|j ?1|m ?1|opt|cpt|ead|stem opt) ")
 _CA_ONLY_STATUS = _js_regex(r" (pgwp|post graduation work permit|study permit|landed immigrant|pr card) ")
 
@@ -774,7 +860,9 @@ _DENIED = _js_regex(
     r"|\bnot a (citizen|resident)\b"
 )
 _CITIZEN = _js_regex(r"\bcitizen(ship)?\b|\bnational\b")
-_PERMANENT_RESIDENT = _js_regex(r"\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b")
+_PERMANENT_RESIDENT = _js_regex(
+    r"\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b"
+)
 _STUDENT = _js_regex(r"\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b")
 _SPONSORED_VISA = _js_regex(r"\b(h-?1b|l-?1|e-?3|o-?1|tn)\b")
 _PERMIT = _js_regex(
@@ -822,7 +910,7 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
         elif affirmative or bare_yes is True or citizen or pr:
             unscoped_authorized = True
         _apply_explicit_countries(profile, by_country)
-        return WorkAuthFacts(MappingProxyType(by_country), stated_sponsorship, unscoped_authorized)
+        return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped_authorized)
 
     for c in countries:
         if denied:
@@ -840,7 +928,7 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
         elif affirmative or bare_yes is True:
             by_country[c.code] = CountryAuth(True, None, "statement")
     _apply_explicit_countries(profile, by_country)
-    return WorkAuthFacts(MappingProxyType(by_country), stated_sponsorship, unscoped_authorized)
+    return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped_authorized)
 
 
 def _apply_explicit_countries(profile: ProfileInput, by_country: dict[str, CountryAuth]) -> None:
