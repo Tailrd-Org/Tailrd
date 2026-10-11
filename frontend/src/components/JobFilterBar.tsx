@@ -105,7 +105,7 @@ const styles = {
     display: "flex",
     alignItems: "center",
     gap: "10px",
-    padding: "10px 0",
+    padding: "0",
     flexWrap: "wrap" as const,
     position: "relative" as const,
   },
