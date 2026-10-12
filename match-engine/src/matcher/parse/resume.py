@@ -34,13 +34,14 @@ each section by its kind:
   e-mail, phone, URL and place pieces of contact lines give nothing either.
 * PUBLICATIONS, INTERESTS and REFERENCES give no skills (SPEC §14.3).
 
-Credentials (taxonomy D-28): a status written around a credential name on the same line or entry
-("in progress", "pursuing", "candidate", "student", "trainee", "apprentice", "pending", "currently
-completing", "expected", "writing the", "Level I/II/III", French equivalents) turns the mention into
-the credential's formal in-progress designation (`cred.cpa` -> `cred.cpa_in_progress`), or drops it
-when the credential has none: "CPA, in progress" is never `cred.cpa`, so the licence gate (D-62)
-never passes an unlicensed candidate. See `credential_status`. Every mention the parser reads goes
-through this, role titles and bullets included.
+Credentials (taxonomy D-28, DECISIONS D-28a): a status word standing next to a credential's own
+mention ("CPA, in progress", "RN (pending NCLEX)", "RN students", "Pursuing a CPA designation") turns
+it into the credential's formal in-progress designation (`cred.cpa` -> `cred.cpa_in_progress`), or
+drops it when the credential has none, so the licence gate (D-62) never passes an unlicensed
+candidate; a status that belongs to a degree, a place or another skill ("Registered Nurse (RN),
+Master of Nursing (expected 2027)") marks nothing, so it never fails a licensed one. See
+`credential_status`. Every mention the parser reads goes through this, role titles and bullets
+included. Blank text, and a stored document with nothing in it, is NOT_A_RESUME.
 
 Locations come only from contact lines (the CONTACT section; without headers, the first lines of
 the document): "City, Region[, Country]", "City, Country", a known city, a region or a country,
@@ -188,6 +189,7 @@ class ResumeResources(NamedTuple):
     mos: MosIndex
     in_progress: Mapping[str, str]  # licence or charter id -> its in-progress designation id
     credentials: frozenset[str]  # ids of CREDENTIAL nodes
+    parse_config: Optional[ParseConfig] = None  # degree words: a degree stops a status reading
 
     @property
     def designations(self) -> frozenset[str]:
@@ -220,6 +222,7 @@ def load_resume_resources(taxonomy_dir: Union[str, Path, None] = None, *,
             in_progress=dict(settings.get("in_progress", {})),
             credentials=frozenset(node_id for node_id, node in graph.nodes.items()
                                   if node.kind is SkillKind.CREDENTIAL),
+            parse_config=parse_config,
         )
         _RESOURCES[key] = resources
         return resources
@@ -227,52 +230,132 @@ def load_resume_resources(taxonomy_dir: Union[str, Path, None] = None, *,
 
 # ─── credential status (taxonomy D-28) ──────────────────────────────────────────────────────
 
-_STATUS = re.compile(
-    r"(?<![\w])(?:in[\s-]+progress|pursuing|candidates?|currently\s+completing|completing|expected|"
-    r"anticipated|writing\s+the|level\s+(?:iii|ii|i|[123])|students?|trainees?|apprentices?|apprenticeship|"
-    r"pending|in[\s-]+training|working\s+towards?|enrolled|en\s+cours|candidat(?:e|s|es)?|"
-    r"[ée]tudiant(?:e|s|es)?|stagiaires?|apprentie?s?|en\s+formation|pr[ée]vue?s?)(?![\w])",
-    re.IGNORECASE)
-_SEGMENT_BREAK = re.compile(r"[\n;|•·,]")
+# Status words by where they stand (taxonomy D-28; DECISIONS D-28a). NOUN words name the person
+# and count only right after the credential ("RN student", "CPA candidate", "309A) Apprentice"); POST
+# words follow it ("CPA, in progress", "RN (pending NCLEX)", "Registered Nurse, writing the NCLEX");
+# PRE words lead into it ("Pursuing a CPA designation", "enrolled in RN bridging").
+_NOUN_STATUS = (r"candidates?|students?|trainees?|apprentices?|apprenticeship|candidat(?:e|s|es)?|"
+                r"[ée]tudiant(?:e|s|es)?|stagiaires?|apprentie?s?")
+_POST_STATUS = (r"in[\s-]+progress|pending|expected|anticipated|in[\s-]+training|writing\s+the|"
+                r"level\s+(?:iii|ii|i|[123])|en\s+cours|en\s+formation|pr[ée]vue?s?")
+_PRE_STATUS = r"currently\s+completing|completing|pursuing|working\s+towards?|currently\s+enrolled|enrolled|studying\s+for"
+_STATUS = re.compile(rf"(?<![\w])(?:(?P<noun>{_NOUN_STATUS})|(?P<post>{_POST_STATUS})|(?P<pre>{_PRE_STATUS}))"
+                     r"(?![\w])", re.IGNORECASE)
+_GAP_WORD = re.compile(r"[^\W_]+")
+_GAP_HARD_STOP = re.compile(r"[;|•·]")
+_ACRONYM = re.compile(r"[A-Z0-9][A-Z0-9.]{0,6}")
+_NOUN_GAP_CHARS = re.compile(r"[^\w\s()\[\].\-]")
+_PRE_GAP_CHARS = re.compile(r"[^\w\s]")
+# Words that may stand between a credential and a status after it: connectors, the credential's own
+# program word ("Primary Care Paramedic Diploma"), months and years; capitalised words (an issuer,
+# "Centennial College") pass too. A degree ("Master of Nursing", "BScN"), another skill or any other
+# lower-case word ("renewal", "endorsement") stops the reading.
+_GAP_CONNECTORS = frozenset({"of", "and", "the", "de", "du", "des", "la", "le", "et", "at", "from", "by"})
+_GAP_PROGRAM = frozenset({"diploma", "program", "programme", "certificate", "certification", "designation",
+                          "exam", "examination", "licence", "license", "licensing", "course", "registration"})
+_MONTHS = frozenset({"jan", "january", "feb", "february", "mar", "march", "apr", "april", "may", "jun", "june",
+                     "jul", "july", "aug", "august", "sep", "sept", "september", "oct", "october", "nov",
+                     "november", "dec", "december", "spring", "summer", "fall", "autumn", "winter"})
+_PRE_GAP = frozenset({"a", "an", "the", "my", "in", "for", "to", "towards", "toward", "of", "un", "une", "le",
+                      "la", "les", "du", "de"})
+
+
+def _degree_spans(text: str, resources: "ResumeResources") -> list[tuple[int, int]]:
+    if resources.parse_config is None:
+        return []
+    return [(found.start, found.end) for found in degree_matches(text, resources.parse_config)]
+
+
+def _noun_gap(gap: str) -> bool:
+    """Only brackets, a period, a hyphen or an acronym ("(PCP)", "-A") between a credential and a
+    noun status (or between two mentions of one credential, "Registered Nurse (RN)")."""
+    if "\n" in gap or _NOUN_GAP_CHARS.search(gap):
+        return False
+    return all(_ACRONYM.fullmatch(word) for word in _GAP_WORD.findall(gap))
+
+
+def _post_gap(text: str, start: int, end: int, degrees: Sequence[tuple[int, int]]) -> bool:
+    """Only punctuation, issuer, date and program words between a credential and a status after it."""
+    gap = text[start:end]
+    if _GAP_HARD_STOP.search(gap):
+        return False
+    for word in _GAP_WORD.finditer(gap):
+        token = word.group()
+        folded = fold(token)
+        if folded in _GAP_CONNECTORS or folded in _GAP_PROGRAM or folded in _MONTHS or token.isdigit():
+            continue
+        offset = start + word.start()
+        if any(left <= offset < right for left, right in degrees) or not token[:1].isupper():
+            return False
+    return True
+
+
+def _pre_gap(gap: str) -> bool:
+    return "\n" not in gap and not _PRE_GAP_CHARS.search(gap) and all(
+        fold(word) in _PRE_GAP for word in _GAP_WORD.findall(gap))
 
 
 def credential_status(text: str, mentions: Sequence[Mention], resources: ResumeResources) -> tuple[Mention, ...]:
-    """`mentions` of `text` with credential status read (taxonomy D-28).
+    """`mentions` of `text` with credential status read (taxonomy D-28; DECISIONS D-28a).
 
-    The text splits into segments at line breaks and at , ; | • ·; a segment naming no credential
-    (an issuer, a date, "in progress", "writing the NCLEX") joins the segment before it (the one
-    after it when it comes first). A status word inside a credential mention ("Professional
-    Engineer in training") marks that mention; any other marks each credential of its segment. A marked
-    credential becomes its formal in-progress designation, stays when it is one already ("CPA
-    candidate", "CFA Level I"), and is dropped when it has none ("AWS Certified ... (expected 2026)").
-    Other mentions are returned as they are, in order."""
+    A status word marks a credential only when it is next to that credential's own mention:
+    * inside it ("Professional Engineer in training");
+    * a NOUN word ("student", "candidate", "trainee", "apprentice") right after it, with only
+      brackets, a hyphen or an acronym between ("RN students", "Primary Care Paramedic (PCP)
+      student", "CDL-A trainee", "Electrician (309A) Apprentice");
+    * a POST word ("in progress", "pending", "expected", "writing the", "Level II") after it, with
+      only punctuation (never ; | •), connectors, issuer names, dates or the credential's program
+      word between ("CPA, in progress", "RN (pending NCLEX)", "Primary Care Paramedic Diploma,
+      Centennial College (expected 2026)"); a degree ("Master of Nursing", "BScN"), another skill or
+      another lower-case word between ("renewal pending", "Hazmat endorsement pending") stops it;
+    * a PRE word ("pursuing", "completing", "enrolled") before it with only articles and
+      prepositions between ("Pursuing a CPA designation", "enrolled in RN bridging").
+    The mention marked is the nearest one, with the mentions of the same credential right before it
+    ("Registered Nurse (RN) candidate"). A marked credential becomes its formal in-progress
+    designation, stays when it is one already ("CPA candidate", "CFA Level I"), and is dropped when it
+    has none ("AWS Certified ... (expected 2026)"). Other mentions are returned as they are, in order.
+    A status next to no credential marks nothing, so a held licence is never read as pursued because
+    of a degree, a place, another skill or another credential's status."""
     credentials = resources.credentials
     if not any(m.canonical_id in credentials for m in mentions):
         return tuple(mentions)
-    cuts = [0] + [match.end() for match in _SEGMENT_BREAK.finditer(text)] + [len(text) + 1]
-    spans = [(cuts[k], cuts[k + 1]) for k in range(len(cuts) - 1)]
-
-    def segment_of(offset: int) -> int:
-        return next(k for k, (start, end) in enumerate(spans) if start <= offset < end)
-
-    holding = {segment_of(m.start) for m in mentions if m.canonical_id in credentials}
-    group: list[int] = []
-    current = min(holding)  # segments before the first credential join the first one naming one
-    for k in range(len(spans)):
-        if k in holding:
-            current = k
-        group.append(current)
-
+    ordered = sorted(range(len(mentions)), key=lambda i: (mentions[i].start, mentions[i].end))
+    degrees = _degree_spans(text, resources)
     marked: set[int] = set()
+
+    def mark_chain(position: int) -> None:
+        first = mentions[ordered[position]]
+        marked.add(ordered[position])
+        cursor = first.start
+        for k in range(position - 1, -1, -1):
+            m = mentions[ordered[k]]
+            if m.canonical_id != first.canonical_id or not _noun_gap(text[m.end:cursor]):
+                break
+            marked.add(ordered[k])
+            cursor = m.start
+
     for status in _STATUS.finditer(text):
-        inside = [i for i, m in enumerate(mentions)
-                  if m.start <= status.start() < m.end and m.canonical_id in credentials]
-        if inside:  # inside another skill's name ("writing" in "writing the NCLEX") it is outside
+        s, e = status.start(), status.end()
+        inside = [i for i, m in enumerate(mentions) if m.start <= s < m.end and m.canonical_id in credentials]
+        if inside:
             marked.update(inside)
             continue
-        target = group[segment_of(status.start())]
-        marked.update(i for i, m in enumerate(mentions)
-                      if m.canonical_id in credentials and group[segment_of(m.start)] == target)
+        if status.group("pre"):
+            after = [k for k, i in enumerate(ordered) if mentions[i].start >= e]
+            if after:
+                m = mentions[ordered[after[0]]]
+                if m.canonical_id in credentials and _pre_gap(text[e:m.start]):
+                    marked.add(ordered[after[0]])
+            continue
+        before = [k for k, i in enumerate(ordered) if mentions[i].end <= s]
+        if not before:
+            continue
+        nearest = before[-1]
+        m = mentions[ordered[nearest]]
+        if m.canonical_id not in credentials:
+            continue  # another skill stands between ("CPA, Python (in progress)")
+        if (_noun_gap(text[m.end:s]) if status.group("noun") else _post_gap(text, m.end, s, degrees)):
+            mark_chain(nearest)
 
     designations = resources.designations
     out: list[Mention] = []
@@ -353,8 +436,10 @@ def _text_language(lines: Iterable[str]) -> Optional[str]:
     """The majority language of the lines (`detect_line_language`), or None with no signal. An
     unsupported language decides only with `_MIN_LANGUAGE_LINES` lines or more; below that the
     most frequent supported language (or None) stands, since one short line ("Data Analyst Co-op,
-    Ontario Ministry of Finance") can read as Dutch."""
-    counts = Counter(code for code in (detect_line_language(line) for line in lines if line.strip()) if code)
+    Ontario Ministry of Finance") can read as Dutch. Distinct lines count once: a repeated line (a
+    page header) is no more evidence."""
+    distinct = dict.fromkeys(line.strip() for line in lines if line.strip())
+    counts = Counter(code for code in (detect_line_language(line) for line in distinct) if code)
     if not counts:
         return None
     best = max(sorted(counts), key=lambda code: counts[code])
@@ -971,6 +1056,8 @@ def _parse_text(text: Any, *, as_of: dt.date, resolver: Resolver, config: Engine
     else:
         raw = normalize_text(text).split("\n")
         layout = None
+    if not any(line.strip() for line in raw):
+        return _failed(Flag.NOT_A_RESUME, parse_config, given)
     lang = language if isinstance(language, str) and language else _text_language(raw)
     if lang is not None and lang not in SUPPORTED_LANGUAGES:
         return _failed(Flag.UNSUPPORTED_LANGUAGE, parse_config, given)
@@ -985,7 +1072,7 @@ def _parse_text(text: Any, *, as_of: dt.date, resolver: Resolver, config: Engine
     if truncated:
         assembly.flags.add(Flag.TRUNCATED)
     first = next((line.strip() for line in raw if line.strip()), "")
-    name = first if _name_shaped(first) else ""
+    name = first if _name_shaped(first) and not resolver.extract(first) else ""
     no_sections = Flag.NO_SECTIONS in segment_flags
 
     qualification_lines = body_lines = 0
@@ -1101,6 +1188,20 @@ def _has_content(doc: Mapping[str, Any]) -> bool:
     return False
 
 
+def _has_other_text(doc: Mapping[str, Any]) -> bool:
+    """A summary or a custom section with any text."""
+    if _str(doc.get("summary")).strip():
+        return True
+    for section in _items(doc.get("custom_sections")):
+        texts = [_str(section.get("text")), *_strings(section.get("bullets"))]
+        for item in _items(section.get("items")):
+            texts.extend(_str(value) for value in item.values())
+            texts.extend(_strings(item.get("bullets")))
+        if any(text.strip() for text in texts):
+            return True
+    return False
+
+
 def _doc_text(doc: Mapping[str, Any]) -> str:
     """Every text of the document, for its language."""
     parts: list[str] = [_str(doc.get("summary"))]
@@ -1124,6 +1225,8 @@ def resume_from_document(doc: Mapping[str, Any], *, as_of: dt.date, resolver: Re
         if not _has_content(doc) and isinstance(raw_text, str) and raw_text.strip():
             return parse_resume_text(raw_text, as_of=as_of, resolver=resolver, config=config,
                                      parse_config=parse_config, resources=resources, strict=strict)
+        if not _has_content(doc) and not _has_other_text(doc):
+            return _failed(Flag.NOT_A_RESUME, parse_config)
         return _from_document(doc, as_of=as_of, resolver=resolver, config=config, parse_config=parse_config,
                               resources=resources)
     except Exception:
@@ -1240,6 +1343,11 @@ def _read_custom_section(assembly: _Assembly, section: Mapping[str, Any], kinds:
     lines = [line for line in text.split("\n") if line.strip()] + [b for b in bullets if b]
     if kind not in _NO_WORK_AUTH:
         assembly.auth_lines.extend(lines + entries)
+    if kind in _EXPERIENCE_LIKE:  # "Volunteer Experience", "Leadership", "Research Experience"
+        for item in _items(section.get("items")):
+            _add_custom_role(assembly, item)
+        assembly.add_prose(lines, SkillSource.OTHER)  # text outside items: never a role
+        return
     if kind is SectionKind.CERTIFICATIONS:
         for entry in lines + entries:
             assembly.add_credentials(entry)
@@ -1256,3 +1364,18 @@ def _read_custom_section(assembly: _Assembly, section: Mapping[str, Any], kinds:
         assembly.add_prose(lines, source)
         for entry in entries:
             assembly.add_prose(entry.split("\n"), source)
+
+
+def _add_custom_role(assembly: _Assembly, item: Mapping[str, Any]) -> None:
+    """One role per item of an experience-like custom section, as `build_role` reads a text entry:
+    the title, the subtitle as employer, the dates, the detail and bullets as bullets."""
+    def clean(value: Any) -> str:
+        return normalize_text(_str(value)).strip()
+
+    title, employer = clean(item.get("title")), clean(item.get("subtitle"))
+    bullets = tuple(text for text in (clean(b) for b in [_str(item.get("detail")), *_strings(item.get("bullets"))])
+                    if text)
+    if title or employer or bullets:
+        assembly.add_role(RoleDraft(title_raw=title, employer=employer, location=clean(item.get("location")),
+                                    date_range=_doc_range(item.get("start_date"), item.get("end_date"), assembly.as_of),
+                                    bullets=bullets))

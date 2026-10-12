@@ -254,9 +254,11 @@ def test_a_document_with_sections_ignores_raw_text(deps) -> None:
     assert parsed.resume.roles == () and ids(parsed.resume.skills_blob) == {"skill.python"}
 
 
-def test_an_empty_document_without_raw_text_is_an_empty_resume(deps) -> None:
-    parsed = from_doc({}, deps)
-    assert parsed.reasons == () and parsed.resume.roles == () and parsed.resume.skills_blob == ()
+def test_an_empty_document_without_raw_text_is_not_a_resume(deps) -> None:
+    for doc in ({}, {"summary": " ", "skills": [], "experience": [{"title": ""}], "custom_sections": []}):
+        parsed = from_doc(doc, deps)
+        assert parsed.reasons == (Flag.NOT_A_RESUME,) and parsed.resume is None
+    assert from_doc({}, deps, raw_text="  ").reasons == (Flag.NOT_A_RESUME,)
 
 
 def test_a_document_that_is_not_a_mapping_is_invalid(deps) -> None:
@@ -287,3 +289,56 @@ def test_one_sided_dates(deps) -> None:
     barista, cook = from_doc(doc, deps).resume.roles
     assert barista.start is not None and barista.start.value.year == 2021
     assert not cook.dated
+
+
+# ─── fix round 1: custom experience-like sections are roles, as in the text path ──────────
+
+LEADER_DOC = {
+    "location": "Waterloo, ON",
+    "experience": [{"company": "Shopify", "title": "Software Developer Intern", "start_date": "May 2025",
+                    "end_date": "Aug 2025", "bullets": ["Built a React dashboard in TypeScript"]}],
+    "skills": ["Python"],
+    "custom_sections": [
+        {"title": "Volunteer Experience", "kind": "custom", "items": [
+            {"title": "Coding Instructor", "subtitle": "Canada Learning Code", "start_date": "Sept 2024",
+             "end_date": "Present", "bullets": ["Taught Python and Scratch to 25 kids weekly"]}]},
+        {"title": "Leadership", "kind": "custom", "items": [
+            {"title": "President", "subtitle": "Waterloo AI Club", "start_date": "Jan 2025", "end_date": "Present",
+             "bullets": ["Organized 4 workshops on scikit-learn for 120 members"]}]},
+        {"title": "Research Experience", "kind": "custom", "items": [
+            {"title": "Undergraduate Research Assistant", "subtitle": "University of Waterloo",
+             "start_date": "May 2024", "end_date": "Aug 2024", "bullets": ["Trained PyTorch models on lidar data"]}]},
+    ],
+}
+LEADER_TEXT = """Waterloo, ON
+Experience
+Software Developer Intern, Shopify | May 2025 – Aug 2025
+- Built a React dashboard in TypeScript
+Skills
+Python
+Volunteer Experience
+Coding Instructor, Canada Learning Code | Sept 2024 – Present
+- Taught Python and Scratch to 25 kids weekly
+Leadership
+President, Waterloo AI Club | Jan 2025 – Present
+- Organized 4 workshops on scikit-learn for 120 members
+Research Experience
+Undergraduate Research Assistant, University of Waterloo | May 2024 – Aug 2024
+- Trained PyTorch models on lidar data
+"""
+
+
+def test_custom_experience_like_sections_are_roles(deps) -> None:
+    doc = from_doc(LEADER_DOC, deps)
+    text = parse_resume_text(LEADER_TEXT, as_of=AS_OF, strict=True, **deps)
+
+    def facts(resume):
+        return [(r.title_raw, r.employer, r.title_canonical, r.seniority, r.start, r.end, r.is_current,
+                 r.is_internship, r.industry_codes, sorted((s.canonical_id, s.evidence, s.verb_class, s.polarity)
+                                                           for s in r.skills)) for r in resume.roles]
+
+    assert len(doc.resume.roles) == 4
+    assert facts(doc.resume) == facts(text.resume)
+    assert doc.resume.total_experience_months == text.resume.total_experience_months
+    assert doc.flags == text.flags
+    assert ids(doc.resume.skills_blob) == ids(text.resume.skills_blob)

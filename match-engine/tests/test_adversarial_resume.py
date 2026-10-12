@@ -311,3 +311,68 @@ def test_credential_status_reads_segments(deps) -> None:
     assert read("CPA and CFA Level I candidate") == ["cred.cpa", "cred.cfa_candidate"]
     assert read("Registered Nurse") == ["cred.registered_nurse"]
     assert read("Python developer, in progress of learning Rust") == read("Python developer, Rust")
+
+
+# ─── fix round 1: a held licence is never read as "not held" (ruling on D-28) ──────────────
+
+@pytest.mark.parametrize(("line", "expected"), [
+    ("Registered Nurse (RN), College of Nurses of Ontario; Master of Nursing (expected 2027)",
+     {"cred.registered_nurse"}),
+    ("Registered Nurse (RN), Master of Nursing (expected 2027)", {"cred.registered_nurse"}),
+    ("Registered Practical Nurse (RPN), BScN in progress", {"cred.licensed_practical_nurse"}),
+    ("Licensed Practical Nurse; precepted nursing students", {"cred.licensed_practical_nurse"}),
+    ("Class A CDL, Hazmat endorsement pending", {"cred.commercial_drivers_license"}),
+    ("BLS, ACLS (renewal pending)", {"cred.bls", "cred.acls"}),
+    ("Registered Nurse, Student Health Services, University of Toronto", {"cred.registered_nurse"}),
+    ("P.Eng., Six Sigma Green Belt (in progress)", {"cred.professional_engineer"}),
+    ("CPA (2022), CFA Level I (in progress)", {"cred.cpa", "cred.cfa_candidate"}),
+    ("CPA, Python (in progress)", {"cred.cpa"}),
+    ("Licensed Practical Nurse, enrolled in RN bridging program",
+     {"cred.licensed_practical_nurse", "cred.nursing_student"}),
+])
+def test_status_words_mark_only_their_own_credential(line: str, expected: set[str], deps) -> None:
+    resume = parse(f"Certifications\n{line}\n", deps).resume
+    assert {c.canonical_id for c in resume.certifications} >= expected
+    licences = {"cred.registered_nurse", "cred.licensed_practical_nurse", "cred.commercial_drivers_license",
+                "cred.professional_engineer", "cred.cpa"}
+    assert {c.canonical_id for c in resume.certifications} & licences == expected & licences
+
+
+NURSE_RPN = """Priya Nair
+Hamilton, ON | priya.nair@example.com
+
+Education
+Bachelor of Science in Nursing (BScN), McMaster University    Sept 2024 – Apr 2027
+Practical Nursing Diploma, Mohawk College    2021 – 2023
+
+Certifications
+Registered Practical Nurse (RPN), BScN in progress
+BLS, CPR Level HCP
+
+Experience
+Registered Practical Nurse, St. Joseph's Healthcare Hamilton    Jun 2023 – Present
+- Precepted nursing students during clinical placements
+- Administered medications to 28 patients per shift
+"""
+NURSE_RN = """Sam Okafor
+Toronto, ON
+
+Certifications
+Registered Nurse (RN), College of Nurses of Ontario; Master of Nursing (expected 2027)
+
+Experience
+Staff Nurse, Toronto General Hospital    May 2022 – Present
+- Cared for 6 cardiac patients per shift
+"""
+
+
+@pytest.mark.parametrize(("text", "licence"), [
+    (NURSE_RPN, "cred.licensed_practical_nurse"),
+    (NURSE_RPN.replace("St. Joseph's Healthcare Hamilton", "Student Health Clinic, McMaster University"),
+     "cred.licensed_practical_nurse"),
+    (NURSE_RN, "cred.registered_nurse"),
+], ids=["rpn-bridging", "rpn-student-clinic", "rn-masters-in-progress"])
+def test_a_licensed_nurse_passes_the_licence_gate(text: str, licence: str, deps, graph, config) -> None:
+    resume = parse(text, deps).resume
+    posting = JobPosting(gates=(LicenseGate(credential_ids=(licence,)),))
+    assert evaluate_gates(resume, posting, graph, config)[0] is GateStatus.PASS

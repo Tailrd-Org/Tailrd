@@ -17,6 +17,7 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 
 from matcher.errors import Flag
+from matcher.ingest.normalize_text import normalize_text
 from matcher.graph.loader import load_resolver
 from matcher.models import (
     DegreeLevel,
@@ -409,10 +410,6 @@ def test_text_that_is_not_a_string_is_invalid(deps) -> None:
     assert parsed.reasons == (Flag.INVALID_INPUT,) and parsed.resume is None
 
 
-def test_empty_text_gives_an_empty_resume(deps) -> None:
-    parsed = parse("", deps)
-    assert parsed.reasons == () and parsed.resume.roles == () and parsed.resume.skills_blob == ()
-
 
 def test_parsing_is_deterministic(deps) -> None:
     first, second = parse(STUDENT, deps), parse(STUDENT, deps)
@@ -423,15 +420,22 @@ def test_parsing_is_deterministic(deps) -> None:
 @given(st.text(alphabet=st.characters(blacklist_categories=("Cs",)), max_size=400))
 def test_any_text_parses_without_raising(deps, text: str) -> None:
     parsed = parse(text, deps)
-    assert parsed.reasons in ((), (Flag.UNSUPPORTED_LANGUAGE,))
+    if not normalize_text(text).strip():
+        assert parsed.reasons == (Flag.NOT_A_RESUME,)
+    else:
+        assert parsed.reasons in ((), (Flag.UNSUPPORTED_LANGUAGE,))
 
 
 @settings(max_examples=40)
 @given(st.lists(st.sampled_from(STUDENT.splitlines() + ["", "- ", "Experience", "2020 – 2021", "CPA candidate"]),
                 max_size=40))
 def test_shuffled_resume_lines_parse(deps, lines: list[str]) -> None:
-    parsed = parse("\n".join(lines), deps)
-    assert parsed.reasons == () and parsed.resume is not None
+    text = "\n".join(lines)
+    parsed = parse(text, deps)
+    if normalize_text(text).strip():
+        assert parsed.reasons == () and parsed.resume is not None
+    else:
+        assert parsed.reasons == (Flag.NOT_A_RESUME,)
 
 
 # ─── files ──────────────────────────────────────────────────────────────────────────────────
@@ -453,3 +457,14 @@ def test_a_clean_pdf_parses(deps) -> None:
     parsed = parse_resume_bytes((EDGE / "pdf_clean_one_column.pdf").read_bytes(), "cv.pdf", as_of=AS_OF, **deps)
     assert parsed.reasons == () and parsed.resume is not None
     assert parsed.resume.roles and parsed.resume.parse_tier is ParseTier.A
+
+
+def test_a_headline_first_line_is_not_a_name(deps) -> None:
+    parsed = parse("Python Developer\nEli Moss | Calgary, AB | eli@example.com\nSkills\nSQL\n", deps)
+    assert "skill.python" in ids(parsed.resume.skills_blob)
+
+
+def test_blank_text_is_not_a_resume(deps) -> None:
+    for text in ("", "  \n\n "):
+        parsed = parse(text, deps)
+        assert parsed.reasons == (Flag.NOT_A_RESUME,) and parsed.resume is None
