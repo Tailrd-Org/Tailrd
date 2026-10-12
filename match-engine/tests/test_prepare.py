@@ -287,6 +287,47 @@ def test_child_cover_survives_a_parent_cycle(small_graph, config) -> None:
     assert set(cover) == {"skill.cycle_b", "skill.cycle_c"}  # never the node itself
 
 
+# ─── affirmed evidence (SPEC §17.1 evidence density) ────────────────────────────────────
+
+
+def test_affirmed_evidence_is_the_strongest_tier_among_affirmed_mentions(small_graph, config) -> None:
+    # Whether a skill is shown beyond the skills list is not the evidence of its best E × R mention:
+    # a listed line dated to a current role (0.65 × 1.0) beats an ownership bullet that ended
+    # 2023-06-30 (1.0 × R of 1,196 days, 0.612). Negated and aspirational mentions show nothing.
+    old = ended_role(bullet("skill.python"), bullet("skill.docker", polarity=Polarity.NEGATED),
+                     bullet("skill.go", polarity=Polarity.ASPIRATIONAL),
+                     bullet("skill.kubernetes", polarity=Polarity.NEGATED), end=date(2023, 6, 30))
+    current = current_role(ref("skill.sql", Evidence.ROLE_TITLE), bullet("skill.git", VerbClass.EXECUTION,
+                                                                           quantified=True))
+    cv = resume(roles=(current, old), blob=listed("skill.python", "skill.docker", "skill.go", "skill.sql"),
+                certifications=(ref("skill.aws", Evidence.CERTIFICATION),))
+    prepared = prepare_resume(cv, small_graph, config, AS_OF)
+    assert prepared.best["skill.python"].evidence is Evidence.SKILLS_BLOB
+    assert _close(prepared.best["skill.python"].value, E_BLOB)
+    assert prepared.affirmed_evidence == {
+        "skill.aws": Evidence.CERTIFICATION,
+        "skill.docker": Evidence.SKILLS_BLOB,  # its bullet is negated
+        "skill.git": Evidence.ROLE_BULLET_QUANTIFIED,
+        "skill.go": Evidence.SKILLS_BLOB,  # its bullet is aspirational
+        "skill.python": Evidence.ROLE_BULLET,
+        "skill.sql": Evidence.ROLE_TITLE,
+    }  # kubernetes, only negated, has no affirmed mention at all
+    assert "skill.kubernetes" in prepared.best
+    assert list(prepared.affirmed_evidence) == sorted(prepared.affirmed_evidence)
+    with pytest.raises(TypeError):
+        prepared.affirmed_evidence["skill.x"] = Evidence.CERTIFICATION  # read-only like best
+
+
+def test_affirmed_evidence_does_not_depend_on_mention_order(small_graph, config) -> None:
+    mentions = [ref("skill.python"), bullet("skill.python", VerbClass.ASSISTANCE),
+                ref("skill.python", Evidence.ROLE_TITLE)]
+    seen = set()
+    for order in (mentions, mentions[::-1], mentions[1:] + mentions[:1]):
+        prepared = prepare_resume(resume(roles=(current_role(*order),)), small_graph, config, AS_OF)
+        seen.add(prepared.affirmed_evidence["skill.python"])
+    assert seen == {Evidence.ROLE_TITLE}
+
+
 # ─── shape, determinism ─────────────────────────────────────────────────────────────────
 
 

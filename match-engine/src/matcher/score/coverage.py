@@ -27,7 +27,9 @@ SPEC §5.1, §5.2, §5.7, §13, §14.4; DECISIONS D-21, D-23, D-24, D-30, D-31, 
 * `coverage_value`: `Σ(idf × wm × m) / Σ(idf × wm)`, None when no group carries weight.
 * `score_coverage` builds the dimension: §5.1 over REQUIRED, §5.2 over PREFERRED, §5.7 over
   IMPLIED requirements (D-30). It abstains when the posting has none of that necessity or when
-  none carries weight; an abstaining dimension carries no facts, so no critical-miss cap.
+  none carries weight; an abstaining dimension carries no facts, so no critical-miss cap. `extra`
+  groups (the §17.3 interval readings' pseudo-requirements, D-45) join the posting's own groups of
+  that necessity on the same path, so the base run and the readings can never diverge.
 
 Every public function that takes a prepared résumé first checks it was built with this graph and
 config (`prepare.ensure_bound`).
@@ -42,7 +44,7 @@ from typing import Optional
 from pydantic import Field
 
 from matcher.config import EngineConfig
-from matcher.errors import Flag
+from matcher.errors import EngineFault, Flag
 from matcher.graph.model import SkillGraph
 from matcher.graph.traversal import ancestors, related_neighbors
 from matcher.models import (
@@ -267,16 +269,20 @@ def score_coverage(
     name: DimensionName,
     necessity: Necessity,
     absent: Flag,
+    extra: Sequence[RequirementMatch] = (),
 ) -> DimensionScore:
-    """The coverage dimension over the posting's requirements of one necessity (DECISIONS D-30).
+    """The coverage dimension over the posting's requirements of one necessity (DECISIONS D-30),
+    plus any `extra` groups of that necessity (D-45), listed after the posting's own.
 
     `effective_weight` is the configured weight; the aggregator redistributes (SPEC §14.5)."""
     ensure_bound(prepared, graph, config)
+    if any(Necessity(match.necessity) is not Necessity(necessity) for match in extra):
+        raise EngineFault(Flag.INTERNAL_ERROR, f"an extra group is not {Necessity(necessity).value}")
     weight = config.weights.of(name)
     requirements = [requirement for requirement in posting.requirements if requirement.necessity == necessity]
-    if not requirements:
+    if not requirements and not extra:
         return abstain(name, config, absent)
-    matches = _match_requirements(prepared, requirements, graph, config)
+    matches = (*_match_requirements(prepared, requirements, graph, config), *extra)
     value = coverage_value(matches)
     if value is None:
         return abstain(name, config, Flag.NO_REQUIREMENTS_RESOLVED)

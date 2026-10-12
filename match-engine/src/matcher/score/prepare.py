@@ -16,6 +16,11 @@ certifications) earns `value = apply_polarity(E × R, polarity)`:
 * `child_cover[a]` is, for every ancestor `a` of a résumé skill (within `relations.max_depth`),
   the best CHILD credit `relations.child × value` any descendant on the résumé gives it, × the
   provisional multiplier when either node is provisional (D-24), with that descendant as `via`.
+* `affirmed_evidence[id]` is the strongest evidence tier (the `Evidence` order) among the skill's
+  AFFIRMED mentions; a skill with only negated or aspirational mentions is absent. SPEC §17.1's
+  evidence density reads it: a skill is shown beyond the skills list when any affirmed mention is,
+  which the evidence of its best E x R mention does not say (a listed line dated to a current role
+  can outweigh an older bullet).
 
 Equal values are broken by a total order so the result never depends on the order of the input:
 the stronger evidence tier (later in the `Evidence` order: a skill listed in the skills section
@@ -89,8 +94,10 @@ class PreparedResume(Frozen):
     latest_activity: Optional[date]
     best: dict[str, SkillValue]  # canonical id -> its max-value mention; read-only, keys sorted
     child_cover: dict[str, tuple[float, str]]  # requirement id -> (best CHILD credit, via id); read-only, sorted
+    # canonical id -> the strongest evidence tier of its AFFIRMED mentions; read-only, keys sorted
+    affirmed_evidence: dict[str, Evidence] = Field(default_factory=dict)
 
-    @field_validator("best", "child_cover", mode="after")
+    @field_validator("best", "child_cover", "affirmed_evidence", mode="after")
     @classmethod
     def _read_only(cls, value: dict) -> ReadOnlyDict:
         return ReadOnlyDict(sorted(value.items()))
@@ -201,7 +208,12 @@ def prepare_resume(resume: Resume, graph: SkillGraph, config: EngineConfig, as_o
     """Index `resume` for matching against any posting (SPEC §5.1; DECISIONS D-23, D-33, D-34)."""
     latest = _latest_activity(resume, as_of)
     best: dict[str, SkillValue] = {}
+    affirmed: dict[str, Evidence] = {}
     for ref, dated in _mentions(resume, as_of):
+        if Polarity(ref.polarity) is Polarity.AFFIRMED:
+            tier, held = Evidence(ref.evidence), affirmed.get(ref.canonical_id)
+            if held is None or _EVIDENCE_ORDER[tier] > _EVIDENCE_ORDER[held]:
+                affirmed[ref.canonical_id] = tier
         if ref.last_used is not None:
             last_used: Optional[date] = ref.last_used
         elif dated is not None:
@@ -221,4 +233,5 @@ def prepare_resume(resume: Resume, graph: SkillGraph, config: EngineConfig, as_o
         latest_activity=latest,
         best=ordered,
         child_cover=_child_cover(ordered, graph, config),  # sorted and frozen by the model
+        affirmed_evidence=affirmed,  # sorted and frozen by the model
     )

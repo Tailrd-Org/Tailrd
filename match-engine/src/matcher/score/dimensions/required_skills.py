@@ -10,16 +10,19 @@ NO_REQUIREMENTS_RESOLVED when none carries weight.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph
 from matcher.models import DimensionName, DimensionScore, JobPosting, Necessity
-from matcher.score.coverage import score_coverage
+from matcher.score.coverage import RequirementMatch, score_coverage
 from matcher.score.prepare import PreparedResume
 
 
 def score_required_skills(
-    prepared: PreparedResume, posting: JobPosting, graph: SkillGraph, config: EngineConfig
+    prepared: PreparedResume, posting: JobPosting, graph: SkillGraph, config: EngineConfig,
+    *, extra: Sequence[RequirementMatch] = (),
 ) -> DimensionScore:
     return score_coverage(
         prepared,
@@ -28,5 +31,6 @@ def score_required_skills(
         config,
         name=DimensionName.REQUIRED_SKILLS,
         necessity=Necessity.REQUIRED,
+        extra=extra,
         absent=Flag.NO_REQUIRED_REQUIREMENTS,
     )

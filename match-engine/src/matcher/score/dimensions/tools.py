@@ -10,15 +10,20 @@ carries weight.
 
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph
 from matcher.models import DimensionName, DimensionScore, JobPosting, Necessity
-from matcher.score.coverage import score_coverage
+from matcher.score.coverage import RequirementMatch, score_coverage
 from matcher.score.prepare import PreparedResume
 
 
-def score_tools(prepared: PreparedResume, posting: JobPosting, graph: SkillGraph, config: EngineConfig) -> DimensionScore:
+def score_tools(
+    prepared: PreparedResume, posting: JobPosting, graph: SkillGraph, config: EngineConfig,
+    *, extra: Sequence[RequirementMatch] = (),
+) -> DimensionScore:
     return score_coverage(
         prepared,
         posting,
@@ -26,5 +31,6 @@ def score_tools(prepared: PreparedResume, posting: JobPosting, graph: SkillGraph
         config,
         name=DimensionName.TOOLS,
         necessity=Necessity.IMPLIED,
+        extra=extra,
         absent=Flag.NO_IMPLIED_REQUIREMENTS,
     )
