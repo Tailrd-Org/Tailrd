@@ -353,6 +353,25 @@ only to military-specific occupations (SOC 55) or to civilian "All Other" catch-
 publishes no skill data for (counts in `data/taxonomy/SOURCES.md`). SPEC §14.3 calls veterans a
 legally sensitive population: an empty list with its reason is honest, an inferred one is not.
 
+**D-98 Taxonomy freshness (SPEC §16). [Spec: growth rate, parent rule and write path unspecified]**
+`scripts/refresh_taxonomy.py` parses the corpus with the posting parser, each exact duplicate and
+each repeated blurb line counted once (D-21). Coverage is resolved requirement tokens over all of
+them (`requirement_token_count`, `unresolved_requirement_tokens`), summed over the postings first
+seen in the `auto_promote_window_days` days ending at `as_of` (default: the corpus's latest
+`first_seen_at`, so a rerun on the same file gives the same report); exit 1 below 0.92 or with no
+token. A token's rank is `recent x (recent + 1) / (earlier + 1)`: distinct postings in the window
+times growth against the window before it. Promotion needs more than 50 distinct postings in the
+window (strictly, as §16 says) and a parent: the node with the highest NPMI (D-22) against the
+token over the window, among the ids required in at least `pmi_min_cooccurrence` of its postings
+and by at least 20 postings in all (PMI rewards rarity: the low-df tail Task 2.3 parked), never a
+SOFT node or one under a SOFT node (ESCO's "perform services in a flexible manner" sits under
+adaptability); no parent means the review queue with the note "no parent". The committed taxonomy
+changes only with `--apply` (then `compute_idf.py` and `compute_pmi.py` must run, as after a
+build): the first run on Tailrd's corpus (2026-05-14) promotes "SaaS" (82 postings, parent Big
+data) and "SpaceX" (55, an employer, parent HMI), which shows that the frequency rule alone cannot
+tell a skill from an employer's name; both are reported, not written. The queue
+(`data/taxonomy/review_queue.csv`, top 50 not promoted) holds short tokens and counts only (D-04).
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores
