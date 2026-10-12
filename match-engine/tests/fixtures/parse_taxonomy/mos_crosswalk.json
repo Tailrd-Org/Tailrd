@@ -1,0 +1,140 @@
+{
+ "codes":{
+  "0311":{
+   "branch":"marine_corps",
+   "branches":[
+    "marine_corps"
+   ],
+   "note":"55-3016.00: O*NET publishes no skill data for the occupation(s)",
+   "skill_ids":[],
+   "soc":[
+    "55-3016.00"
+   ],
+   "title":"Rifleman"
+  },
+  "1371":{
+   "branch":"marine_corps",
+   "branches":[
+    "marine_corps"
+   ],
+   "skill_ids":[
+    "skill.autocad",
+    "skill.blueprint_reading"
+   ],
+   "soc":[
+    "47-2061.00"
+   ],
+   "title":"Combat Engineer"
+  },
+  "25B":{
+   "branch":"army",
+   "branches":[
+    "army"
+   ],
+   "note":"15-1299.00: O*NET publishes no skill data for the occupation(s)",
+   "skill_ids":[],
+   "soc":[
+    "15-1299.00"
+   ],
+   "title":"Information Technology Specialist"
+  },
+  "3D0X2":{
+   "branch":"air_force",
+   "branches":[
+    "air_force"
+   ],
+   "skill_ids":[
+    "skill.linux",
+    "skill.network_administration"
+   ],
+   "soc":[
+    "15-1244.00"
+   ],
+   "title":"Cyber Systems Operations"
+  },
+  "68W":{
+   "branch":"army",
+   "branches":[
+    "army"
+   ],
+   "skill_ids":[
+    "skill.emergency_medicine",
+    "skill.patient_care"
+   ],
+   "soc":[
+    "29-2043.00"
+   ],
+   "title":"Combat Medic Specialist"
+  },
+  "8404":{
+   "branch":"navy",
+   "branches":[
+    "navy"
+   ],
+   "skill_ids":[
+    "skill.first_aid"
+   ],
+   "soc":[
+    "29-2043.00"
+   ],
+   "title":"Field Medical Service Technician"
+  },
+  "HM":{
+   "branch":"navy",
+   "branches":[
+    "navy"
+   ],
+   "skill_ids":[
+    "skill.patient_care"
+   ],
+   "soc":[
+    "31-1131.00"
+   ],
+   "title":"Hospital Corpsman"
+  },
+  "HR":{
+   "branch":"navy",
+   "branches":[
+    "navy"
+   ],
+   "skill_ids":[
+    "skill.first_aid"
+   ],
+   "soc":[
+    "31-1131.00"
+   ],
+   "title":"Hospitalman Recruit"
+  },
+  "IT":{
+   "alternatives":[
+    {
+     "branch":"coast_guard",
+     "skill_ids":[
+      "skill.cisco_ios"
+     ],
+     "soc":[
+      "15-1244.00"
+     ],
+     "title":"Information Systems Technician"
+    }
+   ],
+   "branch":"navy",
+   "branches":[
+    "coast_guard",
+    "navy"
+   ],
+   "skill_ids":[
+    "skill.active_directory",
+    "skill.windows_server"
+   ],
+   "soc":[
+    "15-1232.00"
+   ],
+   "title":"Information Systems Technician"
+  }
+ },
+ "common_knowledge_left_out":[
+  "skill.customer_service"
+ ],
+ "format":1
+}

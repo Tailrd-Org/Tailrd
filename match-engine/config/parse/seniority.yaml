@@ -1,0 +1,227 @@
+# Title seniority (SPEC §5.4 rules table; DECISIONS D-38; Task 6.3; read by parse/seniority.py).
+#
+# Levels: IC0 (intern / co-op / student, Tailrd) .. IC6 and M1 .. M6. Titles are compared as
+# words, case- and accent-insensitively; hyphens and apostrophes split words ("Co-op" is "co op",
+# "Chef d'équipe" is "chef d equipe"). Among the rules that match, the one whose matching phrase is
+# longest wins ("Crew Chief" is M1, not the generic "chief"), then the rule listed first, so a
+# student marker beats a one-word title ("Product Manager Intern" is IC0) and a management word
+# beats an IC modifier ("Senior Manager" is M3). An executive title (M4-M6) at a student
+# organisation abstains (parse/seniority.py). A title with no rule takes the posting's
+# `meta_levels` entry, else none.
+#
+# Rule fields:
+#   phrases            words matched in any case
+#   cased              words matched only with exactly this casing (acronyms: "TA", "VP", "L4")
+#   at_end             the word must end a part of the title (before , ( [ | : / or a spaced dash):
+#                      "Software Engineer II", never "Python 3 Developer"
+#   whole              the phrase must be the whole title ("Don")
+#   unless_followed_by the match is void when the next word is one of these ("Internship
+#                      Coordinator", "Stage Manager", "Student Services Advisor")
+#   unless_preceded_by the match is void after one of these words
+#   preceded_by        the match counts only right after one of these words (French "Analyste
+#                      principal": post-nominal "principal" is senior)
+#   followed_within    the match counts only when one of these words follows later in the same part
+#                      ("Lead Software Engineer" is a tech lead, "Shift Lead" a supervisor)
+#   with_any           the match counts only when the title also holds one of these words
+#                      ("Senior Engineering Manager" is M3)
+#   modifier           the words qualify a title rather than name an occupation: the titles index
+#                      looks a title up again without them ("Senior Software Engineer")
+format: 1
+
+_staff_words: &staff_words [coordinator, coordinators, advisor, adviser, advisors, manager, managers,
+                            director, officer, program, programs, programme, recruiter, recruitment,
+                            specialist, liaison, services, success, affairs, life, engagement,
+                            experience, records, support, housing, development, relations, placement,
+                            placements, office, centre, center, administrator, outreach, partnerships]
+_ic_nouns: &ic_nouns [engineer, engineers, developer, developers, programmer, architect, scientist,
+                      analyst, designer, researcher, ingenieur, developpeur, developpeuse, analyste,
+                      architecte]
+
+rules:
+  # ─── IC0: interns, co-ops, students, apprentices (Tailrd: students' jobs must carry a level) ──
+  - level: IC0
+    modifier: true
+    phrases: [intern, interns, internship, internships, co op, coop, co operative, co op student,
+              coop student, student, students, summer student, work study, apprentice, apprentices,
+              apprenticeship, stagiaire, stagiaires, apprenti, apprentie, etudiant, etudiante,
+              etudiants, alternant, alternante, incoming intern, intern ship]
+    unless_followed_by: *staff_words
+  - level: IC0
+    modifier: true
+    phrases: [stage]
+    unless_followed_by: [manager, managers, hand, hands, crew, technician, tech, director, designer,
+                         management, production, carpenter, electrician, door, actor, performer,
+                         combat, lighting, sound, rigger, "1", "2", "3", "4", i, ii, iii]
+  - level: IC0
+    phrases: [teaching assistant, teaching fellow, graduate teaching assistant, research assistant,
+              graduate research assistant, undergraduate research assistant, undergraduate researcher,
+              summer research student, lab assistant, laboratory assistant, lab demonstrator,
+              laboratory demonstrator, tutor, peer tutor, math tutor, writing tutor, camp counsellor,
+              camp counselor, camp leader, student ambassador, campus ambassador, peer mentor,
+              peer advisor, peer helper, orientation leader, frosh leader, residence don, house don,
+              residence advisor, residence assistant, resident assistant, resident advisor,
+              residence life assistant, work study student, auxiliaire d enseignement,
+              auxiliaire de recherche, assistant de recherche, assistante de recherche,
+              assistant d enseignement, assistante d enseignement, tuteur, tutrice, moniteur de camp,
+              monitrice de camp, animateur de camp, animatrice de camp, moniteur, monitrice,
+              demonstrateur, demonstratrice, charge de travaux pratiques, chargee de travaux pratiques]
+  - level: IC0
+    cased: [TA, RA, GTA, GRA, URA]
+  - level: IC0
+    phrases: [don]
+    whole: true
+
+  # ─── academic posts (academic CVs) ─────────────────────────────────────────────────────────
+  - level: IC1
+    phrases: [postdoctoral fellow, post doctoral fellow, postdoctoral researcher, post doctoral researcher,
+              postdoctoral scholar, postdoctoral associate, postdoc, post doc, chercheur postdoctoral,
+              chercheuse postdoctorale, stagiaire postdoctoral]
+  - level: IC2
+    phrases: [research fellow, assistant professor, adjunct professor, professeur adjoint,
+              professeure adjointe]
+  - level: IC3
+    phrases: [associate professor, professeur agrege, professeure agregee]
+
+  # ─── M6, M5: executives ──────────────────────────────────────────────────────────────────────
+  - level: M5
+    phrases: [vice president, vice presidente, vice chair, executive vice president,
+              senior vice president, assistant vice president]
+    cased: [VP, SVP, EVP, AVP, VPE]
+  - level: M6
+    phrases: [chief, president directeur general, president directrice generale, managing partner,
+              president, presidente]
+    cased: [CEO, CTO, CFO, COO, CIO, CMO, CPO, CSO, CDO, CRO, CHRO, CISO, CCO, CXO, PDG]
+    unless_preceded_by: [vice]
+
+  # ─── M4: directors and heads ─────────────────────────────────────────────────────────────────
+  - level: M4
+    phrases: [director, directors, directeur, directrice, head of, head, managing director,
+              executive director, chef de service, chef de departement]
+    unless_followed_by: [chef, cook, coach, lifeguard, counsellor, counselor, nurse, cashier, teller]
+
+  # ─── M3, M1, M2: managers ────────────────────────────────────────────────────────────────────
+  - level: M3
+    phrases: [manager, gestionnaire]
+    with_any: [senior, sr, snr, principal]
+  - level: M1
+    phrases: [assistant manager, assistant store manager, assistant general manager,
+              assistant branch manager, assistant restaurant manager, assistant department manager,
+              assistant shift manager, shift manager, gerant adjoint, gerante adjointe]
+  - level: M2
+    phrases: [manager, managers, gestionnaire, general manager, gerant, gerante]
+
+  # ─── IC4: tech leads (before "lead" alone, a supervisor) ───────────────────────────────────────
+  - level: IC4
+    modifier: true
+    phrases: [tech lead, technical lead, engineering lead, software lead, development lead, dev lead,
+              lead technique]
+  - level: IC4
+    modifier: true
+    phrases: [lead]
+    followed_within: *ic_nouns
+
+  # ─── M1: supervisors and team leads ──────────────────────────────────────────────────────────
+  - level: M1
+    phrases: [team lead, team leader, lead, leader, supervisor, superviseur, superviseure,
+              chef d equipe, foreman, forewoman, shift supervisor, crew chief, section chief, shift chief,
+              coordonnateur d equipe]
+  # An associate product manager is an entry-level IC role.
+  - level: IC1
+    phrases: [associate product manager, associate program manager]
+    cased: [APM]
+
+  # ─── IC6 .. IC1: the IC ladder ───────────────────────────────────────────────────────────────
+  - level: IC6
+    modifier: true
+    phrases: [distinguished, distinguished fellow, technical fellow, senior fellow, engineering fellow]
+  # A bare fellowship is a student program ("MLH Fellow", "Data Science Fellow"), not a top rung.
+  - level: IC0
+    modifier: true
+    phrases: [fellow, fellows, fellowship]
+  - level: IC3
+    modifier: true
+    phrases: [principal, principale]
+    preceded_by: [analyste, conseiller, conseillere, agent, agente, ingenieur, ingenieure, developpeur,
+                  developpeuse, technicien, technicienne, architecte, chercheur, chercheuse, comptable,
+                  economiste, statisticien, statisticienne, redacteur, redactrice, designer, specialiste]
+  - level: IC5
+    modifier: true
+    phrases: [principal]
+    cased: [L7, L8, E7, E8]
+  - level: IC1
+    phrases: [staff accountant, staff auditor, staff accountants]
+  - level: IC4
+    modifier: true
+    phrases: [staff]
+    cased: [L6, E6]
+  - level: IC3
+    modifier: true
+    phrases: [senior, sr, snr, sénior]
+    cased: [L5, E5]
+  - level: IC3
+    modifier: true
+    cased: [III]
+    phrases: ["3"]
+    at_end: true
+  - level: IC2
+    modifier: true
+    phrases: [intermediate, mid level, mid senior, intermediaire]
+    cased: [L4, E4]
+  - level: IC2
+    modifier: true
+    cased: [II]
+    phrases: ["2"]
+    at_end: true
+  - level: IC1
+    modifier: true
+    phrases: [junior, jr, entry level, associate, graduate, new grad, new graduate, recent graduate,
+              trainee, trainees, debutant, debutante, finissant, finissante, nouveau diplome,
+              nouvelle diplomee]
+    cased: [L3, E3]
+  - level: IC1
+    modifier: true
+    cased: [I]
+    phrases: ["1"]
+    at_end: true
+
+# A title with no rule takes the posting metadata's level (Tailrd's `experience_level`).
+meta_levels:
+  internship: IC0
+  intern: IC0
+  co-op: IC0
+  coop: IC0
+  new_grad: IC1
+  new grad: IC1
+  entry_level: IC1
+  entry-level: IC1
+  entry level: IC1
+  junior: IC1
+  mid_level: IC2
+  mid-level: IC2
+  intermediate: IC2
+  senior: IC3
+
+# Internship markers in a role's title or date text (`Role.is_internship`, §5.3 half weight).
+internship:
+  phrases: [intern, interns, internship, internships, co op, coop, co operative education, work term,
+            stagiaire, stagiaires, stage, alternance, alternant, alternante]
+  unless_followed_by: [manager, managers, hand, hands, crew, director, designer, management, coordinator,
+                       coordinators, advisor, adviser, program, programs, programme, recruiter, office,
+                       centre, center, liaison, placement, placements, services, production, carpenter,
+                       electrician, door, actor, performer, combat, lighting, sound, rigger]
+
+# Student organisations: a role there is a student's role (IC0), whatever its title ("President,
+# Robotics Club"). Businesses and service clubs named "club" are not student organisations.
+student_organisations:
+  phrases: [club, clubs, student union, students union, student society, students society,
+            student association, students association, student council, student government,
+            students council, undergraduate society, graduate students association,
+            undergraduate students society, engineering society, engineering student society,
+            varsity, intramural, intramurals, frosh, hackathon, hackathons, hacks, hack the north,
+            women in, enactus, deca, case competition team, debate team,
+            association etudiante, association des etudiants, association des etudiantes,
+            comite etudiant, conseil etudiant, regroupement etudiant, club etudiant, vie etudiante]
+  exceptions: [golf club, country club, athletic club, fitness club, health club, boys and girls club,
+               boys girls club, lions club, rotary club, kinsmen club, yacht club, night club, nightclub,
+               warehouse club, sams club, price club, ski club, tennis club, curling club, swim club,
+               book club, supper club, social club, members club, racquet club, hunt club, gun club]

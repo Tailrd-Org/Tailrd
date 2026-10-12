@@ -1,0 +1,50 @@
+{
+ "format":1,
+ "titles":{
+  "accountant":{
+   "family":"Business and Financial Operations Occupations",
+   "job_zone":4,
+   "soc":"13-2011.00"
+  },
+  "data analyst":{
+   "family":"Computer and Mathematical Occupations",
+   "job_zone":4,
+   "soc":"15-2051.01"
+  },
+  "front end developer":{
+   "family":"Computer and Mathematical Occupations",
+   "job_zone":3,
+   "soc":"15-1254.00"
+  },
+  "machine learning engineer":{
+   "family":"Computer and Mathematical Occupations",
+   "job_zone":5,
+   "soc":"15-1221.00"
+  },
+  "registered nurse":{
+   "family":"Healthcare Practitioners and Technical Occupations",
+   "job_zone":4,
+   "soc":"29-1141.00"
+  },
+  "rifleman":{
+   "family":"Military Specific Occupations",
+   "job_zone":null,
+   "soc":"55-3016.00"
+  },
+  "software developer":{
+   "family":"Computer and Mathematical Occupations",
+   "job_zone":4,
+   "soc":"15-1252.00"
+  },
+  "software engineer":{
+   "family":"Computer and Mathematical Occupations",
+   "job_zone":4,
+   "soc":"15-1252.00"
+  },
+  "teaching assistant":{
+   "family":"Educational Instruction and Library Occupations",
+   "job_zone":3,
+   "soc":"25-9042.00"
+  }
+ }
+}

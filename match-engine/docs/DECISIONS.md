@@ -378,6 +378,14 @@ track, then the smaller code), so a current internship is not out-ranked by a co
 `candidate_level` (for display) is the highest of them with the tracks aligned; its offset is a
 required argument, so no caller compares raw indices. Unknown posting level → abstain.
 
+**D-38a Executive titles students hold. [Tailrd]** A founder, CEO, president, VP, director or head
+(M4-M6) at a student organisation (club, society, students' union, hackathon, Enactus, "Women in
+...") or at an employer that neither the curated company table nor the industry keyword rules know
+has no level (the seniority dimension abstains) rather than M4-M6: a club president or the founder
+of a side project is not an executive, and a wrong management track costs more than abstaining.
+Other roles at a student organisation are IC0. A bare fellowship ("MLH Fellow") is IC0; only a
+qualified one (distinguished, technical, senior, engineering fellow) is IC6.
+
 **D-39 Over-qualification. [Deviation]** §5.4's `|level_gap|` would deduct for being *above* the
 posting's level, which §5.3 explicitly forbids as an age proxy. Default
 `seniority.penalize_overqualification: false`: being above level counts as gap 0 and raises an

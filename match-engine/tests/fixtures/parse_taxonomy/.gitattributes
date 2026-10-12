@@ -1,0 +1,3 @@
+# These files are hash-pinned by MANIFEST.json: git must never rewrite their line endings
+# (core.autocrlf would turn LF into CRLF on a Windows checkout and break every sha256).
+* -text

@@ -1,0 +1,14 @@
+{
+ "artifacts":{
+  "idf.json":"f9e6b0934118b314197043c2483213f6a055a9f3a19d62015a7aaeb1bc166019",
+  "mos_crosswalk.json":"fa31987b19d52c57458eadf3d0ad507e095668d54022d81d257cb4fe04ad0144",
+  "naics.json":"b29a725a015357c6ec4acb76c4e80bea83ba6f4a1baf055e18f1dad55bd26603",
+  "nodes.json":"f7a2e41933e397b3e8ce9f8a8b8caf1db3f508335acfab66a3f7c70b1057eae6",
+  "pmi_edges.json":"6aaaa07678871a40d5645dea5a38ddc9e210c5987658270a81f575df47b03313",
+  "titles.json":"59aed2afd6f7877ac71ffbc02fe5e404cdbed224db5292a62918f9ec3d1c6454"
+ },
+ "format":1,
+ "sources":{
+  "fixture":"hand-built parse extras (tests/fixtures/build_parse_taxonomy.py)"
+ }
+}

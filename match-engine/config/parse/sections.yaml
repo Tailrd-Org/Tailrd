@@ -1,0 +1,181 @@
+# Résumé section headers and education vocabulary (SPEC §14.3; Task 6.3; read by parse/sections.py
+# and parse/education.py through parse/config.py).
+#
+# Headers are compared case-, accent- and punctuation-insensitively: "Work Experience:", "WORK
+# EXPERIENCE" and "== work experience ==" are one key; apostrophes vanish ("Where I've Been" is
+# "where ive been"). A header is at most `max_header_words` words with no final period. When the
+# whole header is not listed, the `fillers` are dropped ("Relevant Technical Experience" ->
+# "experience"), then a composite is split at the `joiners` and every part must be a known header
+# ("Education & Certifications": the first part decides). A key may belong to one kind only.
+format: 1
+max_header_words: 6
+
+headers:
+  CONTACT:
+    en: [contact, contact information, contact info, contact details, personal information,
+         personal details, get in touch]
+    fr: [coordonnées, renseignements personnels, informations personnelles, me joindre]
+  SUMMARY:
+    en: [summary, professional summary, career summary, executive summary, profile,
+         professional profile, career profile, objective, career objective, professional objective,
+         about me, about, summary of qualifications, highlights of qualifications, qualifications,
+         introduction, overview]
+    fr: [profil, profil professionnel, sommaire, résumé de carrière, résumé professionnel, objectif,
+         objectif de carrière, objectif professionnel, à propos, à propos de moi, présentation,
+         sommaire des compétences]
+  EXPERIENCE:
+    en: [experience, experiences, work experience, professional experience, relevant experience,
+         employment, employment history, employment experience, work history, career history,
+         career, professional background, experience highlights, internships, internship experience,
+         co-op experience, co-op work experience, coop experience, work terms, co-op work terms,
+         military experience, military service, military history, service history, research
+         experience, research, teaching experience, teaching, industry experience, positions held,
+         positions, roles, where i've been, where i've worked, work, jobs, appointments,
+         academic appointments, professional appointments]
+    fr: [expérience, expériences, expérience professionnelle, expériences professionnelles,
+         expérience de travail, expériences de travail, parcours professionnel, emplois,
+         expérience pertinente, expériences pertinentes, historique d'emploi, historique de travail,
+         stages, expérience de stage, expériences de stage, expérience militaire, service militaire,
+         expérience en recherche, expérience d'enseignement, postes occupés]
+  EDUCATION:
+    en: [education, academic background, academics, academic history, educational background,
+         education history, schooling, academic qualifications, degrees, where i studied,
+         where i've studied, education and training]
+    fr: [formation, formations, éducation, études, scolarité, diplômes, formation académique,
+         formation universitaire, parcours académique, parcours scolaire, formation scolaire]
+  SKILLS:
+    en: [skills, technical skills, core skills, key skills, skill set, skillset, skills summary,
+         competencies, core competencies, areas of expertise, expertise, technologies,
+         technical proficiencies, proficiencies, tools, tools and technologies, tech stack, stack,
+         toolkit, my toolkit, toolbox, what i know, technical expertise, abilities, strengths]
+    fr: [compétences, compétences techniques, compétences clés, aptitudes, habiletés, outils,
+         savoir-faire, atouts, compétences professionnelles, connaissances, connaissances techniques,
+         outils et technologies]
+  PROJECTS:
+    en: [projects, project experience, personal projects, academic projects, side projects,
+         technical projects, key projects, course projects, capstone project, capstone,
+         portfolio, things i've built, what i've built, hackathons, open source,
+         open-source contributions]
+    fr: [projets, projets personnels, projets académiques, projets scolaires, réalisations,
+         projets techniques, projet de fin d'études, portfolio]
+  CERTIFICATIONS:
+    en: [certifications, certificates, certification, licenses, licences, license, licence,
+         licenses and certifications, licences and certifications, certifications and licenses,
+         accreditations, credentials, professional development, training, courses and certifications,
+         online courses]
+    fr: [certifications, certificats, permis, attestations, perfectionnement, formation continue,
+         perfectionnement professionnel]
+  COURSEWORK:
+    en: [coursework, relevant coursework, courses, relevant courses, selected coursework,
+         course highlights, completed courses]
+    fr: [cours, cours pertinents, cours suivis]
+  PUBLICATIONS:
+    en: [publications, papers, research papers, selected publications, presentations,
+         conference presentations, talks, patents, posters, peer-reviewed publications]
+    fr: [publications, présentations, conférences, articles]
+  AWARDS:
+    en: [awards, honours, honors, awards and honours, awards and honors, honours and awards,
+         honors and awards, achievements, accomplishments, scholarships, distinctions, recognition]
+    fr: [prix, distinctions, prix et distinctions, bourses, réussites, mentions]
+  VOLUNTEER:
+    en: [volunteer, volunteering, volunteer experience, volunteer work, community involvement,
+         community service, community engagement, extracurricular activities, extracurriculars,
+         extracurricular, activities, leadership, leadership experience, leadership activities,
+         campus involvement, involvement, giving back, affiliations, memberships]
+    fr: [bénévolat, expérience bénévole, expériences bénévoles, implication, implications,
+         engagement communautaire, implication communautaire, activités parascolaires,
+         activités, vie étudiante, engagement]
+  LANGUAGES:
+    en: [languages, language skills, spoken languages, language proficiency]
+    fr: [langues, compétences linguistiques, langues parlées]
+  INTERESTS:
+    en: [interests, hobbies, interests and hobbies, hobbies and interests, personal interests,
+         beyond work, outside of work, when i'm not coding, fun facts about me]
+    fr: [intérêts, loisirs, centres d'intérêt, centres d'intérêts, passe-temps, champs d'intérêt]
+  REFERENCES:
+    en: [references, referees, references available upon request, references available on request]
+    fr: [références, références disponibles sur demande]
+
+# Words a header may carry around its kind ("Relevant Technical Experience", "Selected Academic
+# Projects", "Expériences pertinentes"): dropped when the whole header is not listed.
+fillers:
+  en: [relevant, selected, select, key, core, technical, professional, other, additional, related,
+       notable, recent, featured, highlighted, personal, academic, my, our, previous, prior, past,
+       general, practical, applied, industry, hands-on, main, major, significant]
+  fr: [pertinente, pertinentes, pertinent, pertinents, principales, principaux, autres, connexes,
+       sélectionnés, sélectionnées, choisis, choisies, mes, nos, récentes, récents, académiques,
+       personnels, personnelles, professionnels, professionnelles]
+
+# Where a composite header splits ("Skills & Interests", "Formation et certifications").
+joiners: ["&", "and", "et", "+", "/", ",", "|", ";"]
+
+# Inside these sections an "Label: text" line or a styled line that matches no header is content
+# (an employer in capitals, "Technologies: React"), never a new section.
+entry_sections: [EXPERIENCE, VOLUNTEER, PROJECTS, EDUCATION]
+
+# ─── education (parse/education.py) ─────────────────────────────────────────────────────────────
+education:
+  # Degree words per level. `terms` match case-insensitively as whole words after the periods of
+  # an abbreviation are removed ("B.Sc." is "BSc"); `cased` only with the casing written here, and
+  # never before one of `cased_not_before` ("MS Office") or, for `month_like`, before a year ("DEC
+  # 2023" is a month). The longest match wins, so "High School Diploma" is a high-school diploma.
+  degrees:
+    DOCTORATE:
+      terms: [phd, ph d, dphil, doctorate, doctor of philosophy, doctoral, edd, doctor of education,
+              juris doctor, doctor of medicine, pharmd, doctor of pharmacy, dds, dmd, dvm, psyd,
+              doctor of veterinary medicine, doctorat, doctorate degree]
+      cased: [JD, MD]
+    MASTER:
+      terms: [master, masters, master's, msc, meng, masc, mba, mph, mpa, mfa, mmath, mcs, msw,
+              mpp, macc, mfin, llm, mres, mphil, mdes, mhsc, mpl, maîtrise, maitrise, mastère,
+              mastere, master of science, master of arts, master of engineering, master of business
+              administration]
+      cased: [MS, MA, MEd, MArch]
+    BACHELOR:
+      terms: [bachelor, bachelors, bachelor's, baccalaureate, bsc, beng, basc, bcom, bcomm, bba, bfa,
+              bmath, bcs, bscn, bsn, llb, bmus, bdes, bkin, bhsc, bph, bsw, bscf,
+              honours bachelor, honors bachelor, baccalauréat, licence en, licence de,
+              licence professionnelle]
+      cased: [BA, BS, BAH, BEd, BES, BN, BArch]
+    ASSOCIATE:
+      terms: [associate degree, associate's degree, associates degree, associate of arts,
+              associate of science, associate of applied science, diploma, advanced diploma,
+              college diploma, diplôme d'études collégiales, attestation d'études collégiales,
+              diplôme collégial, technique en, graduate certificate]
+      cased: [DEC, AEC, AA, AS, AAS]
+    HIGH_SCHOOL:
+      terms: [high school diploma, high school, secondary school diploma, secondary school,
+              secondary diploma, ontario secondary school diploma, ossd, ged, diplôme d'études
+              secondaires, école secondaire, diplôme secondaire]
+      cased: [DES]
+  cased_not_before: [office, excel, word, teams, access, powerpoint, project, outlook, sql, dynamics,
+                     paint, dos, visio, windows, azure, edge, level, levels]
+  # Two-letter degree abbreviations that are also US state codes: after "<City>, " and before the
+  # end, a comma, a bar, a dash or a year they are a place ("Boston, MA"), not a degree.
+  location_like: [MA, MD, MS]
+  month_like: [DEC]
+
+  # Institution words: they mark the segment of a line that names the school (left out of the
+  # fields and of the output), and for a line with no degree word but a field of study they give
+  # the level ("University of Toronto, Computer Science" is a bachelor's program).
+  institutions:
+    BACHELOR: [university, université, universite, polytechnique, polytechnic university]
+    ASSOCIATE: [college, collège, cégep, cegep, polytechnic, institute of technology]
+    HIGH_SCHOOL: [high school, secondary school, collegiate, collegiate institute, école secondaire,
+                  ecole secondaire, polyvalente]
+  institution_words: [school, école, institute, institut, academy, académie, conservatory, hec,
+                      faculty, faculté, campus]
+  # A line with one of these is never an inferred degree ("Certificate in ...", "Exchange term").
+  # An inferred level also needs a span of a school year or more, or an open or expected end.
+  no_inference: [certificate, certificat, certification, exchange, échange, bootcamp, course,
+                 courses, cours, continuing, summer school, visiting, auditing, workshop, workshops,
+                 minor, summer, program, programme, programs, camp, pre-college, pre-collegiate,
+                 precollege, summer institute, academy, été, ete]
+  # Status words that make a degree in progress (D-41: it still counts at its level).
+  in_progress: [expected, anticipated, candidate, in progress, present, current, currently, ongoing,
+                pursuing, en cours, prévu, prévue, attendu, attendue, actuel, actuellement]
+  # Labelled lines that are not degrees: coursework, grades, awards, thesis titles.
+  skip_labels: [coursework, relevant coursework, courses, relevant courses, gpa, cgpa, grade, grades,
+                awards, honours, honors, distinctions, activities, achievements, thesis, dissertation,
+                capstone, cours, cours pertinents, moyenne, mémoire, these, thèse, projects, projets,
+                clubs, scholarships, bourses, dean's list, deans list, exchange]
