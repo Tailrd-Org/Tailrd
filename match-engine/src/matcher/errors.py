@@ -44,6 +44,7 @@ class Flag(str, Enum):
     CONTRADICTORY_REQUIREMENTS = "CONTRADICTORY_REQUIREMENTS"
     REQUIREMENTS_TRUNCATED = "REQUIREMENTS_TRUNCATED"
     BOILERPLATE_ONLY = "BOILERPLATE_ONLY"
+    POSTING_TRUNCATED = "POSTING_TRUNCATED"
 
     # --- Scoring: NEEDS_REVIEW reasons (SPEC §13, §14.5) -----------------------------------
     INVALID_INPUT = "INVALID_INPUT"
@@ -122,7 +123,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.NOT_A_RESUME: "This document doesn't look like a résumé.",
     Flag.UNSUPPORTED_LANGUAGE: "This document is in a language we can't score yet.",
     Flag.UNSUPPORTED_CALENDAR: "Some dates use a calendar we couldn't convert.",
-    Flag.TRUNCATED: "This document was too long or was cut short, so only its first part was read.",
+    Flag.TRUNCATED: "This document is very long; only the first part of the experience was read.",
     Flag.STUFFING_SUSPECTED: "Hidden or invisible text was found and ignored.",
     Flag.OCR_USED: "The text was read from an image, so some details may be missed.",
     Flag.COLUMN_ORDER_UNCERTAIN: "The page layout made the reading order uncertain.",
@@ -141,6 +142,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.CONTRADICTORY_REQUIREMENTS: "This posting's level and its experience requirement disagree.",
     Flag.REQUIREMENTS_TRUNCATED: "This posting lists many requirements; the most specific 25 were weighted fully.",
     Flag.BOILERPLATE_ONLY: "This posting is mostly boilerplate and says little about the role.",
+    Flag.POSTING_TRUNCATED: "The job posting was cut short, so some requirements may be missing.",
     Flag.INVALID_INPUT: "The information was incomplete or malformed, so it couldn't be scored.",
     Flag.INVALID_AS_OF: "The scoring date is earlier than every date on the résumé.",
     Flag.NUMERIC_FAULT: "A calculation failed, so no score is shown.",
@@ -158,7 +160,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.MIN_YEARS_DEFAULTED: "The posting states no experience requirement; typical expectations for this level were used.",
     Flag.OVERQUALIFIED: "Your experience is above this role's level. This is noted, never deducted.",
     Flag.NO_WORK_EXPERIENCE: "No work experience is listed on this résumé.",
-    Flag.LOW_PARSE_QUALITY: "Parts of the résumé were hard to read, or the job posting was cut short.",
+    Flag.LOW_PARSE_QUALITY: "Parts of the résumé were hard to read.",
     Flag.LOW_TAXONOMY_COVERAGE: "Some of this posting's requirements aren't skills we recognise yet.",
     Flag.LOW_EVIDENCE_DENSITY: "Most matching skills are only listed, not shown in your experience.",
     Flag.LOW_TEMPORAL_COMPLETENESS: "Several roles are missing dates.",

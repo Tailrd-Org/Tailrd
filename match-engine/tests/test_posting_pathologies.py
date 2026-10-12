@@ -259,7 +259,7 @@ def test_a_capped_description_is_truncated_not_ended(cap: int) -> None:
     raw = raw.rjust(cap - len(raw) + len(raw))  # exactly at the cap
     assert abs(len(raw) - cap) <= 1
     posting = parse(raw)
-    assert Flag.TRUNCATED in posting.flags
+    assert Flag.POSTING_TRUNCATED in posting.flags
     assert "skill.java" not in reqs(posting) and "skill.javascript" not in reqs(posting)
     assert necessities(posting) == {"skill.python": "REQUIRED", "skill.sql": "REQUIRED"}
     # the cut is not the end of a requirements list: no boilerplate verdict on what we never saw
@@ -268,16 +268,19 @@ def test_a_capped_description_is_truncated_not_ended(cap: int) -> None:
 
 def test_a_short_description_ending_in_an_ellipsis_is_not_truncated() -> None:
     posting = parse("Requirements\n- Python\n- SQL, and more...")
-    assert Flag.TRUNCATED not in posting.flags
+    assert Flag.POSTING_TRUNCATED not in posting.flags
 
 
 def test_a_truncated_posting_lowers_confidence() -> None:
     body = "Requirements\n- Python\n- SQL\n- Docker\n- Kubernetes\n- React\n" + "We value craft. " * 200
     whole = parse(body[:1900] + ".")
     cut = parse(body[:1997] + "...")
-    assert Flag.TRUNCATED in cut.flags and Flag.TRUNCATED not in whole.flags
+    assert Flag.POSTING_TRUNCATED in cut.flags and Flag.POSTING_TRUNCATED not in whole.flags
     resume = _resume("skill.python", "skill.sql", "skill.docker", "skill.kubernetes", "skill.react")
     a, b = _score(resume, whole), _score(resume, cut)
     assert b.confidence.components["parse_quality"] < a.confidence.components["parse_quality"]
     assert b.confidence.value < a.confidence.value
-    assert Flag.TRUNCATED in b.flags
+    assert Flag.POSTING_TRUNCATED in b.flags
+    # the penalty is always named, whatever the outcome (fix round 1)
+    assert Flag.POSTING_TRUNCATED in b.reasons and Flag.POSTING_TRUNCATED in b.confidence.reasons
+    assert Flag.POSTING_TRUNCATED not in a.reasons

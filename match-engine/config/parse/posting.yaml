@@ -371,9 +371,6 @@ credential_holding:
   - certificate
   - registration
   - registered
-  - registrable
-  - eligible
-  - eligibility
   - accreditation
   - accredited
   - chartered
@@ -397,6 +394,25 @@ credential_holding:
   - membre
   - detenir
   - valide
+
+# Wording that the credential is NOT yet held, anywhere in its clause: no licence gate (a new grad
+# working towards the licence must never fail): "Eligible for P.Eng. registration", "Working towards
+# P.Eng. licensure", "Must obtain RN licensure within 6 months of hire", "Pursuing CPA designation".
+# The credential stays a preferred one. "within <N> <unit>" is matched in code (posting.py).
+credential_not_held: [eligible, eligibility, registrable, obtain, obtaining, acquire, pursue, pursuing,
+                      working towards, working toward, work towards, work toward, willingness, willing,
+                      upon hire, after hire, prior to start, before start, in progress, admissible, obtenir,
+                      en voie, en cours d obtention]
+
+# An alternative after "or" that is the licence's in-progress form ("Registered Nurse or eligible for
+# registration", "RN or Graduate Nurse (GN) status", "P.Eng. or EIT"): the gate then also accepts the
+# licence's formal in-progress designation (DECISIONS D-62), or no gate is made when the licence has
+# none.
+credential_in_progress_alternatives: [eligible for registration, eligible for licensure, eligible for licence,
+                                      eligible for license, eligible to register, registration eligible,
+                                      graduate nurse, gn, new graduate, eit, engineer in training, candidate,
+                                      student, in training, provisional, temporary licence, temporary license,
+                                      temporary registration]
 
 # ─── OR-groups (SPEC §14.4; DECISIONS D-31) ──────────────────────────────────────────────────
 or_groups:
@@ -550,7 +566,8 @@ security_clearance:
     - "\\bclearance\\s+(?:at\\s+the\\s+|level\\s+)?(?:secret|top\\s+secret|ts\\s*/\\s*sci|reliability)"
     - "\\bts\\s*/\\s*sci\\b"
     - "\\btop\\s+secret\\b"
-    - "\\b(?:enhanced\\s+)?reliability\\s+(?:status|clearance|level|screening)"
+    - "\\b(?:enhanced\\s+)?reliability\\s+(?:security\\s+)?(?:status|clearance|level|screening|check)"
+    - "\\benhanced\\s+reliability\\b"
     - "\\bpublic\\s+trust\\b"
     - "\\bcote\\s+de\\s+(?:s[ée]curit[ée]|fiabilit[ée])"
     - "\\bhabilitation\\s+de\\s+s[ée]curit[ée]"
@@ -578,7 +595,7 @@ security_clearance:
     - "\\b(?:must|should)\\s+(?:currently\\s+)?(?:hold|possess|have)\\b"
     - "\\bexisting\\b"
     - "\\bin\\s+good\\s+standing\\b"
-    - "\\bvalid\\s+(?:\\w+\\s+){0,3}clearance"
+    - "\\bvalid\\s+(?:\\w+\\s+){0,5}clearance"
     - "\\bd[ée]tenir\\b"
     - "\\bvalide\\b"
   obtainable_patterns:

@@ -322,6 +322,8 @@ class PostingTable(Frozen):
     sections: PostingSections
     modals: ModalTable
     credential_holding: tuple[str, ...] = ()
+    credential_not_held: tuple[str, ...] = ()
+    credential_in_progress_alternatives: tuple[str, ...] = ()
     or_groups: OrGroupTable = OrGroupTable()
     years: YearsTable = YearsTable()
     education: EducationPhrases = EducationPhrases()
@@ -346,6 +348,14 @@ class PostingTable(Frozen):
     @cached_property
     def holding_tuples(self) -> tuple[tuple[str, ...], ...]:
         return _phrases(self.credential_holding)
+
+    @cached_property
+    def not_held_tuples(self) -> tuple[tuple[str, ...], ...]:
+        return _phrases(self.credential_not_held)
+
+    @cached_property
+    def in_progress_alternative_tuples(self) -> tuple[tuple[str, ...], ...]:
+        return _phrases(self.credential_in_progress_alternatives)
 
     @cached_property
     def country_alternation(self) -> str:

@@ -653,24 +653,36 @@ management" are none); posting phrases ("undergraduate degree", "graduate degree
 "post-secondary program") and "degree in <field>" (bachelor's) add levels; alternatives take the
 lowest; REQUIRED wins over PREFERRED; fields are the clause's `field.*` ids, and in a schooling
 statement a skill that is also the field is the field ("degree in Statistics" asks for no
-statistics skill). Credentials are never skill requirements. In a REQUIRED clause that shows the
-credential is held (a holding word anywhere in the clause, its own name's words included, or the
-credential opening the clause) it is `certifications_required` and a `LicenseGate`; alternatives
-share one gate and one held member holds the group ("P.Eng. or EIT designation"); a credential with
-a non-credential alternative or "or equivalent" is required but gates nothing (the posting accepts
-another way in). PREFERRED credentials are `certifications_preferred`. "Under RN supervision" is
-neither.
+statistics skill). Credentials are never skill requirements, except as an alternative (below). A
+`LicenseGate` needs plainly held wording in a REQUIRED clause (a holding word anywhere in the
+clause, its own name's words included, or the credential opening it: "must hold a valid P.Eng.",
+"licensed RN", "RN license in good standing"); the credential is then `certifications_required`.
+Not-held wording anywhere in the clause (eligible, eligibility, registrable, obtain, pursue,
+pursuing, working towards, willingness, upon hire, "within <N> months") never gates: a new grad
+working towards the licence must not fail; the credential is `certifications_preferred` (fix round
+1, binding ruling). "<licence> or <its in-progress form>" ("Registered Nurse or eligible for
+registration", "RN or Graduate Nurse (GN)", "P.Eng. or EIT") gates on the licence or its formal
+in-progress designation (D-62; the designation is the configured in-progress id related to the
+licence in the graph), and gates nothing when the licence has none. Alternatives share one gate
+and one held member holds the group. A credential with a non-credential alternative in its clause
+("AWS Certified Solutions Architect or hands-on AWS experience", "... or equivalent experience") is
+an OR-group with that alternative (a one-member `or_equivalent` group for bare experience), never a
+gate, and only a preferred credential for §5.6. "CPA designation or equivalent" is required but
+gates nothing. "Under RN supervision" is neither.
 
 **D-104 Text, truncation, empty descriptions.** Entities are decoded (twice at most: Tailrd stores
 escaped HTML), tags become line breaks ("<li>" a bullet) or vanish, script/style bodies drop,
 inline bullet glyphs split lines, then `normalize_text`. A description whose length is within
-`truncation.tolerance` of a cap (2,000 or 3,000) and that ends in "..." or "…" is TRUNCATED: its
+`truncation.tolerance` of a cap (2,000 or 3,000) and that ends in "..." or "…" is POSTING_TRUNCATED: its
 last word is dropped when the cut fell inside it ("Java..." from "JavaScript"), BOILERPLATE_ONLY is
 never concluded from it, and the scorer caps the pair's parse-quality component at tier B
-(`score/confidence.py`; the requirements may go on past the cut). An empty description is title and
+(`score/confidence.py`; the requirements may go on past the cut) and POSTING_TRUNCATED is always
+among the confidence reasons and the result's reasons, SCORED included, so the penalty is named
+(fix round 1; an interim rule pending the owner's view of how strongly truncation should weigh).
+The résumé page cap keeps its own TRUNCATED flag. An empty description is title and
 metadata only: seniority, internship, family, industry, remote policy and the location gate are
 kept, nothing is read from the title as a requirement, and POSTING_UNSCORABLE sends the pair to
-NEEDS_REVIEW. `max_chars` (60,000) bounds absurd inputs (also TRUNCATED).
+NEEDS_REVIEW. `max_chars` (60,000) bounds absurd inputs (also POSTING_TRUNCATED).
 
 **D-105 Gates from posting text.** Read from every sentence (footer and EEO text included) except
 preferred ones. Work authorisation: "authorized/eligible to work in <country>" (the country named,
@@ -685,7 +697,9 @@ tokens (TS/SCI, Public Trust, Confidential: US; Reliability, Enhanced Reliabilit
 Secret: the country named, else the posting's single country, else no level); alternatives take
 the lowest level; `active_required` only when the sentence says active/current/hold/possess/valid
 and no "able to obtain" ("Secret clearance required" alone warns, D-60). Onsite with places: a
-`LocationGate`.
+`LocationGate`. Every recognised gate phrase (clearance context and levels, citizenship,
+residence, sponsorship, work authorisation) is masked from skill extraction and from the
+unresolved-token count: "TS/SCI" is no TypeScript, "Reliability status" no reliability skill.
 
 **D-106 Overflow, boilerplate, coverage.** Overflow ranks REQUIRED/PREFERRED units (a group is one
 unit) by IDF, ties by the smallest member id; the rest become IMPLIED at the overflow multiplier.

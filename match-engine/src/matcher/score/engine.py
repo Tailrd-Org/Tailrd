@@ -24,7 +24,8 @@ input ends in one of the four outcomes of SPEC §13, never an exception, a None 
 6. Prepare the résumé, score the seven dimensions, aggregate (§6, §14.5; D-42, D-43); nothing
    scored → NEEDS_REVIEW NOTHING_SCORABLE, with the gates and the abstaining dimensions.
 7. Calibrate (`calibration.calibrate(raw)`, the band from `bands.band_for`), then confidence and
-   the outcome (§17.1, §17.2): SCORED shows the number and the band; SCORED_LOW_CONFIDENCE the band
+   the outcome (§17.1, §17.2): SCORED shows the number and the band (and POSTING_TRUNCATED as its
+   only reason when the posting was cut short); SCORED_LOW_CONFIDENCE the band
    and the confidence reasons; NEEDS_REVIEW neither, with LOW_CONFIDENCE and the confidence
    reasons. The raw and calibrated scores of a non-SCORED result stay on the record for audit and
    for the person who reviews it (SPEC §0.4): adapters key on `outcome` and never rank, sort or show
@@ -289,7 +290,9 @@ def _score(
     matches = match_requirements(prepared, posting.requirements, graph, config)
     confidence = compute_confidence(resume, posting, prepared, aggregated, matches, config)
     outcome = outcome_for(confidence, config)
-    reasons: tuple[Flag, ...] = ()
+    # A SCORED result names only a truncated posting (Task 6.5 fix round 1, D-104): its penalty is
+    # always said, at every outcome.
+    reasons: tuple[Flag, ...] = tuple(r for r in confidence.reasons if r is Flag.POSTING_TRUNCATED)
     if outcome is Outcome.SCORED_LOW_CONFIDENCE:
         reasons = confidence.reasons
     elif outcome is Outcome.NEEDS_REVIEW:

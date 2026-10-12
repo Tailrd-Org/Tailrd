@@ -9,7 +9,7 @@ softer one is taken (IMPLIED rather than REQUIRED, a warning gate rather than a 
   "&amp;lt;p&amp;gt;"), tags become line breaks ("<li>" a bullet) or vanish, script and style
   bodies are dropped, then the ingest normalisation runs (`normalize_text`). Raw markup never
   reaches the resolver. A description cut at a stored-length cap (`truncation.caps`, ending in
-  "..." or "…") is read as far as it goes, its last (cut) word dropped, and flagged TRUNCATED:
+  "..." or "…") is read as far as it goes, its last (cut) word dropped, and flagged POSTING_TRUNCATED:
   the cut is never taken for the end of a requirements list (no BOILERPLATE_ONLY on it).
 * Sections (`posting.yaml` `sections`): a header line (or a "Label: text" line) opens REQUIRED
   (requirements, qualifications, what you'll need, must have, exigences, ...), PREFERRED
@@ -61,7 +61,7 @@ softer one is taken (IMPLIED rather than REQUIRED, a warning gate rather than a 
   `overflow_weight_multiplier`, flagged REQUIREMENTS_TRUNCATED.
 * Flags: POSTING_UNSCORABLE (no requirement at all: an empty description is title and metadata
   only, never an invented requirement), BOILERPLATE_ONLY, CONTRADICTORY_REQUIREMENTS (an IC0/IC1
-  posting requiring `contradiction.min_years`+; both facts kept), TRUNCATED, plus the two above.
+  posting requiring `contradiction.min_years`+; both facts kept), POSTING_TRUNCATED, plus the two above.
 * Coverage (§16, §17.1): `requirement_token_count` is the distinct ids mentioned in REQUIRED and
   PREFERRED clauses plus the unresolved tokens there: the noun phrases after "experience
   with/in", "knowledge of", "proficiency in", "familiarity with", ... and the tech-shaped words
@@ -627,11 +627,14 @@ class _Occurrence:
     years: Optional[int] = None
 
 
+_Reading = Literal["held", "held_or_in_progress", "working_towards", "mentioned"]
+
+
 @dataclass
 class _Credential:
     cred_id: str
     necessity: Necessity
-    holding: bool
+    reading: _Reading
     order: int
     group: Optional[int] = None
     equivalent: bool = False
@@ -773,19 +776,56 @@ def _unresolved_in_clause(stmt: str, clause: _Clause, spans: Sequence[tuple[int,
 # ─── one statement ────────────────────────────────────────────────────────────────────────
 
 
-def _holds_credential(clause: Optional[_Clause], mention: Mention, stmt: str, table: PostingTable) -> bool:
-    """Whether the clause shows the credential is to be held: a holding word anywhere in it, the
-    credential's own words included ("valid driver's licence", "CPA designation"), or the credential
-    opening the clause ("RN with 3+ years")."""
+_WITHIN = re.compile(r"\bwithin\s+(?:\d+|[a-z]+)\s+(?:months?|weeks?|days?|years?)\b", re.IGNORECASE)
+_ALT_LEAD = frozenset({"a", "an", "be", "have", "hold", "with", "the", "un", "une", "etre"})
+
+
+def _has(ws: Sequence[str], phrases: Sequence[tuple[str, ...]]) -> bool:
+    return any(tuple(ws[i:i + len(p)]) == p for p in phrases for i in range(len(ws) - len(p) + 1))
+
+
+def _credential_reading(clause: Optional[_Clause], mention: Mention, stmt: str, table: PostingTable) -> _Reading:
+    """How the clause speaks of the credential (DECISIONS D-103):
+
+    * held_or_in_progress: the licence "or" its in-progress form ("Registered Nurse or eligible for
+      registration", "RN or Graduate Nurse (GN) status", "P.Eng. or EIT");
+    * working_towards: not-held wording anywhere in the clause ("Eligible for P.Eng. registration",
+      "Must obtain RN licensure within 6 months of hire", "Pursuing CPA designation");
+    * held: a holding word in the clause, the credential's own words included ("valid driver's
+      licence", "CPA designation required"), or the credential opening the clause ("RN with 3+ years");
+    * mentioned: anything else ("work under RN supervision")."""
     if clause is None:
-        return False
-    ws = words(stmt[clause.start:clause.end])
-    for phrase in table.holding_tuples:
-        n = len(phrase)
-        if any(tuple(ws[i:i + n]) == phrase for i in range(len(ws) - n + 1)):
-            return True
-    head = stmt[clause.start:mention.start]
-    return not words(head) or words(head) in (["a"], ["an"], ["be", "a"], ["be", "an"])
+        return "mentioned"
+    tail = stmt[mention.end:clause.end]
+    alternative = re.search(r"\b(?:or|ou)\b", tail, re.IGNORECASE)
+    if alternative is not None:
+        alt = words(tail[alternative.end():])[:8]
+        while alt and alt[0] in _ALT_LEAD:
+            alt.pop(0)
+        if any(tuple(alt[:len(p)]) == p for p in table.in_progress_alternative_tuples):
+            return "held_or_in_progress"
+    text = stmt[clause.start:clause.end]
+    ws = words(text)
+    if _has(ws, table.not_held_tuples) or _WITHIN.search(text):
+        return "working_towards"
+    if _has(ws, table.holding_tuples):
+        return "held"
+    head = words(stmt[clause.start:mention.start])
+    return "held" if not head or head in (["a"], ["an"], ["be", "a"], ["be", "an"]) else "mentioned"
+
+
+def _gate_spans(stmt: str, table: PostingTable) -> list[tuple[int, int]]:
+    """Spans of the gate phrases a statement holds (clearance, citizenship, sponsorship, work
+    authorisation): no skill is read inside them ("TS/SCI" is no TypeScript, "Reliability status"
+    no reliability skill)."""
+    found: list[re.Pattern[str]] = []
+    rules = table.security_clearance
+    if any(p.search(stmt) for p in rules.compiled["context"]):
+        found.extend(rules.compiled["context"])
+        found.extend(q for level in rules.levels for q in level.compiled)
+    found.extend((*table.citizenship_compiled, *table.resident_compiled, *table.refused_compiled,
+                  *table.offered_compiled, *table.authorized_compiled))
+    return [(m.start(), m.end()) for p in found for m in p.finditer(stmt) if m.end() > m.start()]
 
 
 def _read_statement(stmt: str, section: str, state: _State, *, resolver: Resolver, graph: SkillGraph,
@@ -798,12 +838,15 @@ def _read_statement(stmt: str, section: str, state: _State, *, resolver: Resolve
     if len(listed) > len(skills) and all(
             tok.word in _LIST_WORDS for tok in tokens(stmt) if not _masked(tok, [(m.start, m.end) for m in listed])):
         skills = list(listed)
-    fields =[m for m in resolver.extract(stmt, include_fields=True) if m.canonical_id.startswith(_FIELD)]
+    gate_spans = _gate_spans(stmt, table)
+    if gate_spans:
+        skills = [m for m in skills if not any(a < m.end and m.start < b for a, b in gate_spans)]
+    fields = [m for m in resolver.extract(stmt, include_fields=True) if m.canonical_id.startswith(_FIELD)]
     levels = _degree_levels(stmt, fields, parse_config)
     schooling = levels or (fields and any(w in table.education.cue_set for w in words(stmt)))
     if schooling:  # an education statement: a skill that is also the named field is the field here
         skills = [m for m in skills if not any(f.start < m.end and m.start < f.end for f in fields)]
-    spans = [(m.start, m.end) for m in (*skills, *fields)]
+    spans = [(m.start, m.end) for m in (*skills, *fields)] + gate_spans
     skill_spans = [(m.start, m.end) for m in skills]
     clauses = _clauses(stmt, section, spans, skill_spans, table)
     default = _DEFAULTS[section]
@@ -815,6 +858,42 @@ def _read_statement(stmt: str, section: str, state: _State, *, resolver: Resolve
         state.next_group += 1
         for i in members:
             group_of[i] = (key, equivalent)
+
+    # A credential with a non-credential alternative ("AWS Certified Solutions Architect or hands-on
+    # AWS experience", "... certification or equivalent experience") is an OR-group with it and never
+    # a gate (DECISIONS D-103).
+    def credential(i: int) -> bool:
+        node = graph.node(skills[i].canonical_id)
+        return node is not None and node.kind is SkillKind.CREDENTIAL
+
+    alternatives: set[int] = set()
+    for i, mention in enumerate(skills):
+        if not credential(i):
+            continue
+        group = group_of.get(i)
+        alt = [j for j in range(len(skills)) if j != i and not credential(j) and group is not None
+               and j in group_of and group_of[j][0] == group[0]]
+        experience = False
+        clause = _clause_at(clauses, mention.start)
+        if not alt and clause is not None:
+            tail = stmt[mention.end:clause.end]
+            found = re.search(r"\b(?:or|ou)\b", tail, re.IGNORECASE)
+            if found is not None and _credential_reading(clause, mention, stmt, table) != "held_or_in_progress":
+                after = mention.end + found.end()
+                alt = [j for j, other in enumerate(skills) if after <= other.start < clause.end and not credential(j)]
+                experience = not alt and any(w in table.years.experience_set for w in words(tail[found.end():])[:6])
+        if alt or experience:
+            if alt and alt[0] in group_of:
+                key = group_of[alt[0]][0]
+            elif group is not None:
+                key = group[0]
+            else:
+                key = state.next_group
+                state.next_group += 1
+            for j in alt:
+                group_of[j] = (key, group_of[j][1] if j in group_of else False)
+            group_of[i] = (key, not alt)
+            alternatives.add(i)
 
     # years
     per_skill: dict[int, int] = {}
@@ -854,12 +933,15 @@ def _read_statement(stmt: str, section: str, state: _State, *, resolver: Resolve
         node = graph.node(mention.canonical_id)
         state.order += 1
         group = group_of.get(i)
-        if node is not None and node.kind is SkillKind.CREDENTIAL:
-            holding = _holds_credential(_clause_at(clauses, mention.start), mention, stmt, table)
-            state.credentials.append(_Credential(mention.canonical_id, necessity, holding, state.order,
+        if node is not None and node.kind is SkillKind.CREDENTIAL and i not in alternatives:
+            reading = _credential_reading(_clause_at(clauses, mention.start), mention, stmt, table)
+            state.credentials.append(_Credential(mention.canonical_id, necessity, reading, state.order,
                                                  None if group is None else group[0], bool(group and group[1]),
                                                  mention.surface))
         else:
+            if i in alternatives:  # a requirement of its group, and a preferred credential for §5.6
+                state.credentials.append(_Credential(mention.canonical_id, Necessity.PREFERRED, "mentioned",
+                                                     state.order, None, False, mention.surface))
             state.occurrences.append(_Occurrence(
                 skill_id=mention.canonical_id, necessity=necessity, order=state.order, surface=mention.surface,
                 group=None if group is None else group[0], equivalent=bool(group and group[1]),
@@ -1137,19 +1219,27 @@ def _assemble(state: _State, graph: SkillGraph, config: EngineConfig, as_of: dt.
     return [JobRequirement(**row) for row in rows]
 
 
-def _license_gates(state: _State, skill_groups: set[int]) -> tuple[tuple[str, ...], tuple[str, ...], list[LicenseGate]]:
-    """Credentials -> (required ids, preferred ids, licence gates). Alternatives share a gate and
-    one held member shows the whole group is to be held ("P.Eng. or EIT designation"). A credential
-    with a non-credential alternative ("CPA or 5 years of accounting experience") or an "or
-    equivalent" is required but gates nothing: the posting accepts another way in."""
+def _license_gates(state: _State, skill_groups: set[int], in_progress: dict[str, tuple[str, ...]]
+                   ) -> tuple[tuple[str, ...], tuple[str, ...], list[LicenseGate]]:
+    """Credentials -> (required ids, preferred ids, licence gates) (DECISIONS D-103).
+
+    A gate needs plainly held wording. Alternatives share a gate and one held member holds the group
+    ("P.Eng. or EIT designation"). "<licence> or <its in-progress form>" makes a gate that also accepts
+    the licence's formal in-progress designation (`in_progress`), or no gate when it has none. A
+    credential being worked towards is preferred, never gated. A credential with an "or equivalent"
+    is required but gates nothing (the posting accepts another way in)."""
     required: list[str] = []
     preferred: list[str] = []
     gate_groups: dict[object, list[str]] = {}
     surfaces: dict[str, str] = {}
-    held_groups = {c.group for c in state.credentials if c.group is not None and c.holding}
+    held = ("held", "held_or_in_progress")
+    held_groups = {c.group for c in state.credentials if c.group is not None and c.reading in held}
+    open_groups: set[object] = set()
     for cred in sorted(state.credentials, key=lambda c: c.order):
-        holding = cred.holding or (cred.group is not None and cred.group in held_groups)
-        if cred.necessity is Necessity.REQUIRED and holding:
+        reading = cred.reading
+        if reading == "mentioned" and cred.group is not None and cred.group in held_groups:
+            reading = "held"
+        if cred.necessity is Necessity.REQUIRED and reading in held:
             if cred.cred_id not in required:
                 required.append(cred.cred_id)
             if cred.equivalent or (cred.group is not None and cred.group in skill_groups):
@@ -1159,12 +1249,28 @@ def _license_gates(state: _State, skill_groups: set[int]) -> tuple[tuple[str, ..
             if cred.cred_id not in members:
                 members.append(cred.cred_id)
                 surfaces.setdefault(cred.cred_id, cred.surface)
-        elif cred.necessity is Necessity.PREFERRED and cred.cred_id not in preferred:
-            preferred.append(cred.cred_id)
+            if reading == "held_or_in_progress":
+                open_groups.add(key)
+        elif cred.necessity is not Necessity.IMPLIED and cred.cred_id not in preferred:
+            if cred.necessity is Necessity.PREFERRED or reading == "working_towards":
+                preferred.append(cred.cred_id)
     gates: list[LicenseGate] = []
     seen: set[tuple[str, ...]] = set()
-    for members in gate_groups.values():
-        ids = tuple(sorted(members))
+    in_progress_ids = {i for ids in in_progress.values() for i in ids}
+    for key, members in gate_groups.items():
+        accepted = list(members)
+        if key in open_groups:
+            missing = False
+            for member in members:
+                if member in in_progress_ids:
+                    continue
+                extra = in_progress.get(member, ())
+                if not extra:
+                    missing = True
+                accepted.extend(e for e in extra if e not in accepted)
+            if missing:
+                continue
+        ids = tuple(sorted(accepted))
         if ids not in seen:
             seen.add(ids)
             text = " or ".join(surfaces.get(i) or i for i in members)
@@ -1196,7 +1302,7 @@ def parse_posting(title: str, description: str, *, meta: PostingMeta, as_of: dt.
     cleaned = clean_description(description, table)
     flags: set[Flag] = set()
     if cleaned.truncated:
-        flags.add(Flag.TRUNCATED)
+        flags.add(Flag.POSTING_TRUNCATED)
     lines = _sectioned(cleaned.text, table)
     posting_countries = _posting_countries(meta)
 
@@ -1224,7 +1330,12 @@ def parse_posting(title: str, description: str, *, meta: PostingMeta, as_of: dt.
                 clearances.append(gate)
 
     skill_groups = {occ.group for occ in state.occurrences if occ.group is not None}
-    certifications_required, certifications_preferred, license_gates = _license_gates(state, skill_groups)
+    licence_rules = config.gates.license
+    in_progress = {
+        licence: tuple(i for i in licence_rules.in_progress_credential_ids if graph.related_weight(licence, i) is not None)
+        for licence in licence_rules.professional_credential_ids
+    }
+    certifications_required, certifications_preferred, license_gates = _license_gates(state, skill_groups, in_progress)
     requirements = _assemble(state, graph, config, as_of, flags)
 
     gates: list = []

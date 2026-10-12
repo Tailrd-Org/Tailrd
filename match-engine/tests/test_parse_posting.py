@@ -609,3 +609,90 @@ def test_any_text_parses(description: str, title: str) -> None:
 def test_posting_fragments_parse(lines: list[str]) -> None:
     posting = parse("\n".join(lines), title="Junior Developer")
     assert posting.seniority is not None and Track(posting.seniority.track) is Track.IC
+
+
+# ─── fix round 1: licences being worked towards, gate phrases, credential alternatives ────
+
+RN, NURSING_STUDENT = "cred.registered_nurse", "cred.nursing_student"
+PENG, EIT = "cred.professional_engineer", "cred.eit"
+
+
+@pytest.mark.parametrize("line, cred", [
+    ("Eligible for P.Eng. registration", PENG),
+    ("Working towards P.Eng. licensure", PENG),
+    ("Willingness to obtain your P.Eng. designation", PENG),
+    ("Must obtain RN licensure within 6 months of hire", RN),
+    ("Pursuing CPA designation", "cred.cpa"),
+])
+def test_a_licence_being_worked_towards_never_gates(line: str, cred: str) -> None:
+    posting = parse(f"Requirements\n- {line}\n- Patient care and AutoCAD", title="New Grad")
+    assert not _gates(posting, LicenseGate)
+    assert cred not in posting.certifications_required
+    assert cred in posting.certifications_preferred
+
+
+@pytest.mark.parametrize("line, ids", [
+    ("Registered Nurse or eligible for registration with the CNO", (NURSING_STUDENT, RN)),
+    ("RN or Graduate Nurse (GN) status", (NURSING_STUDENT, RN)),
+    ("P.Eng. or EIT designation", (EIT, PENG)),
+])
+def test_a_licence_or_its_in_progress_form_gates_on_either(line: str, ids: tuple) -> None:
+    posting = parse(f"Qualifications\n- {line}\n- Patient care", title="Registered Nurse New Grad")
+    assert [g.credential_ids for g in _gates(posting, LicenseGate)] == [ids]
+
+
+def test_an_alternative_with_no_in_progress_node_gates_nothing() -> None:
+    posting = parse("Requirements\n- Valid driver's licence or eligible for licensure\n- Customer service")
+    assert not _gates(posting, LicenseGate)
+
+
+@pytest.mark.parametrize("line, cred", [
+    ("Must hold a valid P.Eng.", PENG),
+    ("Licensed RN", RN),
+    ("RN license in good standing with CNO", RN),
+    ("RN with 2 years of acute care experience", RN),
+])
+def test_plainly_held_licences_gate(line: str, cred: str) -> None:
+    posting = parse(f"Qualifications\n- {line}\n- Patient care", title="Registered Nurse")
+    assert [g.credential_ids for g in _gates(posting, LicenseGate)] == [(cred,)]
+
+
+@pytest.mark.parametrize("line, where, level", [
+    ("Active TS/SCI with polygraph", SEATTLE, "US_TS_SCI"),
+    ("TS clearance required", SEATTLE, "US_TOP_SECRET"),
+    ("Must be able to obtain Reliability status", TORONTO, "CA_RELIABILITY"),
+    ("Valid Government of Canada Reliability clearance", TORONTO, "CA_RELIABILITY"),
+    ("Enhanced Reliability security screening", TORONTO, "CA_ENHANCED_RELIABILITY"),
+])
+def test_clearance_phrases_add_no_skills(line, where, level) -> None:
+    posting = parse(f"Requirements\n- Python\n- {line}", locations=(where,))
+    assert set(reqs(posting)) == {"skill.python"}
+    assert [g.level for g in _gates(posting, ClearanceGate)] == [level]
+    assert posting.unresolved_requirement_tokens == ()
+
+
+def test_reliability_as_an_engineering_quality_is_no_clearance() -> None:
+    plain = parse("Requirements\n- Python\n- Focus on Reliability and scalability of systems")
+    assert not _gates(plain, ClearanceGate)
+    assert "skill.python" in reqs(plain)
+
+
+def test_a_credential_or_a_skill_is_an_or_group_and_no_gate() -> None:
+    posting = parse("Requirements\n- AWS Certified Solutions Architect or hands-on AWS experience\n- Python")
+    assert not _gates(posting, LicenseGate) and posting.certifications_required == ()
+    rows = reqs(posting)
+    assert rows["cred.aws_saa"].or_group is not None
+    assert rows["cred.aws_saa"].or_group == rows["skill.aws"].or_group
+    assert rows["skill.aws"].necessity is Necessity.REQUIRED
+
+
+def test_a_credential_or_equivalent_experience_is_no_gate() -> None:
+    posting = parse("Requirements\n- AWS Certified Solutions Architect certification or equivalent experience\n- Python")
+    assert not _gates(posting, LicenseGate) and posting.certifications_required == ()
+    cert = reqs(posting)["cred.aws_saa"]
+    assert cert.or_group is not None and cert.or_equivalent
+
+
+def test_a_valid_clearance_named_at_length_is_active() -> None:
+    gates = _gates(parse("Requirements\n- Python\n- Valid Government of Canada Reliability clearance"), ClearanceGate)
+    assert gates == [ClearanceGate(level="CA_RELIABILITY", active_required=True)]
