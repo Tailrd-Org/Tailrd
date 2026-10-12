@@ -15,8 +15,10 @@ threshold are `scoring.confidence` in config. The components, in this order (`CO
   clamped to [0, 1]; undefined when the posting counted no requirement tokens.
 * evidence_density: the share of matched requirement groups (any credit: `via` is set) whose
   matching résumé skill (`via`: the exact skill, or the child, sibling or parent that earned the
-  credit) has its best mention beyond the skills list (evidence other than SKILLS_BLOB); undefined
-  when nothing matched. A negated-only skill is worth 0 and matches nothing.
+  credit) is shown beyond the skills list: ANY affirmed mention of it has evidence other than
+  SKILLS_BLOB (`PreparedResume.affirmed_evidence`), whichever mention has the best E x R. Undefined
+  when nothing matched. A negated-only skill is worth 0 and matches nothing; an aspirational
+  mention shows nothing (SPEC §15.2: interest is not experience).
 * temporal_completeness: dated roles (a start, and an end or current) over roles; undefined
   without roles.
 * requirement_count: `requirement_count_factor` of the number of distinct requirement ids.
@@ -119,10 +121,10 @@ def _evidence_density(prepared: PreparedResume, matches: Sequence[RequirementMat
         return None
     shown = 0
     for via in matched:
-        best = prepared.best.get(via)
-        if best is None:
+        if via not in prepared.best:
             raise EngineFault(Flag.INTERNAL_ERROR, f"a match credits {via!r}, which the résumé does not hold")
-        if Evidence(best.evidence) is not Evidence.SKILLS_BLOB:
+        tier = prepared.affirmed_evidence.get(via)
+        if tier is not None and Evidence(tier) is not Evidence.SKILLS_BLOB:
             shown += 1
     return clamp01(shown / len(matched))
 
@@ -131,7 +133,7 @@ def confidence_components(
     resume: Resume,
     posting: JobPosting,
     prepared: PreparedResume,
-    aggregated: Aggregate,
+    dimensions: Aggregate,
     matches: Sequence[RequirementMatch],
     config: EngineConfig,
 ) -> dict[str, Optional[float]]:
@@ -151,7 +153,7 @@ def confidence_components(
         "evidence_density": _evidence_density(prepared, matches),
         "temporal_completeness": temporal,
         "requirement_count": requirement_count_factor(distinct, config),
-        "dimension_coverage": clamp01(aggregated.scored_weight),
+        "dimension_coverage": clamp01(dimensions.scored_weight),
     }
 
 
@@ -187,14 +189,14 @@ def compute_confidence(
     resume: Resume,
     posting: JobPosting,
     prepared: PreparedResume,
-    aggregated: Aggregate,
+    dimensions: Aggregate,
     matches: Sequence[RequirementMatch],
     config: EngineConfig,
 ) -> Confidence:
-    """SPEC §17.1 confidence of one scored pair. `aggregated` is the pair's `Aggregate` (its
-    `scored_weight` is the dimension coverage); `matches` are its requirement groups
-    (`coverage.match_requirements` over all of the posting's requirements)."""
-    components = confidence_components(resume, posting, prepared, aggregated, matches, config)
+    """SPEC §17.1 confidence of one scored pair. `dimensions` is the pair's `Aggregate`, the seven
+    dimensions after redistribution (its `scored_weight` is the dimension coverage); `matches` are
+    its requirement groups (`coverage.match_requirements` over all of the posting's requirements)."""
+    components = confidence_components(resume, posting, prepared, dimensions, matches, config)
     return confidence_from_components(components, config)
 
 

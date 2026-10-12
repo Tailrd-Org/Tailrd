@@ -13,8 +13,9 @@ input ends in one of the four outcomes of SPEC §13, never an exception, a None 
    real score carries.
 2. A flag in `NEEDS_REVIEW_REASONS` on the résumé or the posting → NEEDS_REVIEW with those flags,
    the résumé's first.
-3. A posting with no requirements → NEEDS_REVIEW POSTING_UNSCORABLE when it is flagged so, else
-   NO_REQUIREMENTS_RESOLVED (§14.4). One abstaining dimension is not this: it redistributes (D-42).
+3. A posting with no requirements → NEEDS_REVIEW NO_REQUIREMENTS_RESOLVED (§14.4); one flagged
+   POSTING_UNSCORABLE has already left at step 2 with that flag. One abstaining dimension is not
+   this: it redistributes (D-42).
 4. `as_of` before every date on the résumé → NEEDS_REVIEW INVALID_AS_OF (§14.5). Role and project
    dates count at their earliest bound, skill dates as they are: a date whose earliest bound is not
    after `as_of` may lie in the past, so it never triggers this. A résumé with no date never does.
@@ -25,8 +26,9 @@ input ends in one of the four outcomes of SPEC §13, never an exception, a None 
 7. Calibrate (`calibration.calibrate(raw)`, the band from `bands.band_for`), then confidence and
    the outcome (§17.1, §17.2): SCORED shows the number and the band; SCORED_LOW_CONFIDENCE the band
    and the confidence reasons; NEEDS_REVIEW neither, with LOW_CONFIDENCE and the confidence
-   reasons. The raw and calibrated scores of a NEEDS_REVIEW stay on the record (internal, for the
-   person who reviews it, SPEC §0.4); `display_score` is set only when SCORED.
+   reasons. The raw and calibrated scores of a non-SCORED result stay on the record for audit and
+   for the person who reviews it (SPEC §0.4): adapters key on `outcome` and never rank, sort or show
+   a suppressed pair by `calibrated_score`; `display_score` is set only when SCORED.
 8. On request (`options.with_interval`) and for a SCORED result only, the §17.3 interval (D-45):
    the other outcomes suppress the percentage, and an interval is a range of percentages.
 
@@ -38,17 +40,25 @@ are not reasons, then the informational facts of the scoring (MIN_YEARS_DEFAULTE
 NO_WORK_EXPERIENCE, OVERQUALIFIED: the trace keeps flags but not facts). Explanation and
 improvements stay empty until Milestone 4.
 
+A NEEDS_REVIEW returned before the gates run (steps 1 to 4, and faults) reports `gate_status` PASS
+with no gate results: "not evaluated", since the model has no such status. Consumers key on
+`outcome`.
+
 Faults (SPEC §13, D-46): non-strict mode turns an exception raised after validation into
 NEEDS_REVIEW, NUMERIC_FAULT for `EngineFault(NUMERIC_FAULT)` and INTERNAL_ERROR for anything else;
 `options.strict` (tests) re-raises it. Invalid input is an outcome, not a fault: INVALID_INPUT in
 both modes. The calibrator's answer must be an int in [0, 100] (not a bool) and a
-`CalibrationInfo`; anything else is an INTERNAL_ERROR fault.
+`CalibrationInfo`; anything else is an INTERNAL_ERROR fault. No exception class is kept on the
+result: the engine is deterministic, so a caller replays the pair in strict mode to get it.
 
-`config`, `graph`, `calibration` and `options` are the caller's wiring, not input: a wrong type
-there raises TypeError in both modes, since there is no config to hash a result with.
-`calibration` is any object with `calibrate(raw) -> (int, CalibrationInfo)`, the
-`matcher.calibrate.Calibrator` protocol, used by its shape: `score/` imports nothing outside
-`matcher.{models, errors, config, graph}` (SPEC §1).
+Wiring: `calibration` is any object with `calibrate(raw) -> (int, CalibrationInfo)`, the
+`matcher.calibrate.Calibrator` protocol, used by its shape (`score/` imports nothing outside
+`matcher.{models, errors, config, graph}`, SPEC §1). A calibration without `calibrate` is an
+INTERNAL_ERROR fault (raised as TypeError in strict mode); `options` that are not `ScoreOptions`
+cannot say the mode, so the default, non-strict, applies and the result is NEEDS_REVIEW
+INTERNAL_ERROR. Both are reported before the input is read. The one exemption from totality: an
+unusable `config` or `graph` raises TypeError in both modes, since no result could carry an engine
+version or a config hash.
 
 Pure: no I/O, no clock (`as_of` is an argument), no randomness; identical inputs give
 byte-identical canonical JSON.
@@ -114,13 +124,14 @@ def score(
 ) -> MatchResult:
     """Score one résumé against one posting as of `as_of` (see the module docstring)."""
     _check_wiring(config, graph)
-    if not callable(getattr(calibration, "calibrate", None)):
-        raise TypeError(
-            f"calibration needs calibrate(raw) -> (int, CalibrationInfo), got {type(calibration).__name__}"
-        )
-    if not isinstance(options, ScoreOptions):
-        raise TypeError(f"options must be ScoreOptions, got {type(options).__name__}")
     day = _valid_as_of(as_of)
+    if not isinstance(options, ScoreOptions) or not _calibrates(calibration):
+        if isinstance(options, ScoreOptions) and options.strict:
+            raise TypeError(
+                f"calibration needs calibrate(raw) -> (int, CalibrationInfo): {type(calibration).__name__}"
+            )
+        broken = [Flag.INTERNAL_ERROR]  # wiring, not input: reported before the input is read
+        return review_result(broken, config=config, graph=graph, as_of=day or UNKNOWN_AS_OF)
     if day is None:
         return review_result([Flag.INVALID_INPUT], config=config, graph=graph, as_of=UNKNOWN_AS_OF)
     checked = _checked_inputs(resume, posting, day)
@@ -175,6 +186,14 @@ def _check_wiring(config: Any, graph: Any) -> None:
         raise TypeError(f"config must be an EngineConfig, got {type(config).__name__}")
     if not isinstance(graph, SkillGraph):
         raise TypeError(f"graph must be a SkillGraph, got {type(graph).__name__}")
+
+
+def _calibrates(calibration: Any) -> bool:
+    """Does `calibration` have a callable `calibrate` (whatever reading it raises, it does not)?"""
+    try:
+        return callable(getattr(calibration, "calibrate", None))
+    except Exception:
+        return False
 
 
 def _valid_as_of(value: Any) -> Optional[date]:
@@ -243,9 +262,8 @@ def _score(
     flagged = [flag for flag in (*resume.flags, *posting.flags) if flag in NEEDS_REVIEW_REASONS]
     if flagged:
         return review(*flagged)
-    if not posting.requirements:
-        unscorable = Flag.POSTING_UNSCORABLE in posting.flags
-        return review(Flag.POSTING_UNSCORABLE if unscorable else Flag.NO_REQUIREMENTS_RESOLVED)
+    if not posting.requirements:  # one flagged POSTING_UNSCORABLE left above, with that flag
+        return review(Flag.NO_REQUIREMENTS_RESOLVED)
     if _precedes_every_date(as_of, resume):
         return review(Flag.INVALID_AS_OF)
 

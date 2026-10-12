@@ -50,7 +50,8 @@ validation. Dates are `datetime.date`. Canonical bytes of any model:
 `json.dumps(m.model_dump(mode="json"), sort_keys=True, separators=(",", ":"), ensure_ascii=False)`.
 
 **D-11 Dates carry their precision.** A parsed date is a `DateValue(value, earliest, latest,
-precision)`; `imprecise` is derived (`earliest != latest`). This is what §17.3 intervals vary.
+precision)`; `imprecise` is derived from the precision: a season, a quarter or a year (a month or
+a day is precise, even though a month's bounds span the month). This is what §17.3 intervals vary.
 `Role.start` is optional because §14.2 "no dates anywhere" must be representable.
 
 **D-12 Projects are evidence, not employment. [Tailrd]** Students' strongest evidence is often
@@ -423,17 +424,65 @@ score. A critical miss under a lower score stays visible as the requirement's ow
 **D-44 Confidence (§17.1).** Weighted geometric mean; a component that is undefined for this pair
 (e.g. evidence density when nothing matched, temporal completeness with no roles) is left out
 and the weights renormalised, so "zero overlap" stays a valid `Limited` score (§14.5).
-Components are floored at 1e-6 before the log.
+Components are floored at 1e-6 before the log, and reported as measured. Taxonomy coverage is
+`(requirement_token_count - len(unresolved)) / requirement_token_count`, clamped to [0, 1]. Evidence
+density is over the requirement groups of all of the posting's requirements (grouped together, as
+`coverage.match_requirements` does): of the groups with any credit, the share whose matching résumé
+skill (`via`) is shown beyond the skills list, i.e. has ANY affirmed mention whose evidence is not
+SKILLS_BLOB (`PreparedResume.affirmed_evidence`), whatever mention has the best E x R; negated and
+aspirational mentions show nothing. Requirement count is the curve at the number of distinct
+requirement ids, a curve point taking its own value exactly. Dimension coverage is
+`Aggregate.scored_weight` (D-42). Thresholds (0.80, 0.60, the weak line 0.70) are compared at 12
+decimals, so float noise never moves a pair across one. Reasons: the LOW_* flag of every component
+below 0.70, in component order; when the value is below 0.80 and no component is below 0.70, the
+weakest component (and any tied with it) is named, so a result that suppresses its percentage
+always says why (§17.2). A pair below 0.60 is NEEDS_REVIEW with LOW_CONFIDENCE first. On any
+outcome other than SCORED, `calibrated_score` (and `raw_score`) are audit-only: kept for the trace
+and the reviewer, never displayed, and adapters key on `outcome` and never rank or sort a
+suppressed pair by them.
 
 **D-45 Intervals (§17.3)** are two extra runs: pessimistic (imprecise dates at shortest
 durations / oldest last-use, unresolved requirement tokens counted as missed) and optimistic
 (the reverse, tokens counted as matched at `intervals.unresolved_token_idf`). Shown when the
-spread exceeds 6 points. Computed on request (detail views), not in bulk sweeps.
+spread exceeds 6 points. Computed on request (detail views), not in bulk sweeps, and for SCORED
+results only: the other outcomes suppress the percentage, and an interval is a range of them.
+Dates: only imprecise ones move (D-11), and only their `value`. Pessimistic: `end = min(max(end lo,
+start lo), end hi)`, `start = max(start lo, min(start hi, end))`, a precise date's lo and hi being
+its value: crossing bounds shrink a role to a point at its oldest end, and no value ever leaves its
+own bounds (a project, which may end before it starts, keeps each date in its own range).
+Optimistic: starts at their earliest, ends at their latest. Projects move like roles. Tokens: each
+distinct `unresolved:<normalize_surface(token)>` (cut to 200 characters) is a pseudo-requirement of
+the posting's strongest stated necessity: REQUIRED when it lists one; else PREFERRED, because D-42
+then moves §5.1's weight to §5.2 and the tokens go where the weight lives (making §5.1 score would
+undo that transfer); else IMPLIED. They join that coverage dimension through `score_coverage`'s
+extra groups (the base run's path, critical-miss rule included for REQUIRED) and no other
+dimension. low/high are the min/max over the base score and both readings.
 
 **D-46 Totality and numeric safety.** The public entry point accepts anything; invalid input →
 `NEEDS_REVIEW: INVALID_INPUT`. A NaN/inf reaching the aggregator raises in `strict` mode (tests)
 and becomes `NEEDS_REVIEW: NUMERIC_FAULT` otherwise. No other exception escapes in non-strict
-mode.
+mode. Details of `score/engine.py`:
+- Input: the résumé and the posting may be models (validated again), dicts or JSON; `as_of` must
+  be a `date`, not a `datetime`. Anything that cannot be read is INVALID_INPUT in both modes, with
+  no input digest; an `as_of` that is not a date is recorded as `date.min`.
+- A NEEDS_REVIEW reason flag on the résumé or on the posting routes the pair to NEEDS_REVIEW with
+  those flags, the résumé's first. INVALID_AS_OF compares `as_of` with every role and project date
+  at its earliest bound and every skill date; a résumé with no date never triggers it.
+- A NEEDS_REVIEW returned before the gates run reports `gate_status` PASS with no gate results,
+  meaning "not evaluated"; consumers key on `outcome`.
+- Faults: `EngineFault(NUMERIC_FAULT)` becomes NUMERIC_FAULT, anything else INTERNAL_ERROR. No
+  exception class is kept on the result: the engine is deterministic, so a caller replays the pair
+  in strict mode to get it (Task 9.1's adapter does this and logs the class).
+- Wiring: a calibrator without `calibrate`, or `options` that are not `ScoreOptions`, is NEEDS_REVIEW
+  INTERNAL_ERROR (strict mode raises TypeError for the calibrator; bad options cannot say the mode,
+  so the default, non-strict, applies). The one exemption from totality: an unusable `config` or
+  `graph` raises TypeError in both modes, since no result could carry an engine version or a
+  config hash. The calibrator's answer must be an int in [0, 100] and a `CalibrationInfo`.
+- `flags` are informational, each once: the inputs' own non-reason flags, then the scoring's
+  informational facts (MIN_YEARS_DEFAULTED, NO_WORK_EXPERIENCE, OVERQUALIFIED). `review_result`
+  takes the same informational `flags` keyword.
+- The seven scorers are one registry (`score.dimensions.SCORERS`), used by the base run and by the
+  interval readings alike.
 
 ## Calibration and display
 

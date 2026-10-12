@@ -715,3 +715,38 @@ def test_values_are_clamped_and_facts_are_plain_scalars(small_graph, config) -> 
     assert 0.0 <= dim.value <= 1.0 and 0.0 <= dim.contribution <= 1.0
     for fact in dim.facts:
         assert all(type(v) in (str, float, type(None)) for v in fact.detail.values())
+
+
+# ─── Extra groups (the §17.3 interval readings, DECISIONS D-45) ─────────────────────────
+
+
+def _extra(skill_id: str, m: float, idf: float, necessity: Necessity) -> RequirementMatch:
+    return RequirementMatch(group=skill_id, members=(skill_id,), best_member=skill_id, m=m,
+                            relation=RelationKind.EXACT if m > 0 else RelationKind.NONE, via=None, idf=idf,
+                            weight_multiplier=1.0, necessity=necessity, critical=False)
+
+
+def test_extra_groups_join_the_dimensions_own(config) -> None:
+    # One coverage path for the base run and the interval readings: extra groups are averaged in with
+    # the posting's own, IDF-weighted. python 0.6 at m 1.0, sql 0.4 missing, an extra at 0.5 and m 0.
+    graph = tiny_graph({"skill.python": 0.6, "skill.sql": 0.4})
+    cv = _prepare(resume(roles=(current_role(bullet("skill.python")),)), graph, config)
+    post = posting(req("skill.python"), req("skill.sql"))
+    extra = (_extra("unresolved:pulumi", 0.0, 0.5, Necessity.REQUIRED),)
+    dimension = score_required_skills(cv, post, graph, config, extra=extra)
+    assert _close(dimension.value, 0.6 / (0.6 + 0.4 + 0.5))
+    assert [fact.subject for fact in dimension.facts] == ["skill.python", "skill.sql", "unresolved:pulumi"]
+    # With none of its own requirements the dimension scores from the extra groups alone.
+    alone = (_extra("x", 1.0, 0.5, Necessity.PREFERRED),)
+    only = score_preferred_skills(cv, post, graph, config, extra=alone)
+    assert _close(only.value, 1.0) and not only.abstained
+    assert score_tools(cv, post, graph, config).abstain_reason is Flag.NO_IMPLIED_REQUIREMENTS
+
+
+def test_an_extra_group_of_another_necessity_is_an_engine_fault(config) -> None:
+    graph = tiny_graph({"skill.python": 0.6})
+    cv = _prepare(resume(blob=listed("skill.python")), graph, config)
+    with pytest.raises(EngineFault) as err:
+        score_required_skills(cv, posting(req("skill.python")), graph, config,
+                              extra=(_extra("x", 0.0, 0.5, Necessity.PREFERRED),))
+    assert err.value.flag is Flag.INTERNAL_ERROR

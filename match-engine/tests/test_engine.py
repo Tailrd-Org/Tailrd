@@ -47,6 +47,7 @@ from matcher.models import (
     Necessity,
     Outcome,
     ParseTier,
+    Project,
     Resume,
     Role,
     ScoreInterval,
@@ -59,7 +60,7 @@ from matcher.models import (
 )
 from matcher.score import engine
 from matcher.score.engine import UNKNOWN_AS_OF, input_digest, review_result, score
-from tests.builders import AS_OF, abstained_dimension, bullet, listed, on
+from tests.builders import AS_OF, abstained_dimension, bullet, close, listed, on, year
 
 FIXED = FixedCalibrator()
 IC1 = SeniorityLevel(track=Track.IC, level=1)
@@ -71,10 +72,6 @@ ALL_IDS = REQUIRED_IDS + PREFERRED_IDS + IMPLIED_IDS
 W_REQUIRED, W_TOOLS = 0.35, 0.10  # SPEC §5.1, §5.7
 U_IDF = 0.50  # intervals.unresolved_token_idf
 PANEL = Path(__file__).resolve().parent / "fixtures" / "panel_small.json"
-
-
-def _close(a: float, b: float, tol: float = 1e-12) -> bool:
-    return math.isclose(a, b, rel_tol=0.0, abs_tol=tol)
 
 
 def _requirements(ids, necessity: Necessity) -> tuple[JobRequirement, ...]:
@@ -126,9 +123,9 @@ def test_a_full_match_is_scored_at_100(small_graph, config) -> None:
     result = run(resume, posting, small_graph, config)
     assert result.outcome is Outcome.SCORED
     assert result.gate_status is GateStatus.PASS and result.gates == ()
-    assert result.raw_score == 1.0
+    assert close(result.raw_score, 1.0)
     assert (result.calibrated_score, result.display_score, result.band) == (100, 100, Band.STRONG)
-    assert result.confidence.value == 1.0 and result.confidence.reasons == ()
+    assert close(result.confidence.value, 1.0) and result.confidence.reasons == ()
     assert list(result.dimensions) == [name.value for name in DimensionName]
     assert all(not dimension.abstained for dimension in result.dimensions.values())
     assert result.caps == () and result.reasons == () and result.flags == ()
@@ -150,10 +147,10 @@ def test_a_missing_implied_skill_closed_form(small_graph, config) -> None:
     without_git = strong_resume([s for s in ALL_IDS if s != "skill.git"])
     result = run(without_git, strong_posting(), small_graph, config)
     assert result.outcome is Outcome.SCORED
-    assert _close(result.raw_score, raw)
+    assert close(result.raw_score, raw)
     assert result.calibrated_score == result.display_score == round(100 * raw) == 97
-    assert _close(result.dimensions[DimensionName.TOOLS.value].value, tools)
-    assert result.confidence.components["evidence_density"] == 1.0  # 9 of 9 matched groups shown
+    assert close(result.dimensions[DimensionName.TOOLS.value].value, tools)
+    assert close(result.confidence.components["evidence_density"], 1.0)  # 9 of 9 matched groups shown
 
 
 def test_a_gate_warning_does_not_stop_scoring(small_graph, config) -> None:
@@ -172,7 +169,7 @@ def test_informational_flags_are_carried(small_graph, config) -> None:
     resume = strong_resume(roles=(role,), flags=flags)
     posting = strong_posting(flags=(Flag.REQUIREMENTS_TRUNCATED,))
     result = run(resume, posting, small_graph, config)
-    assert result.outcome is Outcome.SCORED and result.raw_score == 1.0  # noted, never deducted (D-39)
+    assert result.outcome is Outcome.SCORED and close(result.raw_score, 1.0)  # noted, never deducted (D-39)
     assert result.flags == (Flag.IMPRECISE_DATE, Flag.TWO_DIGIT_YEAR, Flag.REQUIREMENTS_TRUNCATED,
                             Flag.OVERQUALIFIED)
 
@@ -192,11 +189,11 @@ def test_low_confidence_shows_the_band_but_not_the_number(small_graph, config) -
     # rest 1.0: (0.55 × 0.40 × 0.80)^(1/6) = 0.7486.
     resume = strong_resume(("skill.python",), parse_tier=ParseTier.C)
     result = run(resume, _one_requirement_posting(), small_graph, config)
-    assert _close(result.confidence.value, (0.55 * 0.40 * 0.80) ** (1 / 6))
+    assert close(result.confidence.value, (0.55 * 0.40 * 0.80) ** (1 / 6))
     assert result.outcome is Outcome.SCORED_LOW_CONFIDENCE
     assert result.display_score is None
     # Every scoring dimension at 1.0, renormalised over 0.80: 1.0 up to float rounding.
-    assert result.band is Band.STRONG and result.calibrated_score == 100 and _close(result.raw_score, 1.0)
+    assert result.band is Band.STRONG and result.calibrated_score == 100 and close(result.raw_score, 1.0)
     assert result.reasons == (Flag.LOW_PARSE_QUALITY, Flag.FEW_REQUIREMENTS)
     assert result.reasons == result.confidence.reasons
 
@@ -208,15 +205,31 @@ def test_very_low_confidence_is_routed_to_review_with_every_reason(small_graph, 
     posting = _one_requirement_posting(seniority=None, industry_codes=())
     result = run(resume, posting, small_graph, config)
     logs = math.log(0.55) + math.log(1.0) + math.log(1e-6) + math.log(0.40) + math.log(0.60)
-    assert _close(result.confidence.value, math.exp(logs / 5))
+    assert close(result.confidence.value, math.exp(logs / 5))
     assert result.outcome is Outcome.NEEDS_REVIEW
     assert result.reasons == (Flag.LOW_CONFIDENCE, Flag.LOW_PARSE_QUALITY, Flag.LOW_EVIDENCE_DENSITY,
                               Flag.FEW_REQUIREMENTS, Flag.LOW_DIMENSION_COVERAGE)
     assert result.display_score is None and result.band is None
     # The scores stay on the record for the person who reviews it; nothing is displayed.
     raw = (0.35 * 0.65 + 0.15 * 0.0 + 0.10 * 1.0) / (0.35 + 0.15 + 0.10)
-    assert _close(result.raw_score, raw) and result.calibrated_score == round(100 * raw)
+    assert close(result.raw_score, raw) and result.calibrated_score == round(100 * raw)
     assert result.flags == (Flag.NO_WORK_EXPERIENCE,)
+
+
+def test_listing_shown_skills_never_lowers_confidence(small_graph, config) -> None:
+    # The review's probe: the same two roles with and without a skills section that lists every skill
+    # the bullets already show. Evidence density stays 1.0, so the pair stays SCORED with no false
+    # "only listed" reason; parse tier B gives 0.8^(1/6) either way.
+    current = Role(seniority=IC1, industry_codes=("541511",), start=on(date(2024, 1, 15)), is_current=True,
+                   skills=tuple(bullet(skill_id) for skill_id in ALL_IDS[:3]))
+    older = Role(seniority=IC1, industry_codes=("541511",), start=on(date(2019, 1, 1)),
+                 end=on(date(2022, 6, 30)), skills=tuple(bullet(skill_id) for skill_id in ALL_IDS[3:]))
+    for blob in ((), listed(*ALL_IDS)):
+        resume = Resume(roles=(current, older), skills_blob=blob, parse_tier=ParseTier.B)
+        result = run(resume, strong_posting(), small_graph, config)
+        assert result.outcome is Outcome.SCORED and result.display_score is not None
+        assert close(result.confidence.components["evidence_density"], 1.0)
+        assert close(result.confidence.value, 0.8 ** (1 / 6)) and result.confidence.reasons == ()
 
 
 # ─── NEEDS_REVIEW before scoring ───────────────────────────────────────────────────────────
@@ -478,19 +491,39 @@ def test_a_calibrator_that_answers_nonsense_is_an_internal_error(small_graph, co
     assert err.value.flag is Flag.INTERNAL_ERROR
 
 
-@pytest.mark.parametrize("wiring", [
-    {"config": None},
-    {"graph": "graph"},
-    {"calibration": object()},
-    {"options": {"strict": True}},
-])
-def test_wrong_wiring_is_a_type_error(small_graph, config, wiring) -> None:
-    # config, graph, calibrator and options are the caller's wiring, not input: there is no config
-    # to hash a result with, so this raises in both modes.
-    arguments = dict(as_of=AS_OF, config=config, graph=small_graph, calibration=FIXED, options=ScoreOptions())
+@pytest.mark.parametrize("wiring", [{"config": None}, {"graph": "graph"}])
+@pytest.mark.parametrize("strict", [True, False])
+def test_an_unusable_config_or_graph_is_a_type_error(small_graph, config, wiring, strict) -> None:
+    # The one exemption from totality (D-46): without a config and a graph there is no engine version
+    # or config hash to put on a result, so this raises in both modes.
+    arguments = dict(as_of=AS_OF, config=config, graph=small_graph, calibration=FIXED,
+                     options=ScoreOptions(strict=strict))
     arguments.update(wiring)
     with pytest.raises(TypeError):
         score(strong_resume(), strong_posting(), **arguments)
+
+
+@pytest.mark.parametrize("calibration", [object(), None, (50, INFO)])
+def test_a_calibrator_without_calibrate_is_an_internal_error(small_graph, config, calibration) -> None:
+    # With a usable config and graph, broken wiring is an engine fault like any other (D-46):
+    # NEEDS_REVIEW INTERNAL_ERROR in production, raised in strict mode.
+    result = run(strong_resume(), strong_posting(), small_graph, config, strict=False,
+                 calibration=calibration)
+    assert result.outcome is Outcome.NEEDS_REVIEW and result.reasons == (Flag.INTERNAL_ERROR,)
+    assert result.as_of == AS_OF and result.raw_score is None
+    with pytest.raises(TypeError):
+        run(strong_resume(), strong_posting(), small_graph, config, strict=True, calibration=calibration)
+
+
+@pytest.mark.parametrize("options", [{"strict": True}, None, "strict"])
+def test_options_that_are_not_score_options_are_an_internal_error(small_graph, config, options) -> None:
+    # Options that are not ScoreOptions cannot say the mode, so the default (non-strict) applies.
+    result = score(strong_resume(), strong_posting(), as_of=AS_OF, config=config, graph=small_graph,
+                   calibration=FIXED, options=options)
+    assert result.outcome is Outcome.NEEDS_REVIEW and result.reasons == (Flag.INTERNAL_ERROR,)
+    bad_date = score(strong_resume(), strong_posting(), as_of="today", config=config, graph=small_graph,
+                     calibration=FIXED, options=options)
+    assert bad_date.reasons == (Flag.INTERNAL_ERROR,) and bad_date.as_of == UNKNOWN_AS_OF
 
 
 # ─── Calibration ───────────────────────────────────────────────────────────────────────────
@@ -529,10 +562,6 @@ def test_an_interval_wider_than_6_points_is_displayed(small_graph, config) -> No
 
 
 def test_imprecise_dates_widen_the_interval(small_graph, config) -> None:
-    def year(y: int) -> DateValue:
-        return DateValue(value=date(y, 7, 2), earliest=date(y, 1, 1), latest=date(y, 12, 31),
-                         precision=DatePrecision.YEAR)
-
     role = Role(seniority=IC1, industry_codes=("541511",), start=year(2022), end=year(2024),
                 skills=tuple(bullet(skill_id) for skill_id in ALL_IDS))
     result = run(Resume(roles=(role,)), strong_posting(min_years_total=3.0), small_graph, config,
@@ -549,10 +578,6 @@ def test_the_base_score_is_part_of_the_interval(small_graph, config) -> None:
     # A could end 2024-12-31, after B, so the candidate reads as IC1 (seniority 1 − 0.28 × 2).
     # Pessimistic: B starts 2022-12-31, 610 days, under 24 months. All skills were last used
     # 2024-09-01, 767 days before as_of, in every reading.
-    def year(y: int) -> DateValue:
-        return DateValue(value=date(y, 7, 2), earliest=date(y, 1, 1), latest=date(y, 12, 31),
-                         precision=DatePrecision.YEAR)
-
     senior = Role(seniority=IC3, industry_codes=("541511",), start=year(2022), end=on(date(2024, 9, 1)),
                   skills=tuple(bullet(skill_id) for skill_id in ALL_IDS))
     junior = Role(seniority=IC1, industry_codes=("541511",), start=on(date(2024, 1, 1)), end=year(2024))
@@ -563,10 +588,38 @@ def test_the_base_score_is_part_of_the_interval(small_graph, config) -> None:
     optimistic = base - 0.10 * (0.28 * 2)
     months = 610 / 30.4375
     pessimistic = 0.55 * r + 0.15 * (0.6 + 0.4 * (months / 24 - 0.5) / 0.5) + 0.30
-    assert result.outcome is Outcome.SCORED and _close(result.raw_score, base)
+    assert result.outcome is Outcome.SCORED and close(result.raw_score, base)
     assert round(100 * optimistic) < round(100 * pessimistic) < round(100 * base)  # 80 < 83 < 85
     expected = ScoreInterval(low=round(100 * optimistic), high=round(100 * base), display=False)
     assert result.interval == expected  # without the base, high would be the pessimistic 83
+
+
+@pytest.mark.parametrize("strict", [True, False])
+def test_a_reversed_project_gets_an_interval_in_both_modes(small_graph, config, strict) -> None:
+    # The review's probe: a project that ends before it starts is a valid model (Project, unlike
+    # Role, does not refuse it). Its readings keep each date inside its own bounds.
+    project = Project(start=on(date(2022, 5, 1)), end=on(date(2020, 3, 1)), skills=(bullet("skill.python"),))
+    result = run(strong_resume(projects=(project,)), strong_posting(), small_graph, config, strict=strict,
+                 with_interval=True)
+    assert result.outcome is Outcome.SCORED
+    assert result.interval == ScoreInterval(low=100, high=100, display=False)
+
+
+def test_an_all_preferred_posting_keeps_a_narrow_interval(small_graph, config) -> None:
+    # The review's probe: every skill PREFERRED and one unresolved token. D-42 gives §5.2 the weight
+    # of §5.1 (0.45 in all); the token joins §5.2, so missed, §5.2 = P / (P + 0.5) and raw =
+    # 0.45 × P / (P + 0.5) + 0.55. Before the fix the token made §5.1 score: [65, 100].
+    preferred = REQUIRED_IDS + PREFERRED_IDS
+    posting = strong_posting(
+        requirements=(_requirements(preferred, Necessity.PREFERRED)
+                      + _requirements(IMPLIED_IDS, Necessity.IMPLIED)),
+        unresolved_requirement_tokens=("Pulumi",), requirement_token_count=11,
+    )
+    result = run(strong_resume(), posting, small_graph, config, with_interval=True)
+    p = math.fsum(small_graph.idf[skill_id] for skill_id in preferred)
+    low = round(100 * (0.45 * p / (p + U_IDF) + 0.55))
+    assert result.outcome is Outcome.SCORED and result.display_score == 100
+    assert result.interval == ScoreInterval(low=low, high=100, display=False) and low == 95
 
 
 def test_a_pair_with_nothing_ambiguous_has_a_point_interval(small_graph, config) -> None:

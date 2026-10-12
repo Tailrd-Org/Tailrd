@@ -19,6 +19,7 @@ from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.model import SkillGraph, SkillNode
 from matcher.models import (
+    DatePrecision,
     DateValue,
     DimensionName,
     DimensionScore,
@@ -75,6 +76,18 @@ SPEC_WEIGHTS: Mapping[DimensionName, float] = MappingProxyType({  # SPEC §5, ev
 AS_OF = date(2026, 10, 8)
 FOUR_YEARS_AGO = date(2022, 10, 8)  # 1,461 days (one leap day) = exactly 4.0 years of 365.25 days
 TWO_YEARS_AGO = date(2024, 10, 8)  # 730 days
+
+
+def close(a: float, b: float, tol: float = 1e-12) -> bool:
+    """Equal within an absolute tolerance: tests compare floats this way, never with == (SPEC §13)."""
+    return math.isclose(a, b, rel_tol=0.0, abs_tol=tol)
+
+
+def year(y: int) -> DateValue:
+    """A bare year as parse/dates.py writes it: the midpoint, bounded by the year (SPEC §14.2). Year
+    precision is imprecise (DECISIONS D-11), so score intervals move it to its bounds (D-45)."""
+    return DateValue(value=date(y, 7, 2), earliest=date(y, 1, 1), latest=date(y, 12, 31),
+                     precision=DatePrecision.YEAR)
 
 
 def recency(days: int) -> float:

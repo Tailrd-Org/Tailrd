@@ -17,7 +17,6 @@ Expected values are closed-form arithmetic (EVAL §2.2).
 
 from __future__ import annotations
 
-import math
 from datetime import date
 
 import pytest
@@ -27,9 +26,10 @@ from matcher.errors import Flag
 from matcher.models import (
     DatePrecision,
     DateValue,
-    DimensionName,
-    Education,
     DegreeLevel,
+    DimensionName,
+    DimensionScore,
+    Education,
     JobPosting,
     JobRequirement,
     Necessity,
@@ -39,32 +39,25 @@ from matcher.models import (
     ScoreInterval,
     canonical_json,
 )
-from matcher.score.dimensions import score_required_skills
+from matcher.score.dimensions import score_dimensions, score_required_skills
 from matcher.score.intervals import (
     UNRESOLVED_PREFIX,
     interval_of,
-    required_with_unresolved,
     resume_at_bounds,
     score_interval,
+    unresolved_necessity,
     unresolved_requirement_ids,
+    variant_dimensions,
     variant_raw,
 )
 from matcher.score.prepare import prepare_resume
-from tests.builders import AS_OF, bullet, current_role, listed, recency, tiny_graph, with_scoring
+from tests.builders import (
+    AS_OF, bullet, close, current_role, listed, on, recency, tiny_graph, with_scoring, year,
+)
 
 U_IDF = 0.50  # intervals.unresolved_token_idf
 GRAPH = tiny_graph({"skill.python": 0.6, "skill.sql": 0.4})
 CALIBRATOR = FixedCalibrator()
-
-
-def _close(a: float, b: float, tol: float = 1e-12) -> bool:
-    return math.isclose(a, b, rel_tol=0.0, abs_tol=tol)
-
-
-def year(y: int) -> DateValue:
-    """A bare year: the parser's midpoint, bounded by the year (SPEC §14.2)."""
-    return DateValue(value=date(y, 7, 2), earliest=date(y, 1, 1), latest=date(y, 12, 31),
-                     precision=DatePrecision.YEAR)
 
 
 def summer(y: int) -> DateValue:
@@ -85,6 +78,14 @@ def at(value: DateValue, day: date) -> DateValue:
 
 def _req(skill_id: str, necessity: Necessity = Necessity.REQUIRED) -> JobRequirement:
     return JobRequirement(skill_id=skill_id, necessity=necessity)
+
+
+def _variant(posting: JobPosting, config, name: DimensionName, *, matched: bool) -> DimensionScore:
+    """One dimension of a reading (D-45) for a python-ownership résumé against `posting`."""
+    prepared = prepare_resume(Resume(roles=(current_role(bullet("skill.python")),)), GRAPH, config, AS_OF)
+    (dimension,) = [d for d in variant_dimensions(prepared, posting, GRAPH, config, matched=matched)
+                    if d.name is name]
+    return dimension
 
 
 # ─── Résumé variants: imprecise dates at their bounds ──────────────────────────────────────
@@ -180,6 +181,20 @@ def test_project_dates_move_like_role_dates() -> None:
     assert optimistic[1].end.value == date(2022, 9, 30)
 
 
+def test_a_reversed_project_keeps_each_date_inside_its_own_bounds() -> None:
+    # Project, unlike Role, allows an end before its start. No reading may move a date out of its own
+    # bounds: precise dates stay put, a year moves within its year.
+    precise = Project(start=on(date(2022, 5, 1)), end=on(date(2020, 3, 1)))
+    vague = Project(start=year(2022), end=year(2020))
+    for optimistic in (False, True):
+        moved = resume_at_bounds(Resume(projects=(precise, vague)), optimistic=optimistic).projects
+        assert moved[0] == precise
+        for before, after in ((vague.start, moved[1].start), (vague.end, moved[1].end)):
+            assert before.earliest <= after.value <= before.latest
+    pessimistic = resume_at_bounds(Resume(projects=(vague,)), optimistic=False).projects[0]
+    assert (pessimistic.start.value, pessimistic.end.value) == (date(2022, 1, 1), date(2020, 12, 31))
+
+
 def test_everything_but_the_dates_is_kept() -> None:
     resume = Resume(
         roles=(Role(title_canonical="title.data_analyst", start=year(2019), end=year(2020),
@@ -202,8 +217,8 @@ def test_the_moved_end_dates_the_last_use(config) -> None:
     oldest = prepare_resume(resume_at_bounds(resume, optimistic=False), GRAPH, config, AS_OF)
     newest = prepare_resume(resume_at_bounds(resume, optimistic=True), GRAPH, config, AS_OF)
     # Both above the 0.55 floor: 645 and 281 days before as_of.
-    assert _close(oldest.best["skill.python"].recency_mult, recency((AS_OF - date(2025, 1, 1)).days))
-    assert _close(newest.best["skill.python"].recency_mult, recency((AS_OF - date(2025, 12, 31)).days))
+    assert close(oldest.best["skill.python"].recency_mult, recency((AS_OF - date(2025, 1, 1)).days))
+    assert close(newest.best["skill.python"].recency_mult, recency((AS_OF - date(2025, 12, 31)).days))
     assert oldest.best["skill.python"].recency_mult < newest.best["skill.python"].recency_mult
 
 
@@ -226,52 +241,69 @@ def test_a_long_token_still_makes_a_valid_id() -> None:
 
 def test_unresolved_tokens_widen_the_required_coverage_closed_form(config) -> None:
     # Required: python (idf 0.6, matched by an ownership bullet in a current role: m = 1.0) and sql
-    # (idf 0.4, missing). Two distinct unresolved tokens at idf 0.5 each.
+    # (idf 0.4, missing). Two distinct unresolved tokens at idf 0.5 each, REQUIRED like them.
     posting = JobPosting(
         requirements=(_req("skill.python"), _req("skill.sql")),
         unresolved_requirement_tokens=("Fly.io", "Kubernetes Operators"),
     )
+    assert unresolved_necessity(posting) is Necessity.REQUIRED
     prepared = prepare_resume(Resume(roles=(current_role(bullet("skill.python")),)), GRAPH, config, AS_OF)
     base = score_required_skills(prepared, posting, GRAPH, config)
-    missed = required_with_unresolved(prepared, posting, GRAPH, config, matched=False)
-    matched = required_with_unresolved(prepared, posting, GRAPH, config, matched=True)
-    assert _close(base.value, 0.6 / (0.6 + 0.4))
-    assert _close(missed.value, 0.6 / (0.6 + 0.4 + 2 * U_IDF))  # 0.3
-    assert _close(matched.value, (0.6 + 2 * U_IDF) / (0.6 + 0.4 + 2 * U_IDF))  # 0.8
+    missed = _variant(posting, config, DimensionName.REQUIRED_SKILLS, matched=False)
+    matched = _variant(posting, config, DimensionName.REQUIRED_SKILLS, matched=True)
+    assert close(base.value, 0.6 / (0.6 + 0.4))
+    assert close(missed.value, 0.6 / (0.6 + 0.4 + 2 * U_IDF))  # 0.3
+    assert close(matched.value, (0.6 + 2 * U_IDF) / (0.6 + 0.4 + 2 * U_IDF))  # 0.8
     pseudo = [fact for fact in missed.facts if fact.subject.startswith("unresolved:")]
     assert [fact.code for fact in pseudo] == ["REQ_MISS", "REQ_MISS"]
-    assert all(fact.detail["idf"] == U_IDF and fact.detail["necessity"] == "REQUIRED" for fact in pseudo)
+    assert all(close(fact.detail["idf"], U_IDF) and fact.detail["necessity"] == "REQUIRED" for fact in pseudo)
     assert not any(fact.code == "CRITICAL_MISS" for fact in missed.facts)  # idf 0.5: never critical
 
 
 def test_the_unresolved_idf_comes_from_config(config) -> None:
     tuned = with_scoring(config, "intervals", unresolved_token_idf=0.9)
     posting = JobPosting(requirements=(_req("skill.python"),), unresolved_requirement_tokens=("Fly.io",))
-    prepared = prepare_resume(Resume(roles=(current_role(bullet("skill.python")),)), GRAPH, tuned, AS_OF)
-    missed = required_with_unresolved(prepared, posting, GRAPH, tuned, matched=False)
-    assert _close(missed.value, 0.6 / (0.6 + 0.9))
+    missed = _variant(posting, tuned, DimensionName.REQUIRED_SKILLS, matched=False)
+    assert close(missed.value, 0.6 / (0.6 + 0.9))
     # An unresolved token is as important as config says: at 0.9 a miss is a critical miss.
     assert [fact.subject for fact in missed.facts if fact.code == "CRITICAL_MISS"] == ["unresolved:fly.io"]
 
 
-def test_without_unresolved_tokens_the_required_dimension_is_the_base_one(config) -> None:
-    posting = JobPosting(requirements=(_req("skill.python"), _req("skill.sql")))
+def test_without_unresolved_tokens_every_dimension_is_the_base_one(config) -> None:
+    posting = JobPosting(requirements=(_req("skill.python"), _req("skill.sql", Necessity.PREFERRED)))
     prepared = prepare_resume(Resume(roles=(current_role(bullet("skill.python")),)), GRAPH, config, AS_OF)
-    base = score_required_skills(prepared, posting, GRAPH, config)
+    base = score_dimensions(prepared, posting, GRAPH, config)
     for matched in (False, True):
-        assert required_with_unresolved(prepared, posting, GRAPH, config, matched=matched) == base
+        assert variant_dimensions(prepared, posting, GRAPH, config, matched=matched) == base
 
 
-def test_a_posting_with_no_required_skill_gets_them_from_its_tokens(config) -> None:
+def test_a_posting_with_no_required_skill_puts_its_tokens_in_preferred(config) -> None:
+    # The review's finding: §5.1 abstains (NO_REQUIRED_REQUIREMENTS) and D-42 moves its weight to
+    # §5.2, so the tokens join §5.2, where the weight lives, as PREFERRED groups (never critical).
+    # §5.1 still abstains in both readings, so the transfer still applies.
     posting = JobPosting(requirements=(_req("skill.python", Necessity.PREFERRED),),
                          unresolved_requirement_tokens=("Fly.io", "Pulumi"))
-    prepared = prepare_resume(Resume(roles=(current_role(bullet("skill.python")),)), GRAPH, config, AS_OF)
-    base = score_required_skills(prepared, posting, GRAPH, config)
-    assert base.abstain_reason is Flag.NO_REQUIRED_REQUIREMENTS
-    missed = required_with_unresolved(prepared, posting, GRAPH, config, matched=False)
-    matched = required_with_unresolved(prepared, posting, GRAPH, config, matched=True)
-    assert missed.value == 0.0 and matched.value == 1.0
-    assert missed.name is DimensionName.REQUIRED_SKILLS and not missed.abstained
+    assert unresolved_necessity(posting) is Necessity.PREFERRED
+    for matched, expected in ((False, 0.6 / (0.6 + 2 * U_IDF)), (True, 1.0)):
+        required = _variant(posting, config, DimensionName.REQUIRED_SKILLS, matched=matched)
+        preferred = _variant(posting, config, DimensionName.PREFERRED_SKILLS, matched=matched)
+        assert required.abstain_reason is Flag.NO_REQUIRED_REQUIREMENTS
+        assert close(preferred.value, expected)
+        pseudo = [fact for fact in preferred.facts if fact.subject.startswith("unresolved:")]
+        assert len(pseudo) == 2 and all(fact.detail["necessity"] == "PREFERRED" for fact in pseudo)
+        assert not any(fact.code == "CRITICAL_MISS" for fact in preferred.facts)
+
+
+def test_a_posting_with_only_implied_skills_puts_its_tokens_in_tools(config) -> None:
+    # Neither §5.1 nor §5.2 scores for this posting, so neither holds §5.1's weight: the tokens take
+    # the posting's strongest stated necessity, IMPLIED, and join §5.7, which already scores.
+    posting = JobPosting(requirements=(_req("skill.python", Necessity.IMPLIED),),
+                         unresolved_requirement_tokens=("Fly.io",))
+    assert unresolved_necessity(posting) is Necessity.IMPLIED
+    for matched, expected in ((False, 0.6 / (0.6 + U_IDF)), (True, 1.0)):
+        assert close(_variant(posting, config, DimensionName.TOOLS, matched=matched).value, expected)
+        for name in (DimensionName.REQUIRED_SKILLS, DimensionName.PREFERRED_SKILLS):
+            assert _variant(posting, config, name, matched=matched).abstained
 
 
 # ─── The variants' raw scores and the interval ──────────────────────────────────────────────
@@ -298,8 +330,8 @@ def test_variant_raw_scores_closed_form(config) -> None:
                               optimistic=False)
     optimistic = variant_raw(INTERVAL_RESUME, INTERVAL_POSTING, as_of=AS_OF, config=config, graph=GRAPH,
                              optimistic=True)
-    assert _close(pessimistic, _raw(0.6 / 2.0))  # 0.455556
-    assert _close(optimistic, _raw(1.6 / 2.0))  # 0.844444
+    assert close(pessimistic, _raw(0.6 / 2.0))  # 0.455556
+    assert close(optimistic, _raw(1.6 / 2.0))  # 0.844444
 
 
 def test_score_interval_spans_the_base_and_both_variants(config) -> None:
