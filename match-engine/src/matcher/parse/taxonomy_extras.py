@@ -58,6 +58,8 @@ class TitleInfo(Frozen):
 # ─── titles ─────────────────────────────────────────────────────────────────────────────────
 
 _BRACKETED = re.compile(r"\([^()]*\)|\[[^\[\]]*\]")
+_PRACTITIONERS = {"engineering": "engineer", "development": "developer"}
+_PRACTITIONER = re.compile(r"\b(?:engineering|development)\b", re.IGNORECASE)
 _HEAD = re.compile(r"\s*(?:,|\||;|:|/|\s[-\u2013\u2014]+\s|\s@\s|\s(?:at|chez)\s)")
 
 
@@ -96,6 +98,8 @@ class TitleIndex:
             forms += [inverted, strip_seniority_modifiers(inverted, strip)]
         head = _HEAD.split(unbracketed, maxsplit=1)[0]
         forms += [head, strip_seniority_modifiers(head, strip)]
+        # A discipline names its practitioner ("Software Engineering Intern" -> software engineer).
+        forms += [_PRACTITIONER.sub(lambda m: _PRACTITIONERS[m.group(0).lower()], form) for form in forms]
         return forms
 
     def lookup(self, title: str) -> Optional[TitleInfo]:

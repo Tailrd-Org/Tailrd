@@ -1,11 +1,13 @@
 """Title seniority (SPEC §5.4; DECISIONS D-38; the rules table is config/parse/seniority.yaml).
 
 `title_seniority` reads a job title as words (case- and accent-insensitive; "cased" rule words such
-as "TA", "VP" or "II" only with their casing) and returns the level of the FIRST rule that matches,
-so a student marker beats every other word ("Product Manager Intern" is IC0) and a management word
+as "TA", "VP" or "II" only with their casing) and returns the level of the rule whose matching
+phrase is longest ("Crew Chief" M1 beats the generic "chief"), ties going to the rule listed first,
+so a student marker beats a one-word title ("Product Manager Intern" is IC0) and a management word
 beats an IC modifier ("Senior Manager" is M3). A title written for a student organisation
-("President, Robotics Club") is IC0 before any rule: club presidents are students, not executives.
-A title with no rule takes the posting metadata level (`meta_level`: internship IC0, new_grad
+("Treasurer, Students' Union") is IC0; an executive title there ("President, Robotics Club",
+"Director of Sponsorship, Hack the North") abstains (DECISIONS D-38a): a club president is no
+director, and a wrong management level is worse than none. A title with no rule takes the posting metadata level (`meta_level`: internship IC0, new_grad
 IC1, ...) or none; an unknown level makes the seniority dimension abstain (D-38), never guess.
 
 The same tables answer three smaller questions: `strip_seniority_modifiers` (the title without
@@ -19,11 +21,12 @@ import re
 from collections.abc import Sequence
 from typing import Optional
 
-from matcher.models import SeniorityLevel
+from matcher.models import SeniorityLevel, Track
 from matcher.parse._text import Token, find_phrase, fold, tokens, words
 from matcher.parse.config import ParseConfig, PhraseList, SeniorityRule, parse_level
 
-__all__ = ["is_internship_text", "is_student_organisation", "strip_seniority_modifiers", "title_seniority"]
+__all__ = ["is_executive", "is_internship_text", "is_student_organisation", "strip_seniority_modifiers",
+           "title_seniority"]
 
 # What ends a part of a title for `at_end` and `followed_within`: , ( ) [ ] | : / ; or a spaced dash.
 _PART_BREAK = re.compile(r"[,()\[\]|:/;]|\s[-–—]+\s")
@@ -135,17 +138,45 @@ def _meta(meta_level: Optional[str], parse_config: ParseConfig) -> Optional[Seni
     return None
 
 
+def is_executive(level: Optional[SeniorityLevel]) -> bool:
+    """Director and above (M4-M6): founder, CEO, president, VP, director, head of."""
+    return level is not None and Track(level.track) is Track.MGMT and level.level >= 4
+
+
+# Organisation words that, next to an executive title, mark a student body ("President, Women in
+# STEM Society"); a company is rarely written into the title itself.
+_STUDENT_BODY_WORDS = frozenset({"society", "association", "club", "council", "union", "chapter"})
+
+
+def _rule_level(toks: Sequence[Token], parts: Sequence[int], parse_config: ParseConfig) -> Optional[SeniorityLevel]:
+    """The level of the rule whose matching phrase is longest; ties go to the rule listed first."""
+    best: Optional[tuple[int, int, SeniorityLevel]] = None
+    for order, rule in enumerate(parse_config.seniority.rules):
+        for first, last in _matches(rule, toks, parts):
+            key = (last - first + 1, -order)
+            if best is None or key > best[:2]:
+                best = (key[0], key[1], rule.seniority)
+    return None if best is None else best[2]
+
+
 def title_seniority(title: str, parse_config: ParseConfig, *, meta_level: str | None = None) -> Optional[SeniorityLevel]:
-    """The SPEC §5.4 level of a job title (see the module docstring); None when unknown."""
+    """The SPEC §5.4 level of a job title (see the module docstring); None when unknown. A title
+    naming a student organisation is IC0, except an executive one (club president, VP of a
+    students' union, hackathon director), which abstains: a wrong management level is worse than
+    none."""
     text = title if isinstance(title, str) else ""
     toks = tokens(text)
     if toks:
-        if is_student_organisation(text, parse_config):
-            return _IC0
         parts = _parts(text, toks)
-        for rule in parse_config.seniority.rules:
-            if _matches(rule, toks, parts):
-                return rule.seniority
+        level = _rule_level(toks, parts, parse_config)
+        executive = is_executive(level) or any(
+            is_executive(rule.seniority) and _matches(rule, toks, parts) for rule in parse_config.seniority.rules)
+        student_body = is_student_organisation(text, parse_config) or (
+            executive and any(tok.word in _STUDENT_BODY_WORDS for tok in toks))
+        if student_body:
+            return None if executive else _IC0
+        if level is not None:
+            return level
     return _meta(meta_level, parse_config)
 
 

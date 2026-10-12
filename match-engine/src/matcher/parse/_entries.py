@@ -141,7 +141,8 @@ _REMOTE = (r"(?i:remote|hybrid|on-?site|in-?person|work from home|wfh|virtual|t[
            r"[àa] distance|en ligne|hybride|sur place|pr[ée]sentiel)")
 _CODES = "|".join(f"{_CA_CODES} {_US_CODES}".split())
 _PLACE_WORD = r"[A-ZÀ-ÖØ-Þ][\w.'’\-]*"
-_CITY = rf"{_PLACE_WORD}(?:\s+(?:de\s+|du\s+|of\s+|la\s+)?{_PLACE_WORD}){{0,3}}"
+# Single spaces only: two spaces or a tab separate columns ("DESJARDINS    Montreal, QC").
+_CITY = rf"{_PLACE_WORD}(?: (?:de |du |of |la )?{_PLACE_WORD}){{0,3}}"
 _REGION = rf"(?:(?:{_CODES})(?![\w])|(?i:{_REGION_NAMES})(?![\w]))"
 _COUNTRY = rf"(?i:{_COUNTRIES})(?![\w])"
 _PLACE = (rf"(?:{_CITY}\s*,\s*{_REGION}(?:\s*,\s*{_COUNTRY})?|{_CITY}\s*,\s*{_COUNTRY}|"
@@ -150,6 +151,16 @@ _WHOLE_PLACE = re.compile(rf"\s*\(?\s*(?:{_REMOTE}(?:\s*[(,\-–]\s*(?:{_PLACE})
                           rf"(?:\s*[(,\-–]\s*{_REMOTE}\s*\)?)?)\s*\)?\s*")
 _TAIL_PLACE = re.compile(rf"(?:^|(?<=[\s,(|]))(?P<place>{_CITY}\s*,\s*{_REGION}(?:\s*,\s*{_COUNTRY})?|"
                          rf"{_CITY}\s*,\s*{_COUNTRY})\s*\)?\s*$")
+_KNOWN_CITY_END = re.compile(rf"(?:^| )(?i:{_CITIES})$")
+
+
+def _known_city_start(city: str) -> int:
+    """Where a known city starts inside a would-be city with words before it ("Shopify Ottawa"
+    -> 8), else 0."""
+    found = _KNOWN_CITY_END.search(city)
+    if found is None or found.start() == 0:
+        return 0
+    return found.start() + 1
 
 
 def place_of(text: str) -> str:
@@ -160,6 +171,9 @@ def place_of(text: str) -> str:
         return ""
     if _names_a_job(stripped):
         return ""
+    tail = _TAIL_PLACE.search(stripped)
+    if tail is not None and _known_city_start(tail.group("place").split(",", 1)[0]):
+        return ""  # "Shopify Ottawa, ON": an employer, then the place
     return stripped.strip("()").strip()
 
 
@@ -172,7 +186,8 @@ def split_place(text: str) -> tuple[str, str]:
     city = place.split(",", 1)[0]
     if _names_a_job(city):  # "Software Engineer, ON" is no place
         return text, ""
-    return text[: found.start("place")], place
+    shift = _known_city_start(city)
+    return text[: found.start("place") + shift], place[shift:]
 
 
 def _names_a_job(text: str) -> bool:
@@ -269,8 +284,13 @@ def head_parts(text: str) -> HeadParts:
         out.append(piece)
     if len(out) == 1 and "," in out[0]:
         parts = [p for p in (_strip_date_words(tidy(part)) for part in out[0].split(",")) if p]
+        while len(parts) >= 2 and place_of(parts[-1]):  # "Barista, Starbucks, Toronto"
+            place = place or place_of(parts[-1])
+            parts.pop()
         if len(parts) >= 2:
             out = _comma_pieces(parts)
+        elif parts:
+            out = parts
     return HeadParts(tuple(out), place, tuple(kinds))
 
 

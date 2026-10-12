@@ -220,3 +220,8 @@ def test_real_mos_codes_load_and_match_the_crosswalk() -> None:
     assert real.find("Information Technology Specialist (MOS 25B)") == (
         ("25B", tuple(crosswalk["25B"]["skill_ids"])),
     )
+
+
+@pytest.mark.parametrize("title", ["Software Engineering Intern", "Software Development Co-op"])
+def test_discipline_titles_reach_the_practitioner(titles: TitleIndex, title: str) -> None:
+    assert titles.lookup(title).soc == "15-1252.00"

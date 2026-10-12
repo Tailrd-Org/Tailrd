@@ -22,8 +22,11 @@ Developer (Internship)"). Then:
   start, an impossible range) keeps the role with that range, which has no dates.
 
 `build_role(draft, ...)` fills a `Role`: title id from the titles index, seniority from the title
-(IC0 for a role at a student organisation, whatever its title), industry from the employer and the
-first bullet, `is_internship` from the title or the date text, and the skills: the title's
+(IC0 for a role at a student organisation; an executive title, M4-M6, at a student organisation
+or at an employer neither the company table nor the keyword rules know abstains, DECISIONS
+D-38a), industry from the employer and the first bullet, `is_internship` from the title or the
+date text, and the skills. An "employer" that is a list of skills ("React, Node.js, PostgreSQL",
+"ROS, C++") is a tech stack: no employer, its skills are ROLE_TITLE mentions. Then the title's
 mentions (ROLE_TITLE), the military codes in the title and bullets (their crosswalk skills as
 ROLE_TITLE, the code as the surface), and every bullet's mentions with their verb class and
 polarity (`score.evidence.analyze_bullet`) as ROLE_BULLET, or ROLE_BULLET_QUANTIFIED when the
@@ -56,7 +59,7 @@ from matcher.parse.config import ParseConfig
 from matcher.parse.dates import DateRange
 from matcher.parse.industry import classify_industry
 from matcher.parse.sections import Section
-from matcher.parse.seniority import is_internship_text, is_student_organisation, title_seniority
+from matcher.parse.seniority import is_executive, is_internship_text, is_student_organisation, title_seniority
 from matcher.parse.taxonomy_extras import MosIndex, TitleIndex
 from matcher.score.evidence import BulletMention, analyze_bullet, is_quantified
 
@@ -250,6 +253,26 @@ def _bounded(refs: list[SkillRef], config: EngineConfig) -> tuple[SkillRef, ...]
     return tuple(best[canonical_id] for canonical_id in order[:_MAX_SKILLS])
 
 
+_STACK_SHARE = 0.5  # share of an "employer" piece's words that skill mentions must cover
+
+
+def _stack_mentions(employer: str, resolver: Resolver, parse_config: ParseConfig) -> tuple:
+    """The skill mentions of an employer piece that is really a tech stack ("React, Node.js,
+    PostgreSQL", "ROS, C++"): a list (two mentions or more, or a comma or slash) whose mentions
+    cover at least half of its words, and no organisation the industry table knows ("Shopify",
+    "Salesforce" stay employers); else ()."""
+    if not employer:
+        return ()
+    mentions = resolver.extract(employer, context="list")
+    if not mentions or (len(mentions) < 2 and not any(ch in employer for ch in ",/")):
+        return ()
+    if classify_industry(employer, "", parse_config):
+        return ()
+    total = len(words(employer))
+    covered = sum(len(words(m.surface)) for m in mentions)
+    return tuple(mentions) if total and covered / total >= _STACK_SHARE else ()
+
+
 def build_role(draft: RoleDraft, *, as_of: dt.date, resolver: Resolver, titles: TitleIndex, mos: MosIndex,
                parse_config: ParseConfig, config: EngineConfig) -> Role:
     """A scored `Role` from a draft (see the module docstring)."""
@@ -274,6 +297,10 @@ def build_role(draft: RoleDraft, *, as_of: dt.date, resolver: Resolver, titles: 
                         source=SkillSource.ROLE)
 
     refs: list[SkillRef] = [ref(m.canonical_id, m.surface, Evidence.ROLE_TITLE) for m in resolver.extract(title)]
+    stack = _stack_mentions(employer, resolver, parse_config)
+    if stack:  # "Campus Eats | React, Node.js, PostgreSQL": a tech stack, not an employer
+        refs.extend(ref(m.canonical_id, m.surface, Evidence.ROLE_TITLE) for m in stack)
+        employer = ""
     for code, skill_ids in mos.find("\n".join([title, *bullets]), context=employer):
         refs.extend(ref(skill_id, code, Evidence.ROLE_TITLE) for skill_id in skill_ids)
     for bullet in bullets:
@@ -287,7 +314,10 @@ def build_role(draft: RoleDraft, *, as_of: dt.date, resolver: Resolver, titles: 
                     for m, a in zip(mentions, analysed))
 
     seniority = title_seniority(title, parse_config)
-    if is_student_organisation(employer, parse_config):
+    if is_executive(seniority) and (
+            is_student_organisation(employer, parse_config) or not classify_industry(employer, "", parse_config)):
+        seniority = None  # a club president or a founder of an unknown venture: abstain, never M4-M6
+    elif is_student_organisation(employer, parse_config):
         seniority = _IC0
     internship = is_internship_text(title, parse_config) or (
         date_range is not None and is_internship_text(date_range.raw, parse_config))

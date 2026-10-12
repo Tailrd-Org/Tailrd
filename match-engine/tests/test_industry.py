@@ -155,3 +155,11 @@ def test_the_table_covers_tailrds_most_frequent_employers(pc) -> None:
     for name in ("Carvana", "SpaceX", "Toast", "Verkada", "Databricks", "Waymo", "Stripe", "Datadog", "Twilio",
                  "GitLab", "Scotiabank", "Kinaxis", "Wealthsimple"):
         assert classify_industry(name, "", pc) != (), name
+
+
+@pytest.mark.parametrize(
+    "name, expected",
+    [("Bank Street Cafe", ("7225",)), ("Data Warehouse Co", ("5182",)), ("Riverbank Logistics", ("4931", "4841"))],
+)
+def test_fix_round_1_industry(pc, name: str, expected) -> None:
+    assert classify_industry(name, "", pc) == expected

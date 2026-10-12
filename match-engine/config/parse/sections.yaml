@@ -166,8 +166,11 @@ education:
   institution_words: [school, école, institute, institut, academy, académie, conservatory, hec,
                       faculty, faculté, campus]
   # A line with one of these is never an inferred degree ("Certificate in ...", "Exchange term").
+  # An inferred level also needs a span of a school year or more, or an open or expected end.
   no_inference: [certificate, certificat, certification, exchange, échange, bootcamp, course,
-                 courses, cours, continuing, summer school, visiting, auditing, workshop, minor]
+                 courses, cours, continuing, summer school, visiting, auditing, workshop, workshops,
+                 minor, summer, program, programme, programs, camp, pre-college, pre-collegiate,
+                 precollege, summer institute, academy, été, ete]
   # Status words that make a degree in progress (D-41: it still counts at its level).
   in_progress: [expected, anticipated, candidate, in progress, present, current, currently, ongoing,
                 pursuing, en cours, prévu, prévue, attendu, attendue, actuel, actuellement]

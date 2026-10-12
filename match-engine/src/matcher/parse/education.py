@@ -21,16 +21,24 @@ a date (SPEC §5.6 forbids prestige and graduation year; D-14).
   Applied Science" / "Electrical Engineering").
 * No degree word: an institution line with a field of study in its entry is that institution's
   usual credential ("University of Toronto, Computer Science": a bachelor's program; a college: a
-  diploma), unless the entry says certificate, exchange, course, ... (`no_inference`). Without this
-  a student who writes no "BSc" would score as having no degree, a known-wrong answer (§14.5).
+  diploma), unless the entry says certificate, exchange, course, summer, program, camp, ...
+  (`no_inference`), and only when its dates span a school year (240 days) or more, run past
+  `as_of`, or the entry says it is in progress. Without this a student who writes no "BSc" would
+  score as having no degree, a known-wrong answer (§14.5); with it a summer program is no degree.
 * In progress: "expected", "candidate", "in progress", "present", "current", "en cours", ... on
-  the entry's lines (coursework lines aside). Graduation dates are never compared (D-41).
+  the entry's lines (coursework lines aside; "Current GPA" is no status), or, when `as_of` is
+  given, dates that run past it (an end year still to come). Dates only decide this flag and the
+  inference; none reaches the output (D-41).
 """
 
 from __future__ import annotations
 
+import datetime as dt
 import re
 from typing import TYPE_CHECKING, NamedTuple, Optional
+
+from matcher.errors import Flag
+from matcher.parse.dates import DateRange, find_date_ranges
 
 from matcher.models import DegreeLevel, Education
 from matcher.parse._text import APOSTROPHES, find_phrase, fold, phrase_words, strip_accents, words
@@ -281,10 +289,13 @@ def _fields(text: str, degrees: tuple[DegreeMatch, ...], compiled: _Compiled, re
     return specific, named
 
 
-def _blocks(lines: list[_Line]) -> list[list[int]]:
+def _blocks(lines: list[_Line], complete: frozenset[int] = frozenset()) -> list[list[int]]:
+    """Entries: a second degree line or a second institution line opens the next one, and so does a
+    degree line after an institution line that already names its own field (`complete`:
+    "Computer Science, University of Toronto, 2027" then "Bachelor of Science ... McGill")."""
     blocks: list[list[int]] = []
     current: list[int] = []
-    has_degree = has_institution = False
+    has_degree = has_institution = closed = False
     for index, line in enumerate(lines):
         if not line.text:
             if current:
@@ -292,10 +303,11 @@ def _blocks(lines: list[_Line]) -> list[list[int]]:
             continue
         degree_line = bool(line.degrees)
         institution_line = not degree_line and not line.skip and not line.bullet and line.institution_named
-        if (degree_line and has_degree) or (institution_line and has_institution):
+        if (degree_line and (has_degree or closed)) or (institution_line and has_institution):
             blocks.append(current)
-            current, has_degree, has_institution = [], False, False
+            current, has_degree, has_institution, closed = [], False, False, False
         current.append(index)
+        closed = closed or (institution_line and index in complete)
         has_degree = has_degree or degree_line
         has_institution = has_institution or institution_line or (degree_line and line.institution_named)
     if current:
@@ -314,7 +326,35 @@ def _unique(pairs: list[tuple[str, str]]) -> tuple[tuple[str, ...], tuple[str, .
     return tuple(ids), tuple(surfaces)
 
 
-def _entry(block: list[int], lines: list[_Line], compiled: _Compiled, resolver: "Resolver") -> Optional[Education]:
+_DETECTION_AS_OF = dt.date(2049, 12, 31)  # reads year-shaped numbers when no as_of is given
+_SCHOOL_YEAR_DAYS = 240  # September to April: an inferred program lasts at least this long
+_NOT_STATUS = re.compile(r"\b(?:current(?:ly)?|actuel(?:le)?)\s+(?:c?gpa|average|grades?|standing|moyenne)\b",
+                         re.IGNORECASE)
+
+
+def _ranges(texts: list[str], as_of: Optional[dt.date]) -> list[DateRange]:
+    reference = as_of if as_of is not None else _DETECTION_AS_OF
+    return [found[2] for text in texts for found in find_date_ranges(text, as_of=reference)]
+
+
+def _open_or_ongoing(ranges: list[DateRange], as_of: Optional[dt.date]) -> bool:
+    """A range still running at as_of: current, an end clamped to as_of, a start not yet reached."""
+    if as_of is None:
+        return any(r.is_current for r in ranges)
+    late = {Flag.FUTURE_END_CLAMPED, Flag.FUTURE_START}
+    return any(r.is_current or late.intersection(r.flags) for r in ranges)
+
+
+def _school_year(ranges: list[DateRange], as_of: Optional[dt.date]) -> bool:
+    for r in ranges:
+        if r.is_current or (r.start is not None and r.end is not None
+                            and (r.end.value - r.start.value).days >= _SCHOOL_YEAR_DAYS):
+            return True
+    return _open_or_ongoing(ranges, as_of)
+
+
+def _entry(block: list[int], lines: list[_Line], compiled: _Compiled, resolver: "Resolver",
+           as_of: Optional[dt.date]) -> Optional[Education]:
     texts = [i for i in block if lines[i].text]
     degree_at = next((i for i in texts if lines[i].degrees), None)
     content = [i for i in texts if not lines[i].skip]
@@ -348,19 +388,28 @@ def _entry(block: list[int], lines: list[_Line], compiled: _Compiled, resolver: 
                 break
         if not specific and institution is not DegreeLevel.HIGH_SCHOOL:
             return None
+        marked = any(_has_any(words(_NOT_STATUS.sub(" ", lines[i].text)), compiled.in_progress) for i in content)
+        if not marked and not _school_year(_ranges([lines[i].text for i in content], as_of), as_of):
+            return None  # a summer program or a short course is no degree
         level, chosen = institution, specific
     ids, surfaces = _unique(chosen)
-    in_progress = any(_has_any(words(lines[i].text), compiled.in_progress) for i in content)
+    in_progress = any(_has_any(words(_NOT_STATUS.sub(" ", lines[i].text)), compiled.in_progress) for i in content)
+    in_progress = in_progress or _open_or_ongoing(_ranges([lines[i].text for i in content], as_of), as_of)
     return Education(level=level, field_ids=ids[:20], field_raw=", ".join(surfaces)[:2000], in_progress=in_progress)
 
 
-def parse_education(section: "Section", *, resolver: "Resolver", parse_config: ParseConfig) -> tuple[Education, ...]:
-    """The degrees of an EDUCATION section, in order (see the module docstring)."""
+def parse_education(section: "Section", *, resolver: "Resolver", parse_config: ParseConfig,
+                    as_of: Optional[dt.date] = None) -> tuple[Education, ...]:
+    """The degrees of an EDUCATION section, in order (see the module docstring). With `as_of`, an
+    entry whose dates run past it (an end year still to come) is in progress."""
     compiled = _compile(parse_config.sections.education)
     lines = [_classify(str(raw), compiled, parse_config) for raw in section.lines]
     out: list[Education] = []
-    for block in _blocks(lines):
-        entry = _entry(block, lines, compiled, resolver)
+    complete = frozenset(i for i, line in enumerate(lines) if line.text and not line.degrees and not line.skip
+                         and not line.bullet and line.institution_named
+                         and _fields(line.text, (), compiled, resolver)[0])
+    for block in _blocks(lines, complete):
+        entry = _entry(block, lines, compiled, resolver, as_of)
         if entry is not None and entry not in out:
             out.append(entry)
         if len(out) >= _MAX_ENTRIES:

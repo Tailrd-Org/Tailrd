@@ -303,7 +303,7 @@ def test_a_civilian_abbreviation_is_not_a_rating(deps) -> None:
 
 
 def test_a_student_organisation_role_is_ic0(deps) -> None:
-    role = _build(_draft("President", "Robotics Club", "", "Sep 2025 – Present", "Led a team of 12 members"), deps)
+    role = _build(_draft("Treasurer", "Robotics Club", "", "Sep 2025 – Present", "Led a team of 12 members"), deps)
     assert role.seniority.code == "IC0"
     assert not role.is_internship
 
@@ -354,3 +354,71 @@ def test_repeated_mentions_are_one_ref(deps) -> None:
     role = _build(_draft("Data Analyst", "Acme", "", "2024 – 2025", *(["Wrote SQL queries"] * 50)), deps)
     keys = [(r.canonical_id, r.evidence, r.verb_class, r.polarity) for r in role.skills]
     assert len(keys) == len(set(keys)) and len(keys) >= 1
+
+
+# ─── fix round 1 ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "line, title, employer, location",
+    [
+        ("Software Engineer Intern, RBC, Toronto | May 2024 - Aug 2024", "Software Engineer Intern", "RBC", "Toronto"),
+        ("Software Developer Co-op, Ciena, Ottawa | Jan 2024 - Apr 2024", "Software Developer Co-op", "Ciena", "Ottawa"),
+        ("Barista, Starbucks, Toronto | 2022 - 2024", "Barista", "Starbucks", "Toronto"),
+    ],
+)
+def test_a_trailing_city_is_the_location_not_the_employer(line, title, employer, location) -> None:
+    (draft,) = split_roles(_section([line, "- Did the work"]), as_of=AS_OF)
+    assert (draft.title_raw, draft.employer, draft.location) == (title, employer, location)
+
+
+@pytest.mark.parametrize(
+    "second, employer, location",
+    [
+        ("DESJARDINS    Montréal, QC", "DESJARDINS", "Montréal, QC"),
+        ("Desjardins    Montréal, QC", "Desjardins", "Montréal, QC"),
+        ("SHOPIFY INC.\tOttawa, ON", "SHOPIFY INC.", "Ottawa, ON"),
+        ("Shopify Ottawa, ON", "Shopify", "Ottawa, ON"),
+    ],
+)
+def test_a_two_column_employer_line_keeps_the_employer(second, employer, location) -> None:
+    lines = ["Software Developer Intern    May 2023 – Aug 2023", second, "- Built a React dashboard"]
+    (draft,) = split_roles(_section(lines), as_of=AS_OF)
+    assert (draft.title_raw, draft.employer, draft.location) == ("Software Developer Intern", employer, location)
+
+
+@pytest.mark.parametrize(
+    "title, employer",
+    [("President", "Robotics Club"), ("President", "Women in STEM"), ("Founder & CEO", "StudyBuddy"),
+     ("VP Finance", "Enactus Laurier"), ("Director of Sponsorship", "Hack the North"),
+     ("Director of Engineering", "Northwind Labs"), ("President", "")],
+)
+def test_executive_titles_at_student_or_unknown_organisations_abstain(deps, title, employer) -> None:
+    assert _build(_draft(title, employer, "", "Sep 2025 – Present"), deps).seniority is None
+
+
+def test_executive_titles_at_known_employers_keep_their_level(deps) -> None:
+    assert _build(_draft("Director of Engineering", "Shopify", "", "2020 – Present"), deps).seniority.code == "M4"
+    assert _build(_draft("Treasurer", "Robotics Club", "", "2024 – Present"), deps).seniority.code == "IC0"
+
+
+@pytest.mark.parametrize(
+    "line, skills",
+    [
+        ("Campus Eats | React, Node.js, PostgreSQL | Jan 2024 – Apr 2024", {"skill.react", "skill.nodejs"}),
+        ("Capstone: Autonomous Rover — ROS, C++ | Sep 2024 – Apr 2025", {"skill.cpp"}),
+    ],
+)
+def test_a_header_tech_stack_is_skills_not_an_employer(deps, line, skills) -> None:
+    (draft,) = split_roles(_section([line, "- Built it"], SectionKind.PROJECTS), as_of=AS_OF)
+    role = _build(draft, deps)
+    assert role.employer == ""
+    title_ids = {ref.canonical_id for ref in role.skills if ref.evidence is Evidence.ROLE_TITLE}
+    assert skills <= title_ids
+
+
+@pytest.mark.parametrize("first", ["DESJARDINS    Montréal, QC", "Desjardins\tMontréal, QC"])
+def test_a_two_column_employer_line_above_the_title(first) -> None:
+    lines = [first, "Data Analyst Intern | May 2023 – Aug 2023", "- Automated reports"]
+    (draft,) = split_roles(_section(lines), as_of=AS_OF)
+    assert (draft.title_raw, draft.employer, draft.location) == ("Data Analyst Intern", first.split()[0], "Montréal, QC")

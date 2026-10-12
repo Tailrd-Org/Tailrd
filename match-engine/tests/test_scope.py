@@ -99,3 +99,8 @@ def test_extract_scope_is_total(bullets: list[str]) -> None:
     assert scope.scale_tier in (None, "personal", "team", "org", "internet")
     assert scope.people_managed is None or scope.people_managed >= 1
     assert scope.budget_usd is None or (math.isfinite(scope.budget_usd) and scope.budget_usd > 0)
+
+
+@pytest.mark.parametrize("bullet, usd", [("Géré un budget de 50 000 $", 50_000.0), ("Géré un budget de 2 M$", 2e6)])
+def test_french_budgets(bullet: str, usd: float) -> None:
+    assert math.isclose(extract_scope([bullet]).budget_usd, usd)

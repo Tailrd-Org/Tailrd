@@ -99,7 +99,7 @@ CASES = [
     ("Software Engineer, L7", "IC5"),
     ("L8", "IC5"),
     ("Distinguished Engineer", "IC6"),
-    ("Fellow", "IC6"),
+    ("Fellow", "IC0"),  # a bare fellowship is a student program (fix round 1)
     ("Postdoctoral Fellow", "IC1"),  # a postdoc, not a distinguished fellow
     # M1
     ("Team Lead, Customer Support", "M1"),
@@ -152,12 +152,14 @@ def test_title_seniority(pc, title: str, expected: Optional[str]) -> None:
 
 
 @pytest.mark.parametrize(
-    "title",
-    ["President, Computer Science Club", "VP Finance, Engineering Society", "Treasurer, Students' Union",
-     "Captain, Varsity Soccer Team", "Présidente, Association étudiante de génie"],
+    "title, expected",
+    [("Treasurer, Students' Union", "IC0"), ("Captain, Varsity Soccer Team", "IC0"),
+     # An executive title at a student organisation abstains (fix round 1 ruling).
+     ("President, Computer Science Club", None), ("VP Finance, Engineering Society", None),
+     ("Présidente, Association étudiante de génie", None)],
 )
-def test_student_organisation_titles_are_ic0(pc, title: str) -> None:
-    assert _code(title_seniority(title, pc)) == "IC0"
+def test_student_organisation_titles(pc, title: str, expected) -> None:
+    assert _code(title_seniority(title, pc)) == expected
 
 
 @pytest.mark.parametrize(
@@ -229,3 +231,33 @@ def test_strip_seniority_modifiers(pc, title: str, stripped: str) -> None:
 )
 def test_is_internship_text(pc, text: str, expected: bool) -> None:
     assert is_internship_text(text, pc) is expected
+
+
+# ─── fix round 1 ─────────────────────────────────────────────────────────────────────────────
+
+
+@pytest.mark.parametrize(
+    "title, expected",
+    [
+        ("MLH Fellow", "IC0"), ("Data Science Fellow", "IC0"), ("Fellowship", "IC0"),
+        ("Distinguished Fellow", "IC6"), ("Technical Fellow", "IC6"), ("Senior Fellow", "IC6"),
+        ("Associate Product Manager", "IC1"), ("APM", "IC1"),
+        ("Crew Chief", "M1"), ("Section Chief", "M1"),
+        ("President, Women in STEM", None), ("President, UofT Hacks", None),
+        ("VP Finance, Enactus Laurier", None), ("Director of Sponsorship, Hack the North", None),
+        ("President, Computer Science Club", None), ("Treasurer, Students' Union", "IC0"),
+    ],
+)
+def test_fix_round_1_titles(pc, title: str, expected) -> None:
+    assert _code(title_seniority(title, pc)) == expected
+
+
+def test_every_multi_word_entry_beats_its_single_word_head(pc) -> None:
+    for rule in pc.seniority.rules:
+        if rule.whole or rule.at_end or rule.preceded_by or rule.followed_within or rule.with_any:
+            continue
+        for phrase in rule.phrases:
+            if len(phrase.split()) < 2:
+                continue
+            got = title_seniority(phrase, pc)
+            assert got is not None and got.code == rule.level, (phrase, rule.level, got)

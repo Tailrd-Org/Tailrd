@@ -13,7 +13,8 @@ int; budget_managed: normalized currency."
 * People managed: a management verb (led, managed, supervised, directed, oversaw, headed; fr géré,
   dirigé, supervisé) before "a team of N" or before N people ("12 volunteers"), or "N direct
   reports". Working in a team, mentoring and a bare "team of 8" are not managing.
-* Budget: an amount with a currency ("$12M", "US$1.5 million", "CAD $2M", "€400k") next to
+* Budget: an amount with a currency ("$12M", "US$1.5 million", "CAD $2M", "€400k", French "50 000 $",
+  "2 M$") next to
   budget / P&L / spend / portfolio / fund in the same clause. "$" alone reads as US dollars; CAD,
   EUR and GBP convert at fixed approximate rates (no clock, no network). Revenue and savings are not
   a budget managed.
@@ -52,7 +53,8 @@ _MAX_PEOPLE = 1_000_000
 _MAX_BUDGET = 1e13
 
 _MAGNITUDES = {"k": 1e3, "thousand": 1e3, "m": 1e6, "mm": 1e6, "million": 1e6, "millions": 1e6, "b": 1e9,
-               "bn": 1e9, "billion": 1e9, "billions": 1e9, "t": 1e12, "trillion": 1e12}
+               "bn": 1e9, "billion": 1e9, "billions": 1e9, "t": 1e12, "trillion": 1e12, "g": 1e9,
+               "milliard": 1e9, "milliards": 1e9}
 _NUMBER = r"(?P<num>\d{1,3}(?:,\d{3})+|\d+(?:\.\d+)?)"
 _MAGNITUDE = r"(?:\s?(?P<mag>k|K|M|MM|B|bn|BN|thousand|million|billion|trillion)\b)?"
 _SCALE_NOUN = (r"(?:users?|customers?|clients|subscribers?|visitors?|viewers?|readers?|players?|members|"
@@ -89,13 +91,18 @@ _DIRECT_REPORTS = re.compile(r"\b(?P<snippet>(?P<n>\d{1,6})\s+direct\s+reports)\
 
 _CURRENCY = r"(?P<cur>US\$|USD\s?\$?|CAD\s?\$?|C\$|CA\$|\$|EUR\s?|€|GBP\s?|£)"
 _AMOUNT = re.compile(rf"{_CURRENCY}\s?(?P<num>\d{{1,3}}(?:,\d{{3}})+|\d+(?:\.\d+)?){_MAGNITUDE}", re.IGNORECASE)
+# French order: the currency after the amount, spaces between thousands ("50 000 $", "2 M$").
+_AMOUNT_AFTER = re.compile(
+    r"(?<![\w.,])(?P<num>\d{1,3}(?:[   ]\d{3})+|\d+(?:[.,]\d+)?)\s?"
+    r"(?P<mag>k|K|M|MM|G|millions?|milliards?)?\s?(?P<cur>\$|€|£|CAD|USD|EUR|GBP)(?![\w$])"
+)
 _BUDGET_NOUN = re.compile(r"\b(?:budgets?|p\s?&\s?l|spend|spending|portfolio|fund|funds|budg[ée]t)\b", re.IGNORECASE)
 _CLAUSE = re.compile(r"[;!?]|\.(?!\d)|\s(?:and|but)\s")
 
 
 def _number(text: str) -> Optional[float]:
     try:
-        value = float(text.replace(",", ""))
+        value = float(re.sub(r"[ ,\u00a0\u202f]", "", text))
     except ValueError:
         return None
     return value if math.isfinite(value) else None
@@ -169,7 +176,8 @@ def extract_scope(bullets: Sequence[str]) -> ScopeFeatures:
                 if 1 <= n <= _MAX_PEOPLE:
                     people = n if people is None else max(people, n)
                     evidence.append((b, match.start("snippet"), match.group("snippet").strip()))
-        for match in _AMOUNT.finditer(bullet):
+        amounts = [*_AMOUNT.finditer(bullet), *_AMOUNT_AFTER.finditer(bullet)]
+        for match in sorted(amounts, key=lambda m: m.start()):
             left, right = _clause_around(bullet, match.start(), match.end())
             nouns = list(_BUDGET_NOUN.finditer(bullet, left, right))
             if not nouns:

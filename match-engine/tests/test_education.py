@@ -170,3 +170,43 @@ def test_parse_education_is_total(lines: list[str]) -> None:
 
 
 _TOTALITY_DEPS: dict = {}
+
+
+# ─── fix round 1 ─────────────────────────────────────────────────────────────────────────────
+from datetime import date  # noqa: E402
+
+AS_OF = date(2026, 10, 9)
+
+
+@pytest.mark.parametrize(
+    "lines",
+    [
+        ["Harvard University, Computer Science Summer 2025"],
+        ["Stanford University — Pre-Collegiate Summer Institute, Computer Science, Jul 2023 – Aug 2023"],
+        ["University of Waterloo — Computer Science workshop, Mar 2024"],
+        ["University of Toronto, Computer Science, Jun 2024 – Jul 2024"],  # shorter than a school year
+    ],
+)
+def test_no_degree_inferred_for_short_programs(deps, lines) -> None:
+    assert _parse(lines, deps) == ()
+
+
+def test_current_gpa_is_not_in_progress(deps) -> None:
+    (entry,) = _parse(["BSc Computer Science, McGill University, 2018 – 2022 (Current GPA 3.6)"], deps)
+    assert not entry.in_progress
+
+
+def test_a_future_end_year_is_in_progress_with_as_of(deps) -> None:
+    section = Section(kind=SectionKind.EDUCATION, header="Education", start_line=0, language=None,
+                      lines=("BSc Computer Science, University of Toronto, 2023 – 2027",))
+    (entry,) = parse_education(section, as_of=AS_OF, **deps)
+    assert entry.in_progress
+    (undated,) = parse_education(section, **deps)
+    assert not undated.in_progress
+
+
+def test_an_institution_line_with_its_own_field_is_its_own_entry(deps) -> None:
+    lines = ["Computer Science, University of Toronto, 2023 – 2027",
+             "Honours Bachelor of Science in Statistics — McGill University (2019-2023)"]
+    assert _summary(_parse(lines, deps)) == [(L.BACHELOR, ("field.computer_science",), False),
+                                             (L.BACHELOR, ("field.statistics",), False)]

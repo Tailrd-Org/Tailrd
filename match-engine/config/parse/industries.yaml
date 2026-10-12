@@ -470,6 +470,8 @@ companies:
 # Phrases are compared as words (normalised like names). The first rule listed that matches wins.
 rules:
   # ─── specific phrases that contain a general word of a later rule ────────────────────────
+  # Eating places before the name keyword "bank" ("Bank Street Cafe").
+  - {naics: ["7225"], phrases: [restaurant, restaurants, cafe, coffee shop, bistro, pizzeria, diner, eatery, bakery, boulangerie, catering, food services, food truck, brasserie], name_only: [coffee, pizza, grill, pub, kitchen]}
   - {naics: ["6242"], phrases: [food bank, banque alimentaire, food rescue, soup kitchen, homeless shelter]}
   - {naics: ["5211"], phrases: [central bank, banque centrale]}
   - {naics: ["4441"], phrases: [hardware store, home improvement, building supplies, quincaillerie]}
@@ -507,7 +509,7 @@ rules:
   # ─── software, telecom, media ────────────────────────────────────────────────────────────
   - {naics: ["5132"], phrases: [video games, game studio, games studio, jeux video], name_only: [gaming, games]}
   - {naics: ["5132", "5415"], phrases: [software, saas, logiciel, logiciels, software as a service]}
-  - {naics: ["5182"], phrases: [cloud hosting, web hosting], name_only: [data centre, data center, hosting]}
+  - {naics: ["5182"], phrases: [cloud hosting, web hosting], name_only: [data centre, data center, hosting, data warehouse, data warehousing]}
   - {naics: ["5162"], phrases: [social network], name_only: [social media, streaming, podcast, podcasts]}
   - {naics: ["517"], phrases: [telecom, telecoms, telecommunications, telecommunication, internet provider, internet service provider, telco], name_only: [wireless, telephone, isp]}
   - {naics: ["5161"], phrases: [broadcasting, broadcaster, tv network, radio station, television network], name_only: [television, radio, tele, tv]}
@@ -523,7 +525,6 @@ rules:
   - {naics: ["8134"], phrases: [community centre, community center, youth centre, youth center, centre communautaire]}
   - {naics: ["8133"], phrases: [non profit, nonprofit, not for profit, charity, charitable organization, ngo, osbl, organisme sans but lucratif, advocacy group], name_only: [foundation, fondation, association, charitable]}
   # ─── hospitality, food, retail ───────────────────────────────────────────────────────────
-  - {naics: ["7225"], phrases: [restaurant, restaurants, cafe, coffee shop, bistro, pizzeria, diner, eatery, bakery, boulangerie, catering, food services, food truck, brasserie], name_only: [coffee, pizza, grill, pub, kitchen]}
   - {naics: ["7211"], phrases: [hotel, hotels, resort, motel, hostel, auberge, hotellerie], name_only: [inn]}
   - {naics: ["7121"], phrases: [museum, musee, art gallery, historic site, zoo, aquarium]}
   - {naics: ["5192"], phrases: [public library, bibliotheque], name_only: [library, archives]}
