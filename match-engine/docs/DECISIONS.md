@@ -83,11 +83,32 @@ a readable meaning: rarer than 70 % of the skills postings ask for. Min-max or `
 puts almost every skill in a narrow band and the 0.7 threshold would almost never fire.
 A skill never seen in the corpus gets `idf.unseen_default` (0.75), not 1.0, so a mis-resolved
 rare token cannot dominate a posting.
+The corpus (Task 2.3) is Tailrd's own postings: the `scraped_jobs` rows with a description longer
+than 200 characters and no `duplicate_of`, pulled read-only by `scripts/pull_corpus.py` into
+`data/raw/corpus/` (git-ignored, D-04); the committed statistics come from the Development branch
+(5,473 postings first seen 2026-05-12 to 2026-05-14). A posting is read as its title, a line break
+and its description, decoded from HTML first (62 % are stored as escaped HTML, which glues a skill
+to the markup: `&lt;li&gt;Python`), through `Resolver.extract` in prose context; a skill counts once
+per posting. Boilerplate counts once (fix round 1): postings are taken in id order, an exact
+duplicate of an earlier decoded description is left out (1,549 of 5,473, so N = 3,924), and a
+description line of 30 characters or more found in 5 or more distinct postings (an employer's
+"About us", a benefits block; 891 such lines) counts only in the first posting that has it. Without
+this, one employer's blurb repeated in 43 postings made Next.js and PayPal a 0.99 edge. `scripts/compute_idf.py` and `scripts/compute_pmi.py` run again after every
+`scripts/build_taxonomy.py`, which writes an empty IDF and the curated edges only. Known limits of
+this corpus: 5,344 of its 5,473 descriptions are stored cut short, and it is tech-heavy, so SPEC
+§3.1's motivating example does not hold on it (Kubernetes in 73 postings, Microsoft Office in 7);
+`tests/test_corpus_stats.py` keeps that example as a strict xfail, which flags the day a fuller
+corpus makes it hold.
 
 **D-22 PMI normalisation. [Spec: PMI_max unspecified]** Edge weight is normalised PMI:
 `NPMI(a,b) = PMI(a,b) / -ln P(a,b)` (the per-pair maximum PMI), kept when `NPMI >= 0.4` and the
 pair co-occurs in at least `pmi.min_cooccurrence` (5) postings; out-degree capped at 20 by weight
-(ties broken by id). A global PMI_max would rank by rarity, not association.
+(ties broken by id). A global PMI_max would rank by rarity, not association. A pair where one id
+is an ancestor of the other, at any depth, is left out before `build_edges` (Task 2.3): the
+hierarchy relates them already (PostgreSQL under SQL, Kubernetes under Docker). Mined weights are
+NPMI in [0.4, 1]; scoring clamps them (D-23). Pairs are counted over the corpus with its
+boilerplate counted once (D-21); genuine pairs that only the repeated postings had carried (CPR and
+First Aid, Objective-C and Swift, FPGA and Verilog, Ansible and Puppet, GraphQL and REST) are curated.
 
 **D-23 Relation credits.** For a requirement `r` and one résumé skill mention `s`:
 exact/alias 1.00; `s` is a descendant of `r` within depth 3 → 0.85; related edge →
@@ -148,7 +169,22 @@ TECHNOLOGY. Generic titles (curated `generic_titles`: intern, co-op, student, tr
 volunteer, engineer, analyst, ...) name no occupation and stay out of `titles.json`. Each reader
 verifies what it reads: `load_graph` hashes the nodes, IDF and edges; `load_json_artifact` the
 document it returns, so a cold start never hashes the 11 MB of titles and military codes it does
-not use.
+not use. The corpus review of Task 2.3 read the most frequent ids of Tailrd's postings that are
+not SOFT in context and blocked the generic words that reached one specific node: O*NET "Act!"
+("act as", "the Clean Water Act"), O*NET "Google" (the company), the curated alias "translating"
+("translating business needs into ..."), ESCO "ecosystems" ("partner ecosystems"), the ESCO
+alternatives "shape the future" and "work-life balance" (a benefit), and the bare "SDK" of the
+Microsoft Windows SDK ("iOS SDK"). A blocked label drops its node (`skill.act`, `skill.google`,
+`esco.ecosystems`). No id that is not SOFT reaches the 30 % suspect line in that corpus (the highest
+is `skill.ai` at 24.8 %), so the review read the watch list of `corpus_report.md` (2 % and up) and
+the next ranks by hand. Fix round 1 read every id that is not SOFT and has mined edges (320) and
+blocked more: "ML systems" (machine learning, not the ML language), "EMI" (interference), "drive
+forklifts" (no agricultural machines), "fabricate metal", "quality checks", "digital communications",
+"optical systems", "optical products", "work with engineers", "data infrastructure", ESCO "logic"
+("business logic", "PLC logic"; node dropped) and the bare "MOS" of multi-object spectrographs ("MOS
+11B"); and as blocked phrases "building blocks" (an O*NET toy class), "Access Management", "Access
+Control", "Access Engineer", "Ropes Access" and "Rope Access" (no Microsoft Access) and "child care
+benefits" (no early childhood education).
 
 **D-27 Extraction precision. [Tailrd]** `extract`: (1) leaves fields of study (`field.*`) out
 unless `include_fields=True` (education lines, posting education requirements); a field still
@@ -180,23 +216,37 @@ capitalised words that are not skills ("Mary C Jones") or is followed by a perio
 words ("John R. Smith", "Dr. Mary C. Jones"); the word before may be a title or an initial with its
 own period ("Dr. R. Smith", "J. R. R. Tolkien"). "Wrote firmware in C." keeps C. (5) Never reads a
 currency code (CAD, USD, EUR, GBP) as a skill in a money context: after "$" or a salary word on its
-line ("$25/hr CAD", "Salary (CAD)"); before an amount or a rate unit on its line ("CAD $80k",
-"CAD 2M", "CAD/hr"); inside a currency pair ("USD/CAD", "EUR/USD"); after an amount (thousands,
-cents, a magnitude, four digits or more) unless the next word is one of the curated
-`currency_skill_nouns` (plural nouns of CAD work: drawings, models, files, parts, sheets,
-assemblies, licences, standards, ...), so "85,000 CAD plus benefits", "Base: 120,000 CAD | Bonus",
-"a 2,500 CAD scholarship" and "120K CAD + equity" are money and "1,200 CAD drawings" is the skill;
-after a smaller number when a rate phrase or a money or pay word ("25 CAD hourly", "a 500 CAD
-prize"), a range to another number ("25 CAD - 30 CAD"), an addition ("40 CAD + HST") or a
-separator ("500 CAD (monthly)", "20 CAD | weekends") follows. A rate phrase ("annually", "per
-hour", "a year") needs a number before the code: "Taught CAD annually" and "Spent 10 hours in CAD
-per week" keep CAD, while a rate unit on the code ("CAD/h") is money by itself. A four-digit year
-is never a number ("the 2024 CAD standards manual", "SolidWorks 2022 CAD."), nor is a number glued
-to letters ("CATIA V5 CAD") or inside the skill name the code follows ("Fusion 360 CAD (cloud)"),
-and a number before a list comma ends the item before ("Office 365, CAD"); "Proficient in CAD
-(SolidWorks)" keeps CAD too. Deviations kept: a small count or version before a clause end or ")"
-keeps CAD ("Fusion 360 CAD.", "10 CAD models"), so "Paid 25 CAD." reads as the skill; and only
-the very next word is checked for a noun, so "1,500 CAD shop drawings" reads as money. (6) Like
+line ("$25/hr CAD", "Salary (CAD)"), or after a "$" amount, perhaps with its rate, before the code's
+bracket ("$80,000 (CAD)", "$30.00 per hour (CAD)"); after a pay word earlier in its clause (pay,
+rate, range, salary, compensation, wage, stipend, bonus, amount, currency, figures; French salaire,
+rémunération, montant, devise, taux) with only link words, numbers and brackets between ("Pay range
+(CAD)", "Hourly rate (CAD)", "Pay range in CAD", "All amounts are in CAD", "Currency: CAD", "All
+figures cited below are in CAD"), while a content word between keeps the skill ("a wide range of CAD
+tools", "Pay attention to detail in CAD"); before an amount, a range, a rate unit or "per <unit>" on
+its line ("CAD $80k", "CAD 2M", "CAD 25-30", "CAD/hr", "CAD per hour", French "CAD par mois"), a range
+of years, hours or times excepted ("CAD 2-3 years"); inside a currency pair ("USD/CAD", "EUR/USD");
+after an amount (thousands, also grouped by a plain, no-break or narrow no-break space as in French
+"70 000", cents, a magnitude, four digits or more) or a number that closes a range, which is never a
+version ("18 - 20 CAD", "25 CAD to 30 CAD"), unless the next word, or the word after one modifier that
+is no function or rate word, is one of the curated `currency_skill_nouns` (plural nouns of CAD work:
+drawings, models, files, parts, components, documents, sheets, assemblies, licences, standards, ...),
+so "85,000 CAD plus benefits", "Base: 120,000 CAD | Bonus", "a 2,500 CAD scholarship", "120K CAD +
+equity" and "5,000 CAD on parts" are money and "1,200 CAD drawings", "1,500 CAD shop drawings" and
+"1,200 CAD part files" the skill; after a smaller number when a rate phrase or a money or pay word
+("25 CAD hourly", "a 500 CAD prize"), a range to another number ("25 CAD - 30 CAD"), an addition ("40
+CAD + HST") or a separator ("500 CAD (monthly)", "20 CAD | weekends") follows. "per <unit>" (hour,
+week, month, year, annum, day; French "par heure, semaine, mois, année, an, jour") right after the
+code is money by itself, like a rate unit on the code ("CAD/h"): Task 2.3 reverted round 4's "needs a
+number", so "Rates quoted in CAD per hour" is money and so is "Spent 10 hours in CAD per week"; the
+other rate phrases ("annually", "hourly", "a year") need a number before the code ("Taught CAD
+annually" keeps CAD). A four-digit year is never a number ("the 2024 CAD standards manual",
+"SolidWorks 2022 CAD."), nor is a number glued to letters ("CATIA V5 CAD") or inside the skill name
+the code follows ("Fusion 360 CAD (cloud)"), and a number before a list comma ends the item before
+("Office 365, CAD"); "Proficient in CAD (SolidWorks)" keeps CAD too. Deviation kept: a small count or
+version before a clause end or ")" keeps CAD ("Fusion 360 CAD.", "10 CAD models"), so "Paid 25 CAD."
+reads as the skill. Costs taken (Task 2.3): "Prepared figures in CAD" and "Bonus: CAD, SolidWorks"
+read as money (a pay word with only link words before the code), and so does "Used 2-3 CAD tools" (a
+range is an amount, and "tools" is no noun of CAD work). (6) Like
 `resolve`, reads past a leading French
 elision (l' d' qu' j' n' s' c' m' t', straight or curly apostrophe, any case): "d'Excel" gives
 Excel, the mention starting at "Excel". Inside a window the elision stays, as labels have it
@@ -216,7 +266,26 @@ OS (French "os"), MIS, Maven, Tailwind, AJAX ("Ajax, ON"), Ruby, Elixir, Bash, H
 Anaconda, Solidity, Cerner (French "cerner"), Initiative, Reliability, Final Cut, Lambda
 functions. Agile matches in lower case. Rejected: a technology mention required in the same
 sentence, and a capitalised neighbour read as a proper noun; both cost recall ("Built backend
-services in Go.", "Advanced Excel").
+services in Go.", "Advanced Excel"). A key that needs its casing never matches text holding an
+apostrophe (fix round 1): normalisation drops the apostrophe, so the company's "Scale's" read as
+O*NET's "Scales"; the possessive's bare form is still tried ("Rust's" gives Rust). (7) Bare "PID"
+yields nothing, deliberately, even where no controls context is near (Task 2.3): in Tailrd's postings
+it is PID control ("PID loops", "tuning PID loops"), which reached O*NET's "Photoionization detectors
+PID" through a derived alias. PID control, controls, controller(s), loop(s), control loop(s), tuning
+and loop tuning are aliases of `skill.control_systems`, so a controls requirement and a PID
+requirement credit each other in full; O*NET's three photoionization detector examples merge into one
+curated `skill.photoionization_detectors` ("photoionization detector", "PID detector"), and
+"photoionization detector (PID)" keeps the detector. (8) "control system" inside a compound that
+names no control system is a blocked phrase: document, change, pest, cash, fire alarm and climate
+control system or systems ("vehicle climate control systems" is the most frequent in Tailrd's
+postings); "access control system" reaches `skill.access_control_systems` through a curated anchor,
+as its plural always did. (9) The fuzzy fallback of `resolve` (SPEC §3.3; Task 2.3) never reads a
+word of `common_words.json` as a typo: every normalised word (letters, perhaps hyphen-joined) used in
+at least 20 postings that does not itself resolve exactly. A typo is rare in postings, a real word
+frequent: "salary" no longer reaches SOLAR-2, "analysis" Analyse-it, "security" CompTIA Security+,
+"engineer" nginx. A word this tech-heavy corpus rarely uses still fuzzes ("patients" reaches
+"patents"), and a right fuzzy hit on a frequent word is lost too ("proactively" reached Initiative):
+such a word becomes an alias when it is worth one.
 
 **D-28 Credential status is context, not vocabulary. [Tailrd]** Whether a credential is held,
 pursued or required depends on the words around it, and they mean different things in a résumé

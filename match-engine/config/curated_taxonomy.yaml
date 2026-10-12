@@ -372,7 +372,9 @@ skills:
   - {id: skill.thermodynamics, label: Thermodynamics, kind: DOMAIN, aliases: [thermodynamique, heat transfer and thermodynamics]}
   - {id: skill.fluid_mechanics, label: Fluid mechanics, kind: DOMAIN, aliases: [fluid dynamics, mécanique des fluides]}
   - {id: skill.signal_processing, label: Signal processing, kind: DOMAIN, aliases: [digital signal processing, DSP, traitement du signal]}
-  - {id: skill.control_systems, label: Control systems, kind: DOMAIN, aliases: [control system, control theory, control engineering, feedback control, PID control, systèmes de contrôle, process control, process control systems, industrial control systems]}
+  # PID control, controllers, loops and tuning are control systems (Task 2.3, D-27). Bare "PID" is
+  # nothing: blocked, it reached O*NET's "Photoionization detectors PID" in every controls posting.
+  - {id: skill.control_systems, label: Control systems, kind: DOMAIN, aliases: [control system, control theory, control engineering, feedback control, PID control, PID controls, PID controller, PID controllers, PID loop, PID loops, PID control loop, PID control loops, PID tuning, PID loop tuning, systèmes de contrôle, process control, process control systems, industrial control systems]}
   - {id: skill.power_systems, label: Power systems, kind: DOMAIN, aliases: [electrical power systems, power engineering, power distribution]}
   - {id: skill.microcontrollers, label: Microcontrollers, kind: TECHNOLOGY, aliases: [microcontroller, MCU, STM32, PIC microcontrollers, AVR microcontrollers], parents: [skill.embedded_systems]}
   - {id: skill.rtos, label: RTOS, kind: TECHNOLOGY, aliases: [real-time operating system, real-time operating systems, FreeRTOS], parents: [skill.embedded_systems]}
@@ -410,6 +412,11 @@ skills:
   - {id: skill.audio_editing_software, label: Audio editing software, kind: TOOL, aliases: [audio editing, sound editing software]}
   - {id: skill.ppe, label: Personal protective equipment, kind: TOOL, aliases: [PPE, protective equipment], parents: [skill.workplace_safety]}
   - {id: skill.alarm_systems, label: Alarm systems, kind: TOOL, aliases: [alarm system, security alarm systems]}
+  # Task 2.3 (D-27): the singular reaches the access-control node, not control systems.
+  - {id: skill.access_control_systems, label: Access control systems, kind: TOOL, aliases: [access control system]}
+  # Task 2.3 (D-27): one node for O*NET's three photoionization detector examples; its names never
+  # include bare "PID" (blocked: PID control is control systems).
+  - {id: skill.photoionization_detectors, label: Photoionization detectors, kind: TOOL, aliases: [photoionization detector, photo-ionization detector, photo-ionization detectors, Photoionization detectors PID, Photoionization detector PID, HNu photoionization detectors PID, PID detector, PID detectors]}
   - {id: skill.battery_testers, label: Battery testers, kind: TOOL}
   - {id: skill.electric_generators, label: Electric generators, kind: TOOL, aliases: [electrical generators]}
   - {id: skill.electromagnets, label: Electromagnets, kind: TOOL}
@@ -535,7 +542,8 @@ skills:
   - {id: skill.data_entry, label: Data entry, kind: METHODOLOGY, aliases: [data input, keyboarding, saisie de données]}
   - {id: skill.typing, label: Typing, kind: METHODOLOGY, aliases: [touch typing, typing speed, dactylographie]}
   - {id: skill.bilingual, label: Bilingualism, kind: SOFT, aliases: [bilingual, bilingual English/French, bilingual French/English, bilingue, bilinguisme]}
-  - {id: skill.translation, label: Translation, kind: METHODOLOGY, aliases: [translating, traduction]}
+  # "translating" is gone (Task 2.3 corpus review): postings say "translating business needs into ...".
+  - {id: skill.translation, label: Translation, kind: METHODOLOGY, aliases: [traduction]}
   - {id: skill.skilled_trades, label: Skilled trades, kind: DOMAIN, aliases: [skilled trade, trade skills, trades certification, métiers spécialisés]}
   # ─── healthcare ──────────────────────────────────────────────────────────────────────────
   - {id: skill.emr, label: Electronic health records, kind: TOOL, aliases: [EMR, EHR, electronic medical records, electronic medical record, electronic health record, EMR systems, EHR systems, Electronic medical record EMR software, dossier médical électronique]}
@@ -844,15 +852,28 @@ ambiguous:
 blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbite, plan, Project, Office, Database, Analytics, Notes, Pages, Numbers, Keynote, Drive, Docs, Sheets, Slides, Classroom, Ads, Dynamics, Windows, Server, Mail, Calendar, Contacts, Photos, Maps, Chat, Meet, Forms, Sites, Groups, Translate, Voice, Cloud, Email, Scheduling, Teleconferencing, Publisher, Millennium, energy, Ant, Arena, Colleague, Navigator, Presenter, Scholar, Quest, Rio, Hive, Middleware, Persuasion, Concordance, Ovation, Painter, Opus, Beehive, Evolver, Cobalt, Helix, Darwin, Saber, Hercules, Dracula, Domino, environment, services, health, welfare, sports, languages, arts,
   cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing, Chef, Teams,
   # ESCO's label for both "document evidence" (forensics) and organising information: neither sense
-  record information]
+  record information,
+  # Task 2.3 corpus review (D-26): in Tailrd's postings these generic words reached a specific node
+  # ("act as", "the Clean Water Act"; Google the company; "translating needs into"; "partner
+  # ecosystems"; "shape the future of"; "Work-Life Balance" among benefits; any "SDK" read as the
+  # Microsoft Windows SDK, "iOS SDK" too), and bare "PID" means PID control there, never O*NET's
+  # photoionization detector (D-27).
+  "Act!", Google, translating, ecosystems, shape the future, work-life balance, SDK, PID,
+  # Fix round 1: every id that is not SOFT and has mined edges, read in context. "ML systems" is
+  # machine learning, not the ML language; "EMI" is electromagnetic interference; forklifts are no
+  # agricultural machines; "business logic" and "PLC logic" are no ESCO logic; "MOS 11B" is a
+  # military code, not multi-object spectrographs; the rest are generic phrases reaching a narrow node.
+  ML systems, EMI, drive forklifts, driving forklifts, fabricate metal, quality checks, digital communications,
+  optical systems, optical products, work with engineers, data infrastructure, logic, MOS]
 
 # After an amount, a currency code that is also a skill (CAD) is money ("85,000 CAD plus benefits",
-# "a 2,500 CAD scholarship") unless the word right after it is one of these nouns of CAD work, which
-# the amount then counts ("1,200 CAD drawings", "1,500 CAD licences"; D-27). Plural nouns only:
-# after an amount a singular noun is usually what the money buys ("a 5,000 CAD design prize").
-currency_skill_nouns: [assemblies, blocks, designs, details, diagrams, drafts, drawings, files, layouts,
-  libraries, licences, licenses, models, parts, plans, renderings, revisions, schematics, seats, sheets,
-  standards, templates, users, workstations]
+# "a 2,500 CAD scholarship") unless the word right after it, or after one modifier ("shop drawings",
+# Task 2.3), is one of these nouns of CAD work, which the amount then counts ("1,200 CAD drawings",
+# "1,500 CAD licences"; D-27). Plural nouns only: after an amount a singular noun is usually what
+# the money buys ("a 5,000 CAD design prize").
+currency_skill_nouns: [assemblies, blocks, components, designs, details, diagrams, documents, drafts, drawings,
+  files, layouts, libraries, licences, licenses, models, parts, plans, renderings, revisions, schematics, seats,
+  sheets, standards, templates, users, workstations]
 
 # Phrases that are never skills although they contain one (D-27): in extraction a match consumes
 # its words and yields no mention ("American Express" is no Express.js); `resolve` gives NONE. The
@@ -863,7 +884,16 @@ blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, C
   Spring Semester, Go-Live, Go-to-market, Go/No-Go, R&D, Unity Health, Epic Games, Swift Transportation,
   Express Employment Professionals, NCLEX-RN, Statistics Canada, Department of Finance,
   # section headers that would otherwise read as a skill ("Technical Skills:")
-  Technical Skills, Language Skills, Platforms]
+  Technical Skills, Language Skills, Platforms,
+  # "control system" inside compounds that name no control system (Task 2.3, D-27); "vehicle climate
+  # control systems" is the most frequent one in Tailrd's postings
+  document control system, document control systems, change control system, change control systems,
+  pest control system, pest control systems, cash control system, cash control systems,
+  fire alarm control system, fire alarm control systems, climate control system, climate control systems,
+  # fix round 1: "building blocks" of a platform are no O*NET toy class; "Access" in security and
+  # rope-access titles is no Microsoft Access; child care among benefits is no early childhood education
+  building blocks, Access Management, Access Control, Access Engineer, Ropes Access, Rope Access,
+  child care benefits, Child care and pet benefits]
 
 # Professional licences (config/gates.yaml) -> the credential of their formal in-progress
 # designations (D-28). The build fails when a licence has none, or when one of those names reaches

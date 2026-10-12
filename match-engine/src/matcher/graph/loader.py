@@ -11,7 +11,9 @@ Formats (all UTF-8 JSON carrying `"format": 1`):
   settings are `resolver.json`: `{"format":1,"ambiguous":{"<key>":"<required casing>"},
   "cased":{"<key>":"<required casing>"},"blocked_phrases":["<phrase>", ...],
   "in_progress":{"<credential id>":"<id of its formal in-progress designations>"},
-  "currency_skill_nouns":["<noun>", ...]}`.
+  "currency_skill_nouns":["<noun>", ...]}`. `common_words.json` (Task 2.3, optional):
+  `{"format":1,"words":["<normalised word>", ...]}`, the words frequent in the posting corpus that
+  resolve to no key, most frequent first; `resolve` never fuzzy-matches them.
 
 Every reader refuses an artifact whose bytes do not match the manifest: `load_graph` checks the
 three graph files it reads, `load_json_artifact` the document it is asked for. The graph version
@@ -46,6 +48,7 @@ IDF_JSON = "idf.json"
 EDGES_JSON = "pmi_edges.json"
 MANIFEST_JSON = "MANIFEST.json"
 RESOLVER_JSON = "resolver.json"
+COMMON_WORDS_JSON = "common_words.json"
 _RESERVED = frozenset({NODES_GZ, NODES_JSON, IDF_JSON, EDGES_JSON, MANIFEST_JSON})
 _EXTRA_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\.json")
 
@@ -281,7 +284,8 @@ def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, An
 def load_resolver(
     taxonomy_dir: str | Path, config: "EngineConfig", *, fuzzy_log: Optional["FuzzyLog"] = None
 ) -> "Resolver":
-    """The graph and its resolver settings in one call (one MANIFEST read): a ready `Resolver`."""
+    """The graph and its resolver settings in one call (one MANIFEST read): a ready `Resolver`.
+    When the MANIFEST lists `common_words.json`, its words are verified and passed in too."""
     from matcher.normalize.resolver import Resolver
 
     root = Path(taxonomy_dir)
@@ -295,8 +299,19 @@ def load_resolver(
         blocked_phrases=settings.get("blocked_phrases", ()),
         in_progress=settings.get("in_progress", {}),
         currency_skill_nouns=settings.get("currency_skill_nouns", ()),
+        common_words=_common_words(root, artifacts),
         fuzzy_log=fuzzy_log,
     )
+
+
+def _common_words(root: Path, artifacts: Mapping[str, str]) -> tuple[str, ...]:
+    """The verified words of `common_words.json`, or none when the MANIFEST does not list it."""
+    if COMMON_WORDS_JSON not in artifacts:
+        return ()
+    words = _json_artifact(root, COMMON_WORDS_JSON, artifacts).get("words")
+    if not isinstance(words, list) or not all(isinstance(word, str) and word for word in words):
+        raise ArtifactError(f"{COMMON_WORDS_JSON}: 'words' must be a list of non-empty strings")
+    return tuple(words)
 
 
 def _manifest_artifacts(root: Path) -> dict[str, str]:

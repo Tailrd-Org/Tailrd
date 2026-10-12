@@ -5,10 +5,12 @@ script turns the public sources that scripts/fetch_sources.py puts under data/ra
 DECISIONS D-04) and the hand-curated config into the hash-pinned artifacts of data/taxonomy/:
 
     nodes.json.gz       every node (graph.loader format)
-    idf.json            empty until Task 2.3 computes IDF from the posting corpus
-    pmi_edges.json      the curated related edges (Task 2.3 adds the mined ones)
-    resolver.json       ambiguous and cased keys with their casing; blocked phrases; the licences'
-                        in-progress nodes; the nouns that keep CAD a skill after an amount
+    idf.json            empty: scripts/compute_idf.py computes IDF from the posting corpus (Task 2.3)
+    pmi_edges.json      the curated related edges (scripts/compute_pmi.py adds the mined ones)
+    resolver.json       ambiguous and cased keys with their casing; blocked phrases; the in-progress
+                        map (each professional licence, and the CFA charter, to the node of its
+                        formal in-progress designations); the nouns that keep CAD a skill after an
+                        amount
     titles.json         normalised job title -> O*NET-SOC code, SOC major group, job zone
     mos_crosswalk.json  military occupation code -> branch, title, O*NET-SOC codes, skill ids
     naics.json          NAICS 2022 code -> title
@@ -421,7 +423,8 @@ class Curated:
     no_merge: frozenset[str]
     blocked_phrases: tuple[str, ...] = ()  # as written, "[A-Z]" expanded (resolver.json)
     generic_titles: frozenset[str] = frozenset()  # title keys that name no occupation
-    in_progress: dict[str, str] = field(default_factory=dict)  # licence id -> its formal in-progress node
+    # credential id (a professional licence, or the CFA charter) -> its formal in-progress node
+    in_progress: dict[str, str] = field(default_factory=dict)
     licence_probes: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (posting line, its exact credential ids)
     currency_skill_nouns: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-27)
 
@@ -534,8 +537,8 @@ def load_curated(path: Path) -> Curated:
             isinstance(k, str) and isinstance(v, str) and by_id.get(k) and by_id.get(v)
             and by_id[k].kind is SkillKind.CREDENTIAL and by_id[v].kind is SkillKind.CREDENTIAL and k != v
             for k, v in in_progress.items()):
-        raise BuildError(f"{path.name}: in_progress must map curated licence credentials to curated "
-                         "in-progress credentials")
+        raise BuildError(f"{path.name}: in_progress must map curated credentials (the professional licences "
+                         "and the CFA charter) to curated in-progress credentials")
     phrases = _expand_phrases(_strings(doc.get("blocked_phrases"), f"{path.name}: blocked_phrases"))
     curated_keys = {key for node in nodes for surface in (node.label, *node.aliases) for key in _keys(surface)}
     for phrase in phrases:
@@ -1464,7 +1467,9 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
                                    " form (3D052 -> 3D0X2)." if raw.military else "NOT FETCHED: mos_crosswalk.json"
                                    " is empty."),
         "- NAICS 2022: 2-6 digit codes; the sector ranges 31-33, 44-45 and 48-49 are expanded to each code.",
-        "- IDF is empty and related edges are the curated ones only: Task 2.3 computes both from the corpus.",
+        "- This build writes an empty IDF and the curated related edges only; scripts/compute_idf.py and",
+        "  scripts/compute_pmi.py compute IDF, the mined edges and the common words from the posting corpus",
+        "  and add the \"Corpus statistics\" section below (run them after every build).",
         "",
         "## Rules worth knowing when reading the artifacts",
         "",
@@ -1622,9 +1627,10 @@ def build(
 
 def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Mapping[str, Any]) -> list[str]:
     """Read through the resolver the artifacts will load (D-28): no name of a formal in-progress
-    node reaches a professional licence through `resolve` or `extract` (list and prose), and every
-    `licence_probes` posting line yields exactly its credentials: the licence it requires and the
-    others it names ("Ideal candidate: RN with 3+ years" requires the licence). Returns what failed."""
+    node reaches a credential of the in-progress map (a professional licence, or the CFA charter)
+    through `resolve` or `extract` (list and prose), and every `licence_probes` posting line yields
+    exactly its credentials: the licence it requires and the others it names ("Ideal candidate: RN
+    with 3+ years" requires the licence). Returns what failed."""
     from matcher.config import load_config
     from matcher.normalize.resolver import Resolver
 
@@ -1632,7 +1638,7 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
     resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
                         blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"],
                         currency_skill_nouns=settings["currency_skill_nouns"])
-    licences = set(curated.in_progress)
+    held = set(curated.in_progress)  # the professional licences and the CFA charter
     targets = set(curated.in_progress.values())
     failures = []
     for node in nodes:
@@ -1642,8 +1648,8 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
             found = {resolver.resolve(name).canonical_id}
             for context in ("list", "prose"):
                 found.update(m.canonical_id for m in resolver.extract(name, context=context))
-            if found & licences:
-                failures.append(f"{name!r} -> {sorted(found & licences)}")
+            if found & held:
+                failures.append(f"{name!r} -> {sorted(found & held)}")
     for text, expected in curated.licence_probes:
         found = {m.canonical_id for m in resolver.extract(text)}
         credentials = {node_id for node_id in found if node_id.startswith("cred.")}

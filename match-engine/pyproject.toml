@@ -35,6 +35,8 @@ eval = [
   # The synthetic corpus writes .docx files and rasterises PDFs (same pins as the ingest extra).
   "python-docx==1.2.0",
   "pymupdf==1.28.2",
+  # scripts/pull_corpus.py reads Tailrd's postings for the corpus statistics (Task 2.3).
+  "pg8000==1.31.2",
 ]
 dev = [
   "pytest==9.1.1",

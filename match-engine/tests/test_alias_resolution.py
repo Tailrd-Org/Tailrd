@@ -324,6 +324,45 @@ def test_ambiguous_keys_never_fuzzy_match(config) -> None:
     assert Resolver(graph, config).resolve("Sprint").canonical_id == "skill.spring"  # unguarded: fuzzy
 
 
+def test_a_common_word_is_never_a_fuzzy_query(config) -> None:
+    # Task 2.3 (SPEC §3.3): a word frequent in the posting corpus is a word, not a typo. Without the
+    # common words, "patients" reaches "patents" and "salary" the variant key of "SOLAR-2" (Task
+    # 2.2's examples); with them both are NONE, while a typo of a skill still fuzzes (and is logged)
+    # and a common word that is itself a key still resolves exactly.
+    graph = _graph(_node("esco.patents", "patents"), _node("skill.solar_2", "SOLAR-2"), _node("skill.python", "Python"))
+    plain = Resolver(graph, config)
+    assert plain.resolve("patients") == Resolution(surface="patients", canonical_id="esco.patents", method="FUZZY",
+                                                   distance=1)
+    assert plain.resolve("salary").canonical_id == "skill.solar_2"
+    log = FuzzyLog()
+    guarded = Resolver(graph, config, common_words=["patients", "Salary", "python", ""], fuzzy_log=log)
+    for surface in ("patients", "Patients", "salary", "SALARY", " salary "):
+        assert guarded.resolve(surface) == Resolution(surface=surface, canonical_id=None, method="NONE"), surface
+    assert guarded.resolve("Pythonn") == Resolution(surface="Pythonn", canonical_id="skill.python", method="FUZZY",
+                                                    distance=1)
+    assert guarded.resolve("python").method == "EXACT"
+    assert log.lines() == ["Pythonn\tskill.python\t1"]
+
+
+def test_a_cased_name_never_matches_a_possessive(config) -> None:
+    # Fix round 1: normalisation drops the apostrophe, so "Scale's" (the company's) read as O*NET's
+    # "Scales". A key that needs its casing is a name written as is: a word holding an apostrophe is
+    # not it, while the possessive's bare form still matches ("Rust's" -> Rust).
+    graph = _graph(_node("cat.scales", "Scales"), _node("skill.rust", "Rust"))
+    r = Resolver(graph, config, ambiguous={"rust": "Rust"}, cased={"scales": "Scales"})
+    assert _ids(r, "Join us: Scale's mission is to speed up AI.") == []
+    assert _ids(r, "Weighed parts on Scales twice a day.") == ["cat.scales"]
+    assert _ids(r, "We rely on Rust's borrow checker.") == ["skill.rust"]
+    assert r.resolve("Scale's").method == "NONE" and r.resolve("Scales").canonical_id == "cat.scales"
+
+
+def test_common_words_change_nothing_but_the_fuzzy_fallback(config) -> None:
+    graph = _graph(_node("esco.patents", "patents"), _node("skill.python", "Python"))
+    text = "Built patient portals in Python; filed patents."
+    assert Resolver(graph, config, common_words=["patents", "python"]).extract(text) == Resolver(graph, config).extract(
+        text)
+
+
 # ─── extract ───────────────────────────────────────────────────────────────────────────────
 
 TEXT = (
@@ -818,7 +857,8 @@ def test_an_amount_before_a_currency_code_is_money(config, text: str) -> None:
         ("Taught CAD annually to new hires.", ["skill.cad"]),  # a rate phrase needs a number before the code
         ("Learned CAD a year ago.", ["skill.cad"]),
         ("Reviewed CAD hourly during the shift.", ["skill.cad"]),
-        ("Spent 10 hours in CAD per week.", ["skill.cad"]),
+        # Task 2.3 reverted round 4's "per <unit> needs a number": "Spent 10 hours in CAD per week."
+        # is money now (test_per_unit_right_after_the_code_is_money).
         ("Built 12 CAD assemblies to spec.", ["skill.cad"]),  # a count: nothing money-like follows
         ("Ported 2 CAD to Onshape.", ["skill.cad"]),  # "to" makes a range only before a number
         ("Experience with Fusion 360 CAD (cloud) and SolidWorks.",  # the number is part of the name before
@@ -837,6 +877,95 @@ def test_the_nouns_that_keep_a_currency_code_a_skill_come_from_the_settings(conf
     text = "Produced 1,200 CAD drawings for the plant."
     assert _ids(_cad_resolver(config, nouns=()), text) == []  # no noun: an amount before the code is money
     assert _ids(_cad_resolver(config, nouns=("Drawings",)), text) == ["skill.cad"]  # normalised like a key
+
+
+# Task 2.3 (D-27; the posting-precision follow-ups, validated on Tailrd's corpus). (a) "per <unit>"
+# right after the code is a rate on its own, like "/h" (round 4's "needs a number" reverted). (b) A
+# "$" amount, perhaps with its rate, before "(CAD)"; a pay word earlier in the clause with only link
+# words between ("Pay range (CAD)", "All amounts are in CAD"). (c) A number that closes a range is
+# an amount, never a version. (d) French thousands ("70 000", no-break and narrow no-break spaces)
+# and "par <unit>". (g) "components" and "documents" are nouns of CAD work, and a two-word noun
+# phrase ending in one keeps the skill ("1,200 CAD part files").
+_CAD_NOUNS_23 = (*_CAD_NOUNS, "files", "components", "documents")
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        # a. per <unit>
+        "Rates quoted in CAD per hour.",
+        "Pay rate (CAD per hour): $45 - $55",
+        "Rate: CAD per hour, depending on experience.",
+        "Spent 10 hours in CAD per week.",  # the skill under round 4; the revert makes it money
+        "Billed in CAD per month.",
+        # b. "(CAD)", "in CAD", pay words
+        "Pay range (CAD): $80,000 - $100,000",
+        "Pay Range (CAD): 80,000 - 100,000",
+        "Hourly rate (CAD): $25 - $30",
+        "Pay range in CAD: 80,000 - 100,000",
+        "$80,000 to $100,000 (CAD).",
+        "Base pay range: $80,000 - $100,000 (CAD)",
+        "$25.00 - $30.00 per hour (CAD)",
+        "Pay: $25.00 - $30.00/hr (CAD)",
+        "All amounts are in CAD.",
+        "Currency: CAD",
+        "Stipend: 500 CAD",
+        "Expected Base Pay Range (CAD)",
+        "All figures cited below are in CAD.",
+        "Hiring range (CAD) for this role",
+        # c. a number that closes a range
+        "Hourly rate: 18 - 20 CAD",
+        "Rate: 18-20 CAD",
+        "Pay: 18 to 20 CAD",
+        "Hourly pay: 25-30 CAD",
+        "Hourly pay: 25 CAD to 30 CAD",
+        "Hourly rate: CAD 25-30",
+        "Earned 18 - 20 CAD.",  # no pay word: the range alone
+        "Quoted CAD 25-30 for the job.",
+        # d. French spacing and "par <unit>"
+        "Budget de 70 000 CAD.",
+        "Budget de 70\u00a0000 CAD.",
+        "Budget de 70\u202f000 CAD.",
+        "Prime de CAD 70\u202f000 versée en mai.",  # an amount after the code, narrow no-break thousands
+        "Versé en CAD par mois.",
+        "Payé 25 CAD par heure.",
+        "Indemnité de 300 CAD par semaine.",
+        "Prime de 70 000 CAD par année.",
+        "Allocation de 500 CAD par an.",
+        # g. no modifier before the noun: what the money buys
+        "Spent 5,000 CAD on parts.",
+        "Saved 10,000 CAD in licences.",
+    ],
+)
+def test_pay_lines_are_money(config, text: str) -> None:
+    assert _ids(_cad_resolver(config, nouns=_CAD_NOUNS_23), text) == []
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        ("Taught CAD annually to new hires.", ["skill.cad"]),  # a rate phrase that is no "per <unit>"
+        ("Learned CAD a year ago.", ["skill.cad"]),
+        ("Created 1,200 CAD part files.", ["skill.cad"]),  # g. a noun phrase ending in a noun of CAD work
+        ("Produced 1,500 CAD shop drawings.", ["skill.cad"]),
+        ("Rendered 2,000 CAD 3D models.", ["skill.cad"]),
+        ("Released 1,500 CAD detail drawings.", ["skill.cad"]),
+        ("Exported 2,000 CAD components.", ["skill.cad"]),
+        ("Archived 3,000 CAD documents.", ["skill.cad"]),
+        ("Built 5-10 CAD drawings a week.", ["skill.cad"]),  # c. a range before a noun of CAD work
+        ("Experience with CAD 2-3 years minimum.", ["skill.cad"]),  # a range of years after the code is no pay
+        # b. a pay word with a content word between it and the code is no pay context
+        ("Used a wide range of CAD tools.", ["skill.cad"]),
+        ("A large amount of CAD work.", ["skill.cad"]),
+        ("Pay attention to detail in CAD.", ["skill.cad"]),
+        ("Bonus points for strong CAD skills.", ["skill.cad"]),
+        ("Salary: competitive. Proficient in CAD.", ["skill.cad"]),
+        ("Read the pay range. In CAD, model the parts.", ["skill.cad"]),  # the pay word is in another clause
+        ("Experience with Fusion 360 CAD.", ["skill.fusion360", "skill.cad"]),  # still a version
+    ],
+)
+def test_task_2_3_lines_that_keep_the_skill(config, text: str, expected: list[str]) -> None:
+    assert _ids(_cad_resolver(config, nouns=_CAD_NOUNS_23), text) == expected
 
 
 def test_spring_of_a_year_is_a_date(config) -> None:
