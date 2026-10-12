@@ -95,16 +95,41 @@ def _simple(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Opti
     core = " ".join(word for word in key.split() if word not in table.filler_words)
     if core and core != key and core in index:
         return index[core]
-    if " " not in key and len(key) >= _MIN_FUSED:
-        # OCR often drops the space of a styled header ("ProfessionalExperience"): one token equal to
-        # a multi-word header with its spaces removed is that header.
-        for listed, found in index.items():
-            if " " in listed and listed.replace(" ", "") == key:
-                return found
     return None
 
 
-_MIN_FUSED = 8  # shortest fused header considered ("workhistory" is 11)
+_MIN_FUSED = 6  # shortest token tried as two fused header words ("worked" is not split: no halves)
+
+
+def _header_words(table: SectionsTable) -> frozenset[str]:
+    cached = _HEADER_WORDS.get(id(table))
+    if cached is None or cached[0] is not table:
+        known = frozenset(w for key in table.header_index for w in key.split()) | frozenset(table.joiner_words)
+        cached = _HEADER_WORDS[id(table)] = (table, known)
+    return cached[1]
+
+
+_HEADER_WORDS: dict[int, tuple[SectionsTable, frozenset[str]]] = {}
+
+
+def _defused(text: str, table: SectionsTable) -> Optional[str]:
+    """OCR often drops the space between the words of a styled header ("ProfessionalExperience",
+    "Researchand Professional Experience"): each token that is not a header word but splits into
+    two header words is split. None when nothing splits."""
+    known = _header_words(table)
+    out, changed = [], False
+    for token in header_key(text).split():
+        if token not in known and len(token) >= _MIN_FUSED:
+            for cut in range(2, len(token) - 1):
+                if token[:cut] in known and token[cut:] in known:
+                    out += [token[:cut], token[cut:]]
+                    changed = True
+                    break
+            else:
+                out.append(token)
+        else:
+            out.append(token)
+    return " ".join(out) if changed else None
 
 
 def _composite_parts(text: str, table: SectionsTable) -> list[str]:
@@ -119,6 +144,15 @@ def _composite_parts(text: str, table: SectionsTable) -> list[str]:
 
 
 def _lookup(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Optional[str]]]:
+    found = _lookup_words(text, table)
+    if found is None:
+        split = _defused(text, table)
+        if split is not None:
+            found = _lookup_words(split, table)
+    return found
+
+
+def _lookup_words(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Optional[str]]]:
     found = _simple(text, table)
     if found is not None:
         return found

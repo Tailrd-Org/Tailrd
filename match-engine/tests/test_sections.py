@@ -271,6 +271,8 @@ def test_an_ocr_fused_header_is_still_a_header(pc) -> None:
     "ProfessionalExperience", the experience section disappeared and every role with it."""
     assert classify_header("ProfessionalExperience", pc) is K.EXPERIENCE
     assert classify_header("WORKHISTORY", pc) is K.EXPERIENCE
+    assert classify_header("Researchand Professional Experience", pc) is K.EXPERIENCE
+    assert classify_header("Teamwork", pc) is None and classify_header("Workshops", pc) is None
     assert classify_header("Networking", pc) is None  # an ordinary word is not a fused header
     sections, _ = segment(["Alex Kim", "ProfessionalExperience", "Barista, Cafe Uno | 2024 - Present",
                            "- Served 200 customers a day"], parse_config=pc)
