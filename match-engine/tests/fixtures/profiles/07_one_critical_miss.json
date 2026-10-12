@@ -187,6 +187,6 @@
     ]
    }
   ],
-  "derivation": "Every skill but kubernetes is an ownership bullet in the current role: m = 1. kubernetes (idf 0.893104 > 0.7) has no exact, child, sibling (docker is absent) or parent match: m = 0 < 0.2, one critical miss. Required = (0.326779 + 0.396012 + 0.660482 + 0.617557) / (that + 0.893104) = 0.691388. Preferred, tools 1. Experience: cos = 0.913591, 56.90 months x cos >= 24 -> 1.0. Seniority, domain 1.0; no education requirement -> 1.0. Uncapped raw = 0.35 x 0.691388 + 0.65 = 0.891986 > 0.70, so the one-miss cap binds (§5.1, D-43): raw = 0.70. Confidence: 9 of 9 matched groups shown, 10 ids, nothing abstains: 1.0."
+  "derivation": "Every skill but kubernetes is an ownership bullet in the current role: m = 1. kubernetes (idf 0.893104 > 0.7) has no exact, child, sibling (docker is absent) or parent match: m = 0 < 0.2, one critical miss. Required = (0.326779 + 0.396012 + 0.660482 + 0.617557) / (that + 0.893104) = 0.691388. Preferred, tools 1. Experience: relevance = 0.913591, 56.90 months x relevance >= 24 -> 1.0. Seniority, domain 1.0; no education requirement -> 1.0. Uncapped raw = 0.35 x 0.691388 + 0.65 = 0.891986 > 0.70, so the one-miss cap binds (§5.1, D-43): raw = 0.70. Confidence: 9 of 9 matched groups shown, 10 ids, nothing abstains: 1.0."
  }
 }

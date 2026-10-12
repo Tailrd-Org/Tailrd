@@ -346,11 +346,17 @@ Skills-blob and certification mentions take the résumé's latest activity date 
 or `as_of` if a role is current); a résumé with no dates gets `R = 1.0` (we do not penalise what
 we cannot date).
 
-**D-35 Role relevance (§5.3). [Deviation: cosine space]** Cosine is computed in the posting's
-requirement space: `v_job[r] = idf(r)`, `v_role[r] = idf(r) × max credit of the role's mentions
-for r` (negated/aspirational mentions excluded). A plain cosine over the union of skills would
-lower a role's relevance for every unrelated skill the person also used there, i.e. it
-penalises breadth. Role titles that resolve to skills enter as `ROLE_TITLE` mentions.
+**D-35 Role relevance (§5.3). [Deviation: requirement space; norm ratio, not cosine]** Relevance is
+computed in the posting's requirement space: `v_job[r] = idf(r)`, `v_role[r] = idf(r) × max credit of
+the role's mentions for r` (negated/aspirational mentions excluded), and relevance = `|v_role| /
+|v_job| = sqrt(Σ idf² c² / Σ idf²)`. A plain cosine over the union of skills would lower a role's
+relevance for every unrelated skill the person also used there, i.e. it penalises breadth. Role
+titles that resolve to skills enter as `ROLE_TITLE` mentions. Why not §5.3's cosine (Task 3.6 fix
+round 1): a cosine is not monotone in one component, so adding a matching skill to a role could
+lower the score (SPEC §10; a verified pair lost raw 0.356657 -> 0.356106), and it is scale-invariant
+(uniform parent credits of 0.40 scored 1.0). The norm ratio equals the cosine whenever every credit is
+0 or 1, is monotone in every credit and bounded by [0, 1]; on that pair relevance rises 0.1848 ->
+0.1977. The D-36 sweep is unchanged.
 
 **D-36 Relevant months.** Interval sweep over all dated roles: each elementary segment counts
 once, weighted by the max `relevance × (0.5 if internship else 1.0)` among roles active in it.
@@ -483,6 +489,17 @@ mode. Details of `score/engine.py`:
   takes the same informational `flags` keyword.
 - The seven scorers are one registry (`score.dimensions.SCORERS`), used by the base run and by the
   interval readings alike.
+
+**D-47 Zero skill overlap (§14.5 read with §5.6).** §14.5's "zero skill overlap → raw = 0.0" cannot
+hold literally while §5.6 never abstains (no requirement 1.00; floor 0.20 × 0.70 = 0.14). It is read
+as: the skill dimensions (§5.1, §5.2, §5.7) and §5.3 score valid zeros, never abstentions, the output
+is a valid score and the band is Limited. The minimum case (tests/fixtures/profiles/02_zero_overlap)
+scores raw 0.0175 (education 0.14 over the scored weight 0.80), calibrated 2, Limited.
+
+**D-48 Totality example counts. [Deviation from the Task 3.6 brief's 2,000]** `tests/test_totality.py`
+runs 300 Hypothesis examples per test by default (env `TOTALITY_EXAMPLES`), on every commit and never
+skipped (§13), so `make eval-fast` stays inside its budget. The Milestone 3 gate is `make gate`, which
+runs `TOTALITY_EXAMPLES=50000` and the slow tests (1,000-run determinism); it passed in 51 min.
 
 ## Calibration and display
 

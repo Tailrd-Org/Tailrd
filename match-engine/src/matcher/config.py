@@ -187,6 +187,8 @@ class VerbsConfig(Frozen):
     noun_entry_followers: tuple[str, ...]
     # Lower-case product names whose following number is a version, not a quantity ("react 18").
     version_names: tuple[str, ...]
+    # Nouns that make "<number ≥ 2> ... <noun>" a quantified outcome ("40 projects", "3 servers").
+    counting_nouns: tuple[str, ...]
 
     @model_validator(mode="after")
     def _valid(self) -> "VerbsConfig":

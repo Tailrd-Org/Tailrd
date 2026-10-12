@@ -92,3 +92,16 @@ version_names: [react, vue, angular, svelte, nuxt, node, python, java, php, ruby
                 mysql, mongo, mongodb, redis, kafka, spark, hadoop, elasticsearch, tensorflow,
                 pytorch, docker, kubernetes, terraform, es, ecmascript, html, css, bootstrap, jquery,
                 unity, unreal, sql, excel, office]
+
+# Nouns that make "<number >= 2> ... <noun>" a quantified outcome ("40 projects", "3 production
+# servers"). Durations of experience ("years", "months") are deliberately absent.
+counting_nouns: [accounts, applications, apps, attendees, bugs, calls, campaigns, cases, classes,
+                 clients, clinics, clusters, countries, courses, customers, dashboards, days,
+                 deployments, developers, devices, documents, downloads, emails, employees,
+                 endpoints, engineers, events, features, files, hospitals, hours, incidents,
+                 interns, issues, jobs, leads, locations, machines, members, messages,
+                 microservices, minutes, models, orders, participants, partners, patients, people,
+                 pipelines, products, projects, queries, records, releases, reports, repositories,
+                 requests, rows, schools, servers, services, sessions, sites, staff, stakeholders,
+                 stores, students, subscribers, tables, teams, tests, tickets, transactions, users,
+                 vendors, visitors, volunteers, websites, weeks, workshops]

@@ -77,6 +77,6 @@
    "tools": null
   },
   "confidence": 0.827037,
-  "derivation": "sql is an execution bullet in the current role: m = 0.85; required = 0.85. Preferred and tools abstain (none listed). Experience: the space is {sql}, cos 1, 20 months >= 12 -> 1.0. Seniority IC1 = IC1, domain 5415 = 5415, no education requirement: 1.0 each. Scored weight 0.80: raw = (0.35 x 0.85 + 0.15 + 0.10 + 0.10 + 0.10) / 0.80 = 0.934375. Confidence penalty (§14.5, §17.1): requirement count 1 -> 0.40, dimension coverage 0.80, the rest 1: (0.40 x 0.80)^(1/6) = 0.827037, still SCORED but well below the 1.0 of a ten-requirement posting."
+  "derivation": "sql is an execution bullet in the current role: m = 0.85; required = 0.85. Preferred and tools abstain (none listed). Experience: the space is {sql}, relevance 1, 20 months >= 12 -> 1.0. Seniority IC1 = IC1, domain 5415 = 5415, no education requirement: 1.0 each. Scored weight 0.80: raw = (0.35 x 0.85 + 0.15 + 0.10 + 0.10 + 0.10) / 0.80 = 0.934375. Confidence penalty (§14.5, §17.1): requirement count 1 -> 0.40, dimension coverage 0.80, the rest 1: (0.40 x 0.80)^(1/6) = 0.827037, still SCORED but well below the 1.0 of a ten-requirement posting."
  }
 }

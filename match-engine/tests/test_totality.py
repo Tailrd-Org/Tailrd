@@ -6,9 +6,9 @@ or a NaN. For VALID random models the outcome is never an engine fault (INTERNAL
 NUMERIC_FAULT) and the raw score lies in [0, 1]; strict mode (tests) would raise on any fault, and
 the valid-model test runs in both modes.
 
-`max_examples` comes from the environment variable TOTALITY_EXAMPLES (default 2,000). These tests
-run on every commit and are never skipped (§13); the Milestone 3 gate runs them with
-TOTALITY_EXAMPLES=50000.
+`max_examples` comes from the environment variable TOTALITY_EXAMPLES (default 300, D-48). These tests
+run on every commit and are never skipped (§13); `make gate` (the Milestone 3 gate) runs
+them with TOTALITY_EXAMPLES=50000.
 """
 
 from __future__ import annotations
@@ -37,7 +37,7 @@ from tests.strategies import (
 )
 from tests.fixtures.build_graph_small import FIXTURE_DIR
 
-EXAMPLES = int(os.environ.get("TOTALITY_EXAMPLES", "2000"))
+EXAMPLES = int(os.environ.get("TOTALITY_EXAMPLES", "300"))
 FAULTS = {Flag.INTERNAL_ERROR, Flag.NUMERIC_FAULT}
 TOTAL = settings(
     max_examples=EXAMPLES,
@@ -113,3 +113,19 @@ def test_valid_models_with_requirements_reach_the_scorer(resume, posting) -> Non
     assert not FAULTS & set(result.reasons)
     if result.raw_score is not None:
         assert result.outcome is not Outcome.GATE_FAIL and len(result.dimensions) == 7
+
+
+def test_most_valid_pairs_with_requirements_reach_the_scorer() -> None:
+    # The test above is only worth its examples if they get past the early exits: on a fixed-seed
+    # sample, at least half of the pairs carry a raw score (the scorers, the aggregator and
+    # confidence ran). Measured share: about 0.8.
+    reached = []
+
+    @settings(max_examples=200, deadline=None, derandomize=True, database=None,
+              suppress_health_check=[HealthCheck.too_slow, HealthCheck.data_too_large])
+    @given(resume=resumes(review_flags=False), posting=postings(review_flags=False, min_requirements=1))
+    def sample(resume, posting) -> None:
+        reached.append(run(resume, posting, strict=True).raw_score is not None)
+
+    sample()
+    assert len(reached) >= 150 and sum(reached) / len(reached) >= 0.5, (sum(reached), len(reached))

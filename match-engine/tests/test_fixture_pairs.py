@@ -150,9 +150,9 @@ def test_one_skill_listed_fifty_times_scores_as_listed_once() -> None:
     assert _without_digest(run_fixture(fixture)) == _without_digest(run_fixture(once))
 
 
-def test_two_hundred_listed_skills_score_as_the_relevant_ten() -> None:
+def test_two_hundred_listed_skills_score_as_the_seven_relevant_ones() -> None:
     # SPEC §14.5: IDF and the requirement-side sums handle a 200-skill list; the 193 skills that
-    # relate to no requirement change no dimension and no raw score.
+    # relate to no requirement change no dimension and no raw score; the 7 left are the listed posting skills.
     fixture = _fixture("blob_200_skills")
     assert len(fixture["resume"]["skills_blob"]) == 200
     lean = json.loads(json.dumps(fixture))

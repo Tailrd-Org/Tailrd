@@ -180,6 +180,6 @@
     ]
    }
   ],
-  "derivation": "kubernetes (idf 0.893104) and go (idf 0.975907) have no match at all: two REQUIRED groups with idf > 0.7 and m < 0.2. Everything else is an ownership bullet (m = 1). Required = (0.326779 + 0.396012 + 0.660482) / (that + 0.893104 + 0.975907) = 0.425324. Preferred, tools 1; experience cos = 0.817858, 56.90 months x cos >= 24 -> 1.0; seniority, domain 1.0; no education requirement 1.0. Uncapped raw = 0.35 x 0.425324 + 0.65 = 0.798863 > 0.55, so the two-miss cap binds: raw = 0.55 (the CapApplied lists the misses in group order, go before kubernetes). Confidence 1.0."
+  "derivation": "kubernetes (idf 0.893104) and go (idf 0.975907) have no match at all: two REQUIRED groups with idf > 0.7 and m < 0.2. Everything else is an ownership bullet (m = 1). Required = (0.326779 + 0.396012 + 0.660482) / (that + 0.893104 + 0.975907) = 0.425324. Preferred, tools 1; experience relevance = 0.817858, 56.90 months x relevance >= 24 -> 1.0; seniority, domain 1.0; no education requirement 1.0. Uncapped raw = 0.35 x 0.425324 + 0.65 = 0.798863 > 0.55, so the two-miss cap binds: raw = 0.55 (the CapApplied lists the misses in group order, go before kubernetes). Confidence 1.0."
  }
 }

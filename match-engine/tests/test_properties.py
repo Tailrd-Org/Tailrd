@@ -14,7 +14,6 @@ from __future__ import annotations
 import os
 from typing import Any
 
-import pytest
 from hypothesis import HealthCheck, given, settings
 from hypothesis import strategies as st
 
@@ -155,16 +154,26 @@ def _cosine_case(*, python_in_role: bool) -> tuple[Resume, JobPosting]:
     return Resume(roles=(role,), projects=(project,)), posting
 
 
-@pytest.mark.xfail(strict=True, reason=(
-    "SPEC §10 monotonicity vs §5.3 / DECISIONS D-35: a cosine is not monotone in one component. "
-    "Adding a low-IDF exact match to a role whose other matches are weak (parent 0.40) turns the role "
-    "vector away from the posting's, so relevance, relevant months and §5.3 drop by more than §5.1 "
-    "gains (raw 0.356657 -> 0.356106). Needs a decision on the relevance formula; see the Task 3.6 report."))
-def test_adding_a_matching_skill_to_a_role_never_lowers_the_score_cosine_case() -> None:
+def test_adding_a_matching_skill_to_a_role_never_lowers_the_score_relevance_case() -> None:
+    # Regression for the Task 3.6 review: under D-35's former cosine this pair LOST score (raw
+    # 0.356657 -> 0.356106) when a required skill was added to the role. With the norm ratio
+    # relevance = sqrt(Σ idf² c² / Σ idf²) (D-35 deviation) it gains, by hand:
+    # S_js = Σ idf of the seven JS requirements = 5.589162, Σ idf² = 4.614218; python idf 0.326779;
+    # 30 unseen fillers at 0.75; Σ idf = 28.415941, |v_job|² = 21.596566.
+    #   before: §5.1 = (0.40 × 5.589162 + 0.85 × 0.326779) / 28.415941 = 0.088113
+    #           relevance = sqrt(0.16 × 4.614218 / 21.596566) = 0.184813, months = 1826 / 30.4375 × that
+    #           = 11.0873, ratio 0.184788 -> §5.3 = 0.6 × ratio / 0.5 = 0.221746
+    #   after:  §5.1 = (0.40 × 5.589162 + 0.326779) / 28.415941 = 0.089840
+    #           relevance = sqrt((0.738275 + 0.106784) / 21.596566) = 0.197742, months 11.8629 -> 0.237258
+    #   seniority, domain, preferred, tools abstain; education 1.0; weights 0.35 + 0.15 + 0.10 = 0.60:
+    #   raw = (0.35 × §5.1 + 0.15 × §5.3 + 0.10) / 0.60 = 0.273502 -> 0.278388.
     before = run(*_cosine_case(python_in_role=False))
     after = run(*_cosine_case(python_in_role=True))
-    assert after.dimensions["required_skills"].value > before.dimensions["required_skills"].value  # §5.1 gains
-    assert after.raw_score >= before.raw_score - EPS
+    for result, req, exp, raw in ((before, 0.088113, 0.221746, 0.273502), (after, 0.089840, 0.237258, 0.278388)):
+        assert abs(result.dimensions["required_skills"].value - req) < 1e-6
+        assert abs(result.dimensions["experience"].value - exp) < 1e-6
+        assert abs(result.raw_score - raw) < 1e-6
+    assert after.raw_score > before.raw_score
 
 
 @PROPERTY
