@@ -7,177 +7,178 @@ recompute (`SOURCES.md`, "Corpus statistics").
 ## Corpus
 
 - Source: Tailrd scraped postings (scraped_jobs), Neon Development branch.
-- 5,473 postings; first seen 2026-05-12 to 2026-05-14; scraped 2026-05-12 to 2026-05-14; `postings.jsonl.gz` sha256 `bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac`.
-- 3,388 descriptions are stored as HTML (decoded before extraction); 5,344 are stored cut short (they end in "..."), so skills named late in a posting are undercounted.
-- 5,054 postings name at least one skill; 27,208 (posting, skill) pairs, 4.97 per posting; 1,217 distinct ids.
+- 3,924 postings; first seen 2026-05-12 to 2026-05-14; scraped 2026-05-12 to 2026-05-14; `postings.jsonl.gz` sha256 `bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac`.
+- 2,418 descriptions are stored as HTML (decoded before extraction); 3,816 are stored cut short (they end in "..."), so skills named late in a posting are undercounted.
+- 3,924 postings counted: 1,549 of the 5,473 read repeat an earlier description exactly; 891 boilerplate lines (30+ characters, in 5+ postings) count only in their first posting (14,886 copies left out).
+- 3,434 postings name at least one skill; 18,923 (posting, skill) pairs, 4.82 per posting; 1,204 distinct ids.
 
 ## The 100 most frequent ids
 
 | # | id | label | kind | df | share | idf |
 |---:|---|---|---|---:|---:|---:|
-| 1 | `skill.ai` | Artificial intelligence | DOMAIN | 1,359 | 24.8% | 0.0250 |
-| 2 | `skill.sales` | Sales | METHODOLOGY | 1,065 | 19.5% | 0.0695 |
-| 3 | `skill.teamwork` | Teamwork | SOFT | 887 | 16.2% | 0.1054 |
-| 4 | `skill.communication` | Communication | SOFT | 539 | 9.8% | 0.1316 |
-| 5 | `skill.troubleshooting` | Troubleshooting | METHODOLOGY | 460 | 8.4% | 0.1500 |
-| 6 | `skill.leadership` | Leadership | SOFT | 459 | 8.4% | 0.1668 |
-| 7 | `skill.compliance` | Regulatory compliance | DOMAIN | 424 | 7.7% | 0.1831 |
-| 8 | `skill.customer_service` | Customer service | SOFT | 419 | 7.7% | 0.1986 |
-| 9 | `skill.marketing` | Marketing | DOMAIN | 340 | 6.2% | 0.2125 |
-| 10 | `esco.mechanics` | mechanics | DOMAIN | 308 | 5.6% | 0.2244 |
-| 11 | `skill.research` | Research | METHODOLOGY | 301 | 5.5% | 0.2356 |
-| 12 | `skill.finance` | Finance | DOMAIN | 298 | 5.4% | 0.2466 |
-| 13 | `skill.adaptability` | Adaptability | SOFT | 292 | 5.3% | 0.2575 |
-| 14 | `skill.initiative` | Initiative | SOFT | 290 | 5.3% | 0.2682 |
-| 15 | `cred.drivers_license` | Driver's licence | CREDENTIAL | 272 | 5.0% | 0.2785 |
-| 16 | `skill.creativity` | Creativity | SOFT | 269 | 4.9% | 0.2884 |
-| 17 | `skill.machine_learning` | Machine learning | DOMAIN | 260 | 4.8% | 0.2981 |
-| 18 | `skill.work_independently` | Independent work | SOFT | 242 | 4.4% | 0.3074 |
-| 19 | `skill.python` | Python | TECHNOLOGY | 239 | 4.4% | 0.3162 |
-| 20 | `skill.programming` | Computer programming | DOMAIN | 235 | 4.3% | 0.3292 |
-| 21 | `skill.salesforce` | Salesforce | TOOL | 235 | 4.3% | 0.3292 |
-| 22 | `skill.apis` | APIs | TECHNOLOGY | 229 | 4.2% | 0.3421 |
-| 23 | `skill.problem_solving` | Problem solving | SOFT | 209 | 3.8% | 0.3501 |
-| 24 | `skill.attention_to_detail` | Attention to detail | SOFT | 194 | 3.5% | 0.3575 |
-| 25 | `skill.recruiting` | Recruiting | METHODOLOGY | 185 | 3.4% | 0.3645 |
-| 26 | `skill.backend` | Back-end development | DOMAIN | 174 | 3.2% | 0.3711 |
-| 27 | `esco.sensors` | sensors | DOMAIN | 172 | 3.1% | 0.3775 |
-| 28 | `skill.forecasting` | Forecasting | METHODOLOGY | 171 | 3.1% | 0.3838 |
-| 29 | `skill.crm` | CRM | TOOL | 167 | 3.1% | 0.3930 |
-| 30 | `skill.welding` | Welding | METHODOLOGY | 167 | 3.1% | 0.3930 |
-| 31 | `skill.paint_booths` | Paint booths | TOOL | 157 | 2.9% | 0.4021 |
-| 32 | `skill.decision_making` | Decision making | SOFT | 151 | 2.8% | 0.4105 |
-| 33 | `skill.observability` | Monitoring and observability | METHODOLOGY | 151 | 2.8% | 0.4105 |
-| 34 | `esco.sales_activities` | sales activities | DOMAIN | 150 | 2.7% | 0.4188 |
-| 35 | `skill.aws` | AWS | TECHNOLOGY | 146 | 2.7% | 0.4243 |
-| 36 | `skill.cloud_computing` | Cloud computing | DOMAIN | 145 | 2.6% | 0.4296 |
-| 37 | `esco.plastic_welding` | plastic welding | DOMAIN | 141 | 2.6% | 0.4349 |
-| 38 | `skill.process_improvement` | Process improvement | METHODOLOGY | 140 | 2.6% | 0.4400 |
-| 39 | `skill.data_science` | Data science | DOMAIN | 139 | 2.5% | 0.4451 |
-| 40 | `esco.take_pictures` | take pictures | METHODOLOGY | 138 | 2.5% | 0.4553 |
-| 41 | `skill.accounting` | Accounting | DOMAIN | 138 | 2.5% | 0.4553 |
-| 42 | `skill.software_development` | Software development | DOMAIN | 138 | 2.5% | 0.4553 |
-| 43 | `skill.logistics` | Logistics | DOMAIN | 137 | 2.5% | 0.4654 |
-| 44 | `skill.writing` | Writing | SOFT | 134 | 2.4% | 0.4704 |
-| 45 | `esco.mix_paint` | mix paint | METHODOLOGY | 132 | 2.4% | 0.4777 |
-| 46 | `skill.supply_chain` | Supply chain management | DOMAIN | 132 | 2.4% | 0.4777 |
-| 47 | `skill.mentoring` | Mentoring | SOFT | 129 | 2.4% | 0.4873 |
-| 48 | `skill.ux` | UX design | METHODOLOGY | 129 | 2.4% | 0.4873 |
-| 49 | `skill.data_analysis` | Data analysis | METHODOLOGY | 128 | 2.3% | 0.4944 |
-| 50 | `skill.procurement` | Procurement | METHODOLOGY | 123 | 2.2% | 0.4990 |
-| 51 | `skill.data_engineering` | Data engineering | DOMAIN | 122 | 2.2% | 0.5035 |
-| 52 | `skill.sql` | SQL | TECHNOLOGY | 116 | 2.1% | 0.5079 |
-| 53 | `skill.prototyping` | Prototyping | METHODOLOGY | 113 | 2.1% | 0.5121 |
-| 54 | `skill.databricks` | Databricks | TECHNOLOGY | 112 | 2.0% | 0.5162 |
-| 55 | `skill.time_management` | Time management | SOFT | 106 | 1.9% | 0.5203 |
-| 56 | `skill.databases` | Databases | DOMAIN | 104 | 1.9% | 0.5260 |
-| 57 | `skill.it_support` | IT support | METHODOLOGY | 104 | 1.9% | 0.5260 |
-| 58 | `skill.auditing` | Auditing | METHODOLOGY | 103 | 1.9% | 0.5317 |
-| 59 | `skill.java` | Java | TECHNOLOGY | 102 | 1.9% | 0.5355 |
-| 60 | `skill.datadog` | Datadog | TOOL | 101 | 1.8% | 0.5392 |
-| 61 | `skill.llm` | Large language models | DOMAIN | 99 | 1.8% | 0.5429 |
-| 62 | `skill.pos` | Point of sale systems | TOOL | 94 | 1.7% | 0.5465 |
-| 63 | `esco.manufacturing_processes` | manufacturing processes | DOMAIN | 93 | 1.7% | 0.5516 |
-| 64 | `skill.data_structures` | Data structures and algorithms | DOMAIN | 93 | 1.7% | 0.5516 |
-| 65 | `skill.negotiation` | Negotiation | SOFT | 92 | 1.7% | 0.5567 |
-| 66 | `skill.kubernetes` | Kubernetes | TECHNOLOGY | 91 | 1.7% | 0.5601 |
-| 67 | `esco.group.t5` | physical and manual skills and competences | SOFT | 88 | 1.6% | 0.5666 |
-| 68 | `skill.ci_cd` | CI/CD | METHODOLOGY | 88 | 1.6% | 0.5666 |
-| 69 | `skill.triage` | Triage | METHODOLOGY | 88 | 1.6% | 0.5666 |
-| 70 | `skill.operating_systems` | Operating systems | DOMAIN | 87 | 1.6% | 0.5730 |
-| 71 | `skill.cybersecurity` | Cybersecurity | DOMAIN | 86 | 1.6% | 0.5778 |
-| 72 | `skill.gcp` | Google Cloud Platform | TECHNOLOGY | 86 | 1.6% | 0.5778 |
-| 73 | `skill.zoom` | Zoom | TOOL | 85 | 1.6% | 0.5825 |
-| 74 | `skill.empathy` | Empathy | SOFT | 84 | 1.5% | 0.5872 |
-| 75 | `skill.figma` | Figma | TOOL | 84 | 1.5% | 0.5872 |
-| 76 | `skill.system_design` | System design | METHODOLOGY | 83 | 1.5% | 0.5918 |
-| 77 | `skill.gitlab` | GitLab | TOOL | 82 | 1.5% | 0.5963 |
-| 78 | `skill.go` | Go | TECHNOLOGY | 82 | 1.5% | 0.5963 |
-| 79 | `skill.azure` | Microsoft Azure | TECHNOLOGY | 81 | 1.5% | 0.6008 |
-| 80 | `skill.spark` | Apache Spark | TECHNOLOGY | 80 | 1.5% | 0.6038 |
-| 81 | `esco.process_payments` | process payments | METHODOLOGY | 79 | 1.4% | 0.6067 |
-| 82 | `skill.full_stack` | Full-stack development | DOMAIN | 76 | 1.4% | 0.6110 |
-| 83 | `skill.willingness_to_learn` | Willingness to learn | SOFT | 76 | 1.4% | 0.6110 |
-| 84 | `skill.big_data` | Big data | DOMAIN | 75 | 1.4% | 0.6151 |
-| 85 | `skill.project_management` | Project management | METHODOLOGY | 74 | 1.4% | 0.6179 |
-| 86 | `skill.accountability` | Accountability | SOFT | 73 | 1.3% | 0.6219 |
-| 87 | `skill.control_systems` | Control systems | DOMAIN | 73 | 1.3% | 0.6219 |
-| 88 | `esco.electronics` | electronics | DOMAIN | 72 | 1.3% | 0.6272 |
-| 89 | `skill.product_management` | Product management | METHODOLOGY | 72 | 1.3% | 0.6272 |
-| 90 | `skill.reliability` | Reliability | SOFT | 70 | 1.3% | 0.6312 |
-| 91 | `skill.generative_ai` | Generative AI | DOMAIN | 69 | 1.3% | 0.6337 |
-| 92 | `esco.firmware` | firmware | DOMAIN | 68 | 1.2% | 0.6362 |
-| 93 | `skill.typing` | Typing | METHODOLOGY | 67 | 1.2% | 0.6387 |
-| 94 | `esco.work_in_outdoor_conditions` | work in outdoor conditions | METHODOLOGY | 66 | 1.2% | 0.6424 |
-| 95 | `skill.workplace_safety` | Workplace safety | DOMAIN | 66 | 1.2% | 0.6424 |
-| 96 | `esco.install_software` | install software | METHODOLOGY | 65 | 1.2% | 0.6472 |
-| 97 | `skill.typescript` | TypeScript | TECHNOLOGY | 65 | 1.2% | 0.6472 |
-| 98 | `skill.business_development` | Business development | METHODOLOGY | 64 | 1.2% | 0.6508 |
-| 99 | `skill.cpp` | C++ | TECHNOLOGY | 63 | 1.2% | 0.6566 |
-| 100 | `skill.operations_management` | Operations management | METHODOLOGY | 63 | 1.2% | 0.6566 |
+| 1 | `skill.sales` | Sales | METHODOLOGY | 742 | 18.9% | 0.0196 |
+| 2 | `skill.ai` | Artificial intelligence | DOMAIN | 651 | 16.6% | 0.0564 |
+| 3 | `skill.teamwork` | Teamwork | SOFT | 561 | 14.3% | 0.0884 |
+| 4 | `skill.communication` | Communication | SOFT | 418 | 10.7% | 0.1143 |
+| 5 | `skill.troubleshooting` | Troubleshooting | METHODOLOGY | 396 | 10.1% | 0.1358 |
+| 6 | `skill.leadership` | Leadership | SOFT | 375 | 9.6% | 0.1562 |
+| 7 | `skill.compliance` | Regulatory compliance | DOMAIN | 299 | 7.6% | 0.1740 |
+| 8 | `skill.marketing` | Marketing | DOMAIN | 259 | 6.6% | 0.1887 |
+| 9 | `skill.research` | Research | METHODOLOGY | 240 | 6.1% | 0.2019 |
+| 10 | `skill.machine_learning` | Machine learning | DOMAIN | 227 | 5.8% | 0.2143 |
+| 11 | `skill.initiative` | Initiative | SOFT | 219 | 5.6% | 0.2260 |
+| 12 | `skill.programming` | Computer programming | DOMAIN | 211 | 5.4% | 0.2374 |
+| 13 | `skill.python` | Python | TECHNOLOGY | 207 | 5.3% | 0.2485 |
+| 14 | `skill.customer_service` | Customer service | SOFT | 202 | 5.1% | 0.2593 |
+| 15 | `skill.apis` | APIs | TECHNOLOGY | 201 | 5.1% | 0.2699 |
+| 16 | `skill.finance` | Finance | DOMAIN | 197 | 5.0% | 0.2804 |
+| 17 | `skill.adaptability` | Adaptability | SOFT | 184 | 4.7% | 0.2905 |
+| 18 | `skill.attention_to_detail` | Attention to detail | SOFT | 165 | 4.2% | 0.2997 |
+| 19 | `skill.backend` | Back-end development | DOMAIN | 163 | 4.2% | 0.3084 |
+| 20 | `skill.problem_solving` | Problem solving | SOFT | 159 | 4.1% | 0.3169 |
+| 21 | `skill.decision_making` | Decision making | SOFT | 133 | 3.4% | 0.3246 |
+| 22 | `skill.process_improvement` | Process improvement | METHODOLOGY | 130 | 3.3% | 0.3316 |
+| 23 | `skill.creativity` | Creativity | SOFT | 128 | 3.3% | 0.3384 |
+| 24 | `skill.ux` | UX design | METHODOLOGY | 123 | 3.1% | 0.3450 |
+| 25 | `skill.data_science` | Data science | DOMAIN | 122 | 3.1% | 0.3547 |
+| 26 | `skill.work_independently` | Independent work | SOFT | 122 | 3.1% | 0.3547 |
+| 27 | `skill.data_analysis` | Data analysis | METHODOLOGY | 120 | 3.1% | 0.3643 |
+| 28 | `skill.procurement` | Procurement | METHODOLOGY | 119 | 3.0% | 0.3706 |
+| 29 | `skill.supply_chain` | Supply chain management | DOMAIN | 115 | 2.9% | 0.3768 |
+| 30 | `skill.recruiting` | Recruiting | METHODOLOGY | 112 | 2.9% | 0.3828 |
+| 31 | `skill.aws` | AWS | TECHNOLOGY | 110 | 2.8% | 0.3887 |
+| 32 | `skill.mentoring` | Mentoring | SOFT | 107 | 2.7% | 0.3944 |
+| 33 | `skill.software_development` | Software development | DOMAIN | 106 | 2.7% | 0.4000 |
+| 34 | `skill.sql` | SQL | TECHNOLOGY | 105 | 2.7% | 0.4056 |
+| 35 | `skill.data_engineering` | Data engineering | DOMAIN | 102 | 2.6% | 0.4111 |
+| 36 | `skill.databases` | Databases | DOMAIN | 101 | 2.6% | 0.4165 |
+| 37 | `skill.databricks` | Databricks | TECHNOLOGY | 97 | 2.5% | 0.4217 |
+| 38 | `skill.llm` | Large language models | DOMAIN | 96 | 2.4% | 0.4268 |
+| 39 | `skill.observability` | Monitoring and observability | METHODOLOGY | 95 | 2.4% | 0.4318 |
+| 40 | `skill.auditing` | Auditing | METHODOLOGY | 94 | 2.4% | 0.4368 |
+| 41 | `skill.time_management` | Time management | SOFT | 93 | 2.4% | 0.4418 |
+| 42 | `skill.writing` | Writing | SOFT | 92 | 2.3% | 0.4467 |
+| 43 | `skill.salesforce` | Salesforce | TOOL | 89 | 2.3% | 0.4514 |
+| 44 | `esco.manufacturing_processes` | manufacturing processes | DOMAIN | 88 | 2.2% | 0.4561 |
+| 45 | `skill.java` | Java | TECHNOLOGY | 87 | 2.2% | 0.4607 |
+| 46 | `skill.cloud_computing` | Cloud computing | DOMAIN | 86 | 2.2% | 0.4653 |
+| 47 | `skill.forecasting` | Forecasting | METHODOLOGY | 85 | 2.2% | 0.4721 |
+| 48 | `skill.logistics` | Logistics | DOMAIN | 85 | 2.2% | 0.4721 |
+| 49 | `skill.prototyping` | Prototyping | METHODOLOGY | 84 | 2.1% | 0.4788 |
+| 50 | `skill.data_structures` | Data structures and algorithms | DOMAIN | 79 | 2.0% | 0.4831 |
+| 51 | `skill.datadog` | Datadog | TOOL | 78 | 2.0% | 0.4893 |
+| 52 | `skill.go` | Go | TECHNOLOGY | 78 | 2.0% | 0.4893 |
+| 53 | `skill.full_stack` | Full-stack development | DOMAIN | 74 | 1.9% | 0.4954 |
+| 54 | `skill.kubernetes` | Kubernetes | TECHNOLOGY | 73 | 1.9% | 0.4993 |
+| 55 | `skill.system_design` | System design | METHODOLOGY | 71 | 1.8% | 0.5031 |
+| 56 | `esco.electronics` | electronics | DOMAIN | 70 | 1.8% | 0.5086 |
+| 57 | `skill.gitlab` | GitLab | TOOL | 70 | 1.8% | 0.5086 |
+| 58 | `skill.control_systems` | Control systems | DOMAIN | 69 | 1.8% | 0.5178 |
+| 59 | `skill.it_support` | IT support | METHODOLOGY | 69 | 1.8% | 0.5178 |
+| 60 | `skill.triage` | Triage | METHODOLOGY | 69 | 1.8% | 0.5178 |
+| 61 | `skill.ci_cd` | CI/CD | METHODOLOGY | 68 | 1.7% | 0.5251 |
+| 62 | `skill.negotiation` | Negotiation | SOFT | 67 | 1.7% | 0.5286 |
+| 63 | `skill.figma` | Figma | TOOL | 65 | 1.7% | 0.5338 |
+| 64 | `skill.product_management` | Product management | METHODOLOGY | 65 | 1.7% | 0.5338 |
+| 65 | `skill.cybersecurity` | Cybersecurity | DOMAIN | 64 | 1.6% | 0.5407 |
+| 66 | `skill.reliability` | Reliability | SOFT | 64 | 1.6% | 0.5407 |
+| 67 | `skill.operating_systems` | Operating systems | DOMAIN | 63 | 1.6% | 0.5474 |
+| 68 | `skill.typescript` | TypeScript | TECHNOLOGY | 63 | 1.6% | 0.5474 |
+| 69 | `skill.big_data` | Big data | DOMAIN | 62 | 1.6% | 0.5523 |
+| 70 | `skill.accounting` | Accounting | DOMAIN | 61 | 1.6% | 0.5588 |
+| 71 | `skill.generative_ai` | Generative AI | DOMAIN | 61 | 1.6% | 0.5588 |
+| 72 | `skill.welding` | Welding | METHODOLOGY | 61 | 1.6% | 0.5588 |
+| 73 | `skill.project_management` | Project management | METHODOLOGY | 60 | 1.5% | 0.5652 |
+| 74 | `skill.gcp` | Google Cloud Platform | TECHNOLOGY | 59 | 1.5% | 0.5684 |
+| 75 | `skill.cpp` | C++ | TECHNOLOGY | 56 | 1.4% | 0.5729 |
+| 76 | `skill.empathy` | Empathy | SOFT | 56 | 1.4% | 0.5729 |
+| 77 | `esco.sensors` | sensors | DOMAIN | 55 | 1.4% | 0.5788 |
+| 78 | `skill.azure` | Microsoft Azure | TECHNOLOGY | 55 | 1.4% | 0.5788 |
+| 79 | `skill.frontend` | Front-end development | DOMAIN | 54 | 1.4% | 0.5845 |
+| 80 | `skill.spark` | Apache Spark | TECHNOLOGY | 54 | 1.4% | 0.5845 |
+| 81 | `skill.strategic_planning` | Strategic planning | METHODOLOGY | 53 | 1.4% | 0.5902 |
+| 82 | `skill.willingness_to_learn` | Willingness to learn | SOFT | 53 | 1.4% | 0.5902 |
+| 83 | `skill.linux` | Linux | TECHNOLOGY | 52 | 1.3% | 0.5944 |
+| 84 | `skill.accountability` | Accountability | SOFT | 51 | 1.3% | 0.5984 |
+| 85 | `skill.business_development` | Business development | METHODOLOGY | 51 | 1.3% | 0.5984 |
+| 86 | `skill.operations_management` | Operations management | METHODOLOGY | 50 | 1.3% | 0.6038 |
+| 87 | `skill.pinterest` | Pinterest | TOOL | 50 | 1.3% | 0.6038 |
+| 88 | `skill.agile` | Agile | METHODOLOGY | 49 | 1.2% | 0.6077 |
+| 89 | `skill.devops` | DevOps | METHODOLOGY | 48 | 1.2% | 0.6103 |
+| 90 | `esco.mechanical_systems` | mechanical systems | DOMAIN | 47 | 1.2% | 0.6140 |
+| 91 | `skill.interpersonal_skills` | Interpersonal skills | SOFT | 47 | 1.2% | 0.6140 |
+| 92 | `esco.sales_strategies` | sales strategies | DOMAIN | 46 | 1.2% | 0.6201 |
+| 93 | `skill.mechanical_design` | Mechanical design | METHODOLOGY | 46 | 1.2% | 0.6201 |
+| 94 | `skill.plc` | PLC programming | TECHNOLOGY | 46 | 1.2% | 0.6201 |
+| 95 | `esco.group.s1.9` | solving problems | METHODOLOGY | 44 | 1.1% | 0.6261 |
+| 96 | `skill.javascript` | JavaScript | TECHNOLOGY | 44 | 1.1% | 0.6261 |
+| 97 | `esco.firmware` | firmware | DOMAIN | 43 | 1.1% | 0.6307 |
+| 98 | `skill.analytical_thinking` | Analytical skills | SOFT | 43 | 1.1% | 0.6307 |
+| 99 | `skill.account_management` | Account management | METHODOLOGY | 42 | 1.1% | 0.6352 |
+| 100 | `skill.risk_management` | Risk management | METHODOLOGY | 42 | 1.1% | 0.6352 |
 
 ## The 50 strongest mined edges
 
-5,204 pairs of ids co-occur in at least 5 postings; 188 of them are left out because one id is an ancestor of the other; 1,325 of the rest reach NPMI 0.4; 1,291 are kept after the out-degree cap of 20 per node; 157 curated pairs are laid over them (a curated weight wins). Weight = NPMI (D-22).
+3,528 pairs of ids co-occur in at least 5 postings; 161 of them are left out because one id is an ancestor of the other; 711 of the rest reach NPMI 0.4; 696 are kept after the out-degree cap of 20 per node; 162 curated pairs are laid over them (a curated weight wins). Weight = NPMI (D-22).
 
 | weight | a | b | co-df | df a | df b |
 |---:|---|---|---:|---:|---:|
-| 1.000 | `cred.cpr` (CPR certification) | `cred.first_aid` (First Aid certification) | 19 | 19 | 19 |
-| 1.000 | `esco.park_vehicles` (park vehicles) | `skill.motor_vehicles` (Motor vehicles) | 25 | 25 | 25 |
+| 1.000 | `esco.park_vehicles` (park vehicles) | `skill.motor_vehicles` (Motor vehicles) | 7 | 7 | 7 |
 | 1.000 | `skill.boom_lifts` (Boom lifts) | `skill.scissor_lifts` (Scissor lifts) | 8 | 8 | 8 |
-| 1.000 | `skill.distribution_management_system_dms` (Distribution management system DMS) | `skill.scheduling_software` (Scheduling software) | 5 | 5 | 5 |
-| 0.997 | `esco.work_in_outdoor_conditions` (work in outdoor conditions) | `skill.typing` (Typing) | 66 | 66 | 67 |
-| 0.991 | `skill.nextjs` (Next.js) | `skill.paypal` (PayPal) | 43 | 45 | 43 |
-| 0.978 | `esco.drive_vehicles` (drive vehicles) | `esco.park_vehicles` (park vehicles) | 24 | 26 | 25 |
-| 0.978 | `esco.drive_vehicles` (drive vehicles) | `skill.motor_vehicles` (Motor vehicles) | 24 | 26 | 25 |
-| 0.975 | `esco.identify_new_business_opportunities` (identify new business opportunities) | `esco.open_source_model` (Open source model) | 21 | 22 | 23 |
-| 0.974 | `skill.distribution_management_system_dms` (Distribution management system DMS) | `skill.ros` (ROS) | 5 | 5 | 6 |
-| 0.974 | `skill.ros` (ROS) | `skill.scheduling_software` (Scheduling software) | 5 | 6 | 5 |
-| 0.969 | `esco.unstructured_data` (unstructured data) | `skill.elasticsearch` (Elasticsearch) | 53 | 56 | 58 |
-| 0.952 | `skill.horizontal_boring_machines` (Horizontal boring machines) | `skill.water_jets` (Water jets) | 5 | 5 | 7 |
-| 0.946 | `skill.pandas` (pandas) | `skill.scikit_learn` (scikit-learn) | 11 | 13 | 13 |
-| 0.943 | `esco.refrigerants` (refrigerants) | `skill.cooling_towers` (Cooling towers) | 9 | 9 | 13 |
-| 0.941 | `skill.dns` (DNS) | `skill.dynamic_host_configuration_protocol_dhcp` (Dynamic host configuration protocol DHCP) | 6 | 9 | 6 |
-| 0.933 | `esco.mix_paint` (mix paint) | `skill.paint_booths` (Paint booths) | 127 | 132 | 157 |
-| 0.931 | `esco.group.t5` (physical and manual skills and competences) | `skill.typing` (Typing) | 66 | 88 | 67 |
-| 0.904 | `esco.digital_communication_and_collaboration` (digital communication and collaboration) | `esco.ict_system_integration` (ICT system integration) | 8 | 10 | 12 |
-| 0.903 | `esco.park_vehicles` (park vehicles) | `esco.road_traffic_laws` (road traffic laws) | 14 | 25 | 14 |
-| 0.903 | `esco.road_traffic_laws` (road traffic laws) | `skill.motor_vehicles` (Motor vehicles) | 14 | 14 | 25 |
-| 0.901 | `skill.objective_c` (Objective-C) | `skill.swift` (Swift) | 5 | 5 | 10 |
-| 0.896 | `esco.drive_vehicles` (drive vehicles) | `esco.road_traffic_laws` (road traffic laws) | 14 | 26 | 14 |
-| 0.895 | `esco.optoelectronic_devices` (optoelectronic devices) | `esco.types_of_photovoltaic_panels` (types of photovoltaic panels) | 26 | 32 | 37 |
-| 0.878 | `skill.hadoop` (Apache Hadoop) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 14 | 29 | 14 |
-| 0.875 | `skill.azure_devops` (Azure DevOps) | `skill.splunk` (Splunk) | 5 | 6 | 10 |
-| 0.869 | `esco.drive_agricultural_machines` (drive agricultural machines) | `esco.machine_tools` (machine tools) | 6 | 8 | 11 |
-| 0.863 | `esco.good_governance` (good governance) | `skill.throttle_control_valves_tcv` (Throttle control valves TCV) | 5 | 13 | 5 |
-| 0.861 | `skill.kafka` (Apache Kafka) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 13 | 28 | 14 |
-| 0.860 | `skill.hmi` (HMI) | `skill.plc` (PLC programming) | 26 | 27 | 53 |
-| 0.856 | `skill.data_warehousing` (Data warehousing) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 14 | 33 | 14 |
-| 0.855 | `esco.service_oriented_modelling` (service-oriented modelling) | `skill.hris` (HRIS) | 15 | 24 | 22 |
-| 0.854 | `cat.60141006` (Building blocks) | `skill.mysql` (MySQL) | 12 | 16 | 22 |
-| 0.853 | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | `skill.unity` (Unity) | 6 | 14 | 7 |
-| 0.853 | `esco.laboratory_equipment` (laboratory equipment) | `skill.sem` (SEM) | 5 | 10 | 7 |
-| 0.851 | `esco.digital_communication_and_collaboration` (digital communication and collaboration) | `esco.power_electronics` (power electronics) | 9 | 10 | 21 |
-| 0.847 | `esco.refrigerants` (refrigerants) | `skill.soldering` (Soldering) | 9 | 9 | 24 |
-| 0.843 | `esco.deliver_outstanding_service` (deliver outstanding service) | `skill.ms_word` (Microsoft Word) | 6 | 7 | 15 |
-| 0.837 | `esco.open_source_model` (Open source model) | `esco.unstructured_data` (unstructured data) | 23 | 23 | 56 |
-| 0.834 | `esco.sales_activities` (sales activities) | `skill.pos` (Point of sale systems) | 84 | 150 | 94 |
-| 0.834 | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | `skill.r` (R) | 13 | 14 | 33 |
-| 0.831 | `esco.open_source_model` (Open source model) | `skill.elasticsearch` (Elasticsearch) | 23 | 23 | 58 |
-| 0.831 | `esco.identify_new_business_opportunities` (identify new business opportunities) | `esco.unstructured_data` (unstructured data) | 22 | 22 | 56 |
-| 0.831 | `skill.gaap` (GAAP) | `skill.reconciliation` (Account reconciliation) | 9 | 12 | 20 |
-| 0.830 | `esco.develop_new_products` (develop new products) | `skill.workday` (Workday) | 28 | 32 | 60 |
-| 0.827 | `esco.machine_tools` (machine tools) | `skill.hmi` (HMI) | 10 | 11 | 27 |
-| 0.826 | `esco.sales_activities` (sales activities) | `skill.crm` (CRM) | 113 | 150 | 167 |
-| 0.825 | `esco.digital_communication_and_collaboration` (digital communication and collaboration) | `skill.pcb_design` (PCB design) | 8 | 10 | 20 |
-| 0.825 | `esco.maintenance_operations` (maintenance operations) | `skill.distribution_management_system_dms` (Distribution management system DMS) | 5 | 17 | 5 |
-| 0.825 | `esco.maintenance_operations` (maintenance operations) | `skill.scheduling_software` (Scheduling software) | 5 | 17 | 5 |
+| 0.950 | `skill.horizontal_boring_machines` (Horizontal boring machines) | `skill.water_jets` (Water jets) | 5 | 5 | 7 |
+| 0.943 | `skill.pandas` (pandas) | `skill.scikit_learn` (scikit-learn) | 11 | 13 | 13 |
+| 0.937 | `skill.dns` (DNS) | `skill.dynamic_host_configuration_protocol_dhcp` (Dynamic host configuration protocol DHCP) | 6 | 9 | 6 |
+| 0.932 | `esco.identify_new_business_opportunities` (identify new business opportunities) | `esco.open_source_model` (Open source model) | 6 | 8 | 7 |
+| 0.902 | `esco.laboratory_equipment` (laboratory equipment) | `skill.sem` (SEM) | 5 | 8 | 6 |
+| 0.890 | `skill.hadoop` (Apache Hadoop) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 14 | 26 | 14 |
+| 0.888 | `esco.optoelectronic_devices` (optoelectronic devices) | `esco.types_of_photovoltaic_panels` (types of photovoltaic panels) | 26 | 32 | 37 |
+| 0.869 | `skill.ms_word` (Microsoft Word) | `skill.outlook` (Microsoft Outlook) | 5 | 10 | 6 |
+| 0.861 | `esco.refrigerants` (refrigerants) | `skill.soldering` (Soldering) | 9 | 9 | 21 |
+| 0.859 | `skill.kafka` (Apache Kafka) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 13 | 27 | 14 |
+| 0.858 | `skill.ms_word` (Microsoft Word) | `skill.powerpoint` (PowerPoint) | 7 | 10 | 12 |
+| 0.837 | `skill.hadoop` (Apache Hadoop) | `skill.kafka` (Apache Kafka) | 17 | 26 | 27 |
+| 0.833 | `skill.hmi` (HMI) | `skill.plc` (PLC programming) | 20 | 21 | 46 |
+| 0.830 | `skill.gaap` (GAAP) | `skill.reconciliation` (Account reconciliation) | 9 | 12 | 19 |
+| 0.822 | `skill.postgresql` (PostgreSQL) | `skill.redis` (Redis) | 6 | 19 | 6 |
+| 0.821 | `esco.ict_system_integration` (ICT system integration) | `esco.power_electronics` (power electronics) | 9 | 12 | 20 |
+| 0.816 | `esco.solar_energy` (solar energy) | `esco.types_of_photovoltaic_panels` (types of photovoltaic panels) | 16 | 19 | 37 |
+| 0.810 | `skill.hadoop` (Apache Hadoop) | `skill.spark` (Apache Spark) | 23 | 26 | 54 |
+| 0.804 | `skill.php` (PHP) | `skill.ruby` (Ruby) | 8 | 9 | 24 |
+| 0.786 | `skill.excel` (Excel) | `skill.ms_word` (Microsoft Word) | 10 | 36 | 10 |
+| 0.776 | `skill.plc` (PLC programming) | `skill.scada` (SCADA) | 15 | 46 | 17 |
+| 0.774 | `esco.operational_research` (operational research) | `skill.statistics` (Statistics) | 13 | 15 | 41 |
+| 0.772 | `skill.fpga` (FPGA) | `skill.register_transfer_language_rtl` (Register transfer language RTL) | 5 | 19 | 6 |
+| 0.768 | `skill.looker` (Looker) | `skill.tableau` (Tableau) | 5 | 13 | 9 |
+| 0.768 | `skill.scikit_learn` (scikit-learn) | `skill.tensorflow` (TensorFlow) | 5 | 13 | 9 |
+| 0.760 | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | `skill.spark` (Apache Spark) | 14 | 14 | 54 |
+| 0.758 | `skill.scala` (Scala) | `skill.spark` (Apache Spark) | 21 | 29 | 54 |
+| 0.757 | `skill.dotnet` (.NET) | `skill.php` (PHP) | 5 | 14 | 9 |
+| 0.757 | `esco.ict_system_integration` (ICT system integration) | `skill.pcb_design` (PCB design) | 7 | 12 | 19 |
+| 0.755 | `skill.kafka` (Apache Kafka) | `skill.spark` (Apache Spark) | 20 | 27 | 54 |
+| 0.755 | `skill.excel` (Excel) | `skill.powerpoint` (PowerPoint) | 10 | 36 | 12 |
+| 0.753 | `skill.pytorch` (PyTorch) | `skill.scikit_learn` (scikit-learn) | 7 | 18 | 13 |
+| 0.753 | `skill.data_warehousing` (Data warehousing) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 9 | 26 | 14 |
+| 0.751 | `esco.optoelectronic_devices` (optoelectronic devices) | `esco.solar_energy` (solar energy) | 12 | 32 | 19 |
+| 0.742 | `esco.handling_of_dangerous_goods` (handling of dangerous goods) | `esco.optoelectronic_devices` (optoelectronic devices) | 6 | 6 | 32 |
+| 0.738 | `skill.c` (C) | `skill.cpp` (C++) | 19 | 26 | 56 |
+| 0.738 | `skill.erp` (ERP) | `skill.oracle_db` (Oracle Database) | 8 | 25 | 13 |
+| 0.737 | `esco.data_protection` (data protection) | `esco.gdpr` (GDPR) | 5 | 18 | 8 |
+| 0.736 | `skill.big_data` (Big data) | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | 14 | 62 | 14 |
+| 0.735 | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | `skill.scala` (Scala) | 9 | 14 | 29 |
+| 0.734 | `skill.financial_reporting` (Financial reporting) | `skill.gaap` (GAAP) | 7 | 22 | 12 |
+| 0.731 | `esco.building_codes` (building codes) | `skill.osha` (OSHA standards) | 5 | 5 | 30 |
+| 0.720 | `esco.mechanical_tools` (mechanical tools) | `skill.blueprint_reading` (Blueprint reading) | 5 | 6 | 27 |
+| 0.719 | `skill.online_analytical_processing_olap_software` (Online analytical processing OLAP software) | `skill.r` (R) | 8 | 14 | 26 |
+| 0.719 | `esco.handling_of_dangerous_goods` (handling of dangerous goods) | `esco.types_of_photovoltaic_panels` (types of photovoltaic panels) | 6 | 6 | 37 |
+| 0.719 | `skill.cloudformation` (AWS CloudFormation) | `skill.terraform` (Terraform) | 6 | 6 | 37 |
+| 0.719 | `skill.kotlin` (Kotlin) | `skill.mysql` (MySQL) | 9 | 32 | 14 |
+| 0.718 | `skill.hvac` (HVAC) | `skill.plumbing` (Plumbing) | 12 | 35 | 21 |
 
 ## Noisy alias suspects
 
 Ids named in more than 30% of the postings that are not SOFT: a generic word mapped to a specific skill shows up here (D-26).
 
-None. The most frequent id that is not SOFT is `skill.ai`, in 24.8% of the postings.
+None. The most frequent id that is not SOFT is `skill.sales`, in 18.9% of the postings.
 
 ## Watch list
 
@@ -185,44 +186,39 @@ Ids that are not SOFT named in at least 2% of the postings, with the surface for
 
 | id | label | kind | df | share | most frequent surfaces |
 |---|---|---|---:|---:|---|
-| `skill.ai` | Artificial intelligence | DOMAIN | 1,359 | 24.8% | AI (4,072), Artificial Intelligence (96), artificial intelligence (23) |
-| `skill.sales` | Sales | METHODOLOGY | 1,065 | 19.5% | sales (2,323), Sales (1,126), direct sales (48) |
-| `skill.troubleshooting` | Troubleshooting | METHODOLOGY | 460 | 8.4% | troubleshooting (272), troubleshoot (170), debugging (96) |
-| `skill.compliance` | Regulatory compliance | DOMAIN | 424 | 7.7% | compliance (508), Compliance (153), regulatory compliance (14) |
-| `skill.marketing` | Marketing | DOMAIN | 340 | 6.2% | marketing (326), Marketing (288), marketing strategy (6) |
-| `esco.mechanics` | mechanics | DOMAIN | 308 | 5.6% | mechanics (194), Mechanics (120) |
-| `skill.research` | Research | METHODOLOGY | 301 | 5.5% | research (381), Research (135), conducting research (5) |
-| `skill.finance` | Finance | DOMAIN | 298 | 5.4% | finance (365), Finance (255), Corporate Finance (4) |
-| `cred.drivers_license` | Driver's licence | CREDENTIAL | 272 | 5.0% | valid driver’s license (242), valid driver's license (67), Valid Drivers License (24) |
-| `skill.machine_learning` | Machine learning | DOMAIN | 260 | 4.8% | ML (371), machine learning (171), Machine Learning (119) |
-| `skill.python` | Python | TECHNOLOGY | 239 | 4.4% | Python (269), python (5) |
-| `skill.programming` | Computer programming | DOMAIN | 235 | 4.3% | programming (150), coding (92), Coding (34) |
-| `skill.salesforce` | Salesforce | TOOL | 235 | 4.3% | Salesforce (279), SFDC (26), Salesforce.com (11) |
-| `skill.apis` | APIs | TECHNOLOGY | 229 | 4.2% | APIs (229), API (215), API design (5) |
-| `skill.recruiting` | Recruiting | METHODOLOGY | 185 | 3.4% | recruiting (239), Recruiting (70), recruitment (36) |
-| `skill.backend` | Back-end development | DOMAIN | 174 | 3.2% | backend (183), Backend (92), back-end (13) |
-| `esco.sensors` | sensors | DOMAIN | 172 | 3.1% | sensors (178), Sensors (5), SENSORS (1) |
-| `skill.forecasting` | Forecasting | METHODOLOGY | 171 | 3.1% | forecasting (190), sales forecasting (11), Forecasting (8) |
-| `skill.crm` | CRM | TOOL | 167 | 3.1% | CRM (169), CRM systems (6) |
-| `skill.welding` | Welding | METHODOLOGY | 167 | 3.1% | welding (357), arc welding (46), Welding (29) |
-| `skill.paint_booths` | Paint booths | TOOL | 157 | 2.9% | paint booths (170) |
-| `skill.observability` | Monitoring and observability | METHODOLOGY | 151 | 2.8% | observability (166), Observability (61), logging and monitoring (1) |
-| `esco.sales_activities` | sales activities | DOMAIN | 150 | 2.7% | sales activities (125), Sales Operations (18), sales activity (6) |
-| `skill.aws` | AWS | TECHNOLOGY | 146 | 2.7% | AWS (164), Amazon Web Services (4), AWS cloud (2) |
-| `skill.cloud_computing` | Cloud computing | DOMAIN | 145 | 2.6% | cloud infrastructure (71), cloud services (25), cloud technologies (24) |
-| `esco.plastic_welding` | plastic welding | DOMAIN | 141 | 2.6% | plastic welding (341) |
-| `skill.process_improvement` | Process improvement | METHODOLOGY | 140 | 2.6% | continuous improvement (108), process improvement (25), process optimization (12) |
-| `skill.data_science` | Data science | DOMAIN | 139 | 2.5% | Data Science (110), data science (89), Data science (3) |
-| `esco.take_pictures` | take pictures | METHODOLOGY | 138 | 2.5% | take photos (137), Take photos (1) |
-| `skill.accounting` | Accounting | DOMAIN | 138 | 2.5% | accounting (196), Accounting (61), accounting principles (3) |
-| `skill.software_development` | Software development | DOMAIN | 138 | 2.5% | software development (130), application development (16), Software Development (12) |
-| `skill.logistics` | Logistics | DOMAIN | 137 | 2.5% | logistics (103), Logistics (56), logistics management (3) |
-| `esco.mix_paint` | mix paint | METHODOLOGY | 132 | 2.4% | paint mixing (163), mix paint (14) |
-| `skill.supply_chain` | Supply chain management | DOMAIN | 132 | 2.4% | supply chain (171), Supply Chain (60), SUPPLY CHAIN (19) |
-| `skill.ux` | UX design | METHODOLOGY | 129 | 2.4% | user experience (103), UX (34), UI/UX (12) |
-| `skill.data_analysis` | Data analysis | METHODOLOGY | 128 | 2.3% | data analysis (66), data analytics (35), analyze data (21) |
-| `skill.procurement` | Procurement | METHODOLOGY | 123 | 2.2% | procurement (114), Procurement (27), purchasing (22) |
-| `skill.data_engineering` | Data engineering | DOMAIN | 122 | 2.2% | data pipelines (85), data engineering (78), Data Engineering (30) |
-| `skill.sql` | SQL | TECHNOLOGY | 116 | 2.1% | SQL (139), SQL queries (15) |
-| `skill.prototyping` | Prototyping | METHODOLOGY | 113 | 2.1% | prototypes (75), prototyping (46), rapid prototyping (9) |
-| `skill.databricks` | Databricks | TECHNOLOGY | 112 | 2.0% | Databricks (685), Databricks Lakehouse (6) |
+| `skill.sales` | Sales | METHODOLOGY | 742 | 18.9% | sales (1,420), Sales (884), Inside Sales (17) |
+| `skill.ai` | Artificial intelligence | DOMAIN | 651 | 16.6% | AI (1,897), artificial intelligence (23), Artificial Intelligence (10) |
+| `skill.troubleshooting` | Troubleshooting | METHODOLOGY | 396 | 10.1% | troubleshooting (236), troubleshoot (141), debugging (83) |
+| `skill.compliance` | Regulatory compliance | DOMAIN | 299 | 7.6% | compliance (379), Compliance (134), regulatory compliance (14) |
+| `skill.marketing` | Marketing | DOMAIN | 259 | 6.6% | marketing (262), Marketing (246), marketing strategies (5) |
+| `skill.research` | Research | METHODOLOGY | 240 | 6.1% | research (302), Research (131), conducting research (4) |
+| `skill.machine_learning` | Machine learning | DOMAIN | 227 | 5.8% | ML (348), machine learning (155), Machine Learning (115) |
+| `skill.programming` | Computer programming | DOMAIN | 211 | 5.4% | programming (133), coding (86), programming languages (28) |
+| `skill.python` | Python | TECHNOLOGY | 207 | 5.3% | Python (230), python (5) |
+| `skill.apis` | APIs | TECHNOLOGY | 201 | 5.1% | APIs (187), API (91), API design (5) |
+| `skill.finance` | Finance | DOMAIN | 197 | 5.0% | Finance (232), finance (133), Corporate Finance (4) |
+| `skill.backend` | Back-end development | DOMAIN | 163 | 4.2% | backend (174), Backend (82), back-end (13) |
+| `skill.process_improvement` | Process improvement | METHODOLOGY | 130 | 3.3% | continuous improvement (102), process improvement (22), process optimization (11) |
+| `skill.ux` | UX design | METHODOLOGY | 123 | 3.1% | user experience (97), UX (34), UI/UX (11) |
+| `skill.data_science` | Data science | DOMAIN | 122 | 3.1% | Data Science (100), data science (81), Data science (1) |
+| `skill.data_analysis` | Data analysis | METHODOLOGY | 120 | 3.1% | data analysis (63), data analytics (34), analyze data (18) |
+| `skill.procurement` | Procurement | METHODOLOGY | 119 | 3.0% | procurement (107), Procurement (26), purchasing (20) |
+| `skill.supply_chain` | Supply chain management | DOMAIN | 115 | 2.9% | supply chain (153), Supply Chain (55), SUPPLY CHAIN (18) |
+| `skill.recruiting` | Recruiting | METHODOLOGY | 112 | 2.9% | recruiting (161), Recruiting (68), recruitment (30) |
+| `skill.aws` | AWS | TECHNOLOGY | 110 | 2.8% | AWS (126), Amazon Web Services (4), AWS cloud (2) |
+| `skill.software_development` | Software development | DOMAIN | 106 | 2.7% | software development (102), application development (11), Software Development (8) |
+| `skill.sql` | SQL | TECHNOLOGY | 105 | 2.7% | SQL (123), SQL queries (12) |
+| `skill.data_engineering` | Data engineering | DOMAIN | 102 | 2.6% | data pipelines (73), data engineering (60), Data Engineering (18) |
+| `skill.databases` | Databases | DOMAIN | 101 | 2.6% | database (121), databases (60), Database (17) |
+| `skill.databricks` | Databricks | TECHNOLOGY | 97 | 2.5% | Databricks (474), Databricks Lakehouse (6) |
+| `skill.llm` | Large language models | DOMAIN | 96 | 2.4% | LLM (78), LLMs (57), Large Language Models (8) |
+| `skill.observability` | Monitoring and observability | METHODOLOGY | 95 | 2.4% | observability (105), Observability (38), logging and monitoring (1) |
+| `skill.auditing` | Auditing | METHODOLOGY | 94 | 2.4% | audits (54), audit (48), Audit (11) |
+| `skill.salesforce` | Salesforce | TOOL | 89 | 2.3% | Salesforce (137), SFDC (11), Salesforce.com (11) |
+| `esco.manufacturing_processes` | manufacturing processes | DOMAIN | 88 | 2.2% | manufacturing processes (65), manufacturing process (27), manufacturing system (3) |
+| `skill.java` | Java | TECHNOLOGY | 87 | 2.2% | Java (105), JAVA (1) |
+| `skill.cloud_computing` | Cloud computing | DOMAIN | 86 | 2.2% | cloud infrastructure (28), cloud platforms (21), cloud services (20) |
+| `skill.forecasting` | Forecasting | METHODOLOGY | 85 | 2.2% | forecasting (113), Forecasting (8), demand forecasting (4) |
+| `skill.logistics` | Logistics | DOMAIN | 85 | 2.2% | logistics (76), Logistics (26), logistics management (3) |
+| `skill.prototyping` | Prototyping | METHODOLOGY | 84 | 2.1% | prototyping (45), prototypes (35), rapid prototyping (9) |
+| `skill.data_structures` | Data structures and algorithms | DOMAIN | 79 | 2.0% | algorithms (98), data structures (20), DSA (18) |

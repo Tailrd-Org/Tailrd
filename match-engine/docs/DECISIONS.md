@@ -88,10 +88,14 @@ than 200 characters and no `duplicate_of`, pulled read-only by `scripts/pull_cor
 (5,473 postings first seen 2026-05-12 to 2026-05-14). A posting is read as its title, a line break
 and its description, decoded from HTML first (62 % are stored as escaped HTML, which glues a skill
 to the markup: `&lt;li&gt;Python`), through `Resolver.extract` in prose context; a skill counts once
-per posting. `scripts/compute_idf.py` and `scripts/compute_pmi.py` run again after every
+per posting. Boilerplate counts once (fix round 1): postings are taken in id order, an exact
+duplicate of an earlier decoded description is left out (1,549 of 5,473, so N = 3,924), and a
+description line of 30 characters or more found in 5 or more distinct postings (an employer's
+"About us", a benefits block; 891 such lines) counts only in the first posting that has it. Without
+this, one employer's blurb repeated in 43 postings made Next.js and PayPal a 0.99 edge. `scripts/compute_idf.py` and `scripts/compute_pmi.py` run again after every
 `scripts/build_taxonomy.py`, which writes an empty IDF and the curated edges only. Known limits of
 this corpus: 5,344 of its 5,473 descriptions are stored cut short, and it is tech-heavy, so SPEC
-§3.1's motivating example does not hold on it (Kubernetes in 91 postings, Microsoft Office in 7);
+§3.1's motivating example does not hold on it (Kubernetes in 73 postings, Microsoft Office in 7);
 `tests/test_corpus_stats.py` keeps that example as a strict xfail, which flags the day a fuller
 corpus makes it hold.
 
@@ -101,8 +105,9 @@ pair co-occurs in at least `pmi.min_cooccurrence` (5) postings; out-degree cappe
 (ties broken by id). A global PMI_max would rank by rarity, not association. A pair where one id
 is an ancestor of the other, at any depth, is left out before `build_edges` (Task 2.3): the
 hierarchy relates them already (PostgreSQL under SQL, Kubernetes under Docker). Mined weights are
-NPMI in [0.4, 1]; scoring clamps them (D-23). Pairs are counted per posting, so an employer's
-boilerplate repeated across its postings can make an edge (`corpus_report.md` lists the strongest).
+NPMI in [0.4, 1]; scoring clamps them (D-23). Pairs are counted over the corpus with its
+boilerplate counted once (D-21); genuine pairs that only the repeated postings had carried (CPR and
+First Aid, Objective-C and Swift, FPGA and Verilog, Ansible and Puppet, GraphQL and REST) are curated.
 
 **D-23 Relation credits.** For a requirement `r` and one résumé skill mention `s`:
 exact/alias 1.00; `s` is a descendant of `r` within depth 3 → 0.85; related edge →
@@ -171,7 +176,14 @@ alternatives "shape the future" and "work-life balance" (a benefit), and the bar
 Microsoft Windows SDK ("iOS SDK"). A blocked label drops its node (`skill.act`, `skill.google`,
 `esco.ecosystems`). No id that is not SOFT reaches the 30 % suspect line in that corpus (the highest
 is `skill.ai` at 24.8 %), so the review read the watch list of `corpus_report.md` (2 % and up) and
-the next ranks by hand.
+the next ranks by hand. Fix round 1 read every id that is not SOFT and has mined edges (320) and
+blocked more: "ML systems" (machine learning, not the ML language), "EMI" (interference), "drive
+forklifts" (no agricultural machines), "fabricate metal", "quality checks", "digital communications",
+"optical systems", "optical products", "work with engineers", "data infrastructure", ESCO "logic"
+("business logic", "PLC logic"; node dropped) and the bare "MOS" of multi-object spectrographs ("MOS
+11B"); and as blocked phrases "building blocks" (an O*NET toy class), "Access Management", "Access
+Control", "Access Engineer", "Ropes Access" and "Rope Access" (no Microsoft Access) and "child care
+benefits" (no early childhood education).
 
 **D-27 Extraction precision. [Tailrd]** `extract`: (1) leaves fields of study (`field.*`) out
 unless `include_fields=True` (education lines, posting education requirements); a field still
@@ -253,7 +265,10 @@ OS (French "os"), MIS, Maven, Tailwind, AJAX ("Ajax, ON"), Ruby, Elixir, Bash, H
 Anaconda, Solidity, Cerner (French "cerner"), Initiative, Reliability, Final Cut, Lambda
 functions. Agile matches in lower case. Rejected: a technology mention required in the same
 sentence, and a capitalised neighbour read as a proper noun; both cost recall ("Built backend
-services in Go.", "Advanced Excel"). (7) Bare "PID" yields nothing (Task 2.3): in Tailrd's postings
+services in Go.", "Advanced Excel"). A key that needs its casing never matches text holding an
+apostrophe (fix round 1): normalisation drops the apostrophe, so the company's "Scale's" read as
+O*NET's "Scales"; the possessive's bare form is still tried ("Rust's" gives Rust). (7) Bare "PID"
+yields nothing, deliberately, even where no controls context is near (Task 2.3): in Tailrd's postings
 it is PID control ("PID loops", "tuning PID loops"), which reached O*NET's "Photoionization detectors
 PID" through a derived alias. PID control, controls, controller(s), loop(s), control loop(s), tuning
 and loop tuning are aliases of `skill.control_systems`, so a controls requirement and a PID

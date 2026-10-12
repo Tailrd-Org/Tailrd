@@ -615,11 +615,13 @@ class Resolver:
     def _ambiguity_ok(self, key: str, original: str, *, context: str, sentence_start: bool) -> bool:
         """The casing rule for ambiguous keys, in one place. `resolve`: `original` has the required
         casing. Prose: the required casing, and not opening a sentence. List: a curated key stands
-        in any casing at any position; an automatic `cased` key still needs its casing. Other keys
-        always stand."""
+        in any casing at any position; an automatic `cased` key still needs its casing. Text holding
+        an apostrophe never stands for one ("Scale's" is no "Scales"). Other keys always stand."""
         required = self._ambiguous.get(key)
         if required is None:
             return True
+        if any(ch in APOSTROPHES for ch in original):
+            return False  # a name is written as is: "Scale's" is no "Scales" (its bare form is tried next)
         if context == "list" and key in self._lenient:
             return True
         if context == "prose" and sentence_start:

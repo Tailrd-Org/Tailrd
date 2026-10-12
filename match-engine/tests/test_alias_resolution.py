@@ -344,6 +344,18 @@ def test_a_common_word_is_never_a_fuzzy_query(config) -> None:
     assert log.lines() == ["Pythonn\tskill.python\t1"]
 
 
+def test_a_cased_name_never_matches_a_possessive(config) -> None:
+    # Fix round 1: normalisation drops the apostrophe, so "Scale's" (the company's) read as O*NET's
+    # "Scales". A key that needs its casing is a name written as is: a word holding an apostrophe is
+    # not it, while the possessive's bare form still matches ("Rust's" -> Rust).
+    graph = _graph(_node("cat.scales", "Scales"), _node("skill.rust", "Rust"))
+    r = Resolver(graph, config, ambiguous={"rust": "Rust"}, cased={"scales": "Scales"})
+    assert _ids(r, "Join us: Scale's mission is to speed up AI.") == []
+    assert _ids(r, "Weighed parts on Scales twice a day.") == ["cat.scales"]
+    assert _ids(r, "We rely on Rust's borrow checker.") == ["skill.rust"]
+    assert r.resolve("Scale's").method == "NONE" and r.resolve("Scales").canonical_id == "cat.scales"
+
+
 def test_common_words_change_nothing_but_the_fuzzy_fallback(config) -> None:
     graph = _graph(_node("esco.patents", "patents"), _node("skill.python", "Python"))
     text = "Built patient portals in Python; filed patents."

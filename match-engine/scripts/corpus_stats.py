@@ -115,7 +115,7 @@ def posting_words(text: str) -> frozenset[str]:
 class CorpusCounts:
     """Integer counts over a corpus; every mapping is sorted by key."""
 
-    n: int  # postings read
+    n: int  # distinct postings counted (exact duplicates collapsed)
     df: dict[str, int]  # skill id -> postings that name it
     co_df: dict[tuple[str, str], int]  # (a, b) with a < b -> postings that name both
     word_df: dict[str, int]  # normalised word -> postings that use it
@@ -123,21 +123,86 @@ class CorpusCounts:
     skill_postings: int  # postings that name at least one skill
     html_postings: int  # postings whose description is stored as HTML
     truncated: int  # descriptions stored cut short (they end in "...")
+    read: int = 0  # postings read, duplicates included
+    repeated_lines: int = 0  # distinct template lines (TEMPLATE_LINE_CHARS+, in TEMPLATE_POSTINGS+ postings)
+    lines_dropped: int = 0  # copies of those lines left out (each is counted in its first posting only)
+
+
+TEMPLATE_LINE_CHARS = 30  # a line this long ...
+TEMPLATE_POSTINGS = 5  # ... found in this many distinct postings is boilerplate: counted once
+
+
+def _line_key(line: str) -> str:
+    return " ".join(line.split())
+
+
+def _id_key(posting: Mapping[str, Any]) -> tuple:
+    value = posting.get("id")
+    return (0, value, "") if isinstance(value, int) else (1, 0, str(value))
+
+
+@dataclass(frozen=True)
+class CorpusTexts:
+    texts: tuple[str, ...]  # what extraction reads, one per distinct posting, in id order
+    kept: tuple[Mapping[str, Any], ...]  # the postings behind them
+    read: int
+    repeated_lines: int
+    lines_dropped: int
+
+
+def corpus_texts(postings: Iterable[Mapping[str, Any]]) -> CorpusTexts:
+    """The text of each distinct posting with its boilerplate counted once (Task 2.3 fix round 1).
+
+    Postings are taken in id order. An exact duplicate of an earlier decoded description (whitespace
+    collapsed) is left out. A description line of TEMPLATE_LINE_CHARS characters or more that recurs
+    in TEMPLATE_POSTINGS or more of the remaining postings (an employer's "About us", a benefits
+    block) stays only in the first posting that has it, so a blurb naming customers or tools makes
+    no edge and inflates no document frequency. Titles are always kept."""
+    ordered = sorted(postings, key=_id_key)
+    seen: set[str] = set()
+    kept, bodies = [], []
+    for posting in ordered:
+        body = html_to_text(posting.get("description") or "")
+        key = _line_key(body)
+        if key in seen:
+            continue
+        seen.add(key)
+        kept.append(posting)
+        bodies.append(body.split("\n"))
+    holders: Counter[str] = Counter()
+    for lines in bodies:
+        holders.update({_line_key(line) for line in lines if len(_line_key(line)) >= TEMPLATE_LINE_CHARS})
+    repeated = {line for line, count in holders.items() if count >= TEMPLATE_POSTINGS}
+    placed: set[str] = set()
+    texts, dropped = [], 0
+    for posting, lines in zip(kept, bodies):
+        out = []
+        for line in lines:
+            key = _line_key(line)
+            if key in repeated:
+                if key in placed:
+                    dropped += 1
+                    continue
+                placed.add(key)
+            out.append(line)
+        texts.append(f"{posting.get('title') or ''}\n" + "\n".join(out))
+    return CorpusTexts(tuple(texts), tuple(kept), len(ordered), len(repeated), dropped)
 
 
 def count_corpus(resolver: Resolver, postings: Iterable[Mapping[str, Any]]) -> CorpusCounts:
-    """df, co-df and word df over `postings` (each skill, pair and word once per posting)."""
+    """df, co-df and word df over the distinct postings, boilerplate counted once (`corpus_texts`);
+    each skill, pair and word once per posting."""
+    prepared = corpus_texts(postings)
     n = skill_postings = html_postings = truncated = 0
     df: Counter[str] = Counter()
     co_df: Counter[tuple[str, str]] = Counter()
     word_df: Counter[str] = Counter()
     surfaces: dict[str, Counter[str]] = defaultdict(Counter)
-    for posting in postings:
+    for posting, text in zip(prepared.kept, prepared.texts):
         n += 1
         description = posting.get("description") or ""
         html_postings += bool(_MARKUP.search(description))
         truncated += description.rstrip().endswith(("...", "\u2026"))
-        text = posting_text(posting)
         mentions = resolver.extract(text)
         ids = sorted({mention.canonical_id for mention in mentions})
         for mention in mentions:
@@ -155,6 +220,9 @@ def count_corpus(resolver: Resolver, postings: Iterable[Mapping[str, Any]]) -> C
         skill_postings=skill_postings,
         html_postings=html_postings,
         truncated=truncated,
+        read=prepared.read,
+        repeated_lines=prepared.repeated_lines,
+        lines_dropped=prepared.lines_dropped,
     )
 
 
@@ -282,6 +350,11 @@ def write_sources_section(taxonomy_dir: str | Path, summary: CorpusSummary, coun
         "taxonomy. A skill counts once per posting (df), every unordered pair of a posting's skills once (co-df). "
         f"{counts.truncated:,} of the {counts.n:,} descriptions are stored cut short (they end in \"...\"), so "
         "skills named late in a posting are undercounted.",
+        f"Boilerplate counted once: of the {counts.read:,} postings read, {counts.read - counts.n:,} repeat an "
+        f"earlier description exactly and are left out, so {counts.n:,} postings are counted; "
+        f"{counts.repeated_lines:,} description lines of {TEMPLATE_LINE_CHARS}+ characters recur in "
+        f"{TEMPLATE_POSTINGS}+ postings (an employer's blurb, a benefits block) and count only in the first "
+        f"posting that has them ({counts.lines_dropped:,} copies left out).",
         f"`idf.json`: `normalize_idf(df, N)` (D-21) over N = {idf['n_postings']:,} postings, for the "
         f"{len(idf['idf']):,} ids seen at least once; an id never seen takes `idf.unseen_default`.",
         f"`pmi_edges.json`: {len(pairs - curated):,} pairs mined (NPMI >= {taxonomy_config.pmi_threshold} over pairs "

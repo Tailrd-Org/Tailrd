@@ -83,7 +83,7 @@ as downloaded.
 |---|---|
 | TECHNOLOGY | 2,200 |
 | METHODOLOGY | 11,120 |
-| DOMAIN | 3,313 |
+| DOMAIN | 3,312 |
 | TOOL | 27,893 |
 | SOFT | 134 |
 | CREDENTIAL | 79 |
@@ -91,11 +91,11 @@ as downloaded.
 | Source | Nodes | Aliases |
 |---|---|---|
 | curated | 706 | 3,356 |
-| esco | 14,294 | 102,801 |
-| onet | 29,739 | 1,988 |
+| esco | 14,293 | 102,789 |
+| onet | 29,739 | 1,986 |
 
-- Total: 44,739 nodes, 108,145 aliases; 157 curated related edges; 85 curated ambiguous keys and 2,643 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 95 blocked phrases.
-- Merged into curated nodes: 625 source concepts; dropped nodes: 29; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
+- Total: 44,738 nodes, 108,131 aliases; 162 curated related edges; 85 curated ambiguous keys and 2,641 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 103 blocked phrases.
+- Merged into curated nodes: 625 source concepts; dropped nodes: 30; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
 
 ## Corpus statistics
@@ -113,13 +113,17 @@ noisy-alias review.
 - Extraction: each posting is read as its title, a line break and its description, decoded from HTML
   (entities, then tags; a block tag ends a line), through `Resolver.extract` in prose context over this
   taxonomy. A skill counts once per posting (df), every unordered pair of a posting's skills once
-  (co-df). 5,344 of the 5,473 descriptions are stored cut short (they end in "..."), so skills named
+  (co-df). 3,816 of the 3,924 descriptions are stored cut short (they end in "..."), so skills named
   late in a posting are undercounted.
-- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 5,473 postings, for the 1,217 ids seen at least
+- Boilerplate counted once: of the 5,473 postings read, 1,549 repeat an earlier description exactly and
+  are left out, so 3,924 postings are counted; 891 description lines of 30+ characters recur in 5+
+  postings (an employer's blurb, a benefits block) and count only in the first posting that has them
+  (14,886 copies left out).
+- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,204 ids seen at least
   once; an id never seen takes `idf.unseen_default`.
-- `pmi_edges.json`: 1,291 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node,
-  pairs where one id is an ancestor of the other left out; D-22) and 157 curated pairs laid over them.
-- `common_words.json`: 3,845 words, each used in at least 20 postings, that resolve to no key;
+- `pmi_edges.json`: 696 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
+  where one id is an ancestor of the other left out; D-22) and 162 curated pairs laid over them.
+- `common_words.json`: 2,889 words, each used in at least 20 postings, that resolve to no key;
   `resolve()` never fuzzy-matches them.
 - Recompute against any database (reads only `DATABASE_URL`), from `match-engine/`; run the two compute
   scripts again after every `scripts/build_taxonomy.py`, then the gate (`tests/test_surface_forms.py`):

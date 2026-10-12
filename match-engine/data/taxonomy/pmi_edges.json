@@ -1,32 +1,12 @@
 {
  "edges":{
   "cat.23152204":{
-   "skill.auditing":0.5196207482254817,
-   "skill.osha":0.7317818863567712,
-   "skill.workplace_safety":0.6631859721110436
+   "skill.osha":0.7038328585909469
   },
   "cat.27111715":{
-   "skill.blueprint_reading":0.7198368292730941,
-   "skill.forklift":0.7042942923994919,
-   "skill.welding":0.4524946431928442
-  },
-  "cat.44111807":{
-   "skill.generative_ai":0.6166227989949441,
-   "skill.pytorch":0.5707861507884013,
-   "skill.research":0.4158862767291423,
-   "skill.robotics":0.47576434541975804
-  },
-  "cat.60141006":{
-   "esco.cooperate_with_colleagues":0.6104937298255966,
-   "skill.adaptability":0.43169792332953,
-   "skill.aws":0.5653721314348702,
-   "skill.backend":0.5162522165559034,
-   "skill.kotlin":0.7735802996980494,
-   "skill.kubernetes":0.6221202783728996,
-   "skill.mysql":0.8540151490986647,
-   "skill.product_management":0.4915161317714641,
-   "skill.python":0.4838088553284801,
-   "skill.writing":0.5589158359979635
+   "skill.blueprint_reading":0.7054587559073454,
+   "skill.forklift":0.6430017982511933,
+   "skill.welding":0.5797417264051595
   },
   "cred.acls":{
    "esco.resuscitation":0.7
@@ -114,14 +94,9 @@
   },
   "cred.commercial_drivers_license":{
    "cred.cdl_trainee":0.6,
-   "esco.english":0.6803808149325312,
-   "esco.group.t5":0.6054411553907733,
-   "esco.interact_verbally_in_english":0.7206778825257791,
    "esco.manoeuvre_heavy_trucks":0.8,
-   "esco.quality_standards":0.6433388008028529,
-   "skill.logistics":0.4388465018950394,
-   "skill.workplace_safety":0.7475236292083338,
-   "skill.writing":0.5298527195099336
+   "skill.adaptability":0.4088044045191456,
+   "skill.workplace_safety":0.546998574025218
   },
   "cred.comptia_a_plus":{
    "skill.it_support":0.7
@@ -143,13 +118,9 @@
    "skill.accounting":0.7
   },
   "cred.cpr":{
-   "cred.first_aid":1.0,
+   "cred.first_aid":0.8,
    "esco.provide_first_aid":0.6,
-   "esco.resuscitation":0.8,
-   "skill.communication":0.4092897766266377,
-   "skill.inventory_management":0.8083818832821745,
-   "skill.logistics":0.6355431703047232,
-   "skill.sas":0.7886738489017956
+   "esco.resuscitation":0.8
   },
   "cred.csc":{
    "skill.investment_banking":0.6
@@ -158,19 +129,7 @@
    "skill.scrum":0.8
   },
   "cred.drivers_license":{
-   "esco.drive_vehicles":0.7,
-   "esco.group.t5":0.6143373977176328,
-   "esco.interact_verbally_in_english":0.4506046088553447,
-   "esco.park_vehicles":0.5453435240724275,
-   "esco.petroleum":0.4978770534117545,
-   "esco.road_traffic_laws":0.5029350123338692,
-   "esco.take_pictures":0.5227883328331566,
-   "esco.work_in_outdoor_conditions":0.679454372988299,
-   "skill.distribution_management_system_dms":0.4289394452726732,
-   "skill.motor_vehicles":0.5453435240724275,
-   "skill.ros":0.4028866018998058,
-   "skill.scheduling_software":0.4289394452726732,
-   "skill.typing":0.6760505422242731
+   "esco.drive_vehicles":0.7
   },
   "cred.ece_registration":{
    "skill.early_childhood_education":0.8
@@ -188,13 +147,9 @@
    "skill.electrical_wiring":0.8
   },
   "cred.first_aid":{
-   "cred.cpr":1.0,
+   "cred.cpr":0.8,
    "esco.first_aid":0.8,
-   "esco.provide_first_aid":0.8,
-   "skill.communication":0.4092897766266377,
-   "skill.inventory_management":0.8083818832821745,
-   "skill.logistics":0.6355431703047232,
-   "skill.sas":0.7886738489017956
+   "esco.provide_first_aid":0.8
   },
   "cred.food_handler":{
    "skill.food_safety":0.8
@@ -327,291 +282,120 @@
    "skill.workplace_safety":0.6
   },
   "esco.apply_advanced_manufacturing":{
-   "esco.collaborate_with_engineers":0.5316048318677872,
-   "esco.production_processes":0.4299940258877192,
-   "esco.refrigerants":0.6599746962392052,
-   "skill.cad":0.5009850577941513,
-   "skill.cooling_towers":0.6886177482308614,
-   "skill.hvac":0.6797984643244286,
-   "skill.plc":0.44423872050278257,
-   "skill.scada":0.5690950656698783,
-   "skill.soldering":0.519819075842
-  },
-  "esco.apply_change_management":{
-   "esco.assist_customers":0.4778204244142814,
-   "esco.build_trust":0.6402863295702479,
-   "esco.design_process":0.6882293923769912,
-   "esco.product_comprehension":0.543744410563889,
-   "skill.accounting":0.46604163578752045,
-   "skill.accounting_software":0.7468533526380595,
-   "skill.empathy":0.5447786880947396,
-   "skill.project_management":0.5889008546004126,
-   "skill.stakeholder_management":0.6068149901377973,
-   "skill.zoom":0.5429016915691621
+   "skill.cad":0.5034979909526411,
+   "skill.hvac":0.6084378388199072,
+   "skill.plc":0.4656885818615069,
+   "skill.scada":0.5749390799819388
   },
   "esco.apply_information_security_policies":{
-   "skill.aws":0.4300036119560059,
-   "skill.azure":0.5164432819816798,
-   "skill.gcp":0.5076551805264482
+   "skill.aws":0.41796696549862805,
+   "skill.azure":0.5219583500143186,
+   "skill.gcp":0.5114257556922424
   },
   "esco.apply_regulations_regarding_the_sale_of_alcoholic_beverages":{
    "cred.smart_serve":0.8
   },
   "esco.architectural_design":{
-   "esco.service_oriented_modelling":0.6354208800358123,
-   "skill.cloud_computing":0.5053993872627816,
-   "skill.cybersecurity":0.48167686217160677,
-   "skill.devops":0.6012132601988042,
-   "skill.go":0.4172433408240507,
-   "skill.infrastructure_as_code":0.6869021515329039,
-   "skill.kubernetes":0.40236221589934473,
-   "skill.software_development":0.41068771921832675
+   "skill.cloud_computing":0.4941371076042438,
+   "skill.devops":0.5062009420608272,
+   "skill.infrastructure_as_code":0.6111009493939396
   },
   "esco.assist_customers":{
-   "esco.apply_change_management":0.4778204244142814,
-   "esco.cloud_security_and_compliance":0.49177107089905525,
-   "esco.design_process":0.4089681590560756,
-   "esco.drive_vehicles":0.6969731521203993,
-   "esco.park_vehicles":0.7035444095187033,
-   "esco.product_comprehension":0.4699952690371556,
-   "esco.road_traffic_laws":0.8006904395185581,
-   "skill.motor_vehicles":0.7035444095187033,
-   "skill.ms_access":0.4555523944452557,
-   "skill.stakeholder_management":0.4529061928407475
+   "esco.cloud_security_and_compliance":0.5599900980704668,
+   "esco.knowledge_base":0.4996484659780659,
+   "skill.linux":0.47581882281429827
   },
   "esco.blueprints":{
-   "skill.cnc":0.6104465783623401,
-   "skill.electrical_wiring":0.46837647624790063
-  },
-  "esco.build_networks":{
-   "skill.account_management":0.5019338854301955,
-   "skill.project_management":0.4786015358971444
-  },
-  "esco.build_trust":{
-   "esco.apply_change_management":0.6402863295702479,
-   "esco.design_process":0.563864710433559,
-   "esco.product_comprehension":0.4316977125340746,
-   "skill.accounting":0.44974786102550035,
-   "skill.accounting_software":0.6348066546082451,
-   "skill.empathy":0.4204140061513073,
-   "skill.project_management":0.4626273453113831,
-   "skill.stakeholder_management":0.5262905613922602,
-   "skill.zoom":0.5327989271919722
+   "skill.cnc":0.5931836671539585,
+   "skill.electrical_wiring":0.4489851856888692
   },
   "esco.building_codes":{
-   "esco.provide_technical_expertise":0.7558813033497558,
-   "skill.osha":0.7543984780899446,
-   "skill.root_cause_analysis":0.6804230948348191,
-   "skill.workplace_safety":0.6052470088691022
+   "skill.osha":0.7311861706288653
   },
   "esco.business_processes":{
-   "esco.data_models":0.5673971307604836,
-   "skill.agile":0.5190927627508464,
-   "skill.airtable":0.6722930873297049,
-   "skill.business_analysis":0.41154955873550164
+   "esco.data_models":0.5155802888291391,
+   "skill.agile":0.506015976343988,
+   "skill.business_analysis":0.4133278176261921
   },
-  "esco.cameras":{
-   "esco.sensors":0.46837647624790063
-  },
-  "esco.cast_metal":{
-   "esco.cooperate_with_colleagues":0.7317818863567712,
-   "skill.welding":0.523830707468014
-  },
-  "esco.circulate_information":{
-   "esco.lead_a_team":0.7866322941221345,
-   "skill.mentoring":0.5625869546119572,
-   "skill.quality_control":0.6961150666519283
-  },
-  "esco.cisco":{
-   "skill.zoom":0.5111561190063042
+  "esco.channel_marketing":{
+   "skill.marketing":0.4083623100070279
   },
   "esco.cloud_security_and_compliance":{
-   "esco.assist_customers":0.49177107089905525,
-   "skill.linux":0.45525368223278107,
-   "skill.ms_access":0.5807671989986333,
-   "skill.social_media_marketing":0.5318679669232026
-  },
-  "esco.collaborate_with_engineers":{
-   "esco.apply_advanced_manufacturing":0.5316048318677872,
-   "esco.data_models":0.4279969316153859,
-   "esco.refrigerants":0.6736089475491795,
-   "skill.cooling_towers":0.6910323635702195,
-   "skill.hvac":0.5227436658139452,
-   "skill.soldering":0.5297041992848316
+   "esco.assist_customers":0.5599900980704668,
+   "skill.linux":0.45307420990394626,
+   "skill.social_media_marketing":0.5232159077755288
   },
   "esco.communicate_with_customers":{
-   "esco.provide_technical_expertise":0.598895073155792,
-   "skill.devops":0.4667244922446203,
-   "skill.go":0.4172433408240507
+   "esco.provide_technical_expertise":0.5855422922647145,
+   "skill.devops":0.46849677752164753,
+   "skill.observability":0.4387023745461671
+  },
+  "esco.company_policies":{
+   "skill.accounting":0.45657429249890286
   },
   "esco.consumer_electronics":{
-   "skill.decision_making":0.4518129147727292,
-   "skill.mechanical_design":0.6230515579598566,
-   "skill.robotics":0.6663037891648635
+   "skill.decision_making":0.44325844273604287,
+   "skill.mechanical_design":0.6070236982186658,
+   "skill.robotics":0.6582543530601226
   },
   "esco.cooperate_with_colleagues":{
-   "cat.60141006":0.6104937298255966,
-   "esco.cast_metal":0.7317818863567712,
-   "skill.kotlin":0.4915161317714641,
-   "skill.mysql":0.5637710164993586
+   "skill.kotlin":0.5062009420608272
   },
   "esco.cost_management":{
-   "skill.procurement":0.497362221109891
-  },
-  "esco.customer_insight":{
-   "skill.leadership":0.4611806992862275,
-   "skill.machine_learning":0.512272312058207
+   "skill.procurement":0.4766662114226695
   },
   "esco.data_models":{
-   "esco.business_processes":0.5673971307604836,
-   "esco.collaborate_with_engineers":0.4279969316153859,
-   "esco.information_architecture":0.5297041992848316,
-   "skill.agile":0.5164472010010412,
-   "skill.airflow":0.6259668261915561,
-   "skill.apis":0.42911032600351107,
-   "skill.business_intelligence":0.49593261253031606,
-   "skill.data_engineering":0.47443893241259616,
-   "skill.looker":0.566870973693315,
-   "skill.sql":0.4037526331509921
+   "esco.business_processes":0.5155802888291391,
+   "esco.information_architecture":0.5089042197869422,
+   "skill.agile":0.4787371922374514,
+   "skill.airflow":0.5957125677514111,
+   "skill.apis":0.4084931792223466,
+   "skill.business_intelligence":0.5165996427062467,
+   "skill.data_engineering":0.47607269648015466,
+   "skill.looker":0.573533656545196
   },
   "esco.data_protection":{
-   "esco.gdpr":0.7420738092712134,
-   "skill.cybersecurity":0.5037019932580266
+   "esco.gdpr":0.7373106068927824,
+   "skill.cybersecurity":0.5334667714110224
   },
-  "esco.deliver_outstanding_service":{
-   "esco.product_comprehension":0.7462247609486711,
-   "skill.early_childhood_education":0.7739898609754121,
-   "skill.excel":0.6884321360846891,
-   "skill.ms_word":0.8429475860251655,
-   "skill.salesforce":0.4392493935539097
-  },
-  "esco.design_process":{
-   "esco.apply_change_management":0.6882293923769912,
-   "esco.assist_customers":0.4089681590560756,
-   "esco.build_trust":0.563864710433559,
-   "esco.product_comprehension":0.47489214520568307,
-   "skill.accounting_software":0.6780010872798536,
-   "skill.empathy":0.49089433663347637,
-   "skill.project_management":0.5530877057688849,
-   "skill.stakeholder_management":0.496100625512356,
-   "skill.zoom":0.46648007243247325
-  },
-  "esco.design_prototypes":{
-   "skill.simulation_software":0.7347442526995378
-  },
-  "esco.develop_new_products":{
-   "skill.ab_testing":0.5296778139215857,
-   "skill.helm":0.6675830724598549,
-   "skill.infrastructure_as_code":0.437602402108369,
-   "skill.prototyping":0.7216693972393969,
-   "skill.terraform":0.4145579861641676,
-   "skill.workday":0.830216621664338
-  },
-  "esco.develop_predictive_models":{
-   "esco.sensors":0.42726813938108504
-  },
-  "esco.digital_communication_and_collaboration":{
-   "esco.ict_system_integration":0.9037078560073643,
-   "esco.power_electronics":0.8513876395923631,
-   "skill.pcb_design":0.8254580677145942,
-   "skill.system_design":0.5752409628089612
+  "esco.design_metal_components":{
+   "skill.welding":0.6579272339116141
   },
   "esco.digital_media":{
-   "skill.account_management":0.4717388672580117,
-   "skill.creativity":0.4006834931944414,
-   "skill.pinterest":0.6377655733088553,
-   "skill.recruiting":0.46182597118382873
-  },
-  "esco.distributed_computing":{
-   "skill.aws":0.584808517647204,
-   "skill.azure":0.662872258159741,
-   "skill.big_data":0.6756086006207851,
-   "skill.ci_cd":0.6491551149727941,
-   "skill.data_engineering":0.6148972885146314,
-   "skill.data_science":0.5735031382211461,
-   "skill.databricks":0.6092450189178723,
-   "skill.gcp":0.6529596681961097,
-   "skill.python":0.5198005745627217,
-   "skill.scala":0.752949144832116,
-   "skill.spark":0.664928070640902,
-   "skill.writing":0.579565749368985
-  },
-  "esco.drive_agricultural_machines":{
-   "esco.machine_tools":0.8688613374364801,
-   "esco.mechanical_systems":0.6878499078696948,
-   "esco.sensors":0.4654472059078073,
-   "skill.cnc":0.6321685176815884,
-   "skill.hmi":0.7773144489550049,
-   "skill.plc":0.6760703403758721
+   "skill.marketing":0.43915017722971644
   },
   "esco.drive_vehicles":{
-   "cred.drivers_license":0.7,
-   "esco.assist_customers":0.6969731521203993,
-   "esco.park_vehicles":0.977739373632064,
-   "esco.petroleum":0.6409580440030461,
-   "esco.road_traffic_laws":0.8962827126018412,
-   "skill.motor_vehicles":0.977739373632064
-  },
-  "esco.electricity":{
-   "skill.active_listening":0.6820645029256398,
-   "skill.data_engineering":0.5441227147739329,
-   "skill.google_workspace":0.5327087567944764,
-   "skill.jira":0.5431930324127922
+   "cred.drivers_license":0.7
   },
   "esco.electronic_communication":{
-   "esco.meet_commitments":0.8007396114065246,
-   "skill.crm":0.489366850486737,
-   "skill.finance":0.43690062888865977,
-   "skill.product_management":0.6128042883026387,
-   "skill.salesforce":0.4017528545291554
+   "skill.crm":0.6875028058461072,
+   "skill.finance":0.47269451303998283,
+   "skill.product_management":0.6087094747976598,
+   "skill.salesforce":0.5175598242539855
   },
   "esco.electronics":{
-   "skill.electro_meridian_imaging_emi":0.575932081008746,
-   "skill.pcb_design":0.5510470068473872,
-   "skill.simulation_software":0.4526578956023172
+   "skill.pcb_design":0.5395442912741638,
+   "skill.simulation_software":0.4295628695830549
   },
   "esco.english":{
-   "cred.commercial_drivers_license":0.6803808149325312,
-   "esco.group.t5":0.5598222816010283,
-   "esco.knowledge_base":0.5013237548364805,
-   "esco.spanish":0.5408068048073882,
-   "skill.active_listening":0.5143451420027431,
-   "skill.bilingual":0.6181910998694028,
-   "skill.workplace_safety":0.6115352031231991,
-   "skill.writing":0.4967501303824389
-  },
-  "esco.ethics":{
-   "skill.finance":0.5615441478561558
-  },
-  "esco.financial_department_processes":{
-   "skill.finance":0.4158943555212173
-  },
-  "esco.financial_jurisdiction":{
-   "skill.accounting":0.5259006329982697,
-   "skill.adaptability":0.4188007952039488,
-   "skill.finance":0.4158943555212173,
-   "skill.logistics":0.5269398741226926,
-   "skill.zoom":0.5951479090427456
+   "esco.knowledge_base":0.5146918041814972,
+   "esco.spanish":0.6274290255354691,
+   "skill.bilingual":0.6417448358527812,
+   "skill.go":0.41379117909431085
   },
   "esco.firmware":{
-   "skill.fpga":0.5038896025577735,
-   "skill.initiative":0.5042930739571994,
-   "skill.signal_processing":0.4177968766506035
+   "skill.fpga":0.5554055837729864,
+   "skill.initiative":0.40164296435319863,
+   "skill.signal_processing":0.4823878696330496
   },
   "esco.first_aid":{
    "cred.first_aid":0.8
   },
   "esco.formulate_findings":{
-   "skill.osha":0.7086914093266706,
-   "skill.workplace_safety":0.6052470088691022
+   "skill.osha":0.7038328585909469
   },
   "esco.gdpr":{
-   "esco.data_protection":0.7420738092712134
-  },
-  "esco.good_governance":{
-   "esco.sales_strategies":0.5669308823032523,
-   "skill.business_development":0.5392612703573391,
-   "skill.throttle_control_valves_tcv":0.8634621684016501
+   "esco.data_protection":0.7373106068927824
   },
   "esco.green_building_practices":{
    "cred.leed":0.8
@@ -620,348 +404,171 @@
    "cred.medical_license":0.8,
    "cred.medical_student":0.6
   },
-  "esco.group.s1.9":{
-   "esco.industrial_software":0.6371289020150303,
-   "skill.embedded_systems":0.4337353547236159
-  },
   "esco.group.s4.1.1":{
-   "skill.time_management":0.4588697676375781
-  },
-  "esco.group.t2.4":{
-   "esco.perform_services_in_a_flexible_manner":0.5892591138108577,
-   "skill.linux":0.4773753511426441
-  },
-  "esco.group.t5":{
-   "cred.commercial_drivers_license":0.6054411553907733,
-   "cred.drivers_license":0.6143373977176328,
-   "esco.english":0.5598222816010283,
-   "skill.customer_service":0.516538405180431,
-   "skill.typing":0.931479193965308,
-   "skill.work_independently":0.6407896972370953,
-   "skill.workplace_safety":0.5365955435814413,
-   "skill.writing":0.4092941861784308
+   "skill.time_management":0.4510955408067024
   },
   "esco.handling_of_dangerous_goods":{
-   "esco.optoelectronic_devices":0.7543984780899446,
-   "esco.types_of_photovoltaic_panels":0.7330977465762458,
-   "skill.attention_to_detail":0.4899957302794732
-  },
-  "esco.household_products":{
-   "skill.adaptability":0.5355959922703193
-  },
-  "esco.hybrid_vehicle_architecture":{
-   "esco.mechanics":0.4563812422712625
+   "esco.optoelectronic_devices":0.7417941208091496,
+   "esco.types_of_photovoltaic_panels":0.7194002281934635,
+   "skill.attention_to_detail":0.4887966795848906
   },
   "esco.ict_system_integration":{
-   "esco.digital_communication_and_collaboration":0.9037078560073643,
-   "esco.power_electronics":0.8229459257632874,
-   "skill.pcb_design":0.761498522414017,
-   "skill.system_design":0.5478722248041415
+   "esco.power_electronics":0.8212810617705895,
+   "skill.pcb_design":0.7570649617912704,
+   "skill.system_design":0.5487777248468311
   },
   "esco.identify_new_business_opportunities":{
-   "esco.open_source_model":0.9752848612211866,
-   "esco.unstructured_data":0.8306349121393486,
-   "skill.cloud_computing":0.4940181175243496,
-   "skill.elasticsearch":0.824273801465041,
-   "skill.forecasting":0.6146614939564363,
-   "skill.observability":0.6508250687903464,
-   "skill.salesforce":0.5575127355872632
-  },
-  "esco.industrial_software":{
-   "esco.group.s1.9":0.6371289020150303
+   "esco.open_source_model":0.9318486138935013,
+   "skill.cloud_computing":0.5026707120135057,
+   "skill.forecasting":0.5467337342403341,
+   "skill.salesforce":0.5396406674825412
   },
   "esco.information_architecture":{
-   "esco.data_models":0.5297041992848316,
-   "skill.big_data":0.42603803457955647,
-   "skill.data_engineering":0.5279911524228732,
-   "skill.data_warehousing":0.614640914842839,
-   "skill.databricks":0.42745265168418106,
-   "skill.etl":0.6621706304669247,
-   "skill.java":0.4128791809608018,
-   "skill.scala":0.49460503388303706,
-   "skill.spark":0.41656910855686935,
-   "skill.sql":0.42207725895054704
-  },
-  "esco.information_structure":{
-   "skill.business_intelligence":0.5768405509764303,
-   "skill.data_engineering":0.5024806367138923
-  },
-  "esco.install_software":{
-   "skill.business_development":0.4698715400220502
-  },
-  "esco.interact_verbally_in_english":{
-   "cred.commercial_drivers_license":0.7206778825257791,
-   "cred.drivers_license":0.4506046088553447,
-   "skill.workplace_safety":0.6631859721110436
+   "esco.data_models":0.5089042197869422,
+   "skill.big_data":0.4142926303064878,
+   "skill.data_engineering":0.5193247885882237,
+   "skill.data_warehousing":0.6618560253942546,
+   "skill.databricks":0.418763131933503,
+   "skill.etl":0.6729556644278731,
+   "skill.scala":0.5282895786676071,
+   "skill.spark":0.43501902921981217,
+   "skill.sql":0.40624142009916825
   },
   "esco.international_trade":{
-   "skill.logistics":0.4897145605532316,
-   "skill.supply_chain":0.5917481435883047,
-   "skill.willingness_to_learn":0.4436861118230753
+   "skill.logistics":0.4435943834283301
   },
   "esco.knowledge_base":{
-   "esco.english":0.5013237548364805,
-   "skill.active_listening":0.6051633158400173,
-   "skill.bilingual":0.7000971235747994,
-   "skill.it_support":0.6603267313836543,
-   "skill.slack":0.4787107389751845,
-   "skill.time_management":0.40568594974651634,
-   "skill.triage":0.5670886902660405,
-   "skill.troubleshooting":0.40180644608042726
+   "esco.assist_customers":0.4996484659780659,
+   "esco.english":0.5146918041814972,
+   "skill.bilingual":0.6640436018388661,
+   "skill.customer_service":0.4273200683517583,
+   "skill.it_support":0.5347684087414144,
+   "skill.slack":0.5116571016975845
   },
   "esco.laboratory_equipment":{
-   "skill.sem":0.852872507885622
-  },
-  "esco.lead_a_team":{
-   "esco.circulate_information":0.7866322941221345,
-   "skill.accountability":0.4346862245347759,
-   "skill.conflict_resolution":0.543744410563889,
-   "skill.mentoring":0.48744039151926555,
-   "skill.quality_control":0.48274736077406283
-  },
-  "esco.liaise_with_industrial_professionals":{
-   "skill.procurement":0.5018879180639156
-  },
-  "esco.logic":{
-   "skill.ab_testing":0.49656915198420387,
-   "skill.control_systems":0.44200716482708846,
-   "skill.helm":0.5954845288091638,
-   "skill.plc":0.42070783293325265,
-   "skill.scada":0.5275718793567564
+   "skill.sem":0.9021330517482267
   },
   "esco.machine_tools":{
-   "esco.drive_agricultural_machines":0.8688613374364801,
-   "esco.mechanical_systems":0.7328237652297706,
-   "esco.sensors":0.5336683716339052,
-   "skill.cnc":0.5866630638875943,
-   "skill.hmi":0.8273493332559925,
-   "skill.plc":0.7203778252523323
-  },
-  "esco.maintenance_operations":{
-   "skill.distribution_management_system_dms":0.8251285793942317,
-   "skill.multitasking":0.5841505591638265,
-   "skill.ros":0.7990757360213643,
-   "skill.scheduling_software":0.8251285793942317,
-   "skill.work_ethic":0.6009811689605852
-  },
-  "esco.manage_emergency_procedures":{
-   "skill.workplace_safety":0.5186332182082924
+   "esco.mechanical_systems":0.7106964395681873,
+   "esco.sensors":0.5362575318248605,
+   "skill.cnc":0.5840344619372377,
+   "skill.forklift":0.6729556644278731,
+   "skill.hmi":0.680705962790373,
+   "skill.plc":0.6461650304210751
   },
   "esco.manage_inventory":{
-   "skill.auditing":0.5233980166965608,
-   "skill.supply_chain":0.487001393063867
-  },
-  "esco.manage_yield":{
-   "esco.manufacturing_processes":0.5978709928718955
+   "skill.auditing":0.5130420876895523,
+   "skill.supply_chain":0.48194012760124305
   },
   "esco.management_consulting":{
-   "skill.investment_banking":0.644919202745257,
-   "skill.sql":0.4516689987506721
+   "skill.investment_banking":0.6606725344150101,
+   "skill.sql":0.4392454454571563
   },
   "esco.manoeuvre_heavy_trucks":{
    "cred.cdl_trainee":0.5,
    "cred.commercial_drivers_license":0.8
   },
   "esco.manufacturing_processes":{
-   "esco.manage_yield":0.5978709928718955,
-   "esco.materials_engineering":0.5142069892477678,
-   "esco.non_destructive_testing":0.43980705972566564,
-   "esco.production_processes":0.521150357179617,
-   "skill.design_of_experiments_doe_software":0.49830296350098185
+   "esco.materials_engineering":0.4341486321158102,
+   "esco.non_destructive_testing":0.4341486321158102,
+   "esco.production_processes":0.5112378761024923
   },
   "esco.materials_engineering":{
-   "esco.manufacturing_processes":0.5142069892477678
+   "esco.manufacturing_processes":0.4341486321158102
   },
   "esco.mechanical_systems":{
-   "esco.drive_agricultural_machines":0.6878499078696948,
-   "esco.machine_tools":0.7328237652297706,
-   "esco.sensors":0.4158862767291423,
-   "esco.test_procedures":0.5267314203661593,
-   "skill.cnc":0.47205345801821863,
-   "skill.electrical_wiring":0.402933198033035,
-   "skill.hmi":0.680064580581245,
-   "skill.plc":0.6197531571510697
+   "esco.machine_tools":0.7106964395681873,
+   "esco.sensors":0.47903606195836596,
+   "esco.test_procedures":0.5093595398776565,
+   "skill.cnc":0.42372701427041404,
+   "skill.forklift":0.4691819110848193,
+   "skill.hmi":0.5584182145905892,
+   "skill.plc":0.5536029549125878
   },
   "esco.mechanical_tools":{
-   "skill.blueprint_reading":0.7329691363967274
+   "skill.blueprint_reading":0.7196398707289656
   },
   "esco.mechanics":{
-   "esco.hybrid_vehicle_architecture":0.4563812422712625
-  },
-  "esco.meet_commitments":{
-   "esco.electronic_communication":0.8007396114065246,
-   "skill.product_management":0.45877708317551025
+   "skill.control_systems":0.4375660247434338,
+   "skill.data_structures":0.4166900249284158
   },
   "esco.metrology":{
-   "esco.optoelectronic_devices":0.5598728320937696,
-   "skill.supply_chain":0.4259406730966934
-  },
-  "esco.mix_paint":{
-   "skill.paint_booths":0.933391645563493
-  },
-  "esco.ml_computer_programming":{
-   "skill.generative_ai":0.4778204244142814,
-   "skill.llm":0.49827057523664775,
-   "skill.machine_learning":0.5104947421376775,
-   "skill.prototyping":0.40733297881877234
+   "esco.optoelectronic_devices":0.5379031920699191,
+   "skill.supply_chain":0.41754615087932423
   },
   "esco.non_destructive_testing":{
-   "esco.manufacturing_processes":0.43980705972566564
+   "esco.manufacturing_processes":0.4341486321158102,
+   "skill.willingness_to_learn":0.4378233698360646
   },
   "esco.open_source_model":{
-   "esco.identify_new_business_opportunities":0.9752848612211866,
-   "esco.unstructured_data":0.8373824618981798,
-   "skill.cloud_computing":0.4867579316349321,
-   "skill.elasticsearch":0.8309696776062949,
-   "skill.forecasting":0.6066709699388753,
-   "skill.observability":0.6561119577373172,
-   "skill.salesforce":0.5495222115697023
+   "esco.identify_new_business_opportunities":0.9318486138935013,
+   "skill.cloud_computing":0.5227041403888685,
+   "skill.forecasting":0.567330553849454,
+   "skill.salesforce":0.5602374870916611
   },
   "esco.operational_research":{
-   "skill.azure":0.5399518229079563,
-   "skill.big_data":0.47661949218593974,
-   "skill.data_science":0.5781461984792176,
-   "skill.data_warehousing":0.4947620206436198,
-   "skill.databricks":0.5089104282219242,
-   "skill.early_childhood_education":0.5402674744376139,
-   "skill.economics":0.5109191029764375,
-   "skill.gcp":0.530305903175013,
-   "skill.hadoop":0.6221727721428967,
-   "skill.kafka":0.6275481648765308,
-   "skill.machine_learning":0.5093108083349701,
-   "skill.online_analytical_processing_olap_software":0.6172873927568826,
-   "skill.pandas":0.7100989683714746,
-   "skill.python":0.5111958475142072,
-   "skill.pytorch":0.5813758113044295,
-   "skill.r":0.6318216413181337,
-   "skill.scikit_learn":0.7100989683714746,
-   "skill.spark":0.5186432381391827,
-   "skill.sql":0.5031790580759408,
-   "skill.statistics":0.7430905113088033
+   "skill.data_science":0.4870342862687015,
+   "skill.data_structures":0.4210991847914796,
+   "skill.economics":0.6210558240611106,
+   "skill.machine_learning":0.4321548699369159,
+   "skill.python":0.4000436857425379,
+   "skill.statistics":0.7737754422540882
   },
   "esco.optoelectronic_devices":{
-   "esco.handling_of_dangerous_goods":0.7543984780899446,
-   "esco.metrology":0.5598728320937696,
-   "esco.solar_energy":0.7563720522666505,
-   "esco.types_of_photovoltaic_panels":0.8952309108308661
-  },
-  "esco.optomechanical_engineering":{
-   "skill.lasers":0.8153819598176617
+   "esco.handling_of_dangerous_goods":0.7417941208091496,
+   "esco.metrology":0.5379031920699191,
+   "esco.solar_energy":0.7512311760571303,
+   "esco.types_of_photovoltaic_panels":0.8882825587335051
   },
   "esco.park_vehicles":{
-   "cred.drivers_license":0.5453435240724275,
-   "esco.assist_customers":0.7035444095187033,
-   "esco.drive_vehicles":0.977739373632064,
-   "esco.petroleum":0.6467124062793961,
-   "esco.road_traffic_laws":0.9028539700001452,
    "skill.motor_vehicles":1.0
   },
   "esco.perform_security_checks":{
    "cred.security_guard_license":0.6
   },
   "esco.perform_services_in_a_flexible_manner":{
-   "esco.group.t2.4":0.5892591138108577,
-   "skill.accountability":0.43995386899243794,
-   "skill.ansible":0.658704670275548,
-   "skill.initiative":0.5126689471658031,
-   "skill.kubernetes":0.4068690722663358,
-   "skill.linux":0.6227069719593549,
-   "skill.terraform":0.5060501638349988
+   "skill.initiative":0.5055391301082174,
+   "skill.linux":0.5274166470746414
   },
   "esco.personal_development":{
-   "skill.creativity":0.42448847053493866,
-   "skill.datadog":0.6041044688425664,
-   "skill.forecasting":0.5193106545029399
-  },
-  "esco.petroleum":{
-   "cred.drivers_license":0.4978770534117545,
-   "esco.drive_vehicles":0.6409580440030461,
-   "esco.park_vehicles":0.6467124062793961,
-   "esco.show_commitment":0.6775501233770503,
-   "skill.motor_vehicles":0.6467124062793961,
-   "skill.quality_control":0.6609498122638158
-  },
-  "esco.plastic_welding":{
-   "skill.welding":0.6398871513626802
+   "skill.datadog":0.5964101375256408
   },
   "esco.pneumatics":{
-   "skill.electrical_wiring":0.6444436780975588
+   "skill.electrical_wiring":0.6338410589196762
   },
   "esco.power_electronics":{
-   "esco.digital_communication_and_collaboration":0.8513876395923631,
-   "esco.ict_system_integration":0.8229459257632874,
-   "skill.control_systems":0.41182892348677597,
-   "skill.pcb_design":0.6774932179799716,
-   "skill.power_systems":0.5539555409916428,
-   "skill.system_design":0.46386692037009614
+   "esco.ict_system_integration":0.8212810617705895,
+   "skill.pcb_design":0.6763525078640996,
+   "skill.power_systems":0.5390104137355027,
+   "skill.system_design":0.46806527091966044
   },
   "esco.principles_of_paramedic_practice":{
    "cred.paramedic_license":0.8,
    "cred.paramedic_student":0.6
   },
   "esco.printed_circuit_boards":{
-   "esco.production_processes":0.4679616863346957,
-   "skill.supply_chain":0.43468879551470974
-  },
-  "esco.process_payments":{
-   "skill.design":0.42809672399647,
-   "skill.risk_management":0.4629588469731817,
-   "skill.ruby":0.4451087721115663
-  },
-  "esco.product_comprehension":{
-   "esco.apply_change_management":0.543744410563889,
-   "esco.assist_customers":0.4699952690371556,
-   "esco.build_trust":0.4316977125340746,
-   "esco.deliver_outstanding_service":0.7462247609486711,
-   "esco.design_process":0.47489214520568307,
-   "skill.early_childhood_education":0.5654478053904303,
-   "skill.excel":0.47989008049970716,
-   "skill.ms_word":0.6344055304401836,
-   "skill.project_management":0.40024232561238327,
-   "skill.stakeholder_management":0.518830178990355
+   "skill.supply_chain":0.4413943309793364
   },
   "esco.production_engineering":{
-   "skill.azure":0.5348745693359482
+   "skill.azure":0.5697352801266959
   },
   "esco.production_processes":{
-   "esco.apply_advanced_manufacturing":0.4299940258877192,
-   "esco.manufacturing_processes":0.521150357179617,
-   "esco.printed_circuit_boards":0.4679616863346957
+   "esco.manufacturing_processes":0.5112378761024923
   },
   "esco.provide_first_aid":{
    "cred.cpr":0.6,
    "cred.first_aid":0.8
   },
-  "esco.provide_mentorship":{
-   "skill.cloud_computing":0.5552061774465625,
-   "skill.go":0.43362635336335503,
-   "skill.javascript":0.4412201909072243,
-   "skill.nextjs":0.7578380639150515,
-   "skill.paypal":0.765711196941475,
-   "skill.recruiting":0.40694887424626547
-  },
   "esco.provide_technical_expertise":{
-   "esco.building_codes":0.7558813033497558,
-   "esco.communicate_with_customers":0.598895073155792,
-   "skill.datadog":0.4498078637895777,
-   "skill.devops":0.5040108688195019,
-   "skill.osha":0.5932838177112093,
-   "skill.root_cause_analysis":0.48841008493030963,
-   "skill.workplace_safety":0.514981976551649
-  },
-  "esco.quality_standards":{
-   "cred.commercial_drivers_license":0.6433388008028529,
-   "skill.logistics":0.45462579137480597
+   "esco.communicate_with_customers":0.5855422922647145,
+   "skill.datadog":0.46914569241383636,
+   "skill.devops":0.5148610860429808,
+   "skill.osha":0.5513384648936019,
+   "skill.workplace_safety":0.5789261648774898
   },
   "esco.refrigerants":{
-   "esco.apply_advanced_manufacturing":0.6599746962392052,
-   "esco.collaborate_with_engineers":0.6736089475491795,
-   "skill.cooling_towers":0.9426358399516979,
-   "skill.hvac":0.7712550286375623,
-   "skill.soldering":0.8469930521662236
-  },
-  "esco.represent_the_company":{
-   "skill.initiative":0.43282045207392267
+   "skill.hvac":0.6654299269189198,
+   "skill.soldering":0.8605877367470207
   },
   "esco.resuscitation":{
    "cred.acls":0.7,
@@ -969,124 +576,63 @@
    "cred.cpr":0.8,
    "cred.pals":0.7
   },
-  "esco.road_traffic_laws":{
-   "cred.drivers_license":0.5029350123338692,
-   "esco.assist_customers":0.8006904395185581,
-   "esco.drive_vehicles":0.8962827126018412,
-   "esco.park_vehicles":0.9028539700001452,
-   "skill.motor_vehicles":0.9028539700001452
-  },
   "esco.sales_activities":{
-   "skill.crm":0.8263351254060888,
-   "skill.hootsuite":0.4468246356844777,
-   "skill.pos":0.8342505710385836,
-   "skill.public_speaking":0.4743063938171291,
-   "skill.sales":0.4442147607698129,
-   "skill.salesforce":0.757915987287295
+   "esco.sales_department_processes":0.5035455124788702,
+   "skill.hootsuite":0.6333192223770917,
+   "skill.social_media_marketing":0.4207198474092702
   },
   "esco.sales_department_processes":{
-   "esco.sales_strategies":0.49656915198420387,
-   "skill.business_development":0.4306305303911962
+   "esco.sales_activities":0.5035455124788702,
+   "esco.sales_strategies":0.4667703159525751
   },
   "esco.sales_strategies":{
-   "esco.good_governance":0.5669308823032523,
-   "esco.sales_department_processes":0.49656915198420387,
-   "esco.sensors":0.4022966329915289,
-   "skill.business_development":0.44107748884487513
+   "esco.sales_department_processes":0.4667703159525751
   },
   "esco.security_engineering":{
-   "skill.cybersecurity":0.4585369239018555,
-   "skill.triage":0.4221768267120526
+   "skill.cybersecurity":0.47675653432469894,
+   "skill.triage":0.43004028723448057
   },
   "esco.security_regulations":{
-   "skill.aws":0.40738702022283235,
-   "skill.azure":0.4938266902485063,
-   "skill.cloud_computing":0.4083953914155958,
-   "skill.gcp":0.48503858879327477
+   "skill.azure":0.4968955840674236,
+   "skill.cloud_computing":0.42983101595423334,
+   "skill.gcp":0.4863629897453474
   },
   "esco.security_threats":{
-   "skill.auditing":0.42057346469509205
+   "skill.auditing":0.40536815536196585
   },
   "esco.sensors":{
-   "esco.cameras":0.46837647624790063,
-   "esco.develop_predictive_models":0.42726813938108504,
-   "esco.drive_agricultural_machines":0.4654472059078073,
-   "esco.machine_tools":0.5336683716339052,
-   "esco.mechanical_systems":0.4158862767291423,
-   "esco.sales_strategies":0.4022966329915289,
-   "skill.hmi":0.5033149713392021,
-   "skill.plc":0.4429070824830206
-  },
-  "esco.service_oriented_modelling":{
-   "esco.architectural_design":0.6354208800358123,
-   "skill.cybersecurity":0.4679161755611172,
-   "skill.devops":0.46375103174472304,
-   "skill.hris":0.855412957681782,
-   "skill.infrastructure_as_code":0.5182658822025765,
-   "skill.payroll":0.726740861381076,
-   "skill.valuation":0.7672914829337091,
-   "skill.willingness_to_learn":0.6634769624646217
-  },
-  "esco.sex_education":{
-   "skill.mentoring":0.5498631551450891
+   "esco.machine_tools":0.5362575318248605,
+   "esco.mechanical_systems":0.47903606195836596,
+   "skill.hmi":0.5903265203274908,
+   "skill.plc":0.5461415211880375,
+   "skill.scada":0.4566485136557064
   },
   "esco.show_commitment":{
-   "esco.petroleum":0.6775501233770503,
-   "skill.quality_control":0.5156221114559866
+   "skill.willingness_to_learn":0.42094606774655835
   },
   "esco.show_entrepreneurial_spirit":{
-   "skill.strategic_planning":0.41887966703391144
-  },
-  "esco.social_justice":{
-   "skill.marketing":0.40759745856513774
+   "skill.azure":0.4112979629208934,
+   "skill.strategic_planning":0.4567007763285816
   },
   "esco.solar_energy":{
-   "esco.optoelectronic_devices":0.7563720522666505,
-   "esco.types_of_photovoltaic_panels":0.8180850163114224
+   "esco.optoelectronic_devices":0.7512311760571303,
+   "esco.types_of_photovoltaic_panels":0.8164070537226202
   },
   "esco.spanish":{
-   "esco.english":0.5408068048073882,
-   "skill.bilingual":0.7174131715465222,
-   "skill.pos":0.4351162348559708
+   "esco.english":0.6274290255354691,
+   "skill.bilingual":0.656359321614796
   },
   "esco.state_estimation":{
-   "skill.software_development":0.5259006329982697,
-   "skill.system_design":0.5985503322774532
-  },
-  "esco.statistical_quality_control":{
-   "skill.data_engineering":0.4069721326048873
-  },
-  "esco.stock_market":{
-   "skill.problem_solving":0.5648650277404689
-  },
-  "esco.take_pictures":{
-   "cred.drivers_license":0.5227883328331566
+   "skill.software_development":0.5418147543517552,
+   "skill.system_design":0.6019397999545446
   },
   "esco.test_procedures":{
-   "esco.mechanical_systems":0.5267314203661593
+   "esco.mechanical_systems":0.5093595398776565
   },
   "esco.types_of_photovoltaic_panels":{
-   "esco.handling_of_dangerous_goods":0.7330977465762458,
-   "esco.optoelectronic_devices":0.8952309108308661,
-   "esco.solar_energy":0.8180850163114224,
-   "skill.root_cause_analysis":0.4204744040153794
-  },
-  "esco.unstructured_data":{
-   "esco.identify_new_business_opportunities":0.8306349121393486,
-   "esco.open_source_model":0.8373824618981798,
-   "skill.crm":0.41184568477578415,
-   "skill.economics":0.6102179544923763,
-   "skill.elasticsearch":0.9686862660120695,
-   "skill.forecasting":0.44671268902002237,
-   "skill.negotiation":0.5161282264678924,
-   "skill.observability":0.7623509346026668,
-   "skill.salesforce":0.4237382446005442
-  },
-  "esco.work_in_outdoor_conditions":{
-   "cred.drivers_license":0.679454372988299,
-   "skill.customer_service":0.5816553804510972,
-   "skill.typing":0.9965961692359743,
-   "skill.work_independently":0.7059066725077615
+   "esco.handling_of_dangerous_goods":0.7194002281934635,
+   "esco.optoelectronic_devices":0.8882825587335051,
+   "esco.solar_energy":0.8164070537226202
   },
   "field.accounting":{
    "cred.cma":0.7,
@@ -1247,1056 +793,752 @@
    "field.mathematics":0.7,
    "skill.statistics":0.8
   },
-  "skill.ab_testing":{
-   "esco.develop_new_products":0.5296778139215857,
-   "esco.logic":0.49656915198420387,
-   "skill.ci_cd":0.4221768267120526,
-   "skill.helm":0.727772380982365,
-   "skill.infrastructure_as_code":0.497791710630879,
-   "skill.prototyping":0.4465457521395931,
-   "skill.terraform":0.47474729468667765,
-   "skill.workday":0.43985276396730494
-  },
   "skill.accessibility":{
-   "skill.figma":0.46000485126924445
-  },
-  "skill.account_management":{
-   "esco.build_networks":0.5019338854301955,
-   "esco.digital_media":0.4717388672580117
-  },
-  "skill.accountability":{
-   "esco.lead_a_team":0.4346862245347759,
-   "esco.perform_services_in_a_flexible_manner":0.43995386899243794,
-   "skill.ansible":0.5458446959030632,
-   "skill.terraform":0.4156085956707141
+   "skill.figma":0.47184559966817186
   },
   "skill.accounting":{
    "cred.cma":0.7,
    "cred.cpa":0.8,
    "cred.cpa_in_progress":0.7,
-   "esco.apply_change_management":0.46604163578752045,
-   "esco.build_trust":0.44974786102550035,
-   "esco.financial_jurisdiction":0.5259006329982697,
+   "esco.company_policies":0.45657429249890286,
    "field.accounting":0.8,
-   "skill.adaptability":0.521589305564818,
-   "skill.autodesk_building_systems":0.4484131471128696,
-   "skill.finance":0.7062941512958565,
-   "skill.financial_modeling":0.5509411373110034,
-   "skill.financial_reporting":0.6008535260442223,
-   "skill.netsuite":0.4484131471128696,
-   "skill.oracle_db":0.4156549783036569,
-   "skill.zoom":0.8114549693376504
-  },
-  "skill.accounting_software":{
-   "esco.apply_change_management":0.7468533526380595,
-   "esco.build_trust":0.6348066546082451,
-   "esco.design_process":0.6780010872798536,
-   "skill.empathy":0.5487587855772803,
-   "skill.finance":0.4044028340039447,
-   "skill.project_management":0.566870973693315,
-   "skill.zoom":0.5470677004587573
+   "skill.economics":0.4388872826137853,
+   "skill.erp":0.4567936597920346,
+   "skill.excel":0.4570355549360905,
+   "skill.finance":0.5517637149549097,
+   "skill.financial_modeling":0.6068099411168023,
+   "skill.financial_reporting":0.6792033872563661,
+   "skill.investment_banking":0.49478131521197743,
+   "skill.netsuite":0.5484072582626996,
+   "skill.oracle_db":0.5230212742838994,
+   "skill.payroll":0.4388872826137853
   },
   "skill.active_listening":{
-   "esco.electricity":0.6820645029256398,
-   "esco.english":0.5143451420027431,
-   "esco.knowledge_base":0.6051633158400173,
-   "skill.bilingual":0.5970843023489533,
-   "skill.communication":0.4014060552096417,
-   "skill.empathy":0.4937892734011522,
-   "skill.it_support":0.4617291391062345,
-   "skill.software_development":0.4482986597187646,
-   "skill.time_management":0.42587510571104936,
-   "skill.triage":0.4531795540846052
+   "skill.software_development":0.4536303819740833
   },
   "skill.adaptability":{
-   "cat.60141006":0.43169792332953,
-   "esco.financial_jurisdiction":0.4188007952039488,
-   "esco.household_products":0.5355959922703193,
-   "skill.accounting":0.521589305564818,
-   "skill.finance":0.4064499700463685,
-   "skill.mysql":0.4775331825354161,
-   "skill.notion":0.506294078485045,
-   "skill.pinterest":0.5613768343829738,
-   "skill.zoom":0.6061285309125343
+   "cred.commercial_drivers_license":0.4088044045191456,
+   "skill.pinterest":0.6775696967394368
   },
   "skill.adobe_xd":{
    "skill.figma":0.7
   },
   "skill.agile":{
-   "esco.business_processes":0.5190927627508464,
-   "esco.data_models":0.5164472010010412,
-   "skill.angular":0.6274882762290223,
-   "skill.c":0.4010596086587735,
-   "skill.git":0.5513744602854523,
-   "skill.github":0.6387912908837274,
-   "skill.jira":0.48255215598282314,
-   "skill.nodejs":0.4941049674466548,
-   "skill.qa":0.4646123169227326,
-   "skill.rest":0.5442483859355206
+   "esco.business_processes":0.506015976343988,
+   "esco.data_models":0.4787371922374514,
+   "skill.git":0.5066141983856367,
+   "skill.github":0.5142257347166715,
+   "skill.jira":0.42862811357014124,
+   "skill.nodejs":0.4352971161478759,
+   "skill.qa":0.40851482531617084,
+   "skill.rest":0.4903626526459006
   },
   "skill.airflow":{
-   "esco.data_models":0.6259668261915561,
-   "skill.cpp":0.4717388672580117,
-   "skill.etl":0.7216594294939909,
-   "skill.java":0.4028866018998058,
-   "skill.python":0.5022325140855898,
-   "skill.scala":0.5136052696945572,
-   "skill.spark":0.5956468922604776,
-   "skill.sql":0.5603017666344982
-  },
-  "skill.airtable":{
-   "esco.business_processes":0.6722930873297049
-  },
-  "skill.amazon_data_pipeline":{
-   "skill.data_engineering":0.543509964203237
+   "esco.data_models":0.5957125677514111,
+   "skill.etl":0.7173297672856823,
+   "skill.python":0.49020799368944284,
+   "skill.spark":0.6211384282262022,
+   "skill.sql":0.538394119539067
   },
   "skill.analytical_thinking":{
-   "skill.critical_thinking":0.448926577143165,
-   "skill.decision_making":0.44193733144568825,
-   "skill.investment_banking":0.4332052851811903
+   "skill.critical_thinking":0.4332673300746608,
+   "skill.decision_making":0.4187973014363041
   },
   "skill.android":{
-   "skill.backend":0.4057853224817324,
-   "skill.full_stack":0.40607398367216485,
-   "skill.ios":0.6323956711881061,
-   "skill.java":0.46223398726309295,
-   "skill.kotlin":0.7049366812407734
+   "skill.ios":0.628967661951011,
+   "skill.java":0.45902866678486104,
+   "skill.kotlin":0.7082735927923862
   },
   "skill.angular":{
-   "skill.agile":0.6274882762290223,
-   "skill.aws":0.4506868984946556,
-   "skill.nodejs":0.7028581494088311,
    "skill.react":0.6,
    "skill.vue":0.6
   },
   "skill.ansible":{
-   "esco.perform_services_in_a_flexible_manner":0.658704670275548,
-   "skill.accountability":0.5458446959030632,
-   "skill.azure":0.4271643289698627,
-   "skill.datadog":0.4329642832384287,
-   "skill.gcp":0.4186051825453892,
-   "skill.go":0.4635403821306292,
-   "skill.infrastructure_as_code":0.5279867288030627,
-   "skill.kubernetes":0.6122186232211702,
-   "skill.linux":0.6343248750026562,
-   "skill.puppet":0.8251285793942317,
-   "skill.sre":0.5746993658415026,
-   "skill.terraform":0.7429163290901921,
-   "skill.vmware":0.8245839712334323
+   "skill.aws":0.41796696549862805,
+   "skill.datadog":0.4695422720295054,
+   "skill.go":0.4695422720295054,
+   "skill.kubernetes":0.521088328917956,
+   "skill.linux":0.530373332369259,
+   "skill.observability":0.4399615702284744,
+   "skill.puppet":0.6,
+   "skill.python":0.42348897422624465,
+   "skill.terraform":0.6655068130231385
   },
   "skill.apis":{
-   "esco.data_models":0.42911032600351107,
-   "skill.backend":0.4508362832423789,
-   "skill.javascript":0.4455618044984455,
-   "skill.kotlin":0.4049584603591902,
-   "skill.objective_c":0.4535288300993436,
-   "skill.rails":0.46381023824994966,
-   "skill.react":0.4246276334608391
+   "esco.data_models":0.4084931792223466,
+   "skill.backend":0.4355685530308429,
+   "skill.javascript":0.4267204132297434,
+   "skill.rails":0.42980978152986904
   },
   "skill.attention_to_detail":{
-   "esco.handling_of_dangerous_goods":0.4899957302794732,
-   "skill.cash_handling":0.42914973968113995,
-   "skill.distribution_management_system_dms":0.4772299482651283,
-   "skill.multitasking":0.41302103937786633,
-   "skill.ros":0.451177104892261,
-   "skill.scheduling_software":0.4772299482651283,
-   "skill.work_ethic":0.518651237061056
+   "esco.handling_of_dangerous_goods":0.4887966795848906,
+   "skill.cash_handling":0.4249462636466145,
+   "skill.work_ethic":0.4155384500957064
   },
   "skill.auditing":{
-   "cat.23152204":0.5196207482254817,
    "cred.cisa":0.7,
-   "esco.manage_inventory":0.5233980166965608,
-   "esco.security_threats":0.42057346469509205,
-   "skill.compliance":0.44701043370197724,
-   "skill.gaap":0.44260082990621313,
-   "skill.netsuite":0.45857345034474645,
-   "skill.reconciliation":0.5435082712765607
+   "esco.manage_inventory":0.5130420876895523,
+   "esco.security_threats":0.40536815536196585,
+   "skill.compliance":0.4776673892672798,
+   "skill.gaap":0.4284950511625399,
+   "skill.netsuite":0.44489070158305366,
+   "skill.reconciliation":0.5173430010705963
   },
   "skill.autocad":{
    "skill.solidworks":0.5
   },
-  "skill.autodesk_building_systems":{
-   "skill.accounting":0.4484131471128696,
-   "skill.zoom":0.5211580114059717
-  },
   "skill.aws":{
-   "cat.60141006":0.5653721314348702,
    "cred.aws_cloud_practitioner":0.6,
    "cred.aws_developer":0.8,
    "cred.aws_saa":0.8,
    "cred.aws_sap":0.8,
    "cred.aws_sysops":0.8,
-   "esco.distributed_computing":0.584808517647204,
    "skill.azure":0.6,
-   "skill.big_data":0.5752328840225619,
-   "skill.containerization":0.5653721314348702,
-   "skill.data_warehousing":0.5424385137636105,
-   "skill.docker":0.5650744898281062,
+   "skill.containerization":0.5896314809800749,
+   "skill.databases":0.49438394099445304,
+   "skill.docker":0.5676557843975161,
+   "skill.etl":0.4443459718174501,
    "skill.gcp":0.6,
-   "skill.hadoop":0.5795614745163898,
-   "skill.jenkins":0.5340271292509087,
-   "skill.kafka":0.5997227505838765,
-   "skill.kubernetes":0.6006779797544572,
-   "skill.mysql":0.5829462144302048,
-   "skill.online_analytical_processing_olap_software":0.5874703452929425,
-   "skill.pandas":0.556698192715559,
-   "skill.python":0.6080253745220713,
-   "skill.scala":0.6398528227709318,
-   "skill.scikit_learn":0.556698192715559,
-   "skill.spark":0.5623870025335015,
-   "skill.terraform":0.56676934986774
+   "skill.github_actions":0.4887966795848906,
+   "skill.infrastructure_as_code":0.5406194842769987,
+   "skill.java":0.43662383032722224,
+   "skill.jenkins":0.5409221728385721,
+   "skill.kubernetes":0.611220063867457,
+   "skill.mysql":0.5421569788408745,
+   "skill.pandas":0.49857410912185346,
+   "skill.postgresql":0.49102381676393464,
+   "skill.python":0.4936437695807579,
+   "skill.ruby":0.4754537051226582,
+   "skill.scala":0.4649422785713555,
+   "skill.scikit_learn":0.49857410912185346,
+   "skill.splunk":0.48577732398636814,
+   "skill.terraform":0.629420497336654
   },
   "skill.aws_s3":{
-   "skill.python":0.4322945039528858
+   "skill.python":0.425162272195804
   },
   "skill.azure":{
    "cred.azure_administrator":0.8,
    "cred.azure_developer":0.8,
    "cred.azure_fundamentals":0.6,
-   "esco.distributed_computing":0.662872258159741,
+   "esco.apply_information_security_policies":0.5219583500143186,
+   "esco.production_engineering":0.5697352801266959,
+   "esco.security_regulations":0.4968955840674236,
    "skill.aws":0.6,
-   "skill.big_data":0.6636867449958815,
-   "skill.containerization":0.6181373775367,
-   "skill.data_engineering":0.5777099896451346,
-   "skill.data_science":0.5520364613169403,
-   "skill.data_warehousing":0.6309016040279194,
-   "skill.databricks":0.6555373099576595,
-   "skill.docker":0.5749957240477043,
+   "skill.containerization":0.6623888093198403,
+   "skill.data_warehousing":0.49857410912185346,
+   "skill.databases":0.5016249100157041,
+   "skill.databricks":0.4797468257882492,
+   "skill.docker":0.6075003007275864,
    "skill.gcp":0.6,
-   "skill.hadoop":0.6535020895249357,
-   "skill.kafka":0.6907990870709427,
-   "skill.online_analytical_processing_olap_software":0.6849704720178134,
-   "skill.pandas":0.6266091340729237,
-   "skill.python":0.5506040152194638,
-   "skill.r":0.5804995518098713,
-   "skill.scala":0.7229935846402138,
-   "skill.scikit_learn":0.5998742173234267,
-   "skill.spark":0.6411786972455362,
-   "skill.unity":0.5955234638942135
-  },
-  "skill.azure_devops":{
-   "skill.aws":0.5317003856017131,
-   "skill.creativity":0.40447140584960417,
-   "skill.java":0.5430422222970109,
-   "skill.nodejs":0.7439664862756465,
-   "skill.programming":0.42378021974027635,
-   "skill.python":0.45938968294238147,
-   "skill.splunk":0.874899873096743
+   "skill.infrastructure_as_code":0.4934516034192709,
+   "skill.jenkins":0.5362575318248605,
+   "skill.kafka":0.5214063644915146,
+   "skill.kubernetes":0.46419800528476707,
+   "skill.mongodb":0.5276160633305912,
+   "skill.pandas":0.5764764425392941,
+   "skill.scala":0.5096486859179946,
+   "skill.scikit_learn":0.538992115630151,
+   "skill.splunk":0.5897687085020588,
+   "skill.terraform":0.5197423487110815
   },
   "skill.backend":{
-   "cat.60141006":0.5162522165559034,
-   "skill.android":0.4057853224817324,
-   "skill.apis":0.4508362832423789,
-   "skill.c":0.4191203166651262,
-   "skill.databases":0.46701795556707165,
-   "skill.frontend":0.5424824876011287,
-   "skill.go":0.4876737667458272,
-   "skill.java":0.5184145681839879,
-   "skill.kotlin":0.6273461249324267,
-   "skill.kubernetes":0.45841520181102446,
-   "skill.mysql":0.56808407428555,
-   "skill.nosql":0.4367567740972865,
-   "skill.oop":0.4446971270334993,
-   "skill.postgresql":0.42927689022953375,
-   "skill.react":0.49963102791400343,
-   "skill.ruby":0.4016236836648647,
-   "skill.typescript":0.4403499813740345
+   "skill.apis":0.4355685530308429,
+   "skill.databases":0.44063469588015236,
+   "skill.frontend":0.5215265165091905,
+   "skill.go":0.4665257508400496,
+   "skill.java":0.48999296095427336,
+   "skill.kotlin":0.592707476636026,
+   "skill.kubernetes":0.4058832476294442,
+   "skill.mysql":0.5002499227886665,
+   "skill.nosql":0.4118844330893739,
+   "skill.oop":0.4267758943067993,
+   "skill.postgresql":0.40046816192772294,
+   "skill.react":0.4520205125394887,
+   "skill.typescript":0.42290689478414534
   },
   "skill.bash":{
-   "skill.python":0.44997520557137255
+   "skill.python":0.4437724542159078
   },
   "skill.big_data":{
-   "esco.distributed_computing":0.6756086006207851,
-   "esco.information_architecture":0.42603803457955647,
-   "esco.operational_research":0.47661949218593974,
-   "skill.aws":0.5752328840225619,
-   "skill.azure":0.6636867449958815,
-   "skill.cloud_computing":0.5213901423316792,
-   "skill.data_analysis":0.42070325677363546,
-   "skill.data_science":0.6189639344680516,
-   "skill.data_warehousing":0.6280859356649025,
-   "skill.gcp":0.6420811706561127,
-   "skill.java":0.4996182115399764,
-   "skill.kafka":0.6565397902145893,
-   "skill.online_analytical_processing_olap_software":0.7187863294765313,
-   "skill.pandas":0.5827978387901673,
-   "skill.python":0.5010481144346848,
-   "skill.r":0.5935448308703183,
-   "skill.scala":0.8008389249878884,
-   "skill.scikit_learn":0.5827978387901673,
-   "skill.sql":0.4882958962891166,
-   "skill.unity":0.6068149901377973
+   "esco.information_architecture":0.4142926303064878,
+   "skill.cloud_computing":0.5234660237725416,
+   "skill.data_analysis":0.4323629810863133,
+   "skill.data_science":0.5943920911542638,
+   "skill.data_warehousing":0.5593920514383145,
+   "skill.java":0.4293072111771468,
+   "skill.kafka":0.6772038920741565,
+   "skill.online_analytical_processing_olap_software":0.7359603695285107,
+   "skill.pandas":0.5911175512468413,
+   "skill.r":0.5345060960221629,
+   "skill.scala":0.6817367869678068,
+   "skill.scikit_learn":0.5911175512468413,
+   "skill.sql":0.48530160489521734
   },
   "skill.bilingual":{
-   "esco.english":0.6181910998694028,
-   "esco.knowledge_base":0.7000971235747994,
-   "esco.spanish":0.7174131715465222,
-   "skill.active_listening":0.5970843023489533,
-   "skill.it_support":0.5381331836147618,
-   "skill.triage":0.5483423828741933
+   "esco.english":0.6417448358527812,
+   "esco.knowledge_base":0.6640436018388661,
+   "esco.spanish":0.656359321614796
   },
   "skill.blueprint_reading":{
-   "cat.27111715":0.7198368292730941,
-   "esco.mechanical_tools":0.7329691363967274,
-   "skill.forklift":0.5886981667095742,
-   "skill.welding":0.43749797689224323
+   "cat.27111715":0.7054587559073454,
+   "esco.mechanical_tools":0.7196398707289656,
+   "skill.forklift":0.5197495366923772,
+   "skill.welding":0.5791167195155332
   },
   "skill.boom_lifts":{
-   "skill.forklift":0.7671645637907729,
+   "skill.forklift":0.7073748926185114,
    "skill.scissor_lifts":1.0
   },
   "skill.budgeting":{
-   "skill.excel":0.4065223524892401,
-   "skill.financial_modeling":0.4678236901629253,
-   "skill.financial_reporting":0.49593261253031606
+   "skill.excel":0.4118921334192381,
+   "skill.financial_modeling":0.4791083214086335,
+   "skill.financial_reporting":0.48577732398636814,
+   "skill.forecasting":0.4769936357032901
   },
   "skill.business_analysis":{
-   "esco.business_processes":0.41154955873550164
+   "esco.business_processes":0.4133278176261921
   },
   "skill.business_development":{
-   "esco.good_governance":0.5392612703573391,
-   "esco.install_software":0.4698715400220502,
-   "esco.sales_department_processes":0.4306305303911962,
-   "esco.sales_strategies":0.44107748884487513,
-   "skill.lead_generation":0.4787107389751845
+   "skill.crm":0.47332567531686714,
+   "skill.lead_generation":0.4867547076042669
   },
   "skill.business_intelligence":{
-   "esco.data_models":0.49593261253031606,
-   "esco.information_structure":0.5768405509764303,
-   "skill.data_engineering":0.4937386125252108,
-   "skill.data_science":0.4008883576947374,
-   "skill.economics":0.4947351602161906,
-   "skill.git":0.576867707944671,
-   "skill.operations_management":0.41988147775070733,
-   "skill.sql":0.5808169175105006,
-   "skill.statistics":0.4557930592031604
+   "esco.data_models":0.5165996427062467,
+   "skill.data_engineering":0.4775996166518785,
+   "skill.sql":0.546009652542978
   },
   "skill.c":{
-   "skill.agile":0.4010596086587735,
-   "skill.backend":0.4191203166651262,
-   "skill.cpp":0.7592067287102354,
-   "skill.data_structures":0.5001189563402307,
-   "skill.embedded_systems":0.5026360736970734,
-   "skill.git":0.5850391882758977,
-   "skill.github":0.5507162822810617,
-   "skill.go":0.47279603944422466,
-   "skill.java":0.5452554781944766,
-   "skill.operating_systems":0.4635627212806888,
-   "skill.python":0.43468969502412746,
-   "skill.react":0.4481405472631124,
-   "skill.rust":0.6367406717482924,
-   "skill.software_development":0.41484836999557184
+   "skill.cpp":0.7383755466003284,
+   "skill.data_structures":0.4401253907648333,
+   "skill.go":0.4701306722088195,
+   "skill.java":0.5017477816219496,
+   "skill.operating_systems":0.4454992902647593,
+   "skill.rust":0.6225318833791782
   },
   "skill.cad":{
-   "esco.apply_advanced_manufacturing":0.5009850577941513,
-   "skill.cnc":0.45515424649125,
-   "skill.computer_aided_engineering_cae_software":0.7179136429027794,
-   "skill.control_systems":0.402228441097895,
-   "skill.hvac":0.42438958111046576
+   "esco.apply_advanced_manufacturing":0.5034979909526411,
+   "skill.cnc":0.43100133097675886,
+   "skill.computer_aided_engineering_cae_software":0.7038328585909469,
+   "skill.hvac":0.4118921334192381
   },
   "skill.cash_handling":{
-   "skill.attention_to_detail":0.42914973968113995,
-   "skill.finance":0.43690062888865977
+   "skill.attention_to_detail":0.4249462636466145
   },
   "skill.catia":{
    "skill.solidworks":0.6
   },
   "skill.ci_cd":{
-   "esco.distributed_computing":0.6491551149727941,
-   "skill.ab_testing":0.4221768267120526,
-   "skill.aws":0.4893676187706032,
-   "skill.azure":0.5124296768840665,
-   "skill.configuration_management":0.42398305160508154,
-   "skill.containerization":0.4959065505790782,
-   "skill.data_engineering":0.400954598198483,
-   "skill.docker":0.4782258489605915,
-   "skill.gcp":0.5015717578935086,
-   "skill.helm":0.6326832705427047,
-   "skill.infrastructure_as_code":0.5978667278901372,
-   "skill.kubernetes":0.46599930185337973,
-   "skill.python":0.4762762468265538,
-   "skill.scala":0.4708290592402944,
-   "skill.software_development":0.4040068287690109,
-   "skill.terraform":0.5693899365465875,
-   "skill.test_automation":0.5205260467980145
+   "skill.aws":0.4021005937203508,
+   "skill.containerization":0.5101442006701515,
+   "skill.docker":0.4742370742644517,
+   "skill.infrastructure_as_code":0.5728867427901103,
+   "skill.kubernetes":0.4442305260718631,
+   "skill.python":0.40539567076725064,
+   "skill.terraform":0.5471261115845061,
+   "skill.test_automation":0.5372524771603608
   },
   "skill.cloud_computing":{
-   "esco.architectural_design":0.5053993872627816,
-   "esco.identify_new_business_opportunities":0.4940181175243496,
-   "esco.open_source_model":0.4867579316349321,
-   "esco.provide_mentorship":0.5552061774465625,
-   "skill.big_data":0.5213901423316792,
-   "skill.data_warehousing":0.5436521294237665,
-   "skill.databricks":0.47130149986613545,
-   "skill.docker":0.48264285239943655,
-   "skill.hadoop":0.5807861828369419,
-   "skill.infrastructure_as_code":0.5096830268517898,
-   "skill.java":0.4623309849701304,
-   "skill.kafka":0.5870392580842465,
-   "skill.nextjs":0.7398067298095581,
-   "skill.online_analytical_processing_olap_software":0.608332633767971,
-   "skill.pandas":0.5090392557147461,
-   "skill.paypal":0.7491874128363978,
-   "skill.scala":0.45267530708361775,
-   "skill.scikit_learn":0.4818126326980799,
-   "skill.spark":0.4790626290026281,
-   "skill.unity":0.510092165061303
+   "esco.architectural_design":0.4941371076042438,
+   "esco.identify_new_business_opportunities":0.5026707120135057,
+   "esco.open_source_model":0.5227041403888685,
+   "esco.security_regulations":0.42983101595423334,
+   "skill.big_data":0.5234660237725416,
+   "skill.data_warehousing":0.547708852888767,
+   "skill.databricks":0.47556431457688175,
+   "skill.docker":0.5339497208937339,
+   "skill.hadoop":0.6578950264107665,
+   "skill.infrastructure_as_code":0.5113441652876585,
+   "skill.java":0.484515487240973,
+   "skill.kafka":0.6668545574187796,
+   "skill.microservices":0.45861058638436025,
+   "skill.online_analytical_processing_olap_software":0.6779007577323901,
+   "skill.pandas":0.5681141808050543,
+   "skill.r":0.4264218207977825,
+   "skill.scala":0.507452600278934,
+   "skill.scikit_learn":0.5383023050816991,
+   "skill.spark":0.5207789204858546,
+   "skill.sql":0.43550889606946325
   },
   "skill.cloudformation":{
-   "skill.kubernetes":0.6010606278614475,
-   "skill.terraform":0.6979985811744515
+   "skill.kubernetes":0.614582971334154,
+   "skill.terraform":0.7194002281934635
   },
   "skill.cnc":{
-   "esco.blueprints":0.6104465783623401,
-   "esco.drive_agricultural_machines":0.6321685176815884,
-   "esco.machine_tools":0.5866630638875943,
-   "esco.mechanical_systems":0.47205345801821863,
-   "skill.cad":0.45515424649125,
-   "skill.computer_aided_engineering_cae_software":0.6993296979212713,
-   "skill.critical_thinking":0.421268818985797,
-   "skill.hmi":0.5633479726600292,
-   "skill.horizontal_boring_machines":0.6993296979212713,
-   "skill.plc":0.4600329425827956,
-   "skill.water_jets":0.651249489337283
-  },
-  "skill.communication":{
-   "cred.cpr":0.4092897766266377,
-   "cred.first_aid":0.4092897766266377,
-   "skill.active_listening":0.4014060552096417
+   "esco.blueprints":0.5931836671539585,
+   "esco.machine_tools":0.5840344619372377,
+   "esco.mechanical_systems":0.42372701427041404,
+   "skill.cad":0.43100133097675886,
+   "skill.computer_aided_engineering_cae_software":0.6880258464529283,
+   "skill.critical_thinking":0.4049128352712516,
+   "skill.forklift":0.4591238880948319,
+   "skill.hmi":0.551018952860848,
+   "skill.horizontal_boring_machines":0.6880258464529283,
+   "skill.plc":0.42712507912324627,
+   "skill.water_jets":0.637545638614436
   },
   "skill.compliance":{
-   "skill.auditing":0.44701043370197724,
-   "skill.gitlab":0.5947374810921231,
-   "skill.quality_management":0.411912672820138,
-   "skill.workplace_safety":0.43937809203398825
+   "skill.auditing":0.4776673892672798,
+   "skill.quality_management":0.4380526987952194
   },
   "skill.computer_aided_engineering_cae_software":{
-   "skill.cad":0.7179136429027794,
-   "skill.cnc":0.6993296979212713,
-   "skill.operations_management":0.6379473310280842,
-   "skill.programming":0.44983306311314375
+   "skill.cad":0.7038328585909469,
+   "skill.cnc":0.6880258464529283,
+   "skill.operations_management":0.6545480981510929,
+   "skill.programming":0.43853272271658117
   },
   "skill.computer_vision":{
-   "skill.cpp":0.5389000474976946,
-   "skill.machine_learning":0.40383639410537586
+   "skill.cpp":0.5335542540987455
   },
   "skill.configuration_management":{
-   "skill.ci_cd":0.42398305160508154,
-   "skill.infrastructure_as_code":0.5777546812296428
-  },
-  "skill.conflict_resolution":{
-   "esco.lead_a_team":0.543744410563889,
-   "skill.logistics":0.41704376720126385,
-   "skill.quality_control":0.4575792702708945
+   "skill.infrastructure_as_code":0.5670320024005809
   },
   "skill.confluence":{
    "skill.jira":0.6
   },
   "skill.containerization":{
-   "skill.aws":0.5653721314348702,
-   "skill.azure":0.6181373775367,
-   "skill.ci_cd":0.4959065505790782,
-   "skill.datadog":0.4752234996134148,
-   "skill.gcp":0.5300265267131639,
-   "skill.go":0.47243507089967535,
-   "skill.infrastructure_as_code":0.5777546812296428,
-   "skill.javascript":0.5105968422658912,
-   "skill.observability":0.4703229353275634,
-   "skill.python":0.46441078700879906,
-   "skill.sre":0.5479797219508243,
-   "skill.terraform":0.5540938329101033
+   "skill.aws":0.5896314809800749,
+   "skill.azure":0.6623888093198403,
+   "skill.ci_cd":0.5101442006701515,
+   "skill.datadog":0.488465884854134,
+   "skill.gcp":0.5656080153358144,
+   "skill.go":0.45307420990394626,
+   "skill.infrastructure_as_code":0.5905041297848198,
+   "skill.javascript":0.49922164391284074,
+   "skill.observability":0.5175733710919747,
+   "skill.python":0.45846014076410285,
+   "skill.sre":0.5560849015941816,
+   "skill.terraform":0.5681102371691337
   },
   "skill.control_systems":{
-   "esco.logic":0.44200716482708846,
-   "esco.power_electronics":0.41182892348677597,
-   "skill.cad":0.402228441097895,
-   "skill.data_acquisition_systems":0.573908360220354,
-   "skill.electrical_wiring":0.5532596214265294,
-   "skill.plc":0.55071718913548,
-   "skill.scada":0.6251208361680035
+   "esco.mechanics":0.4375660247434338,
+   "skill.data_acquisition_systems":0.5607334586496905,
+   "skill.electrical_wiring":0.545237728832037,
+   "skill.plc":0.5596336254659162,
+   "skill.scada":0.6134864216122532
   },
   "skill.cooling_towers":{
-   "esco.apply_advanced_manufacturing":0.6886177482308614,
-   "esco.collaborate_with_engineers":0.6910323635702195,
-   "esco.refrigerants":0.9426358399516979,
-   "skill.hvac":0.8181897992305095,
-   "skill.soldering":0.7896288921179214
+   "skill.hvac":0.7080592748282912
   },
   "skill.cpp":{
-   "skill.airflow":0.4717388672580117,
-   "skill.c":0.7592067287102354,
-   "skill.computer_vision":0.5389000474976946,
-   "skill.data_structures":0.5479685760717217,
-   "skill.databases":0.4443270248145994,
-   "skill.dropbox":0.4643848013306935,
-   "skill.embedded_systems":0.42900212389669184,
-   "skill.git":0.43288089225013204,
-   "skill.go":0.5301238348175668,
-   "skill.java":0.5557625416609276,
-   "skill.operating_systems":0.45878038321830966,
-   "skill.postgresql":0.4712100985153328,
-   "skill.python":0.5282841386491813,
-   "skill.react":0.4598963354297406,
-   "skill.rust":0.6309341855560354,
-   "skill.software_development":0.41050497230479305
-  },
-  "skill.creativity":{
-   "esco.digital_media":0.4006834931944414,
-   "esco.personal_development":0.42448847053493866,
-   "skill.azure_devops":0.40447140584960417,
-   "skill.datadog":0.6379658786491926,
-   "skill.pinterest":0.5717122612471429
+   "skill.c":0.7383755466003284,
+   "skill.computer_vision":0.5335542540987455,
+   "skill.data_structures":0.5145216038036816,
+   "skill.databases":0.4033940370636045,
+   "skill.dropbox":0.45394523592959146,
+   "skill.go":0.5168874757431818,
+   "skill.java":0.5117874346245069,
+   "skill.operating_systems":0.4261166922370717,
+   "skill.postgresql":0.43725829250235937,
+   "skill.python":0.5050486510605678,
+   "skill.rust":0.6328421318740215
   },
   "skill.critical_thinking":{
-   "skill.analytical_thinking":0.448926577143165,
-   "skill.cnc":0.421268818985797,
-   "skill.horizontal_boring_machines":0.7219391210645256,
-   "skill.water_jets":0.6738589124805372
+   "skill.analytical_thinking":0.4332673300746608,
+   "skill.cnc":0.4049128352712516,
+   "skill.horizontal_boring_machines":0.7168869888183234,
+   "skill.water_jets":0.6664067809798311
   },
   "skill.crm":{
-   "esco.electronic_communication":0.489366850486737,
-   "esco.sales_activities":0.8263351254060888,
-   "esco.unstructured_data":0.41184568477578415,
-   "skill.economics":0.42099517523873037,
-   "skill.elasticsearch":0.40570784531351756,
-   "skill.pos":0.8085468246614461,
-   "skill.public_speaking":0.43749797689224323,
-   "skill.sales":0.4512592956941955
+   "esco.electronic_communication":0.6875028058461072,
+   "skill.business_development":0.47332567531686714
   },
   "skill.csharp":{
-   "skill.go":0.4531549222765037,
    "skill.java":0.5,
-   "skill.javascript":0.6069398154293445,
-   "skill.python":0.4195219750518654
+   "skill.javascript":0.5734113438207893
   },
   "skill.customer_service":{
-   "esco.group.t5":0.516538405180431,
-   "esco.work_in_outdoor_conditions":0.5816553804510972,
-   "skill.hris":0.4143700154856566,
-   "skill.it_support":0.403012818273307,
-   "skill.typing":0.5782515496870714
+   "esco.knowledge_base":0.4273200683517583
   },
   "skill.cybersecurity":{
    "cred.cissp":0.8,
    "cred.comptia_security_plus":0.7,
-   "esco.architectural_design":0.48167686217160677,
-   "esco.data_protection":0.5037019932580266,
-   "esco.security_engineering":0.4585369239018555,
-   "esco.service_oriented_modelling":0.4679161755611172,
-   "skill.networking":0.42726813938108504,
-   "skill.operating_systems":0.5505993482827827
+   "esco.data_protection":0.5334667714110224,
+   "esco.security_engineering":0.47675653432469894,
+   "skill.operating_systems":0.4444544749974005
   },
   "skill.data_acquisition_systems":{
-   "skill.control_systems":0.573908360220354,
-   "skill.plc":0.5786539190124051
+   "skill.control_systems":0.5607334586496905,
+   "skill.plc":0.5788732896869799
   },
   "skill.data_analysis":{
-   "esco.operational_research":0.44409861552807117,
-   "skill.big_data":0.42070325677363546,
-   "skill.data_warehousing":0.4855641490334376,
-   "skill.hadoop":0.4486782355814026,
-   "skill.kafka":0.4323447683811045,
-   "skill.online_analytical_processing_olap_software":0.56595282767392,
-   "skill.power_bi":0.4708296504243251,
-   "skill.python":0.4071631221288632,
-   "skill.r":0.4855641490334376,
-   "skill.scala":0.4263133209899729,
-   "skill.spark":0.44675971950816384,
-   "skill.sql":0.5548688567809587,
-   "skill.unity":0.5283883390653569
+   "skill.big_data":0.4323629810863133,
+   "skill.hadoop":0.44702850631031543,
+   "skill.kafka":0.41761648539261287,
+   "skill.online_analytical_processing_olap_software":0.5523615342758507,
+   "skill.power_bi":0.4192120170817935,
+   "skill.spark":0.412734455246877,
+   "skill.sql":0.5414901593703273
   },
   "skill.data_engineering":{
-   "esco.data_models":0.47443893241259616,
-   "esco.distributed_computing":0.6148972885146314,
-   "esco.electricity":0.5441227147739329,
-   "esco.information_architecture":0.5279911524228732,
-   "esco.information_structure":0.5024806367138923,
-   "skill.amazon_data_pipeline":0.543509964203237,
-   "skill.aws":0.5176790662436022,
-   "skill.azure":0.5777099896451346,
-   "skill.business_intelligence":0.4937386125252108,
-   "skill.data_science":0.6188179119238719,
-   "skill.gcp":0.5924215832427693,
-   "skill.online_analytical_processing_olap_software":0.6372698840424187,
-   "skill.pandas":0.4780364325779702,
-   "skill.python":0.5250643339032003,
-   "skill.r":0.49360788183177334,
-   "skill.scala":0.6944970316389439,
-   "skill.scikit_learn":0.5082692773939164,
-   "skill.sql":0.5407563905567432,
-   "skill.tensorflow":0.45951817416679563,
-   "skill.unity":0.5354321283693231
+   "esco.data_models":0.47607269648015466,
+   "esco.information_architecture":0.5193247885882237,
+   "skill.business_intelligence":0.4775996166518785,
+   "skill.cloud_computing":0.4150829961119725,
+   "skill.data_science":0.601524687570323,
+   "skill.looker":0.4042324356708933,
+   "skill.machine_learning":0.44002896877978465,
+   "skill.online_analytical_processing_olap_software":0.6476255120376729,
+   "skill.pandas":0.478886956610212,
+   "skill.python":0.42953931377056265,
+   "skill.r":0.4259911891900141,
+   "skill.scala":0.5725854347125552,
+   "skill.scikit_learn":0.5107617393663856,
+   "skill.sql":0.5405809043055031,
+   "skill.tensorflow":0.4594013955663487
   },
   "skill.data_science":{
-   "esco.distributed_computing":0.5735031382211461,
-   "esco.operational_research":0.5781461984792176,
+   "esco.operational_research":0.4870342862687015,
    "field.data_science":0.8,
-   "skill.azure":0.5520364613169403,
-   "skill.big_data":0.6189639344680516,
-   "skill.data_engineering":0.6188179119238719,
-   "skill.data_warehousing":0.565291840780933,
-   "skill.databricks":0.5966180275813875,
-   "skill.gcp":0.5220881204957069,
-   "skill.hadoop":0.6157582547839313,
-   "skill.kafka":0.5651839377720104,
-   "skill.online_analytical_processing_olap_software":0.6154130783116935,
-   "skill.pandas":0.5646104577337019,
-   "skill.python":0.5506179120213653,
-   "skill.r":0.6301097685828544,
-   "skill.scala":0.7051998005851227,
-   "skill.scikit_learn":0.5646104577337019,
-   "skill.spark":0.6602779640998098,
-   "skill.sql":0.5224654083691822,
-   "skill.statistics":0.5330291086406138,
-   "skill.unity":0.5162924157154168
+   "skill.big_data":0.5943920911542638,
+   "skill.data_engineering":0.601524687570323,
+   "skill.data_warehousing":0.5246803763497232,
+   "skill.databricks":0.5721416845239518,
+   "skill.etl":0.45876384405138065,
+   "skill.hadoop":0.607766572880403,
+   "skill.kafka":0.5692977024025743,
+   "skill.machine_learning":0.44209342670700086,
+   "skill.online_analytical_processing_olap_software":0.6158557668515219,
+   "skill.pandas":0.5621588711751954,
+   "skill.python":0.44234562837787267,
+   "skill.r":0.5763067770776837,
+   "skill.scala":0.616261696568849,
+   "skill.scikit_learn":0.5621588711751954,
+   "skill.spark":0.6435422647614706,
+   "skill.sql":0.49347011550777986,
+   "skill.statistics":0.4917165743991625
   },
   "skill.data_structures":{
-   "esco.operational_research":0.443668091294385,
-   "skill.c":0.5001189563402307,
-   "skill.cpp":0.5479685760717217,
-   "skill.rust":0.42875281639233204,
-   "skill.signal_processing":0.40360562932002264,
-   "skill.unit_testing":0.5151335732977405
+   "esco.mechanics":0.4166900249284158,
+   "esco.operational_research":0.4210991847914796,
+   "skill.c":0.4401253907648333,
+   "skill.cpp":0.5145216038036816,
+   "skill.rust":0.41141660891737813,
+   "skill.signal_processing":0.4223879899365992
   },
   "skill.data_visualization":{
-   "skill.data_engineering":0.41840983729998016,
-   "skill.sql":0.4976221402615807
+   "skill.sql":0.4650193963362012
   },
   "skill.data_warehousing":{
-   "esco.information_architecture":0.614640914842839,
-   "skill.aws":0.5424385137636105,
-   "skill.azure":0.6309016040279194,
-   "skill.big_data":0.6280859356649025,
-   "skill.cloud_computing":0.5436521294237665,
-   "skill.data_science":0.565291840780933,
-   "skill.databricks":0.6037773785282344,
-   "skill.etl":0.5733609055783955,
-   "skill.gcp":0.6043847855753612,
-   "skill.hadoop":0.7926393801559077,
-   "skill.java":0.5905806011011687,
-   "skill.kafka":0.7188620583979196,
-   "skill.online_analytical_processing_olap_software":0.8563379977893547,
-   "skill.pandas":0.5938093041740095,
-   "skill.r":0.7126759955787095,
-   "skill.scala":0.6912631130955988,
-   "skill.scikit_learn":0.5938093041740095,
-   "skill.spark":0.6001097920510571,
-   "skill.sql":0.6383264798229291,
-   "skill.unity":0.7272671476491741
+   "esco.information_architecture":0.6618560253942546,
+   "skill.aws":0.4135673660222757,
+   "skill.azure":0.49857410912185346,
+   "skill.big_data":0.5593920514383145,
+   "skill.cloud_computing":0.547708852888767,
+   "skill.data_science":0.5246803763497232,
+   "skill.databricks":0.5467034751010857,
+   "skill.etl":0.5878328383557379,
+   "skill.gcp":0.4558639184158507,
+   "skill.hadoop":0.7072637639253486,
+   "skill.java":0.5243160098157884,
+   "skill.kafka":0.6134163172329262,
+   "skill.online_analytical_processing_olap_software":0.7527487382777818,
+   "skill.pandas":0.6093019509380546,
+   "skill.python":0.44647692604491296,
+   "skill.r":0.6508935806985974,
+   "skill.scala":0.6886828858191316,
+   "skill.scikit_learn":0.6093019509380546,
+   "skill.spark":0.5828991141074354,
+   "skill.sql":0.5698364565818395
   },
   "skill.databases":{
-   "skill.aws":0.47557247649295104,
-   "skill.azure":0.46975310186929803,
-   "skill.backend":0.46701795556707165,
-   "skill.cpp":0.4443270248145994,
-   "skill.data_warehousing":0.4392180964433307,
-   "skill.etl":0.4093340876165176,
-   "skill.gcp":0.43320164846384523,
-   "skill.java":0.41589685870904536,
-   "skill.kafka":0.41519147166807535,
-   "skill.kubernetes":0.4097633926080712,
-   "skill.oop":0.5182401092264929,
-   "skill.pandas":0.4297824862121315,
-   "skill.rails":0.4536536837768042,
-   "skill.typescript":0.4067774547395188
+   "skill.aws":0.49438394099445304,
+   "skill.azure":0.5016249100157041,
+   "skill.backend":0.44063469588015236,
+   "skill.cpp":0.4033940370636045,
+   "skill.data_warehousing":0.4004715085355125,
+   "skill.gcp":0.4592038044424688,
+   "skill.kubernetes":0.4047483391236097,
+   "skill.oop":0.49858367900509615,
+   "skill.pandas":0.405710554570461,
+   "skill.rails":0.4608795144659165
   },
   "skill.databricks":{
-   "esco.distributed_computing":0.6092450189178723,
-   "esco.operational_research":0.5089104282219242,
-   "skill.aws":0.5274472337437801,
-   "skill.azure":0.6555373099576595,
-   "skill.cloud_computing":0.47130149986613545,
-   "skill.data_science":0.5966180275813875,
-   "skill.data_warehousing":0.6037773785282344,
-   "skill.gcp":0.6181739711460936,
-   "skill.hadoop":0.5810160249133821,
-   "skill.java":0.460775956725364,
-   "skill.kafka":0.5870931080960693,
-   "skill.online_analytical_processing_olap_software":0.65159874677187,
-   "skill.pandas":0.5493232596163772,
-   "skill.python":0.4554490176306832,
-   "skill.r":0.5586392535463826,
-   "skill.scala":0.7488838953151485,
-   "skill.scikit_learn":0.5493232596163772,
-   "skill.spark":0.7979640212867305,
-   "skill.sql":0.43690800603741725,
-   "skill.unity":0.5479797219508243
+   "esco.information_architecture":0.418763131933503,
+   "skill.azure":0.4797468257882492,
+   "skill.cloud_computing":0.47556431457688175,
+   "skill.data_science":0.5721416845239518,
+   "skill.data_warehousing":0.5467034751010857,
+   "skill.gcp":0.4186717038925793,
+   "skill.hadoop":0.6018892350061128,
+   "skill.java":0.40872642261919234,
+   "skill.kafka":0.5949537827313703,
+   "skill.online_analytical_processing_olap_software":0.6565438111498997,
+   "skill.pandas":0.5483098426373062,
+   "skill.r":0.5055243676218253,
+   "skill.scala":0.6457285032551301,
+   "skill.scikit_learn":0.5483098426373062,
+   "skill.spark":0.6818001532216249,
+   "skill.sql":0.42450506622822154
   },
   "skill.datadog":{
-   "esco.personal_development":0.6041044688425664,
-   "esco.provide_technical_expertise":0.4498078637895777,
-   "skill.ansible":0.4329642832384287,
-   "skill.containerization":0.4752234996134148,
-   "skill.creativity":0.6379658786491926,
-   "skill.docker":0.4873564509287209,
-   "skill.dotnet":0.4042944460440006,
-   "skill.forecasting":0.5085658000481442,
-   "skill.github_actions":0.5108166970572282,
-   "skill.go":0.40417031515908486,
-   "skill.jenkins":0.457836275780396,
-   "skill.php":0.5773953603922253,
-   "skill.ruby":0.4878941091552873,
-   "skill.siem":0.4714556262836834,
-   "skill.splunk":0.5108166970572282,
-   "skill.terraform":0.44802712734149863
+   "esco.personal_development":0.5964101375256408,
+   "esco.provide_technical_expertise":0.46914569241383636,
+   "skill.ansible":0.4695422720295054,
+   "skill.containerization":0.488465884854134,
+   "skill.docker":0.488465884854134,
+   "skill.github_actions":0.4996484659780659,
+   "skill.php":0.5793756784829447,
+   "skill.ruby":0.48330069842435236,
+   "skill.splunk":0.5373526305172456,
+   "skill.terraform":0.48223936758216884
   },
   "skill.decision_making":{
-   "esco.consumer_electronics":0.4518129147727292,
-   "skill.analytical_thinking":0.44193733144568825,
-   "skill.financial_modeling":0.4480074887872188
-  },
-  "skill.deep_learning":{
-   "skill.generative_ai":0.40080050609501283,
-   "skill.nlp":0.6768053060359638,
-   "skill.pinterest":0.4137999205944376,
-   "skill.statistics":0.44971150204689064
+   "esco.consumer_electronics":0.44325844273604287,
+   "skill.analytical_thinking":0.4187973014363041,
+   "skill.financial_modeling":0.40249951476620394
   },
   "skill.design":{
-   "esco.process_payments":0.42809672399647,
    "field.design":0.8
   },
-  "skill.design_of_experiments_doe_software":{
-   "esco.manufacturing_processes":0.49830296350098185
-  },
   "skill.devops":{
-   "esco.architectural_design":0.6012132601988042,
-   "esco.communicate_with_customers":0.4667244922446203,
-   "esco.provide_technical_expertise":0.5040108688195019,
-   "esco.service_oriented_modelling":0.46375103174472304,
-   "skill.cloud_computing":0.41625653744744817,
-   "skill.dotnet":0.4835551020413789,
-   "skill.git":0.4833424146301905,
-   "skill.go":0.44771366476459074,
-   "skill.linux":0.46177803280525775,
-   "skill.nodejs":0.5499674348076514,
-   "skill.php":0.66236251047046,
-   "skill.ruby":0.5220023710256433
-  },
-  "skill.distribution_management_system_dms":{
-   "cred.drivers_license":0.4289394452726732,
-   "esco.maintenance_operations":0.8251285793942317,
-   "skill.attention_to_detail":0.4772299482651283,
-   "skill.multitasking":0.7590219797695948,
-   "skill.ros":0.9739471566271326,
-   "skill.scheduling_software":1.0,
-   "skill.time_management":0.563598425518457,
-   "skill.work_ethic":0.7758525895663534
+   "esco.architectural_design":0.5062009420608272,
+   "esco.communicate_with_customers":0.46849677752164753,
+   "esco.provide_technical_expertise":0.5148610860429808,
+   "skill.go":0.4372851553628936,
+   "skill.linux":0.43596621229749927,
+   "skill.nodejs":0.4788418049177196,
+   "skill.php":0.6560878193572895,
+   "skill.ruby":0.5011129468939698
   },
   "skill.dns":{
-   "skill.dynamic_host_configuration_protocol_dhcp":0.9405112009729337,
-   "skill.linux":0.6051477286619705
+   "skill.dynamic_host_configuration_protocol_dhcp":0.9374582146912886,
+   "skill.linux":0.604364200928276
   },
   "skill.docker":{
-   "skill.aws":0.5650744898281062,
-   "skill.azure":0.5749957240477043,
-   "skill.ci_cd":0.4782258489605915,
-   "skill.cloud_computing":0.48264285239943655,
-   "skill.datadog":0.4873564509287209,
-   "skill.gcp":0.5895238291285634,
-   "skill.go":0.45515424649125,
-   "skill.java":0.4560638455066093,
-   "skill.jenkins":0.7042942923994919,
-   "skill.php":0.7179136429027794,
-   "skill.python":0.4249235410434556,
-   "skill.ruby":0.5869802560816829,
-   "skill.splunk":0.7179136429027794,
-   "skill.terraform":0.5723747666505575
+   "skill.aws":0.5676557843975161,
+   "skill.azure":0.6075003007275864,
+   "skill.ci_cd":0.4742370742644517,
+   "skill.cloud_computing":0.5339497208937339,
+   "skill.datadog":0.488465884854134,
+   "skill.gcp":0.5959490682163152,
+   "skill.go":0.4133278176261921,
+   "skill.observability":0.42266162312692307,
+   "skill.python":0.4139363330285897,
+   "skill.terraform":0.5681102371691337
   },
   "skill.dotnet":{
-   "skill.datadog":0.4042944460440006,
-   "skill.devops":0.4835551020413789,
-   "skill.go":0.47243507089967535,
-   "skill.java":0.44041346838377704,
-   "skill.nodejs":0.6848172297087349,
-   "skill.php":0.7811482285210571,
-   "skill.ruby":0.6467124062793961
+   "skill.go":0.43336124600155496,
+   "skill.java":0.416978310489361,
+   "skill.nodejs":0.6688962980020713,
+   "skill.observability":0.40378054420052395,
+   "skill.php":0.7573440352681452,
+   "skill.ruby":0.6101923265765178
   },
   "skill.dropbox":{
-   "skill.cpp":0.4643848013306935,
-   "skill.java":0.4259406730966934,
-   "skill.talend_data_fabric":0.7622332390630658
+   "skill.cpp":0.45394523592959146,
+   "skill.java":0.42687937699820144,
+   "skill.python":0.40378533470321915
   },
   "skill.dynamic_host_configuration_protocol_dhcp":{
-   "skill.dns":0.9405112009729337
+   "skill.dns":0.9374582146912886
   },
   "skill.dynamodb":{
-   "skill.python":0.421368432112705
+   "skill.python":0.41405084483153565
   },
   "skill.early_childhood_education":{
-   "cred.ece_registration":0.8,
-   "esco.deliver_outstanding_service":0.7739898609754121,
-   "esco.operational_research":0.5402674744376139,
-   "esco.product_comprehension":0.5654478053904303,
-   "skill.excel":0.5740945221653448,
-   "skill.ms_word":0.7006331562497229,
-   "skill.statistics":0.4884909229237581
+   "cred.ece_registration":0.8
   },
   "skill.economics":{
-   "esco.operational_research":0.5109191029764375,
-   "esco.unstructured_data":0.6102179544923763,
+   "esco.operational_research":0.6210558240611106,
    "field.economics":0.8,
-   "skill.business_intelligence":0.4947351602161906,
-   "skill.crm":0.42099517523873037,
-   "skill.elasticsearch":0.604140871309689,
-   "skill.financial_modeling":0.4276841368357696,
-   "skill.negotiation":0.524245461314309,
-   "skill.observability":0.45281765370386967,
-   "skill.r":0.44176820959752,
-   "skill.sql":0.41821522653204724,
-   "skill.statistical_analysis":0.47674726248256677,
-   "skill.statistics":0.5608301953238174
-  },
-  "skill.elasticsearch":{
-   "esco.identify_new_business_opportunities":0.824273801465041,
-   "esco.open_source_model":0.8309696776062949,
-   "esco.unstructured_data":0.9686862660120695,
-   "skill.crm":0.40570784531351756,
-   "skill.economics":0.604140871309689,
-   "skill.forecasting":0.4525514536500527,
-   "skill.negotiation":0.5099903870056257,
-   "skill.observability":0.7618855938953122,
-   "skill.salesforce":0.41727519339619884
+   "skill.accounting":0.4388872826137853,
+   "skill.financial_modeling":0.5125860697104689,
+   "skill.sql":0.43388560210275334,
+   "skill.statistics":0.5637572407114768
   },
   "skill.electrical_wiring":{
    "cred.electrician_apprentice":0.7,
    "cred.electrician_license":0.8,
-   "esco.blueprints":0.46837647624790063,
-   "esco.mechanical_systems":0.402933198033035,
-   "esco.pneumatics":0.6444436780975588,
-   "skill.control_systems":0.5532596214265294,
-   "skill.hand_tools":0.5453963945671693,
-   "skill.plumbing":0.48080996911748053,
-   "skill.pressure_transducers":0.6664710433086799
-  },
-  "skill.electro_meridian_imaging_emi":{
-   "esco.electronics":0.575932081008746
+   "esco.blueprints":0.4489851856888692,
+   "esco.pneumatics":0.6338410589196762,
+   "skill.control_systems":0.545237728832037,
+   "skill.hand_tools":0.5298496744039858,
+   "skill.plumbing":0.4690186140642321,
+   "skill.pressure_transducers":0.6569679547202504
   },
   "skill.embedded_systems":{
-   "esco.group.s1.9":0.4337353547236159,
-   "skill.c":0.5026360736970734,
-   "skill.cpp":0.42900212389669184,
-   "skill.linux":0.438626388664449,
-   "skill.operating_systems":0.4425319948079132
-  },
-  "skill.empathy":{
-   "esco.apply_change_management":0.5447786880947396,
-   "esco.build_trust":0.4204140061513073,
-   "esco.design_process":0.49089433663347637,
-   "skill.accounting_software":0.5487587855772803,
-   "skill.active_listening":0.4937892734011522
+   "skill.operating_systems":0.4171789223952404
   },
   "skill.erp":{
-   "skill.oracle_db":0.7337265114807583
+   "skill.accounting":0.4567936597920346,
+   "skill.oracle_db":0.7377190385175744
   },
   "skill.etl":{
-   "esco.information_architecture":0.6621706304669247,
-   "skill.airflow":0.7216594294939909,
-   "skill.aws":0.4295971791027146,
-   "skill.data_science":0.46636550314533826,
-   "skill.data_warehousing":0.5733609055783955,
-   "skill.databases":0.4093340876165176,
-   "skill.hadoop":0.5918246191478773,
-   "skill.kafka":0.5968389941612686,
-   "skill.python":0.45428437021107654,
-   "skill.spark":0.519901832834339,
-   "skill.sql":0.5930166353252915
+   "esco.information_architecture":0.6729556644278731,
+   "skill.airflow":0.7173297672856823,
+   "skill.aws":0.4443459718174501,
+   "skill.data_science":0.45876384405138065,
+   "skill.data_warehousing":0.5878328383557379,
+   "skill.hadoop":0.5878328383557379,
+   "skill.kafka":0.5821707379114396,
+   "skill.python":0.447848535197078,
+   "skill.spark":0.5567651834100151,
+   "skill.sql":0.586837010778086
   },
   "skill.excel":{
-   "esco.deliver_outstanding_service":0.6884321360846891,
-   "esco.product_comprehension":0.47989008049970716,
-   "skill.budgeting":0.4065223524892401,
-   "skill.early_childhood_education":0.5740945221653448,
-   "skill.google_workspace":0.5734954341519807,
-   "skill.lean":0.49442931962076797,
-   "skill.ms_word":0.8214858540696027,
-   "skill.multitasking":0.451545866451142,
-   "skill.outlook":0.6664710433086799,
-   "skill.power_bi":0.597608293730964,
-   "skill.powerpoint":0.7397403117005423,
-   "skill.qa":0.4065223524892401,
-   "skill.reconciliation":0.49442931962076797,
-   "skill.sql":0.42100851445104315
+   "skill.accounting":0.4570355549360905,
+   "skill.budgeting":0.4118921334192381,
+   "skill.google_workspace":0.5793820183200713,
+   "skill.ms_word":0.7855201907969512,
+   "skill.multitasking":0.46849677752164753,
+   "skill.outlook":0.6764795465530288,
+   "skill.powerpoint":0.7549922342960719,
+   "skill.reconciliation":0.5035455124788702
   },
   "skill.fea":{
-   "skill.mechanical_design":0.5368130085016779
+   "skill.mechanical_design":0.5125860697104689
   },
   "skill.figma":{
-   "skill.accessibility":0.46000485126924445,
+   "skill.accessibility":0.47184559966817186,
    "skill.adobe_xd":0.7,
-   "skill.notion":0.7200113057191505,
-   "skill.sketch":0.7,
-   "skill.teamwork":0.4148920543672506
+   "skill.sketch":0.7
   },
   "skill.finance":{
-   "esco.electronic_communication":0.43690062888865977,
-   "esco.ethics":0.5615441478561558,
-   "esco.financial_department_processes":0.4158943555212173,
-   "esco.financial_jurisdiction":0.4158943555212173,
+   "esco.electronic_communication":0.47269451303998283,
    "field.finance":0.8,
-   "skill.accounting":0.7062941512958565,
-   "skill.accounting_software":0.4044028340039447,
-   "skill.adaptability":0.4064499700463685,
-   "skill.cash_handling":0.43690062888865977,
-   "skill.financial_reporting":0.43660429519342786,
-   "skill.zoom":0.6337004738620632
+   "skill.accounting":0.5517637149549097,
+   "skill.financial_reporting":0.46861088086040625,
+   "skill.netsuite":0.41954268408256346
   },
   "skill.financial_analysis":{
    "cred.cfa":0.8,
    "cred.cfa_candidate":0.7
   },
   "skill.financial_modeling":{
-   "skill.accounting":0.5509411373110034,
-   "skill.budgeting":0.4678236901629253,
-   "skill.decision_making":0.4480074887872188,
-   "skill.economics":0.4276841368357696,
-   "skill.forecasting":0.5289443020631197,
-   "skill.investment_banking":0.7119578556222502
+   "skill.accounting":0.6068099411168023,
+   "skill.budgeting":0.4791083214086335,
+   "skill.decision_making":0.40249951476620394,
+   "skill.economics":0.5125860697104689,
+   "skill.forecasting":0.5918898932205969,
+   "skill.investment_banking":0.7139488828251516
   },
   "skill.financial_reporting":{
-   "skill.accounting":0.6008535260442223,
-   "skill.budgeting":0.49593261253031606,
-   "skill.finance":0.43660429519342786,
-   "skill.gaap":0.7405185129671185,
-   "skill.reconciliation":0.7290670131928769
+   "skill.accounting":0.6792033872563661,
+   "skill.budgeting":0.48577732398636814,
+   "skill.finance":0.46861088086040625,
+   "skill.gaap":0.7339010373408096,
+   "skill.reconciliation":0.6970993491723066
   },
   "skill.food_safety":{
    "cred.food_handler":0.8
   },
   "skill.forecasting":{
-   "esco.identify_new_business_opportunities":0.6146614939564363,
-   "esco.open_source_model":0.6066709699388753,
-   "esco.personal_development":0.5193106545029399,
-   "esco.unstructured_data":0.44671268902002237,
-   "skill.datadog":0.5085658000481442,
-   "skill.elasticsearch":0.4525514536500527,
-   "skill.financial_modeling":0.5289443020631197,
-   "skill.power_bi":0.4565481932599338
+   "esco.identify_new_business_opportunities":0.5467337342403341,
+   "esco.open_source_model":0.567330553849454,
+   "skill.budgeting":0.4769936357032901,
+   "skill.financial_modeling":0.5918898932205969,
+   "skill.investment_banking":0.4108215647228771,
+   "skill.power_bi":0.47094769546624826,
+   "skill.statistical_analysis":0.4245697038718881
   },
   "skill.forklift":{
-   "cat.27111715":0.7042942923994919,
+   "cat.27111715":0.6430017982511933,
    "cred.forklift":0.8,
-   "skill.blueprint_reading":0.5886981667095742,
-   "skill.boom_lifts":0.7671645637907729,
-   "skill.scissor_lifts":0.7671645637907729
+   "esco.machine_tools":0.6729556644278731,
+   "esco.mechanical_systems":0.4691819110848193,
+   "skill.blueprint_reading":0.5197495366923772,
+   "skill.boom_lifts":0.7073748926185114,
+   "skill.cnc":0.4591238880948319,
+   "skill.hmi":0.5158835179349287,
+   "skill.scissor_lifts":0.7073748926185114,
+   "skill.welding":0.45876384405138065
   },
   "skill.fpga":{
-   "esco.firmware":0.5038896025577735,
-   "skill.register_transfer_language_rtl":0.7949951505734917,
-   "skill.signal_processing":0.7715632136531975,
-   "skill.verilog":0.8150398768495478
+   "esco.firmware":0.5554055837729864,
+   "skill.register_transfer_language_rtl":0.7723593418500051,
+   "skill.signal_processing":0.7156720343759946,
+   "skill.verilog":0.7
   },
   "skill.frontend":{
-   "skill.backend":0.5424824876011287,
-   "skill.javascript":0.45368047183090293,
-   "skill.nodejs":0.42479727047335675,
-   "skill.paypal":0.47084034056855184,
-   "skill.typescript":0.5612832606292499,
-   "skill.ui":0.4944263628677226,
-   "skill.ux":0.4119764586838225
+   "skill.backend":0.5215265165091905,
+   "skill.javascript":0.4440731470320506,
+   "skill.nodejs":0.4207198474092702,
+   "skill.typescript":0.5468855017260661,
+   "skill.ui":0.47314542251831515
   },
   "skill.full_stack":{
-   "skill.android":0.40607398367216485,
-   "skill.postgresql":0.40607398367216485,
-   "skill.react":0.6040793114707067,
-   "skill.typescript":0.476395718644843
+   "skill.nextjs":0.471149223669784,
+   "skill.react":0.5986795954050133,
+   "skill.typescript":0.4555057900185847
   },
   "skill.gaap":{
-   "skill.auditing":0.44260082990621313,
-   "skill.financial_reporting":0.7405185129671185,
-   "skill.reconciliation":0.8305570712108268
+   "skill.auditing":0.4284950511625399,
+   "skill.financial_reporting":0.7339010373408096,
+   "skill.reconciliation":0.82972073168431
   },
   "skill.gcp":{
    "cred.gcp_ace":0.8,
    "cred.gcp_pca":0.8,
-   "esco.distributed_computing":0.6529596681961097,
-   "esco.operational_research":0.530305903175013,
+   "esco.apply_information_security_policies":0.5114257556922424,
+   "esco.security_regulations":0.4863629897453474,
    "skill.aws":0.6,
    "skill.azure":0.6,
-   "skill.big_data":0.6420811706561127,
-   "skill.containerization":0.5300265267131639,
-   "skill.data_engineering":0.5924215832427693,
-   "skill.data_warehousing":0.6043847855753612,
-   "skill.databricks":0.6181739711460936,
-   "skill.docker":0.5895238291285634,
-   "skill.hadoop":0.6430252770513667,
-   "skill.kafka":0.6649080242077803,
-   "skill.online_analytical_processing_olap_software":0.675057882054182,
-   "skill.pandas":0.5905302547569623,
-   "skill.python":0.5513282329104368,
-   "skill.r":0.5521941751944168,
-   "skill.scala":0.7114888373399406,
-   "skill.scikit_learn":0.6171090279430342,
-   "skill.spark":0.6295295466832471,
-   "skill.unity":0.5867353624389819
+   "skill.containerization":0.5656080153358144,
+   "skill.data_warehousing":0.4558639184158507,
+   "skill.databases":0.4592038044424688,
+   "skill.docker":0.5959490682163152,
+   "skill.go":0.4749322418050841,
+   "skill.infrastructure_as_code":0.45372753105189784,
+   "skill.jenkins":0.5257249375027843,
+   "skill.kafka":0.48115083601388947,
+   "skill.kubernetes":0.5194993515470655,
+   "skill.mongodb":0.4558639184158507,
+   "skill.pandas":0.5281633178226509,
+   "skill.postgresql":0.5054230440551583,
+   "skill.ruby":0.5292348570348527,
+   "skill.scala":0.4980974534067234,
+   "skill.scikit_learn":0.5653838940647651,
+   "skill.terraform":0.5519100480688288
   },
   "skill.generative_ai":{
-   "cat.44111807":0.6166227989949441,
-   "esco.ml_computer_programming":0.4778204244142814,
-   "skill.deep_learning":0.40080050609501283,
-   "skill.llm":0.567615761837067,
-   "skill.machine_learning":0.46873166528853827,
-   "skill.pytorch":0.6004267666919951
+   "skill.llm":0.5696376636859289,
+   "skill.machine_learning":0.467848978953189,
+   "skill.pytorch":0.5412159116272801
   },
   "skill.git":{
-   "skill.agile":0.5513744602854523,
-   "skill.business_intelligence":0.576867707944671,
-   "skill.c":0.5850391882758977,
-   "skill.cpp":0.43288089225013204,
-   "skill.devops":0.4833424146301905,
-   "skill.java":0.40051605224217823,
-   "skill.jira":0.5539555409916428,
-   "skill.linux":0.6008103324298749,
-   "skill.operating_systems":0.4865999902600942,
-   "skill.power_bi":0.6583957296236981,
-   "skill.programming":0.40281733120631286,
-   "skill.python":0.473706457954377,
-   "skill.sql":0.49358542230279095,
-   "skill.willingness_to_learn":0.40607398367216485
+   "skill.agile":0.5066141983856367,
+   "skill.linux":0.5669817208176235,
+   "skill.operating_systems":0.4678496963256148,
+   "skill.python":0.4381175076233068,
+   "skill.sql":0.4228887951918298
   },
   "skill.github":{
-   "skill.agile":0.6387912908837274,
-   "skill.c":0.5507162822810617,
-   "skill.gitlab":0.7,
-   "skill.java":0.4076744197878232,
-   "skill.jira":0.5609274127088155,
-   "skill.sql":0.4209408475562986
+   "skill.agile":0.5142257347166715,
+   "skill.gitlab":0.7
   },
   "skill.github_actions":{
-   "skill.aws":0.49046254526700883,
-   "skill.azure":0.5029884660452415,
-   "skill.datadog":0.5108166970572282,
-   "skill.gcp":0.49442931962076797,
-   "skill.infrastructure_as_code":0.6038108658784415,
+   "skill.aws":0.4887966795848906,
+   "skill.datadog":0.4996484659780659,
    "skill.jenkins":0.6,
-   "skill.kubernetes":0.5933663720359417,
-   "skill.python":0.4454522725604761,
-   "skill.terraform":0.6606088708196713
+   "skill.kubernetes":0.5898433414767787,
+   "skill.python":0.425162272195804,
+   "skill.terraform":0.656858442884752
   },
   "skill.gitlab":{
-   "skill.compliance":0.5947374810921231,
    "skill.github":0.7
   },
   "skill.go":{
-   "skill.ansible":0.4635403821306292,
-   "skill.backend":0.4876737667458272,
-   "skill.c":0.47279603944422466,
-   "skill.containerization":0.47243507089967535,
-   "skill.cpp":0.5301238348175668,
-   "skill.docker":0.45515424649125,
-   "skill.dotnet":0.47243507089967535,
-   "skill.java":0.5915435551408915,
-   "skill.javascript":0.4973958107676683,
-   "skill.jenkins":0.48761578035720465,
-   "skill.nodejs":0.46895874722653585,
-   "skill.php":0.6388882921914157,
-   "skill.postgresql":0.4656864876582727,
-   "skill.puppet":0.6002824143908817,
-   "skill.python":0.5810917894274377,
-   "skill.ruby":0.6773161355734588,
-   "skill.rust":0.5644743371494365,
-   "skill.splunk":0.5413927959494287,
-   "skill.terraform":0.48251561527598835,
-   "skill.typescript":0.5101871736113849
+   "skill.ansible":0.4695422720295054,
+   "skill.backend":0.4665257508400496,
+   "skill.c":0.4701306722088195,
+   "skill.containerization":0.45307420990394626,
+   "skill.cpp":0.5168874757431818,
+   "skill.devops":0.4372851553628936,
+   "skill.dotnet":0.43336124600155496,
+   "skill.gcp":0.4749322418050841,
+   "skill.java":0.5854823132147412,
+   "skill.javascript":0.47267193176119515,
+   "skill.nodejs":0.43814894516863595,
+   "skill.observability":0.43312097081192863,
+   "skill.php":0.6134163172329262,
+   "skill.postgresql":0.4613128696190967,
+   "skill.python":0.5724390585389911,
+   "skill.ruby":0.6566602454659627,
+   "skill.rust":0.5500149096058147,
+   "skill.splunk":0.5373526305172456,
+   "skill.terraform":0.48223936758216884,
+   "skill.typescript":0.4950129946111714
   },
   "skill.google_ads":{
    "cred.google_ads_cert":0.8
@@ -2305,81 +1547,58 @@
    "cred.google_analytics_cert":0.8
   },
   "skill.google_workspace":{
-   "esco.electricity":0.5327087567944764,
-   "skill.excel":0.5734954341519807,
-   "skill.jira":0.5481669809820049,
-   "skill.macos":0.5918246191478773,
-   "skill.slack":0.6922790852805228
+   "skill.excel":0.5793820183200713,
+   "skill.jira":0.5497111262852444,
+   "skill.macos":0.5714499028435439,
+   "skill.slack":0.6751359760289855
   },
   "skill.graphql":{
-   "skill.java":0.4700477821394887,
-   "skill.kotlin":0.6188663593723897,
-   "skill.react":0.6002824143908817,
-   "skill.rest":0.7344255151948191,
-   "skill.software_development":0.4268533494678802
+   "skill.rest":0.5
   },
   "skill.hadoop":{
-   "esco.operational_research":0.6221727721428967,
-   "skill.aws":0.5795614745163898,
-   "skill.azure":0.6535020895249357,
-   "skill.cloud_computing":0.5807861828369419,
-   "skill.data_science":0.6157582547839313,
-   "skill.data_warehousing":0.7926393801559077,
-   "skill.databricks":0.5810160249133821,
-   "skill.etl":0.5918246191478773,
-   "skill.gcp":0.6430252770513667,
-   "skill.java":0.597212783466136,
-   "skill.kafka":0.8210932347055946,
-   "skill.online_analytical_processing_olap_software":0.8779868531560914,
-   "skill.pandas":0.6937067936629228,
-   "skill.programming":0.5205696753531135,
-   "skill.r":0.7740141520293695,
-   "skill.scala":0.6750740229019815,
-   "skill.scikit_learn":0.6937067936629228,
-   "skill.spark":0.7298409602517337,
-   "skill.sql":0.6749665453191905,
-   "skill.unity":0.7462247609486711
+   "skill.azure":0.4320762274636305,
+   "skill.cloud_computing":0.6578950264107665,
+   "skill.data_analysis":0.44702850631031543,
+   "skill.data_science":0.607766572880403,
+   "skill.data_warehousing":0.7072637639253486,
+   "skill.databricks":0.6018892350061128,
+   "skill.etl":0.5878328383557379,
+   "skill.gcp":0.42124742965613027,
+   "skill.java":0.5017477816219496,
+   "skill.kafka":0.836904955502024,
+   "skill.machine_learning":0.517545064885004,
+   "skill.online_analytical_processing_olap_software":0.890159663951186,
+   "skill.pandas":0.6948587741121269,
+   "skill.python":0.4122049942771582,
+   "skill.r":0.6508935806985974,
+   "skill.scala":0.6329262032860008,
+   "skill.scikit_learn":0.6948587741121269,
+   "skill.spark":0.8100756205486722,
+   "skill.sql":0.6514546884004936,
+   "skill.statistics":0.43697654996935065
   },
   "skill.hand_tools":{
-   "skill.electrical_wiring":0.5453963945671693
-  },
-  "skill.helm":{
-   "esco.develop_new_products":0.6675830724598549,
-   "esco.logic":0.5954845288091638,
-   "skill.ab_testing":0.727772380982365,
-   "skill.ci_cd":0.6326832705427047,
-   "skill.infrastructure_as_code":0.67945145487535,
-   "skill.prototyping":0.48729929069346756,
-   "skill.software_development":0.49776036906389665,
-   "skill.system_design":0.5313891520377705,
-   "skill.terraform":0.6557906065558103,
-   "skill.workday":0.5777580225055742
+   "skill.electrical_wiring":0.5298496744039858
   },
   "skill.hmi":{
-   "esco.drive_agricultural_machines":0.7773144489550049,
-   "esco.machine_tools":0.8273493332559925,
-   "esco.mechanical_systems":0.680064580581245,
-   "esco.sensors":0.5033149713392021,
-   "skill.cnc":0.5633479726600292,
-   "skill.plc":0.8598116244922057,
-   "skill.robotics":0.5557624856513832,
-   "skill.scada":0.6641639069268127,
-   "skill.troubleshooting":0.4343973379040654
+   "esco.machine_tools":0.680705962790373,
+   "esco.mechanical_systems":0.5584182145905892,
+   "esco.sensors":0.5903265203274908,
+   "skill.cnc":0.551018952860848,
+   "skill.forklift":0.5158835179349287,
+   "skill.plc":0.8329841228267879,
+   "skill.scada":0.6862175573786057
   },
   "skill.hootsuite":{
-   "esco.sales_activities":0.4468246356844777
+   "esco.sales_activities":0.6333192223770917
   },
   "skill.horizontal_boring_machines":{
-   "skill.cnc":0.6993296979212713,
-   "skill.critical_thinking":0.7219391210645256,
-   "skill.water_jets":0.9519197914160116
+   "skill.cnc":0.6880258464529283,
+   "skill.critical_thinking":0.7168869888183234,
+   "skill.water_jets":0.9495197921615078
   },
   "skill.hris":{
-   "esco.service_oriented_modelling":0.855412957681782,
-   "skill.customer_service":0.4143700154856566,
-   "skill.payroll":0.8141823264313949,
-   "skill.valuation":0.7820403438834427,
-   "skill.willingness_to_learn":0.6600280505596433
+   "skill.payroll":0.6710233869162715
   },
   "skill.hubspot":{
    "cred.hubspot_cert":0.7,
@@ -2390,404 +1609,287 @@
    "cred.chrp":0.8
   },
   "skill.hvac":{
-   "esco.apply_advanced_manufacturing":0.6797984643244286,
-   "esco.collaborate_with_engineers":0.5227436658139452,
-   "esco.refrigerants":0.7712550286375623,
-   "skill.cad":0.42438958111046576,
-   "skill.cooling_towers":0.8181897992305095,
-   "skill.plumbing":0.7311262442575395,
-   "skill.soldering":0.6182480808037858
+   "esco.apply_advanced_manufacturing":0.6084378388199072,
+   "esco.refrigerants":0.6654299269189198,
+   "skill.cad":0.4118921334192381,
+   "skill.cooling_towers":0.7080592748282912,
+   "skill.plumbing":0.7184683224886104,
+   "skill.soldering":0.5347367555037098
   },
   "skill.infrastructure_as_code":{
-   "esco.architectural_design":0.6869021515329039,
-   "esco.develop_new_products":0.437602402108369,
-   "esco.service_oriented_modelling":0.5182658822025765,
-   "skill.ab_testing":0.497791710630879,
-   "skill.ansible":0.5279867288030627,
-   "skill.aws":0.4942039314814511,
-   "skill.azure":0.44834892567691925,
-   "skill.ci_cd":0.5978667278901372,
-   "skill.cloud_computing":0.5096830268517898,
-   "skill.configuration_management":0.5777546812296428,
-   "skill.containerization":0.5777546812296428,
-   "skill.gcp":0.41519992775125963,
-   "skill.github_actions":0.6038108658784415,
-   "skill.go":0.42262978609280766,
-   "skill.helm":0.67945145487535,
-   "skill.jenkins":0.590191515375154,
-   "skill.kubernetes":0.6064979559412071,
-   "skill.typescript":0.43255149673375876
+   "esco.architectural_design":0.6111009493939396,
+   "skill.aws":0.5406194842769987,
+   "skill.azure":0.4934516034192709,
+   "skill.ci_cd":0.5728867427901103,
+   "skill.cloud_computing":0.5113441652876585,
+   "skill.configuration_management":0.5670320024005809,
+   "skill.containerization":0.5905041297848198,
+   "skill.gcp":0.45372753105189784,
+   "skill.go":0.40866664011840426,
+   "skill.kubernetes":0.5796349868052647,
+   "skill.observability":0.4514483824644888,
+   "skill.sre":0.40952944120769197,
+   "skill.typescript":0.44313951174221394
   },
   "skill.initiative":{
-   "esco.firmware":0.5042930739571994,
-   "esco.perform_services_in_a_flexible_manner":0.5126689471658031,
-   "esco.represent_the_company":0.43282045207392267
+   "esco.firmware":0.40164296435319863,
+   "esco.perform_services_in_a_flexible_manner":0.5055391301082174
   },
   "skill.inventory_management":{
-   "cred.cpr":0.8083818832821745,
-   "cred.first_aid":0.8083818832821745,
-   "skill.logistics":0.585357168626385,
-   "skill.sas":0.6438070156751914
+   "skill.logistics":0.42182546061130477
   },
   "skill.investment_banking":{
    "cred.csc":0.6,
-   "esco.management_consulting":0.644919202745257,
-   "skill.analytical_thinking":0.4332052851811903,
-   "skill.financial_modeling":0.7119578556222502
+   "esco.management_consulting":0.6606725344150101,
+   "skill.accounting":0.49478131521197743,
+   "skill.financial_modeling":0.7139488828251516,
+   "skill.forecasting":0.4108215647228771
   },
   "skill.ios":{
-   "skill.android":0.6323956711881061
+   "skill.android":0.628967661951011
   },
   "skill.it_support":{
    "cred.comptia_a_plus":0.7,
-   "esco.knowledge_base":0.6603267313836543,
-   "skill.active_listening":0.4617291391062345,
-   "skill.bilingual":0.5381331836147618,
-   "skill.customer_service":0.403012818273307,
-   "skill.macos":0.5108012850265288,
-   "skill.slack":0.40996428426003084,
-   "skill.triage":0.41562686263948656
+   "esco.knowledge_base":0.5347684087414144,
+   "skill.macos":0.550753419338049,
+   "skill.slack":0.4437724542159078
   },
   "skill.itsm":{
    "cred.itil":0.8
   },
   "skill.java":{
-   "skill.aws":0.5305012115121738,
-   "skill.azure_devops":0.5430422222970109,
-   "skill.backend":0.5184145681839879,
-   "skill.c":0.5452554781944766,
-   "skill.cpp":0.5557625416609276,
+   "skill.android":0.45902866678486104,
+   "skill.backend":0.48999296095427336,
+   "skill.c":0.5017477816219496,
+   "skill.cloud_computing":0.484515487240973,
+   "skill.cpp":0.5117874346245069,
    "skill.csharp":0.5,
-   "skill.data_warehousing":0.5905806011011687,
-   "skill.go":0.5915435551408915,
-   "skill.hadoop":0.597212783466136,
-   "skill.kafka":0.6032898666488232,
-   "skill.kotlin":0.6190141810016736,
-   "skill.objective_c":0.5690950656698783,
-   "skill.online_analytical_processing_olap_software":0.6672686250383852,
-   "skill.php":0.5093711934335303,
-   "skill.python":0.653003312215875,
-   "skill.r":0.5748360120991365,
-   "skill.ruby":0.5701225950385305,
-   "skill.scala":0.6678561752039551,
-   "skill.swift":0.5093711934335303,
-   "skill.unity":0.5617016249149517
+   "skill.data_warehousing":0.5243160098157884,
+   "skill.go":0.5854823132147412,
+   "skill.hadoop":0.5017477816219496,
+   "skill.kafka":0.49532605102901905,
+   "skill.kotlin":0.5837262804273379,
+   "skill.mysql":0.4923104522800103,
+   "skill.online_analytical_processing_olap_software":0.5540184523754074,
+   "skill.php":0.48326553046587195,
+   "skill.python":0.6276620621524222,
+   "skill.r":0.5243160098157884,
+   "skill.ruby":0.5597023511684771,
+   "skill.rust":0.47121196803487586,
+   "skill.scala":0.6960299170881199,
+   "skill.spark":0.47117999696137475
   },
   "skill.javascript":{
-   "esco.provide_mentorship":0.4412201909072243,
-   "skill.apis":0.4455618044984455,
-   "skill.containerization":0.5105968422658912,
-   "skill.csharp":0.6069398154293445,
-   "skill.frontend":0.45368047183090293,
-   "skill.go":0.4973958107676683,
-   "skill.java":0.4240490940933938,
-   "skill.paypal":0.4384921976257993,
-   "skill.postman":0.4876109337540681,
-   "skill.python":0.43775097459752577,
-   "skill.rust":0.5257915025833151
+   "skill.apis":0.4267204132297434,
+   "skill.containerization":0.49922164391284074,
+   "skill.csharp":0.5734113438207893,
+   "skill.frontend":0.4440731470320506,
+   "skill.go":0.47267193176119515,
+   "skill.postman":0.45144471380046347,
+   "skill.python":0.42109671370775575
   },
   "skill.jenkins":{
-   "skill.aws":0.5340271292509087,
-   "skill.azure":0.5292093676825079,
-   "skill.datadog":0.457836275780396,
-   "skill.docker":0.7042942923994919,
-   "skill.gcp":0.5204212662272764,
+   "skill.aws":0.5409221728385721,
+   "skill.azure":0.5362575318248605,
+   "skill.gcp":0.5257249375027843,
    "skill.github_actions":0.6,
-   "skill.go":0.48761578035720465,
-   "skill.infrastructure_as_code":0.590191515375154,
-   "skill.kubernetes":0.6077745149151975,
-   "skill.observability":0.4003697097941618,
-   "skill.python":0.4571426619691495,
-   "skill.terraform":0.7108439448302525
+   "skill.kubernetes":0.6071034124111762,
+   "skill.observability":0.4542607520390162,
+   "skill.python":0.4388729350541324,
+   "skill.terraform":0.7167878162901069
   },
   "skill.jira":{
-   "esco.electricity":0.5431930324127922,
-   "skill.agile":0.48255215598282314,
+   "skill.agile":0.42862811357014124,
    "skill.confluence":0.6,
-   "skill.git":0.5539555409916428,
-   "skill.github":0.5609274127088155,
-   "skill.google_workspace":0.5481669809820049,
-   "skill.linux":0.4063428361028627,
-   "skill.project_management":0.4433707276986734,
-   "skill.qa":0.47302044557728773,
-   "skill.rest":0.5886981667095742,
-   "skill.slack":0.612399052080609
+   "skill.google_workspace":0.5497111262852444,
+   "skill.slack":0.6173575086993313
   },
   "skill.kafka":{
-   "esco.operational_research":0.6275481648765308,
-   "skill.aws":0.5997227505838765,
-   "skill.azure":0.6907990870709427,
-   "skill.big_data":0.6565397902145893,
-   "skill.cloud_computing":0.5870392580842465,
-   "skill.data_science":0.5651839377720104,
-   "skill.data_warehousing":0.7188620583979196,
-   "skill.databricks":0.5870931080960693,
-   "skill.etl":0.5968389941612686,
-   "skill.gcp":0.6649080242077803,
-   "skill.hadoop":0.8210932347055946,
-   "skill.java":0.6032898666488232,
-   "skill.online_analytical_processing_olap_software":0.8607621631124885,
-   "skill.pandas":0.6989744381205848,
-   "skill.r":0.7188620583979196,
-   "skill.scala":0.7006115548382076,
-   "skill.scikit_learn":0.6989744381205848,
-   "skill.spark":0.6930127100617536,
-   "skill.sql":0.641069858254353,
-   "skill.unity":0.7513732692422387
+   "skill.aws":0.4321856870741395,
+   "skill.azure":0.5214063644915146,
+   "skill.big_data":0.6772038920741565,
+   "skill.cloud_computing":0.6668545574187796,
+   "skill.data_science":0.5692977024025743,
+   "skill.data_warehousing":0.6134163172329262,
+   "skill.databricks":0.5949537827313703,
+   "skill.etl":0.5821707379114396,
+   "skill.gcp":0.48115083601388947,
+   "skill.hadoop":0.836904955502024,
+   "skill.java":0.49532605102901905,
+   "skill.machine_learning":0.4687276501343751,
+   "skill.online_analytical_processing_olap_software":0.8590180180569496,
+   "skill.pandas":0.688895654131859,
+   "skill.python":0.4556564500332301,
+   "skill.r":0.6134163172329262,
+   "skill.scala":0.6554143619078251,
+   "skill.scikit_learn":0.688895654131859,
+   "skill.spark":0.7550059855618863,
+   "skill.sql":0.6290428570118469
   },
   "skill.kotlin":{
-   "cat.60141006":0.7735802996980494,
-   "esco.cooperate_with_colleagues":0.4915161317714641,
-   "skill.android":0.7049366812407734,
-   "skill.apis":0.4049584603591902,
-   "skill.aws":0.4976595799703756,
-   "skill.backend":0.6273461249324267,
-   "skill.graphql":0.6188663593723897,
-   "skill.java":0.6190141810016736,
-   "skill.kubernetes":0.5631184483618351,
-   "skill.mysql":0.7866846062138043,
-   "skill.objective_c":0.7179136429027794,
-   "skill.product_management":0.43302355557913014,
-   "skill.python":0.4903236075220704,
-   "skill.react":0.48882642592802394,
-   "skill.swift":0.6188663593723897,
-   "skill.writing":0.5125126009720876
+   "esco.cooperate_with_colleagues":0.5062009420608272,
+   "skill.android":0.7082735927923862,
+   "skill.backend":0.592707476636026,
+   "skill.java":0.5837262804273379,
+   "skill.kubernetes":0.47239174211258045,
+   "skill.mysql":0.7185842783664614,
+   "skill.python":0.46828592378224915,
+   "skill.react":0.41722486412699644,
+   "skill.writing":0.4336579471497502
   },
   "skill.kubernetes":{
-   "cat.60141006":0.6221202783728996,
    "cred.cka":0.8,
    "cred.ckad":0.8,
-   "skill.ansible":0.6122186232211702,
-   "skill.aws":0.6006779797544572,
-   "skill.backend":0.45841520181102446,
-   "skill.ci_cd":0.46599930185337973,
-   "skill.cloudformation":0.6010606278614475,
-   "skill.gcp":0.4700959043217814,
-   "skill.github_actions":0.5933663720359417,
-   "skill.infrastructure_as_code":0.6064979559412071,
-   "skill.jenkins":0.6077745149151975,
-   "skill.kotlin":0.5631184483618351,
-   "skill.mysql":0.6975135649193437,
-   "skill.nodejs":0.47970357074486525,
-   "skill.php":0.48635400593578615,
-   "skill.postgresql":0.5555989480740565,
-   "skill.python":0.44653331122132517,
-   "skill.splunk":0.5261136046468526,
-   "skill.sre":0.5413958748854878,
-   "skill.terraform":0.7219801560641746,
-   "skill.vmware":0.6149691336865393
-  },
-  "skill.lasers":{
-   "esco.optomechanical_engineering":0.8153819598176617
+   "skill.ansible":0.521088328917956,
+   "skill.aws":0.611220063867457,
+   "skill.azure":0.46419800528476707,
+   "skill.ci_cd":0.4442305260718631,
+   "skill.cloudformation":0.614582971334154,
+   "skill.gcp":0.5194993515470655,
+   "skill.github_actions":0.5898433414767787,
+   "skill.go":0.4195842819274383,
+   "skill.infrastructure_as_code":0.5796349868052647,
+   "skill.jenkins":0.6071034124111762,
+   "skill.kotlin":0.47239174211258045,
+   "skill.microservices":0.4433004991918771,
+   "skill.mysql":0.6369343959246989,
+   "skill.nodejs":0.47983896729937187,
+   "skill.observability":0.473210317416647,
+   "skill.postgresql":0.5326396072834345,
+   "skill.splunk":0.5472918837075677,
+   "skill.sre":0.5395503986890995,
+   "skill.terraform":0.6683351276496767,
+   "skill.typescript":0.42141099693731066
   },
   "skill.lead_generation":{
-   "skill.business_development":0.4787107389751845
-  },
-  "skill.leadership":{
-   "esco.customer_insight":0.4611806992862275,
-   "skill.online_analytical_processing_olap_software":0.4152670950672008
+   "skill.business_development":0.4867547076042669,
+   "skill.salesforce":0.4032175872370335
   },
   "skill.lean":{
-   "skill.excel":0.49442931962076797,
-   "skill.quality_management":0.6892387989055436
+   "skill.quality_management":0.6895336767804051
   },
   "skill.linux":{
-   "esco.cloud_security_and_compliance":0.45525368223278107,
-   "esco.group.t2.4":0.4773753511426441,
-   "esco.perform_services_in_a_flexible_manner":0.6227069719593549,
-   "skill.ansible":0.6343248750026562,
-   "skill.devops":0.46177803280525775,
-   "skill.dns":0.6051477286619705,
-   "skill.embedded_systems":0.438626388664449,
-   "skill.git":0.6008103324298749,
-   "skill.jira":0.4063428361028627,
-   "skill.kubernetes":0.4453768111901234,
-   "skill.macos":0.4903346261393042,
-   "skill.ms_access":0.4190350057789815,
-   "skill.sre":0.4163001590706399,
-   "skill.terraform":0.4730346726721508,
-   "skill.unix":0.6473208563332679
+   "esco.assist_customers":0.47581882281429827,
+   "esco.cloud_security_and_compliance":0.45307420990394626,
+   "esco.perform_services_in_a_flexible_manner":0.5274166470746414,
+   "skill.ansible":0.530373332369259,
+   "skill.devops":0.43596621229749927,
+   "skill.dns":0.604364200928276,
+   "skill.git":0.5669817208176235,
+   "skill.macos":0.48384145384004723,
+   "skill.unix":0.6486638986954915
   },
   "skill.llm":{
-   "esco.ml_computer_programming":0.49827057523664775,
-   "skill.generative_ai":0.567615761837067,
-   "skill.pytorch":0.42751259403680075
+   "skill.generative_ai":0.5696376636859289,
+   "skill.pytorch":0.4028787738586857
   },
   "skill.logistics":{
-   "cred.commercial_drivers_license":0.4388465018950394,
-   "cred.cpr":0.6355431703047232,
-   "cred.first_aid":0.6355431703047232,
-   "esco.financial_jurisdiction":0.5269398741226926,
-   "esco.international_trade":0.4897145605532316,
-   "esco.quality_standards":0.45462579137480597,
-   "skill.conflict_resolution":0.41704376720126385,
-   "skill.inventory_management":0.585357168626385,
-   "skill.sas":0.4988274096290356,
-   "skill.supply_chain":0.40509021005529405
+   "esco.international_trade":0.4435943834283301,
+   "skill.inventory_management":0.42182546061130477
   },
   "skill.looker":{
-   "esco.data_models":0.566870973693315,
-   "skill.data_engineering":0.4337353547236159,
-   "skill.sql":0.5046423459599599,
-   "skill.tableau":0.8007396114065246
+   "esco.data_models":0.573533656545196,
+   "skill.data_engineering":0.4042324356708933,
+   "skill.sql":0.47430681198650315,
+   "skill.tableau":0.7684622953492006
   },
   "skill.machine_learning":{
-   "esco.customer_insight":0.512272312058207,
-   "esco.ml_computer_programming":0.5104947421376775,
-   "esco.operational_research":0.5093108083349701,
-   "skill.computer_vision":0.40383639410537586,
-   "skill.data_engineering":0.4135207666024691,
-   "skill.data_science":0.4549888532796851,
-   "skill.data_warehousing":0.44053838733087525,
-   "skill.generative_ai":0.46873166528853827,
-   "skill.hadoop":0.5022436736062377,
-   "skill.kafka":0.4695510831327009,
-   "skill.nlp":0.48325169904082393,
-   "skill.online_analytical_processing_olap_software":0.5104947421376775,
-   "skill.pandas":0.4637667749330757,
-   "skill.r":0.46645471222735424,
-   "skill.spark":0.4228820049644619,
-   "skill.statistics":0.4405428549128148,
-   "skill.unity":0.4573777485409067
+   "esco.operational_research":0.4321548699369159,
+   "skill.data_engineering":0.44002896877978465,
+   "skill.data_science":0.44209342670700086,
+   "skill.generative_ai":0.467848978953189,
+   "skill.hadoop":0.517545064885004,
+   "skill.kafka":0.4687276501343751,
+   "skill.nlp":0.47719061711202704,
+   "skill.online_analytical_processing_olap_software":0.5056801170656277,
+   "skill.pandas":0.45650428910198343,
+   "skill.r":0.4297145555202223,
+   "skill.spark":0.4933576966943003,
+   "skill.statistics":0.4296802962493926
   },
   "skill.macos":{
-   "skill.google_workspace":0.5918246191478773,
-   "skill.it_support":0.5108012850265288,
-   "skill.linux":0.4903346261393042
+   "skill.google_workspace":0.5714499028435439,
+   "skill.it_support":0.550753419338049,
+   "skill.linux":0.48384145384004723
   },
   "skill.marketing":{
-   "esco.social_justice":0.40759745856513774,
+   "esco.channel_marketing":0.4083623100070279,
+   "esco.digital_media":0.43915017722971644,
    "field.marketing":0.8
   },
-  "skill.matlab":{
-   "skill.python":0.4164785774118979
-  },
   "skill.mechanical_design":{
-   "esco.consumer_electronics":0.6230515579598566,
-   "skill.fea":0.5368130085016779,
-   "skill.robotics":0.5558561830213842
-  },
-  "skill.mentoring":{
-   "esco.circulate_information":0.5625869546119572,
-   "esco.lead_a_team":0.48744039151926555,
-   "esco.sex_education":0.5498631551450891
+   "esco.consumer_electronics":0.6070236982186658,
+   "skill.fea":0.5125860697104689,
+   "skill.robotics":0.544566231804509
   },
   "skill.microservices":{
-   "skill.cloud_computing":0.4083953914155958,
-   "skill.java":0.46000485126924445,
-   "skill.kubernetes":0.4382737973517978,
-   "skill.typescript":0.48635400593578615
+   "skill.cloud_computing":0.45861058638436025,
+   "skill.java":0.4568273639611687,
+   "skill.kubernetes":0.4433004991918771,
+   "skill.typescript":0.46540331009643643
   },
   "skill.mongodb":{
-   "skill.azure":0.4858575660575932,
-   "skill.gcp":0.4208114960073126
+   "skill.aws":0.4135673660222757,
+   "skill.azure":0.5276160633305912,
+   "skill.gcp":0.4558639184158507
   },
   "skill.motor_vehicles":{
-   "cred.drivers_license":0.5453435240724275,
-   "esco.assist_customers":0.7035444095187033,
-   "esco.drive_vehicles":0.977739373632064,
-   "esco.park_vehicles":1.0,
-   "esco.petroleum":0.6467124062793961,
-   "esco.road_traffic_laws":0.9028539700001452
-  },
-  "skill.ms_access":{
-   "esco.assist_customers":0.4555523944452557,
-   "esco.cloud_security_and_compliance":0.5807671989986333,
-   "skill.linux":0.4190350057789815,
-   "skill.single_sign_on_sso":0.6789297118445285
+   "esco.park_vehicles":1.0
   },
   "skill.ms_word":{
-   "esco.deliver_outstanding_service":0.8429475860251655,
-   "esco.product_comprehension":0.6344055304401836,
-   "skill.early_childhood_education":0.7006331562497229,
-   "skill.excel":0.8214858540696027,
-   "skill.outlook":0.816960926433169,
-   "skill.powerpoint":0.8046831869598245
+   "skill.excel":0.7855201907969512,
+   "skill.outlook":0.8686553034463912,
+   "skill.powerpoint":0.8584803955624567
   },
   "skill.multitasking":{
-   "esco.maintenance_operations":0.5841505591638265,
-   "skill.attention_to_detail":0.41302103937786633,
-   "skill.distribution_management_system_dms":0.7590219797695948,
-   "skill.excel":0.451545866451142,
-   "skill.ros":0.7329691363967274,
-   "skill.scheduling_software":0.7590219797695948,
-   "skill.time_management":0.443895797987083,
-   "skill.work_ethic":0.5348745693359482
+   "skill.excel":0.46849677752164753
   },
   "skill.mysql":{
-   "cat.60141006":0.8540151490986647,
-   "esco.cooperate_with_colleagues":0.5637710164993586,
-   "skill.adaptability":0.4775331825354161,
-   "skill.aws":0.5829462144302048,
-   "skill.backend":0.56808407428555,
-   "skill.java":0.5066064215053586,
-   "skill.kotlin":0.7866846062138043,
-   "skill.kubernetes":0.6975135649193437,
+   "skill.aws":0.5421569788408745,
+   "skill.backend":0.5002499227886665,
+   "skill.java":0.4923104522800103,
+   "skill.kotlin":0.7185842783664614,
+   "skill.kubernetes":0.6369343959246989,
    "skill.postgresql":0.7,
-   "skill.product_management":0.5084625682386112,
-   "skill.python":0.5270068323026548,
-   "skill.writing":0.5458228528875679
-  },
-  "skill.negotiation":{
-   "esco.unstructured_data":0.5161282264678924,
-   "skill.economics":0.524245461314309,
-   "skill.elasticsearch":0.5099903870056257
+   "skill.python":0.4815227160985079,
+   "skill.writing":0.5154549222831484
   },
   "skill.netsuite":{
-   "skill.accounting":0.4484131471128696,
-   "skill.auditing":0.45857345034474645
+   "skill.accounting":0.5484072582626996,
+   "skill.auditing":0.44489070158305366,
+   "skill.finance":0.41954268408256346,
+   "skill.salesforce":0.5208060008328719
   },
   "skill.networking":{
    "cred.ccna":0.8,
    "cred.ccnp":0.8,
-   "cred.comptia_network_plus":0.7,
-   "skill.cybersecurity":0.42726813938108504
+   "cred.comptia_network_plus":0.7
   },
   "skill.nextjs":{
-   "esco.provide_mentorship":0.7578380639150515,
-   "skill.cloud_computing":0.7398067298095581,
-   "skill.paypal":0.9906193169731604,
-   "skill.recruiting":0.41801576661817785,
-   "skill.seo":0.6020357495756311,
-   "skill.typescript":0.4645707966037799
+   "skill.full_stack":0.471149223669784
   },
   "skill.nlp":{
-   "skill.deep_learning":0.6768053060359638,
-   "skill.machine_learning":0.48325169904082393,
-   "skill.pinterest":0.5389000474976946,
-   "skill.recruiting":0.4220181274742829,
-   "skill.spark":0.5047635823480519,
-   "skill.statistics":0.5748116289501476
+   "skill.machine_learning":0.47719061711202704,
+   "skill.pinterest":0.5505567136354024,
+   "skill.spark":0.5390104137355027,
+   "skill.statistics":0.5803298822424781
   },
   "skill.nodejs":{
-   "skill.agile":0.4941049674466548,
-   "skill.angular":0.7028581494088311,
-   "skill.aws":0.42945060805118607,
-   "skill.azure_devops":0.7439664862756465,
-   "skill.devops":0.5499674348076514,
-   "skill.dotnet":0.6848172297087349,
-   "skill.frontend":0.42479727047335675,
-   "skill.go":0.46895874722653585,
-   "skill.java":0.5091446424535961,
-   "skill.kubernetes":0.47970357074486525,
-   "skill.php":0.7156701313291495,
-   "skill.python":0.4601258854687669,
-   "skill.rails":0.6573526956148369,
-   "skill.react":0.655915447256552,
-   "skill.rest":0.5999896929531581,
-   "skill.ruby":0.5812343090874885,
-   "skill.splunk":0.6709720461181243,
-   "skill.terraform":0.44983306311314375,
-   "skill.typescript":0.5577963216519355
+   "skill.agile":0.4352971161478759,
+   "skill.devops":0.4788418049177196,
+   "skill.dotnet":0.6688962980020713,
+   "skill.frontend":0.4207198474092702,
+   "skill.go":0.43814894516863595,
+   "skill.java":0.4515198980498823,
+   "skill.kubernetes":0.47983896729937187,
+   "skill.php":0.6895336767804051,
+   "skill.python":0.4231330745294249,
+   "skill.react":0.615939970641307,
+   "skill.ruby":0.5423819680887776,
+   "skill.typescript":0.5597985638266112
   },
   "skill.nosql":{
-   "skill.backend":0.4367567740972865,
-   "skill.java":0.4439949387666214,
-   "skill.sql":0.46375103174472304
-  },
-  "skill.notion":{
-   "skill.adaptability":0.506294078485045,
-   "skill.figma":0.7200113057191505
+   "skill.backend":0.4118844330893739
   },
   "skill.nursing":{
    "cred.licensed_practical_nurse":0.7,
@@ -2796,595 +1898,397 @@
    "field.nursing":0.8
   },
   "skill.objective_c":{
-   "skill.apis":0.4535288300993436,
-   "skill.java":0.5690950656698783,
-   "skill.kotlin":0.7179136429027794,
-   "skill.swift":0.9009527164696104
+   "skill.swift":0.7
   },
   "skill.observability":{
-   "esco.identify_new_business_opportunities":0.6508250687903464,
-   "esco.open_source_model":0.6561119577373172,
-   "esco.unstructured_data":0.7623509346026668,
-   "skill.containerization":0.4703229353275634,
-   "skill.economics":0.45281765370386967,
-   "skill.elasticsearch":0.7618855938953122,
-   "skill.jenkins":0.4003697097941618,
-   "skill.php":0.4518129147727292
-  },
-  "skill.ocaml":{
-   "skill.recruiting":0.4126870620850999
+   "esco.communicate_with_customers":0.4387023745461671,
+   "skill.ansible":0.4399615702284744,
+   "skill.containerization":0.5175733710919747,
+   "skill.docker":0.42266162312692307,
+   "skill.dotnet":0.40378054420052395,
+   "skill.go":0.43312097081192863,
+   "skill.infrastructure_as_code":0.4514483824644888,
+   "skill.jenkins":0.4542607520390162,
+   "skill.kubernetes":0.473210317416647,
+   "skill.php":0.5114098288425415,
+   "skill.terraform":0.4877967132160471,
+   "skill.web_development":0.40397576997212925
   },
   "skill.online_analytical_processing_olap_software":{
-   "esco.operational_research":0.6172873927568826,
-   "skill.aws":0.5874703452929425,
-   "skill.azure":0.6849704720178134,
-   "skill.big_data":0.7187863294765313,
-   "skill.cloud_computing":0.608332633767971,
-   "skill.data_analysis":0.56595282767392,
-   "skill.data_engineering":0.6372698840424187,
-   "skill.data_science":0.6154130783116935,
-   "skill.data_warehousing":0.8563379977893547,
-   "skill.databricks":0.65159874677187,
-   "skill.gcp":0.675057882054182,
-   "skill.hadoop":0.8779868531560914,
-   "skill.java":0.6672686250383852,
-   "skill.kafka":0.8607621631124885,
-   "skill.python":0.5246051096133769,
-   "skill.r":0.8335715235661916,
-   "skill.scala":0.7970871697458901,
-   "skill.spark":0.7079731850840923,
-   "skill.sql":0.6255359430105188,
-   "skill.unity":0.8530700428879459
+   "skill.big_data":0.7359603695285107,
+   "skill.cloud_computing":0.6779007577323901,
+   "skill.data_analysis":0.5523615342758507,
+   "skill.data_engineering":0.6476255120376729,
+   "skill.data_science":0.6158557668515219,
+   "skill.data_warehousing":0.7527487382777818,
+   "skill.databricks":0.6565438111498997,
+   "skill.hadoop":0.890159663951186,
+   "skill.java":0.5540184523754074,
+   "skill.kafka":0.8590180180569496,
+   "skill.machine_learning":0.5056801170656277,
+   "skill.python":0.4113955996467254,
+   "skill.r":0.7194267211699594,
+   "skill.scala":0.7347813608651853,
+   "skill.spark":0.7604733234705697,
+   "skill.sql":0.6211645827138716
   },
   "skill.oop":{
-   "skill.backend":0.4446971270334993,
-   "skill.databases":0.5182401092264929
+   "skill.backend":0.4267758943067993,
+   "skill.databases":0.49858367900509615
   },
   "skill.operating_systems":{
-   "skill.c":0.4635627212806888,
-   "skill.cpp":0.45878038321830966,
-   "skill.cybersecurity":0.5505993482827827,
-   "skill.embedded_systems":0.4425319948079132,
-   "skill.git":0.4865999902600942,
-   "skill.research":0.401683387468683
+   "skill.c":0.4454992902647593,
+   "skill.cpp":0.4261166922370717,
+   "skill.cybersecurity":0.4444544749974005,
+   "skill.embedded_systems":0.4171789223952404,
+   "skill.git":0.4678496963256148
   },
   "skill.operations_management":{
-   "skill.business_intelligence":0.41988147775070733,
-   "skill.computer_aided_engineering_cae_software":0.6379473310280842,
-   "skill.version_control":0.43985276396730494
+   "skill.computer_aided_engineering_cae_software":0.6545480981510929,
+   "skill.version_control":0.4623723412577304
   },
   "skill.oracle_db":{
-   "skill.accounting":0.4156549783036569,
-   "skill.erp":0.7337265114807583
+   "skill.accounting":0.5230212742838994,
+   "skill.erp":0.7377190385175744
   },
   "skill.osha":{
-   "cat.23152204":0.7317818863567712,
-   "esco.building_codes":0.7543984780899446,
-   "esco.formulate_findings":0.7086914093266706,
-   "esco.provide_technical_expertise":0.5932838177112093,
-   "skill.plc":0.46797027895566856,
-   "skill.root_cause_analysis":0.4797724713302728
+   "cat.23152204":0.7038328585909469,
+   "esco.building_codes":0.7311861706288653,
+   "esco.formulate_findings":0.7038328585909469,
+   "esco.provide_technical_expertise":0.5513384648936019,
+   "skill.plc":0.47257997593765155,
+   "skill.root_cause_analysis":0.4309084199004033
   },
   "skill.outlook":{
-   "skill.excel":0.6664710433086799,
-   "skill.ms_word":0.816960926433169
-  },
-  "skill.paint_booths":{
-   "esco.mix_paint":0.933391645563493
+   "skill.excel":0.6764795465530288,
+   "skill.ms_word":0.8686553034463912
   },
   "skill.pandas":{
-   "esco.operational_research":0.7100989683714746,
-   "skill.aws":0.556698192715559,
-   "skill.azure":0.6266091340729237,
-   "skill.big_data":0.5827978387901673,
-   "skill.cloud_computing":0.5090392557147461,
-   "skill.data_engineering":0.4780364325779702,
-   "skill.data_science":0.5646104577337019,
-   "skill.data_warehousing":0.5938093041740095,
-   "skill.databases":0.4297824862121315,
-   "skill.databricks":0.5493232596163772,
-   "skill.gcp":0.5905302547569623,
-   "skill.hadoop":0.6937067936629228,
-   "skill.kafka":0.6989744381205848,
-   "skill.machine_learning":0.4637667749330757,
-   "skill.pytorch":0.6804230948348191,
-   "skill.scala":0.5432759018662799,
-   "skill.scikit_learn":0.9461956498419812,
-   "skill.spark":0.628579399848653,
-   "skill.sql":0.5696478015230148
+   "skill.aws":0.49857410912185346,
+   "skill.azure":0.5764764425392941,
+   "skill.big_data":0.5911175512468413,
+   "skill.cloud_computing":0.5681141808050543,
+   "skill.data_engineering":0.478886956610212,
+   "skill.data_science":0.5621588711751954,
+   "skill.data_warehousing":0.6093019509380546,
+   "skill.databases":0.405710554570461,
+   "skill.databricks":0.5483098426373062,
+   "skill.gcp":0.5281633178226509,
+   "skill.hadoop":0.6948587741121269,
+   "skill.kafka":0.688895654131859,
+   "skill.machine_learning":0.45650428910198343,
+   "skill.pytorch":0.6644709108335101,
+   "skill.scala":0.5929190154258608,
+   "skill.scikit_learn":0.9431496023753144,
+   "skill.spark":0.6736987123360167,
+   "skill.sql":0.5623549522936856
   },
   "skill.patient_care":{
    "cred.psw_certificate":0.7
   },
-  "skill.paypal":{
-   "esco.provide_mentorship":0.765711196941475,
-   "skill.cloud_computing":0.7491874128363978,
-   "skill.frontend":0.47084034056855184,
-   "skill.javascript":0.4384921976257993,
-   "skill.nextjs":0.9906193169731604,
-   "skill.react":0.5448686253556199,
-   "skill.recruiting":0.4258888996446014,
-   "skill.seo":0.6085320966451058,
-   "skill.typescript":0.42147320270442235,
-   "skill.web_development":0.5313308083972934
-  },
   "skill.payroll":{
-   "esco.service_oriented_modelling":0.726740861381076,
-   "skill.hris":0.8141823264313949,
-   "skill.valuation":0.6533682475827366,
-   "skill.willingness_to_learn":0.5313559542589372,
-   "skill.workday":0.49293713841947934
+   "skill.accounting":0.4388872826137853,
+   "skill.hris":0.6710233869162715,
+   "skill.workday":0.6581735214919826
   },
   "skill.pcb_design":{
-   "esco.digital_communication_and_collaboration":0.8254580677145942,
-   "esco.electronics":0.5510470068473872,
-   "esco.ict_system_integration":0.761498522414017,
-   "esco.power_electronics":0.6774932179799716,
-   "skill.system_design":0.47119093209885954
+   "esco.electronics":0.5395442912741638,
+   "esco.ict_system_integration":0.7570649617912704,
+   "esco.power_electronics":0.6763525078640996,
+   "skill.system_design":0.47616981279738835
   },
   "skill.penetration_testing":{
    "cred.ceh":0.8,
    "cred.oscp":0.8
   },
   "skill.php":{
-   "skill.aws":0.4188007952039488,
-   "skill.azure":0.5029884660452415,
-   "skill.datadog":0.5773953603922253,
-   "skill.devops":0.66236251047046,
-   "skill.docker":0.7179136429027794,
-   "skill.dotnet":0.7811482285210571,
-   "skill.gcp":0.49442931962076797,
-   "skill.go":0.6388882921914157,
-   "skill.java":0.5093711934335303,
-   "skill.kubernetes":0.48635400593578615,
-   "skill.nodejs":0.7156701313291495,
-   "skill.observability":0.4518129147727292,
-   "skill.python":0.4720108152838772,
-   "skill.ruby":0.8241889406041465,
-   "skill.splunk":0.8019054329392207,
-   "skill.terraform":0.5807664499342401
+   "skill.datadog":0.5793756784829447,
+   "skill.devops":0.6560878193572895,
+   "skill.dotnet":0.7573440352681452,
+   "skill.go":0.6134163172329262,
+   "skill.java":0.48326553046587195,
+   "skill.nodejs":0.6895336767804051,
+   "skill.observability":0.5114098288425415,
+   "skill.python":0.455879114761418,
+   "skill.ruby":0.8036623363941584
   },
   "skill.pinterest":{
-   "esco.digital_media":0.6377655733088553,
-   "skill.adaptability":0.5613768343829738,
-   "skill.creativity":0.5717122612471429,
-   "skill.deep_learning":0.4137999205944376,
-   "skill.nlp":0.5389000474976946,
-   "skill.recruiting":0.6504007954741712,
-   "skill.web_analytics":0.7547262677164619,
-   "skill.workday":0.5385938547349036
+   "skill.adaptability":0.6775696967394368,
+   "skill.nlp":0.5505567136354024
   },
   "skill.plc":{
-   "esco.apply_advanced_manufacturing":0.44423872050278257,
-   "esco.drive_agricultural_machines":0.6760703403758721,
-   "esco.logic":0.42070783293325265,
-   "esco.machine_tools":0.7203778252523323,
-   "esco.mechanical_systems":0.6197531571510697,
-   "esco.sensors":0.4429070824830206,
-   "skill.cnc":0.4600329425827956,
-   "skill.control_systems":0.55071718913548,
-   "skill.data_acquisition_systems":0.5786539190124051,
-   "skill.hmi":0.8598116244922057,
-   "skill.osha":0.46797027895566856,
-   "skill.robotics":0.5825637569389271,
-   "skill.scada":0.7648279799574221
+   "esco.apply_advanced_manufacturing":0.4656885818615069,
+   "esco.machine_tools":0.6461650304210751,
+   "esco.mechanical_systems":0.5536029549125878,
+   "esco.sensors":0.5461415211880375,
+   "skill.cnc":0.42712507912324627,
+   "skill.control_systems":0.5596336254659162,
+   "skill.data_acquisition_systems":0.5788732896869799,
+   "skill.hmi":0.8329841228267879,
+   "skill.osha":0.47257997593765155,
+   "skill.robotics":0.544566231804509,
+   "skill.scada":0.7762178236734878
   },
   "skill.plumbing":{
-   "skill.electrical_wiring":0.48080996911748053,
-   "skill.hvac":0.7311262442575395
-  },
-  "skill.pos":{
-   "esco.sales_activities":0.8342505710385836,
-   "esco.spanish":0.4351162348559708,
-   "skill.crm":0.8085468246614461,
-   "skill.salesforce":0.7267630351392743
+   "skill.electrical_wiring":0.4690186140642321,
+   "skill.hvac":0.7184683224886104
   },
   "skill.postgresql":{
-   "skill.aws":0.4794683602669918,
-   "skill.backend":0.42927689022953375,
-   "skill.cpp":0.4712100985153328,
-   "skill.full_stack":0.40607398367216485,
-   "skill.gcp":0.4883709114184833,
-   "skill.go":0.4656864876582727,
-   "skill.kafka":0.5487587855772803,
-   "skill.kubernetes":0.5555989480740565,
+   "skill.aws":0.49102381676393464,
+   "skill.backend":0.40046816192772294,
+   "skill.cpp":0.43725829250235937,
+   "skill.gcp":0.5054230440551583,
+   "skill.go":0.4613128696190967,
+   "skill.kubernetes":0.5326396072834345,
    "skill.mysql":0.7,
-   "skill.react":0.5342344284037838,
-   "skill.redis":0.8161978355940531,
-   "skill.typescript":0.5005624130867142
+   "skill.react":0.4954339232601561,
+   "skill.redis":0.8222026186749323,
+   "skill.typescript":0.49505841590406685
   },
   "skill.postman":{
-   "skill.javascript":0.4876109337540681
+   "skill.javascript":0.45144471380046347
   },
   "skill.power_bi":{
-   "skill.data_analysis":0.4708296504243251,
-   "skill.excel":0.597608293730964,
-   "skill.forecasting":0.4565481932599338,
-   "skill.git":0.6583957296236981,
-   "skill.sql":0.6163889082269162,
+   "skill.data_analysis":0.4192120170817935,
+   "skill.forecasting":0.47094769546624826,
+   "skill.sql":0.5784391074872962,
    "skill.tableau":0.7
   },
   "skill.power_systems":{
-   "esco.power_electronics":0.5539555409916428
+   "esco.power_electronics":0.5390104137355027
   },
   "skill.powerpoint":{
-   "skill.excel":0.7397403117005423,
-   "skill.ms_word":0.8046831869598245
+   "skill.excel":0.7549922342960719,
+   "skill.ms_word":0.8584803955624567
   },
   "skill.pressure_transducers":{
-   "skill.electrical_wiring":0.6664710433086799
-  },
-  "skill.problem_solving":{
-   "esco.stock_market":0.5648650277404689
+   "skill.electrical_wiring":0.6569679547202504
   },
   "skill.procurement":{
-   "esco.cost_management":0.497362221109891,
-   "esco.liaise_with_industrial_professionals":0.5018879180639156
+   "esco.cost_management":0.4766662114226695
   },
   "skill.product_management":{
-   "cat.60141006":0.4915161317714641,
-   "esco.electronic_communication":0.6128042883026387,
-   "esco.meet_commitments":0.45877708317551025,
-   "skill.kotlin":0.43302355557913014,
-   "skill.mysql":0.5084625682386112,
-   "skill.ui":0.4267455675897739
+   "esco.electronic_communication":0.6087094747976598,
+   "skill.ui":0.4127698498980233
   },
   "skill.programming":{
-   "esco.operational_research":0.45629680228555547,
-   "skill.azure_devops":0.42378021974027635,
-   "skill.computer_aided_engineering_cae_software":0.44983306311314375,
-   "skill.data_warehousing":0.4154379693296081,
-   "skill.git":0.40281733120631286,
-   "skill.hadoop":0.5205696753531135,
-   "skill.kafka":0.4733364210250767,
-   "skill.online_analytical_processing_olap_software":0.46811291107045727,
-   "skill.scrum":0.42378021974027635,
-   "skill.sql":0.40133262648170964,
-   "skill.talend_data_fabric":0.42378021974027635
+   "skill.computer_aided_engineering_cae_software":0.43853272271658117,
+   "skill.hadoop":0.40880897100117203
   },
   "skill.project_management":{
    "cred.capm":0.7,
-   "cred.pmp":0.8,
-   "esco.apply_change_management":0.5889008546004126,
-   "esco.build_networks":0.4786015358971444,
-   "esco.build_trust":0.4626273453113831,
-   "esco.design_process":0.5530877057688849,
-   "esco.product_comprehension":0.40024232561238327,
-   "skill.accounting_software":0.566870973693315,
-   "skill.jira":0.4433707276986734
-  },
-  "skill.prototyping":{
-   "esco.develop_new_products":0.7216693972393969,
-   "esco.ml_computer_programming":0.40733297881877234,
-   "skill.ab_testing":0.4465457521395931,
-   "skill.helm":0.48729929069346756,
-   "skill.workday":0.5910580263538808
-  },
-  "skill.public_speaking":{
-   "esco.sales_activities":0.4743063938171291,
-   "skill.crm":0.43749797689224323
+   "cred.pmp":0.8
   },
   "skill.puppet":{
-   "skill.ansible":0.8251285793942317,
-   "skill.go":0.6002824143908817,
-   "skill.python":0.4474212754855724
+   "skill.ansible":0.6
   },
   "skill.python":{
-   "esco.distributed_computing":0.5198005745627217,
-   "esco.operational_research":0.5111958475142072,
-   "skill.airflow":0.5022325140855898,
-   "skill.aws":0.6080253745220713,
-   "skill.azure":0.5506040152194638,
-   "skill.big_data":0.5010481144346848,
-   "skill.cpp":0.5282841386491813,
-   "skill.data_engineering":0.5250643339032003,
-   "skill.data_science":0.5506179120213653,
-   "skill.gcp":0.5513282329104368,
-   "skill.go":0.5810917894274377,
-   "skill.java":0.653003312215875,
-   "skill.kafka":0.5362502134939056,
-   "skill.kotlin":0.4903236075220704,
-   "skill.mysql":0.5270068323026548,
-   "skill.online_analytical_processing_olap_software":0.5246051096133769,
-   "skill.r":0.572851691843298,
-   "skill.scala":0.6277200406064175,
-   "skill.spark":0.5600181609149173,
-   "skill.sql":0.581083148082316
+   "skill.airflow":0.49020799368944284,
+   "skill.aws":0.4936437695807579,
+   "skill.bash":0.4437724542159078,
+   "skill.containerization":0.45846014076410285,
+   "skill.cpp":0.5050486510605678,
+   "skill.data_science":0.44234562837787267,
+   "skill.data_warehousing":0.44647692604491296,
+   "skill.etl":0.447848535197078,
+   "skill.go":0.5724390585389911,
+   "skill.java":0.6276620621524222,
+   "skill.kafka":0.4556564500332301,
+   "skill.kotlin":0.46828592378224915,
+   "skill.mysql":0.4815227160985079,
+   "skill.php":0.455879114761418,
+   "skill.r":0.5615480350510041,
+   "skill.ruby":0.47730116448670296,
+   "skill.scala":0.5525579504815044,
+   "skill.spark":0.4931234351195398,
+   "skill.sql":0.5444243160100656,
+   "skill.terraform":0.46727520002438505
   },
   "skill.pytorch":{
-   "cat.44111807":0.5707861507884013,
-   "esco.operational_research":0.5813758113044295,
-   "skill.azure":0.41899667600880003,
-   "skill.gcp":0.44816638149938204,
-   "skill.generative_ai":0.6004267666919951,
-   "skill.llm":0.42751259403680075,
-   "skill.pandas":0.6804230948348191,
-   "skill.scikit_learn":0.7652990409361435,
-   "skill.spark":0.5230624650426345,
+   "skill.generative_ai":0.5412159116272801,
+   "skill.llm":0.4028787738586857,
+   "skill.pandas":0.6644709108335101,
+   "skill.scikit_learn":0.7529607329663681,
+   "skill.spark":0.560890076373014,
    "skill.tensorflow":0.7
   },
   "skill.qa":{
-   "skill.agile":0.4646123169227326,
-   "skill.excel":0.4065223524892401,
-   "skill.jira":0.47302044557728773
-  },
-  "skill.quality_control":{
-   "esco.circulate_information":0.6961150666519283,
-   "esco.lead_a_team":0.48274736077406283,
-   "esco.petroleum":0.6609498122638158,
-   "esco.show_commitment":0.5156221114559866,
-   "skill.conflict_resolution":0.4575792702708945
+   "skill.agile":0.40851482531617084
   },
   "skill.quality_management":{
-   "skill.compliance":0.411912672820138,
-   "skill.lean":0.6892387989055436
+   "skill.compliance":0.4380526987952194,
+   "skill.lean":0.6895336767804051
   },
   "skill.quickbooks":{
    "skill.xero":0.7
   },
   "skill.r":{
-   "esco.operational_research":0.6318216413181337,
-   "skill.azure":0.5804995518098713,
-   "skill.big_data":0.5935448308703183,
-   "skill.data_analysis":0.4855641490334376,
-   "skill.data_engineering":0.49360788183177334,
-   "skill.data_science":0.6301097685828544,
-   "skill.data_warehousing":0.7126759955787095,
-   "skill.databricks":0.5586392535463826,
-   "skill.gcp":0.5521941751944168,
-   "skill.hadoop":0.7740141520293695,
-   "skill.java":0.5748360120991365,
-   "skill.kafka":0.7188620583979196,
-   "skill.online_analytical_processing_olap_software":0.8335715235661916,
-   "skill.python":0.572851691843298,
-   "skill.scala":0.6912631130955988,
-   "skill.spark":0.5643111828734471,
-   "skill.sql":0.6758745066419948,
-   "skill.statistical_analysis":0.5702604716518318,
-   "skill.statistics":0.5329622955112595,
-   "skill.unity":0.7272671476491741
+   "skill.azure":0.4320762274636305,
+   "skill.big_data":0.5345060960221629,
+   "skill.cloud_computing":0.4264218207977825,
+   "skill.data_engineering":0.4259911891900141,
+   "skill.data_science":0.5763067770776837,
+   "skill.data_warehousing":0.6508935806985974,
+   "skill.databricks":0.5055243676218253,
+   "skill.hadoop":0.6508935806985974,
+   "skill.java":0.5243160098157884,
+   "skill.kafka":0.6134163172329262,
+   "skill.machine_learning":0.4297145555202223,
+   "skill.online_analytical_processing_olap_software":0.7194267211699594,
+   "skill.python":0.5615480350510041,
+   "skill.scala":0.6886828858191316,
+   "skill.spark":0.5306351845512054,
+   "skill.sql":0.6204471779755573,
+   "skill.statistical_analysis":0.530373332369259,
+   "skill.statistics":0.51337187684965
   },
   "skill.rails":{
-   "skill.apis":0.46381023824994966,
-   "skill.databases":0.4536536837768042,
-   "skill.nodejs":0.6573526956148369,
-   "skill.react":0.5866630638875943
+   "skill.apis":0.42980978152986904,
+   "skill.databases":0.4608795144659165
   },
   "skill.react":{
    "skill.angular":0.6,
-   "skill.apis":0.4246276334608391,
-   "skill.backend":0.49963102791400343,
-   "skill.c":0.4481405472631124,
-   "skill.cloud_computing":0.41078546517742065,
-   "skill.cpp":0.4598963354297406,
-   "skill.full_stack":0.6040793114707067,
-   "skill.go":0.41877779934292886,
-   "skill.graphql":0.6002824143908817,
-   "skill.java":0.407870513517603,
-   "skill.kotlin":0.48882642592802394,
-   "skill.kubernetes":0.425969380970041,
-   "skill.nodejs":0.655915447256552,
-   "skill.paypal":0.5448686253556199,
-   "skill.postgresql":0.5342344284037838,
-   "skill.rails":0.5866630638875943,
-   "skill.rest":0.5274091312191445,
-   "skill.typescript":0.6766321878805956,
-   "skill.ui":0.5421856929392088,
+   "skill.backend":0.4520205125394887,
+   "skill.full_stack":0.5986795954050133,
+   "skill.go":0.4076904023623685,
+   "skill.kotlin":0.41722486412699644,
+   "skill.kubernetes":0.41859090997511905,
+   "skill.nodejs":0.615939970641307,
+   "skill.postgresql":0.4954339232601561,
+   "skill.typescript":0.6765650812245152,
+   "skill.ui":0.5298643515688646,
    "skill.vue":0.65
   },
   "skill.reconciliation":{
-   "skill.auditing":0.5435082712765607,
-   "skill.excel":0.49442931962076797,
-   "skill.financial_reporting":0.7290670131928769,
-   "skill.gaap":0.8305570712108268
-  },
-  "skill.recruiting":{
-   "esco.digital_media":0.46182597118382873,
-   "esco.provide_mentorship":0.40694887424626547,
-   "skill.nextjs":0.41801576661817785,
-   "skill.nlp":0.4220181274742829,
-   "skill.ocaml":0.4126870620850999,
-   "skill.paypal":0.4258888996446014,
-   "skill.pinterest":0.6504007954741712
+   "skill.auditing":0.5173430010705963,
+   "skill.excel":0.5035455124788702,
+   "skill.financial_reporting":0.6970993491723066,
+   "skill.gaap":0.82972073168431
   },
   "skill.redis":{
-   "skill.postgresql":0.8161978355940531
+   "skill.postgresql":0.8222026186749323
   },
   "skill.register_transfer_language_rtl":{
-   "skill.fpga":0.7949951505734917,
-   "skill.signal_processing":0.6866640441155495
-  },
-  "skill.research":{
-   "cat.44111807":0.4158862767291423,
-   "skill.operating_systems":0.401683387468683
+   "skill.fpga":0.7723593418500051
   },
   "skill.rest":{
-   "skill.agile":0.5442483859355206,
-   "skill.graphql":0.7344255151948191,
-   "skill.java":0.481843867054218,
-   "skill.jira":0.5886981667095742,
-   "skill.nodejs":0.5999896929531581,
-   "skill.react":0.5274091312191445,
-   "skill.software_development":0.43468879551470974,
-   "skill.sql":0.40663360168737067
-  },
-  "skill.risk_management":{
-   "esco.process_payments":0.4629588469731817
+   "skill.agile":0.4903626526459006,
+   "skill.graphql":0.5,
+   "skill.java":0.43595441092211057,
+   "skill.software_development":0.40474374134320007
   },
   "skill.robotics":{
-   "cat.44111807":0.47576434541975804,
-   "esco.consumer_electronics":0.6663037891648635,
-   "skill.hmi":0.5557624856513832,
-   "skill.mechanical_design":0.5558561830213842,
-   "skill.plc":0.5825637569389271
+   "esco.consumer_electronics":0.6582543530601226,
+   "skill.mechanical_design":0.544566231804509,
+   "skill.plc":0.544566231804509
   },
   "skill.root_cause_analysis":{
-   "esco.building_codes":0.6804230948348191,
-   "esco.provide_technical_expertise":0.48841008493030963,
-   "esco.types_of_photovoltaic_panels":0.4204744040153794,
-   "skill.osha":0.4797724713302728,
-   "skill.sre":0.4172584634555005
-  },
-  "skill.ros":{
-   "cred.drivers_license":0.4028866018998058,
-   "esco.maintenance_operations":0.7990757360213643,
-   "skill.attention_to_detail":0.451177104892261,
-   "skill.distribution_management_system_dms":0.9739471566271326,
-   "skill.multitasking":0.7329691363967274,
-   "skill.scheduling_software":0.9739471566271326,
-   "skill.time_management":0.5375455821455897,
-   "skill.work_ethic":0.7497997461934861
+   "skill.osha":0.4309084199004033
   },
   "skill.ruby":{
-   "esco.process_payments":0.4451087721115663,
-   "skill.aws":0.4720169107173308,
-   "skill.azure":0.40875721017113115,
-   "skill.backend":0.4016236836648647,
-   "skill.datadog":0.4878941091552873,
-   "skill.devops":0.5220023710256433,
-   "skill.docker":0.5869802560816829,
-   "skill.dotnet":0.6467124062793961,
-   "skill.gcp":0.5133934421581413,
-   "skill.go":0.6773161355734588,
-   "skill.java":0.5701225950385305,
-   "skill.nodejs":0.5812343090874885,
-   "skill.php":0.8241889406041465,
-   "skill.python":0.49020664972240685,
-   "skill.splunk":0.6709720461181243,
-   "skill.terraform":0.4886157357181956,
-   "skill.typescript":0.4035008276986782
+   "skill.aws":0.4754537051226582,
+   "skill.azure":0.4049128352712516,
+   "skill.datadog":0.48330069842435236,
+   "skill.devops":0.5011129468939698,
+   "skill.dotnet":0.6101923265765178,
+   "skill.gcp":0.5292348570348527,
+   "skill.go":0.6566602454659627,
+   "skill.java":0.5597023511684771,
+   "skill.nodejs":0.5423819680887776,
+   "skill.php":0.8036623363941584,
+   "skill.python":0.47730116448670296,
+   "skill.terraform":0.46438616820223866
   },
   "skill.rust":{
-   "skill.c":0.6367406717482924,
-   "skill.cpp":0.6309341855560354,
-   "skill.data_structures":0.42875281639233204,
-   "skill.go":0.5644743371494365,
-   "skill.java":0.5047136479656754,
-   "skill.javascript":0.5257915025833151,
-   "skill.python":0.4553692228608669
-  },
-  "skill.sales":{
-   "esco.sales_activities":0.4442147607698129,
-   "skill.crm":0.4512592956941955,
-   "skill.salesforce":0.4803215014891345
+   "skill.c":0.6225318833791782,
+   "skill.cpp":0.6328421318740215,
+   "skill.data_structures":0.41141660891737813,
+   "skill.go":0.5500149096058147,
+   "skill.java":0.47121196803487586,
+   "skill.python":0.43686694023584727
   },
   "skill.salesforce":{
    "cred.salesforce_admin":0.8,
-   "esco.deliver_outstanding_service":0.4392493935539097,
-   "esco.electronic_communication":0.4017528545291554,
-   "esco.identify_new_business_opportunities":0.5575127355872632,
-   "esco.open_source_model":0.5495222115697023,
-   "esco.sales_activities":0.757915987287295,
-   "esco.unstructured_data":0.4237382446005442,
-   "skill.elasticsearch":0.41727519339619884,
+   "esco.electronic_communication":0.5175598242539855,
+   "esco.identify_new_business_opportunities":0.5396406674825412,
+   "esco.open_source_model":0.5602374870916611,
    "skill.hubspot":0.6,
-   "skill.pos":0.7267630351392743,
-   "skill.sales":0.4803215014891345
-  },
-  "skill.sas":{
-   "cred.cpr":0.7886738489017956,
-   "cred.first_aid":0.7886738489017956,
-   "skill.inventory_management":0.6438070156751914,
-   "skill.logistics":0.4988274096290356
+   "skill.lead_generation":0.4032175872370335,
+   "skill.netsuite":0.5208060008328719
   },
   "skill.scada":{
-   "esco.apply_advanced_manufacturing":0.5690950656698783,
-   "esco.logic":0.5275718793567564,
-   "skill.control_systems":0.6251208361680035,
-   "skill.hmi":0.6641639069268127,
-   "skill.plc":0.7648279799574221
+   "esco.apply_advanced_manufacturing":0.5749390799819388,
+   "esco.sensors":0.4566485136557064,
+   "skill.control_systems":0.6134864216122532,
+   "skill.hmi":0.6862175573786057,
+   "skill.plc":0.7762178236734878
   },
   "skill.scala":{
-   "esco.distributed_computing":0.752949144832116,
-   "skill.airflow":0.5136052696945572,
-   "skill.aws":0.6398528227709318,
-   "skill.azure":0.7229935846402138,
-   "skill.big_data":0.8008389249878884,
-   "skill.data_engineering":0.6944970316389439,
-   "skill.data_science":0.7051998005851227,
-   "skill.data_warehousing":0.6912631130955988,
-   "skill.databricks":0.7488838953151485,
-   "skill.gcp":0.7114888373399406,
-   "skill.hadoop":0.6750740229019815,
-   "skill.java":0.6678561752039551,
-   "skill.kafka":0.7006115548382076,
-   "skill.online_analytical_processing_olap_software":0.7970871697458901,
-   "skill.pandas":0.5432759018662799,
-   "skill.python":0.6277200406064175,
-   "skill.r":0.6912631130955988,
-   "skill.scikit_learn":0.5432759018662799,
-   "skill.spark":0.8169402946682061,
-   "skill.unity":0.6753819894412778
-  },
-  "skill.scheduling_software":{
-   "cred.drivers_license":0.4289394452726732,
-   "esco.maintenance_operations":0.8251285793942317,
-   "skill.attention_to_detail":0.4772299482651283,
-   "skill.distribution_management_system_dms":1.0,
-   "skill.multitasking":0.7590219797695948,
-   "skill.ros":0.9739471566271326,
-   "skill.time_management":0.563598425518457,
-   "skill.work_ethic":0.7758525895663534
+   "esco.information_architecture":0.5282895786676071,
+   "skill.aws":0.4649422785713555,
+   "skill.azure":0.5096486859179946,
+   "skill.big_data":0.6817367869678068,
+   "skill.cloud_computing":0.507452600278934,
+   "skill.data_engineering":0.5725854347125552,
+   "skill.data_science":0.616261696568849,
+   "skill.data_warehousing":0.6886828858191316,
+   "skill.databricks":0.6457285032551301,
+   "skill.gcp":0.4980974534067234,
+   "skill.hadoop":0.6329262032860008,
+   "skill.java":0.6960299170881199,
+   "skill.kafka":0.6554143619078251,
+   "skill.online_analytical_processing_olap_software":0.7347813608651853,
+   "skill.pandas":0.5929190154258608,
+   "skill.python":0.5525579504815044,
+   "skill.r":0.6886828858191316,
+   "skill.scikit_learn":0.5929190154258608,
+   "skill.spark":0.7577148064605461,
+   "skill.sql":0.4729768788556064
   },
   "skill.scikit_learn":{
-   "esco.operational_research":0.7100989683714746,
-   "skill.aws":0.556698192715559,
-   "skill.azure":0.5998742173234267,
-   "skill.big_data":0.5827978387901673,
-   "skill.cloud_computing":0.4818126326980799,
-   "skill.data_engineering":0.5082692773939164,
-   "skill.data_science":0.5646104577337019,
-   "skill.data_warehousing":0.5938093041740095,
-   "skill.databricks":0.5493232596163772,
-   "skill.gcp":0.6171090279430342,
-   "skill.hadoop":0.6937067936629228,
-   "skill.kafka":0.6989744381205848,
-   "skill.pandas":0.9461956498419812,
-   "skill.pytorch":0.7652990409361435,
-   "skill.scala":0.5432759018662799,
-   "skill.spark":0.653575860614915,
-   "skill.sql":0.515994425538669,
-   "skill.tensorflow":0.7794703783652087
+   "skill.aws":0.49857410912185346,
+   "skill.azure":0.538992115630151,
+   "skill.big_data":0.5911175512468413,
+   "skill.cloud_computing":0.5383023050816991,
+   "skill.data_engineering":0.5107617393663856,
+   "skill.data_science":0.5621588711751954,
+   "skill.data_warehousing":0.6093019509380546,
+   "skill.databricks":0.5483098426373062,
+   "skill.gcp":0.5653838940647651,
+   "skill.hadoop":0.6948587741121269,
+   "skill.kafka":0.688895654131859,
+   "skill.pandas":0.9431496023753144,
+   "skill.pytorch":0.7529607329663681,
+   "skill.scala":0.5929190154258608,
+   "skill.spark":0.7008420333324183,
+   "skill.sql":0.5060828778568323,
+   "skill.tensorflow":0.7684622953492006
   },
   "skill.scissor_lifts":{
    "skill.boom_lifts":1.0,
-   "skill.forklift":0.7671645637907729
+   "skill.forklift":0.7073748926185114
   },
   "skill.scrum":{
    "cred.csm":0.8,
-   "cred.psm":0.8,
-   "skill.programming":0.42378021974027635
+   "cred.psm":0.8
   },
   "skill.sem":{
-   "esco.laboratory_equipment":0.852872507885622
+   "esco.laboratory_equipment":0.9021330517482267
   },
   "skill.seo":{
-   "skill.cloud_computing":0.4348383889539136,
-   "skill.nextjs":0.6020357495756311,
-   "skill.paypal":0.6085320966451058,
-   "skill.ux":0.451545866451142
-  },
-  "skill.serverless":{
-   "skill.java":0.43255723407152846
-  },
-  "skill.siem":{
-   "skill.cloud_computing":0.4197828954599654,
-   "skill.datadog":0.4714556262836834
+   "skill.ux":0.43131444952505243
   },
   "skill.signal_processing":{
-   "esco.firmware":0.4177968766506035,
-   "skill.data_structures":0.40360562932002264,
-   "skill.fpga":0.7715632136531975,
-   "skill.register_transfer_language_rtl":0.6866640441155495,
-   "skill.verilog":0.7513732692422387
+   "esco.firmware":0.4823878696330496,
+   "skill.data_structures":0.4223879899365992,
+   "skill.fpga":0.7156720343759946
   },
   "skill.simulation_software":{
-   "esco.design_prototypes":0.7347442526995378,
-   "esco.electronics":0.4526578956023172
+   "esco.electronics":0.4295628695830549
   },
   "skill.single_sign_on_sso":{
-   "skill.ms_access":0.6789297118445285,
-   "skill.terraform":0.5432759018662799
+   "skill.aws":0.4049128352712516,
+   "skill.terraform":0.5683775527179292
   },
   "skill.six_sigma":{
    "cred.six_sigma_black_belt":0.8,
@@ -3398,415 +2302,239 @@
    "cred.red_seal":0.7
   },
   "skill.slack":{
-   "esco.knowledge_base":0.4787107389751845,
-   "skill.google_workspace":0.6922790852805228,
-   "skill.it_support":0.40996428426003084,
-   "skill.jira":0.612399052080609
+   "esco.knowledge_base":0.5116571016975845,
+   "skill.google_workspace":0.6751359760289855,
+   "skill.it_support":0.4437724542159078,
+   "skill.jira":0.6173575086993313
   },
   "skill.social_media_marketing":{
-   "esco.cloud_security_and_compliance":0.5318679669232026
+   "esco.cloud_security_and_compliance":0.5232159077755288,
+   "esco.sales_activities":0.4207198474092702
   },
   "skill.software_development":{
-   "esco.architectural_design":0.41068771921832675,
-   "esco.state_estimation":0.5259006329982697,
-   "skill.active_listening":0.4482986597187646,
-   "skill.c":0.41484836999557184,
-   "skill.ci_cd":0.4040068287690109,
-   "skill.cpp":0.41050497230479305,
-   "skill.graphql":0.4268533494678802,
-   "skill.helm":0.49776036906389665,
-   "skill.rest":0.43468879551470974,
-   "skill.talend_data_fabric":0.49984778962540244
+   "esco.state_estimation":0.5418147543517552,
+   "skill.active_listening":0.4536303819740833,
+   "skill.rest":0.40474374134320007
   },
   "skill.soldering":{
-   "esco.apply_advanced_manufacturing":0.519819075842,
-   "esco.collaborate_with_engineers":0.5297041992848316,
-   "esco.refrigerants":0.8469930521662236,
-   "skill.cooling_towers":0.7896288921179214,
-   "skill.hvac":0.6182480808037858
+   "esco.refrigerants":0.8605877367470207,
+   "skill.hvac":0.5347367555037098
   },
   "skill.solidworks":{
    "skill.autocad":0.5,
    "skill.catia":0.6
   },
   "skill.spark":{
-   "esco.distributed_computing":0.664928070640902,
-   "skill.airflow":0.5956468922604776,
-   "skill.aws":0.5623870025335015,
-   "skill.azure":0.6411786972455362,
-   "skill.data_science":0.6602779640998098,
-   "skill.data_warehousing":0.6001097920510571,
-   "skill.databricks":0.7979640212867305,
-   "skill.etl":0.519901832834339,
-   "skill.gcp":0.6295295466832471,
-   "skill.hadoop":0.7298409602517337,
-   "skill.kafka":0.6930127100617536,
-   "skill.online_analytical_processing_olap_software":0.7079731850840923,
-   "skill.pandas":0.628579399848653,
-   "skill.python":0.5600181609149173,
-   "skill.pytorch":0.5230624650426345,
-   "skill.r":0.5643111828734471,
-   "skill.scala":0.8169402946682061,
-   "skill.scikit_learn":0.653575860614915,
-   "skill.tensorflow":0.519819075842,
-   "skill.unity":0.5973460641151103
+   "skill.airflow":0.6211384282262022,
+   "skill.cloud_computing":0.5207789204858546,
+   "skill.data_science":0.6435422647614706,
+   "skill.data_warehousing":0.5828991141074354,
+   "skill.databricks":0.6818001532216249,
+   "skill.etl":0.5567651834100151,
+   "skill.hadoop":0.8100756205486722,
+   "skill.java":0.47117999696137475,
+   "skill.kafka":0.7550059855618863,
+   "skill.machine_learning":0.4933576966943003,
+   "skill.nlp":0.5390104137355027,
+   "skill.online_analytical_processing_olap_software":0.7604733234705697,
+   "skill.pandas":0.6736987123360167,
+   "skill.python":0.4931234351195398,
+   "skill.pytorch":0.560890076373014,
+   "skill.r":0.5306351845512054,
+   "skill.scala":0.7577148064605461,
+   "skill.scikit_learn":0.7008420333324183,
+   "skill.sql":0.5638455945016898,
+   "skill.tensorflow":0.5548174258735213
   },
   "skill.splunk":{
-   "skill.aws":0.5209495629357431,
-   "skill.azure":0.5431930324127922,
-   "skill.azure_devops":0.874899873096743,
-   "skill.datadog":0.5108166970572282,
-   "skill.docker":0.7179136429027794,
-   "skill.gcp":0.49442931962076797,
-   "skill.go":0.5413927959494287,
-   "skill.java":0.4700477821394887,
-   "skill.kubernetes":0.5261136046468526,
-   "skill.nodejs":0.6709720461181243,
-   "skill.php":0.8019054329392207,
-   "skill.python":0.4720108152838772,
-   "skill.ruby":0.6709720461181243,
-   "skill.terraform":0.6230515579598566
+   "skill.aws":0.48577732398636814,
+   "skill.azure":0.5897687085020588,
+   "skill.datadog":0.5373526305172456,
+   "skill.go":0.5373526305172456,
+   "skill.kubernetes":0.5472918837075677,
+   "skill.python":0.43004028723448057,
+   "skill.terraform":0.6492420414330459
   },
   "skill.sql":{
-   "skill.airflow":0.5603017666344982,
-   "skill.business_intelligence":0.5808169175105006,
-   "skill.data_analysis":0.5548688567809587,
-   "skill.data_engineering":0.5407563905567432,
-   "skill.data_science":0.5224654083691822,
-   "skill.data_warehousing":0.6383264798229291,
-   "skill.etl":0.5930166353252915,
-   "skill.hadoop":0.6749665453191905,
-   "skill.kafka":0.641069858254353,
-   "skill.online_analytical_processing_olap_software":0.6255359430105188,
-   "skill.pandas":0.5696478015230148,
-   "skill.power_bi":0.6163889082269162,
-   "skill.python":0.581083148082316,
-   "skill.r":0.6758745066419948,
-   "skill.scala":0.5062287264069714,
-   "skill.scikit_learn":0.515994425538669,
-   "skill.spark":0.5103410085400728,
-   "skill.statistical_analysis":0.5230906637018666,
-   "skill.tableau":0.5847772792434074,
-   "skill.unity":0.5428312136572568
+   "skill.airflow":0.538394119539067,
+   "skill.big_data":0.48530160489521734,
+   "skill.business_intelligence":0.546009652542978,
+   "skill.data_analysis":0.5414901593703273,
+   "skill.data_engineering":0.5405809043055031,
+   "skill.data_science":0.49347011550777986,
+   "skill.data_warehousing":0.5698364565818395,
+   "skill.etl":0.586837010778086,
+   "skill.hadoop":0.6514546884004936,
+   "skill.kafka":0.6290428570118469,
+   "skill.looker":0.47430681198650315,
+   "skill.online_analytical_processing_olap_software":0.6211645827138716,
+   "skill.pandas":0.5623549522936856,
+   "skill.power_bi":0.5784391074872962,
+   "skill.python":0.5444243160100656,
+   "skill.r":0.6204471779755573,
+   "skill.scikit_learn":0.5060828778568323,
+   "skill.spark":0.5638455945016898,
+   "skill.statistical_analysis":0.47426582323309807,
+   "skill.tableau":0.5654371212808365
   },
   "skill.sre":{
-   "skill.ansible":0.5746993658415026,
-   "skill.containerization":0.5479797219508243,
-   "skill.kubernetes":0.5413958748854878,
-   "skill.linux":0.4163001590706399,
-   "skill.root_cause_analysis":0.4172584634555005,
-   "skill.terraform":0.4777953201958965
-  },
-  "skill.stakeholder_management":{
-   "esco.apply_change_management":0.6068149901377973,
-   "esco.assist_customers":0.4529061928407475,
-   "esco.build_trust":0.5262905613922602,
-   "esco.design_process":0.496100625512356,
-   "esco.product_comprehension":0.518830178990355
+   "skill.containerization":0.5560849015941816,
+   "skill.infrastructure_as_code":0.40952944120769197,
+   "skill.kubernetes":0.5395503986890995,
+   "skill.terraform":0.4267751208119748
   },
   "skill.statistical_analysis":{
-   "skill.data_science":0.4075024288350611,
-   "skill.economics":0.47674726248256677,
-   "skill.r":0.5702604716518318,
-   "skill.sql":0.5230906637018666,
-   "skill.tableau":0.665367601340871
+   "skill.forecasting":0.4245697038718881,
+   "skill.r":0.530373332369259,
+   "skill.sql":0.47426582323309807
   },
   "skill.statistics":{
-   "esco.operational_research":0.7430905113088033,
+   "esco.operational_research":0.7737754422540882,
    "field.statistics":0.8,
-   "skill.business_intelligence":0.4557930592031604,
-   "skill.data_science":0.5330291086406138,
-   "skill.deep_learning":0.44971150204689064,
-   "skill.early_childhood_education":0.4884909229237581,
-   "skill.economics":0.5608301953238174,
-   "skill.hadoop":0.49452692826788563,
-   "skill.machine_learning":0.4405428549128148,
-   "skill.nlp":0.5748116289501476,
-   "skill.python":0.4452232331825119,
-   "skill.r":0.5329622955112595,
-   "skill.sql":0.45261588674091746
+   "skill.data_science":0.4917165743991625,
+   "skill.economics":0.5637572407114768,
+   "skill.hadoop":0.43697654996935065,
+   "skill.machine_learning":0.4296802962493926,
+   "skill.nlp":0.5803298822424781,
+   "skill.r":0.51337187684965,
+   "skill.spark":0.42801779210905216,
+   "skill.sql":0.4131705543737279
   },
   "skill.strategic_planning":{
-   "esco.show_entrepreneurial_spirit":0.41887966703391144
+   "esco.show_entrepreneurial_spirit":0.4567007763285816
   },
   "skill.supply_chain":{
-   "esco.international_trade":0.5917481435883047,
-   "esco.manage_inventory":0.487001393063867,
-   "esco.metrology":0.4259406730966934,
-   "esco.printed_circuit_boards":0.43468879551470974,
-   "skill.logistics":0.40509021005529405
+   "esco.manage_inventory":0.48194012760124305,
+   "esco.metrology":0.41754615087932423,
+   "esco.printed_circuit_boards":0.4413943309793364
   },
   "skill.swift":{
-   "skill.java":0.5093711934335303,
-   "skill.kotlin":0.6188663593723897,
-   "skill.objective_c":0.9009527164696104
+   "skill.objective_c":0.7
   },
   "skill.system_design":{
-   "esco.digital_communication_and_collaboration":0.5752409628089612,
-   "esco.ict_system_integration":0.5478722248041415,
-   "esco.power_electronics":0.46386692037009614,
-   "esco.state_estimation":0.5985503322774532,
-   "skill.helm":0.5313891520377705,
-   "skill.kubernetes":0.40442738202964007,
-   "skill.pcb_design":0.47119093209885954,
-   "skill.terraform":0.4611547047289679
+   "esco.ict_system_integration":0.5487777248468311,
+   "esco.power_electronics":0.46806527091966044,
+   "esco.state_estimation":0.6019397999545446,
+   "skill.pcb_design":0.47616981279738835
   },
   "skill.tableau":{
-   "skill.looker":0.8007396114065246,
+   "skill.looker":0.7684622953492006,
    "skill.power_bi":0.7,
-   "skill.sql":0.5847772792434074,
-   "skill.statistical_analysis":0.665367601340871
-  },
-  "skill.talend_data_fabric":{
-   "skill.dropbox":0.7622332390630658,
-   "skill.programming":0.42378021974027635,
-   "skill.software_development":0.49984778962540244
-  },
-  "skill.teamwork":{
-   "skill.figma":0.4148920543672506
+   "skill.sql":0.5654371212808365
   },
   "skill.tensorflow":{
    "cred.tensorflow_developer":0.8,
-   "skill.data_engineering":0.45951817416679563,
+   "skill.data_engineering":0.4594013955663487,
    "skill.pytorch":0.7,
-   "skill.scikit_learn":0.7794703783652087,
-   "skill.spark":0.519819075842
+   "skill.scikit_learn":0.7684622953492006,
+   "skill.spark":0.5548174258735213
   },
   "skill.terraform":{
    "cred.terraform_associate":0.8,
-   "esco.perform_services_in_a_flexible_manner":0.5060501638349988,
-   "skill.ab_testing":0.47474729468667765,
-   "skill.ansible":0.7429163290901921,
-   "skill.aws":0.56676934986774,
-   "skill.ci_cd":0.5693899365465875,
-   "skill.cloudformation":0.6979985811744515,
-   "skill.containerization":0.5540938329101033,
-   "skill.docker":0.5723747666505575,
-   "skill.gcp":0.4929433471509521,
-   "skill.github_actions":0.6606088708196713,
-   "skill.go":0.48251561527598835,
-   "skill.helm":0.6557906065558103,
-   "skill.jenkins":0.7108439448302525,
-   "skill.kubernetes":0.7219801560641746,
-   "skill.php":0.5807664499342401,
-   "skill.ruby":0.4886157357181956,
-   "skill.single_sign_on_sso":0.5432759018662799,
-   "skill.splunk":0.6230515579598566,
-   "skill.sre":0.4777953201958965,
-   "skill.vmware":0.6753819894412778
+   "skill.ansible":0.6655068130231385,
+   "skill.aws":0.629420497336654,
+   "skill.azure":0.5197423487110815,
+   "skill.ci_cd":0.5471261115845061,
+   "skill.cloudformation":0.7194002281934635,
+   "skill.containerization":0.5681102371691337,
+   "skill.datadog":0.48223936758216884,
+   "skill.docker":0.5681102371691337,
+   "skill.gcp":0.5519100480688288,
+   "skill.github_actions":0.656858442884752,
+   "skill.go":0.48223936758216884,
+   "skill.jenkins":0.7167878162901069,
+   "skill.kubernetes":0.6683351276496767,
+   "skill.observability":0.4877967132160471,
+   "skill.python":0.46727520002438505,
+   "skill.ruby":0.46438616820223866,
+   "skill.single_sign_on_sso":0.5683775527179292,
+   "skill.splunk":0.6492420414330459,
+   "skill.sre":0.4267751208119748,
+   "skill.typescript":0.4472192751983972
   },
   "skill.test_automation":{
-   "skill.ci_cd":0.5205260467980145
-  },
-  "skill.throttle_control_valves_tcv":{
-   "esco.good_governance":0.8634621684016501
+   "skill.ci_cd":0.5372524771603608
   },
   "skill.time_management":{
-   "esco.group.s4.1.1":0.4588697676375781,
-   "esco.knowledge_base":0.40568594974651634,
-   "skill.active_listening":0.42587510571104936,
-   "skill.distribution_management_system_dms":0.563598425518457,
-   "skill.multitasking":0.443895797987083,
-   "skill.ros":0.5375455821455897,
-   "skill.scheduling_software":0.563598425518457
+   "esco.group.s4.1.1":0.4510955408067024
   },
   "skill.triage":{
-   "esco.knowledge_base":0.5670886902660405,
-   "esco.security_engineering":0.4221768267120526,
-   "skill.active_listening":0.4531795540846052,
-   "skill.bilingual":0.5483423828741933,
-   "skill.it_support":0.41562686263948656
-  },
-  "skill.troubleshooting":{
-   "esco.knowledge_base":0.40180644608042726,
-   "skill.hmi":0.4343973379040654
+   "esco.security_engineering":0.43004028723448057
   },
   "skill.typescript":{
-   "skill.backend":0.4403499813740345,
-   "skill.databases":0.4067774547395188,
-   "skill.frontend":0.5612832606292499,
-   "skill.full_stack":0.476395718644843,
-   "skill.go":0.5101871736113849,
-   "skill.infrastructure_as_code":0.43255149673375876,
-   "skill.kubernetes":0.41162268842954275,
-   "skill.microservices":0.48635400593578615,
-   "skill.nextjs":0.4645707966037799,
-   "skill.nodejs":0.5577963216519355,
-   "skill.paypal":0.42147320270442235,
-   "skill.postgresql":0.5005624130867142,
-   "skill.python":0.41402632906314685,
-   "skill.react":0.6766321878805956,
-   "skill.ruby":0.4035008276986782,
-   "skill.terraform":0.43371556851771076
-  },
-  "skill.typing":{
-   "cred.drivers_license":0.6760505422242731,
-   "esco.group.t5":0.931479193965308,
-   "esco.work_in_outdoor_conditions":0.9965961692359743,
-   "skill.customer_service":0.5782515496870714,
-   "skill.work_independently":0.7025028417437357
+   "skill.backend":0.42290689478414534,
+   "skill.frontend":0.5468855017260661,
+   "skill.full_stack":0.4555057900185847,
+   "skill.go":0.4950129946111714,
+   "skill.infrastructure_as_code":0.44313951174221394,
+   "skill.kubernetes":0.42141099693731066,
+   "skill.microservices":0.46540331009643643,
+   "skill.nodejs":0.5597985638266112,
+   "skill.postgresql":0.49505841590406685,
+   "skill.react":0.6765650812245152,
+   "skill.terraform":0.4472192751983972
   },
   "skill.ui":{
-   "skill.frontend":0.4944263628677226,
-   "skill.product_management":0.4267455675897739,
-   "skill.react":0.5421856929392088
-  },
-  "skill.unit_testing":{
-   "skill.data_structures":0.5151335732977405,
-   "skill.willingness_to_learn":0.5439792422104341
-  },
-  "skill.unity":{
-   "skill.aws":0.5090837938685395,
-   "skill.azure":0.5955234638942135,
-   "skill.big_data":0.6068149901377973,
-   "skill.cloud_computing":0.510092165061303,
-   "skill.data_analysis":0.5283883390653569,
-   "skill.data_engineering":0.5354321283693231,
-   "skill.data_science":0.5162924157154168,
-   "skill.data_warehousing":0.7272671476491741,
-   "skill.databricks":0.5479797219508243,
-   "skill.gcp":0.5867353624389819,
-   "skill.hadoop":0.7462247609486711,
-   "skill.java":0.5617016249149517,
-   "skill.kafka":0.7513732692422387,
-   "skill.machine_learning":0.4573777485409067,
-   "skill.online_analytical_processing_olap_software":0.8530700428879459,
-   "skill.python":0.43677309120920793,
-   "skill.r":0.7272671476491741,
-   "skill.scala":0.6753819894412778,
-   "skill.spark":0.5973460641151103,
-   "skill.sql":0.5428312136572568
+   "skill.frontend":0.47314542251831515,
+   "skill.product_management":0.4127698498980233,
+   "skill.react":0.5298643515688646
   },
   "skill.unix":{
-   "skill.linux":0.6473208563332679
-  },
-  "skill.user_research":{
-   "skill.data_science":0.4254685733616917
+   "skill.linux":0.6486638986954915
   },
   "skill.ux":{
-   "skill.frontend":0.4119764586838225,
-   "skill.seo":0.451545866451142
-  },
-  "skill.valuation":{
-   "esco.service_oriented_modelling":0.7672914829337091,
-   "skill.hris":0.7820403438834427,
-   "skill.payroll":0.6533682475827366,
-   "skill.willingness_to_learn":0.5719065758115703
+   "skill.seo":0.43131444952505243
   },
   "skill.verilog":{
-   "skill.fpga":0.8150398768495478,
-   "skill.signal_processing":0.7513732692422387,
+   "skill.fpga":0.7,
    "skill.vhdl":0.8
   },
   "skill.version_control":{
-   "skill.operations_management":0.43985276396730494
+   "skill.operations_management":0.4623723412577304
   },
   "skill.vhdl":{
    "skill.verilog":0.8
-  },
-  "skill.virtualization":{
-   "skill.go":0.4531549222765037
-  },
-  "skill.vmware":{
-   "skill.ansible":0.8245839712334323,
-   "skill.kubernetes":0.6149691336865393,
-   "skill.terraform":0.6753819894412778
   },
   "skill.vue":{
    "skill.angular":0.6,
    "skill.react":0.65
   },
   "skill.water_jets":{
-   "skill.cnc":0.651249489337283,
-   "skill.critical_thinking":0.6738589124805372,
-   "skill.horizontal_boring_machines":0.9519197914160116
-  },
-  "skill.web_analytics":{
-   "skill.pinterest":0.7547262677164619,
-   "skill.workday":0.7630879161792142
+   "skill.cnc":0.637545638614436,
+   "skill.critical_thinking":0.6664067809798311,
+   "skill.horizontal_boring_machines":0.9495197921615078
   },
   "skill.web_development":{
-   "skill.paypal":0.5313308083972934
+   "skill.observability":0.40397576997212925
   },
   "skill.welding":{
-   "cat.27111715":0.4524946431928442,
-   "esco.cast_metal":0.523830707468014,
-   "esco.plastic_welding":0.6398871513626802,
-   "skill.blueprint_reading":0.43749797689224323
+   "cat.27111715":0.5797417264051595,
+   "esco.design_metal_components":0.6579272339116141,
+   "skill.blueprint_reading":0.5791167195155332,
+   "skill.forklift":0.45876384405138065
   },
   "skill.willingness_to_learn":{
-   "esco.international_trade":0.4436861118230753,
-   "esco.service_oriented_modelling":0.6634769624646217,
-   "skill.git":0.40607398367216485,
-   "skill.hris":0.6600280505596433,
-   "skill.payroll":0.5313559542589372,
-   "skill.unit_testing":0.5439792422104341,
-   "skill.valuation":0.5719065758115703
+   "esco.non_destructive_testing":0.4378233698360646,
+   "esco.show_commitment":0.42094606774655835
   },
   "skill.work_ethic":{
-   "esco.maintenance_operations":0.6009811689605852,
-   "skill.attention_to_detail":0.518651237061056,
-   "skill.distribution_management_system_dms":0.7758525895663534,
-   "skill.multitasking":0.5348745693359482,
-   "skill.ros":0.7497997461934861,
-   "skill.scheduling_software":0.7758525895663534
-  },
-  "skill.work_independently":{
-   "esco.group.t5":0.6407896972370953,
-   "esco.work_in_outdoor_conditions":0.7059066725077615,
-   "skill.typing":0.7025028417437357
+   "skill.attention_to_detail":0.4155384500957064
   },
   "skill.workday":{
-   "esco.develop_new_products":0.830216621664338,
-   "skill.ab_testing":0.43985276396730494,
-   "skill.helm":0.5777580225055742,
-   "skill.payroll":0.49293713841947934,
-   "skill.pinterest":0.5385938547349036,
-   "skill.prototyping":0.5910580263538808,
-   "skill.web_analytics":0.7630879161792142
+   "skill.payroll":0.6581735214919826
   },
   "skill.workplace_safety":{
-   "cat.23152204":0.6631859721110436,
-   "cred.commercial_drivers_license":0.7475236292083338,
+   "cred.commercial_drivers_license":0.546998574025218,
    "cred.whmis":0.6,
    "cred.working_at_heights":0.6,
-   "esco.building_codes":0.6052470088691022,
-   "esco.english":0.6115352031231991,
-   "esco.formulate_findings":0.6052470088691022,
-   "esco.group.t5":0.5365955435814413,
-   "esco.interact_verbally_in_english":0.6631859721110436,
-   "esco.manage_emergency_procedures":0.5186332182082924,
-   "esco.provide_technical_expertise":0.514981976551649,
-   "skill.compliance":0.43937809203398825,
-   "skill.writing":0.4610071077006016
+   "esco.provide_technical_expertise":0.5789261648774898
   },
   "skill.writing":{
-   "cat.60141006":0.5589158359979635,
-   "cred.commercial_drivers_license":0.5298527195099336,
-   "esco.distributed_computing":0.579565749368985,
-   "esco.english":0.4967501303824389,
-   "esco.group.t5":0.4092941861784308,
-   "skill.aws":0.46772277500913517,
-   "skill.kotlin":0.5125126009720876,
-   "skill.mysql":0.5458228528875679,
-   "skill.python":0.4249063629304537,
-   "skill.scala":0.4352285901524548,
-   "skill.workplace_safety":0.4610071077006016
+   "skill.kotlin":0.4336579471497502,
+   "skill.mysql":0.5154549222831484
   },
   "skill.xero":{
    "skill.quickbooks":0.7
-  },
-  "skill.zoom":{
-   "esco.apply_change_management":0.5429016915691621,
-   "esco.build_trust":0.5327989271919722,
-   "esco.cisco":0.5111561190063042,
-   "esco.design_process":0.46648007243247325,
-   "esco.financial_jurisdiction":0.5951479090427456,
-   "skill.accounting":0.8114549693376504,
-   "skill.accounting_software":0.5470677004587573,
-   "skill.adaptability":0.6061285309125343,
-   "skill.autodesk_building_systems":0.5211580114059717,
-   "skill.finance":0.6337004738620632
   }
  },
  "format":1

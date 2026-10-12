@@ -54,6 +54,12 @@ edges:
   - [skill.autocad, skill.solidworks, 0.50]
   - [skill.solidworks, skill.catia, 0.60]
   - [skill.verilog, skill.vhdl, 0.80]
+  # Task 2.3 fix round 1: genuine pairs the corpus mined only through repeated postings, kept by hand
+  - [cred.cpr, cred.first_aid, 0.80]
+  - [skill.objective_c, skill.swift, 0.70]
+  - [skill.fpga, skill.verilog, 0.70]
+  - [skill.ansible, skill.puppet, 0.60]
+  - [skill.graphql, skill.rest, 0.50]
   - [skill.figma, skill.sketch, 0.70]
   - [skill.figma, skill.adobe_xd, 0.70]
   # ─── credentials -> the skill each one certifies (DECISIONS D-13) ────────────────────────

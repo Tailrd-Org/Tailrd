@@ -204,6 +204,12 @@ def test_task_2_3_names(graph, resolver) -> None:
     assert "shape the future" not in graph.nodes["esco.think_innovatively"].aliases
     assert "work-life balance" not in graph.nodes["esco.maintain_psychological_well_being"].aliases
     assert graph.nodes["skill.microsoft_windows_sdk"].aliases == ()  # bare "SDK" was its only alias
+    # Fix round 1: every id that is not SOFT and had mined edges was read in context (D-26).
+    assert "esco.logic" not in graph.nodes  # "business logic", "PLC logic"
+    assert "MOS" not in graph.nodes["skill.multi_object_spectrographs_mos"].aliases  # "MOS 11B"
+    assert "ML systems" not in graph.nodes["esco.ml_computer_programming"].aliases
+    for phrase in ("building blocks", "Access Management", "Ropes Access", "Child care and pet benefits"):
+        assert resolver.resolve(phrase).method == "NONE", phrase
     assert resolver.resolve("SDK").method == "NONE"
     # PID (D-27): bare "PID" is nothing; PID control is control systems; the detector keeps its names.
     assert resolver.resolve("PID").method == "NONE"

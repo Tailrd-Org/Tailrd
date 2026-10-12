@@ -102,6 +102,27 @@ def test_document_and_co_document_frequency_match_hand_counts(postings, counts) 
     assert list(counts.df) == sorted(counts.df) and list(counts.co_df) == sorted(counts.co_df)
 
 
+def test_duplicates_and_boilerplate_lines_count_once(corpus_stats, compute_pmi, resolver, graph, config) -> None:
+    # Fix round 1: an employer's blurb repeated in its postings ("customers like PayPal ... Next.js")
+    # once made Next.js and PayPal a 0.99 edge. A line of 30+ characters in 5+ postings now counts in
+    # its first posting only, and an exact duplicate description is left out.
+    blurb = "Acme helps customers like PayPal ship fast sites with Next.js every day."
+    postings = [{"id": 100 + k, "title": f"Engineer {k}", "description": f"{blurb}\nWrite Python tools for squad {k}."}
+                for k in range(6)]
+    postings.append({**postings[2], "id": 300})  # the same description again
+    counts = corpus_stats.count_corpus(resolver, list(reversed(postings)))
+    assert (counts.read, counts.n, counts.repeated_lines, counts.lines_dropped) == (7, 6, 1, 5)
+    assert counts.df["skill.python"] == 6  # the posting's own lines all count
+    assert counts.df["skill.paypal"] == counts.df["skill.nextjs"] == 1  # the blurb counts once
+    taxonomy = config.scoring.taxonomy
+    edges, _ = compute_pmi.related_edges(graph, counts, taxonomy, {})
+    assert "skill.paypal" not in edges.get("skill.nextjs", {})
+    # Counted naively, posting by posting, the blurb would have made the edge.
+    naive = sum(1 for p in postings if {"skill.paypal", "skill.nextjs"} <= {
+        m.canonical_id for m in resolver.extract(corpus_stats.posting_text(p))})
+    assert naive == 7 >= taxonomy.pmi_min_cooccurrence
+
+
 def test_an_html_description_is_read_as_text(corpus_stats, resolver) -> None:
     # 62 % of Tailrd's stored descriptions are escaped HTML: entities are decoded (twice-escaped
     # ones too), block tags end a line and inline tags become a space, so "Python" is a word again.
@@ -177,6 +198,7 @@ def test_a_posting_word_is_a_word_of_letters(corpus_stats) -> None:
     assert words == frozenset({"write", "sql", "e-mail", "or", "visit", "by", "équipe", "excel"})
 
 
+@pytest.mark.slow  # two subprocesses load the taxonomy (about 4 s)
 def test_the_computation_is_the_same_under_two_hash_seeds() -> None:
     code = (
         "import sys, json, hashlib; sys.path[:0] = [r'{src}', r'{scripts}'];"
@@ -230,6 +252,7 @@ def test_a_rewrite_writes_every_other_artifact_back_byte_for_byte(tmp_path: Path
     assert sources == {**SOURCES, "corpus": "a corpus"}
 
 
+@pytest.mark.slow  # three script runs rewrite 44k nodes (about 12 s)
 def test_the_compute_scripts_write_hash_pinned_artifacts(tmp_path: Path, slim_taxonomy: Path, compute_idf,
                                                          compute_pmi, config) -> None:
     taxonomy = tmp_path / "taxonomy"
@@ -333,8 +356,8 @@ def test_a_specialised_technology_outweighs_a_ubiquitous_skill(graph) -> None:
 
 @pytest.mark.xfail(strict=True, reason=(
     "SPEC §3.1's motivating example does not hold on Tailrd's Development-branch corpus: Kubernetes is named "
-    "in 91 of 5,473 postings and Microsoft Office in 7 (tech-heavy postings whose stored descriptions are "
-    "truncated before most requirement lists). strict: this flags the day a fuller corpus makes it hold."))
+    "in 73 of 3,924 distinct postings and Microsoft Office in 7 (tech-heavy postings whose stored descriptions "
+    "are truncated before most requirement lists). strict: this flags the day a fuller corpus makes it hold."))
 def test_kubernetes_outweighs_microsoft_office(graph) -> None:
     assert graph.idf["skill.kubernetes"] > graph.idf["skill.ms_office"]
 
@@ -342,7 +365,9 @@ def test_kubernetes_outweighs_microsoft_office(graph) -> None:
 def test_none_of_the_3000_most_frequent_common_words_fuzzy_resolves(graph, config) -> None:
     words = load_json_artifact(TAXONOMY, "common_words.json")["words"]  # most frequent first
     long_words = [word for word in words if len(word) >= config.scoring.taxonomy.fuzzy_min_token_length]
-    assert len(words) >= 3000 and len(long_words) >= 1000
+    # Fix round 1: with duplicates and boilerplate counted once the list holds 2,889 words, so the
+    # 3,000 most frequent are all of them.
+    assert len(words) >= 2000 and len(long_words) >= 1000
     guarded = load_resolver(TAXONOMY, config)
     for word in (*words[:3000], *long_words[:3000]):
         assert guarded.resolve(word).method != "FUZZY", word

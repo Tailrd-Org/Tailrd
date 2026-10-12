@@ -858,7 +858,13 @@ blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbit
   # ecosystems"; "shape the future of"; "Work-Life Balance" among benefits; any "SDK" read as the
   # Microsoft Windows SDK, "iOS SDK" too), and bare "PID" means PID control there, never O*NET's
   # photoionization detector (D-27).
-  "Act!", Google, translating, ecosystems, shape the future, work-life balance, SDK, PID]
+  "Act!", Google, translating, ecosystems, shape the future, work-life balance, SDK, PID,
+  # Fix round 1: every id that is not SOFT and has mined edges, read in context. "ML systems" is
+  # machine learning, not the ML language; "EMI" is electromagnetic interference; forklifts are no
+  # agricultural machines; "business logic" and "PLC logic" are no ESCO logic; "MOS 11B" is a
+  # military code, not multi-object spectrographs; the rest are generic phrases reaching a narrow node.
+  ML systems, EMI, drive forklifts, driving forklifts, fabricate metal, quality checks, digital communications,
+  optical systems, optical products, work with engineers, data infrastructure, logic, MOS]
 
 # After an amount, a currency code that is also a skill (CAD) is money ("85,000 CAD plus benefits",
 # "a 2,500 CAD scholarship") unless the word right after it, or after one modifier ("shop drawings",
@@ -883,7 +889,11 @@ blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, C
   # control systems" is the most frequent one in Tailrd's postings
   document control system, document control systems, change control system, change control systems,
   pest control system, pest control systems, cash control system, cash control systems,
-  fire alarm control system, fire alarm control systems, climate control system, climate control systems]
+  fire alarm control system, fire alarm control systems, climate control system, climate control systems,
+  # fix round 1: "building blocks" of a platform are no O*NET toy class; "Access" in security and
+  # rope-access titles is no Microsoft Access; child care among benefits is no early childhood education
+  building blocks, Access Management, Access Control, Access Engineer, Ropes Access, Rope Access,
+  child care benefits, Child care and pet benefits]
 
 # Professional licences (config/gates.yaml) -> the credential of their formal in-progress
 # designations (D-28). The build fails when a licence has none, or when one of those names reaches

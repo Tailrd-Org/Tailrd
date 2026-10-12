@@ -131,6 +131,10 @@ def report_markdown(summary: corpus_stats.CorpusSummary, counts: corpus_stats.Co
         f"{corpus_stats._span(summary.scraped)}; `{summary.file}` sha256 `{summary.sha256}`.",
         f"- {counts.html_postings:,} descriptions are stored as HTML (decoded before extraction); {counts.truncated:,} "
         "are stored cut short (they end in \"...\"), so skills named late in a posting are undercounted.",
+        f"- {counts.n:,} postings counted: {counts.read - counts.n:,} of the {counts.read:,} read repeat an earlier "
+        f"description exactly; {counts.repeated_lines:,} boilerplate lines ({corpus_stats.TEMPLATE_LINE_CHARS}+ "
+        f"characters, in {corpus_stats.TEMPLATE_POSTINGS}+ postings) count only in their first posting "
+        f"({counts.lines_dropped:,} copies left out).",
         f"- {counts.skill_postings:,} postings name at least one skill; {mentions:,} (posting, skill) pairs, "
         f"{mentions / n:.2f} per posting; {len(counts.df):,} distinct ids.",
         "",

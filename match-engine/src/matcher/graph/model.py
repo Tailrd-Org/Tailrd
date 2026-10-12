@@ -27,7 +27,10 @@ class SkillNode(Frozen):
 
 
 class SkillGraph:
-    """Nodes, related edges (symmetric weights in [0, 1]) and normalised IDF (in [0, 1]).
+    """Nodes, related edges (weights in [0, 1]) and normalised IDF (in [0, 1]).
+
+    An edge is usually stored both ways with one weight, but the out-degree cap of mined edges can
+    leave it stored one way only (DECISIONS D-22); `related_weight` reads either direction.
 
     `version` identifies the artifacts the graph was built from; it is folded into the config
     hash persisted with every score.
