@@ -37,8 +37,13 @@ Every result carries `engine_version`, `config_hash` = `combined_hash(config, gr
 posting JSON + "|" + `as_of` ISO, so a dict, JSON or a model of the same input digest alike.
 `flags` are informational, each once: the inputs' own flags (the résumé's, then the posting's) that
 are not reasons, then the informational facts of the scoring (MIN_YEARS_DEFAULTED,
-NO_WORK_EXPERIENCE, OVERQUALIFIED: the trace keeps flags but not facts). Explanation and
-improvements stay empty until Milestone 4.
+NO_WORK_EXPERIENCE, OVERQUALIFIED: the trace keeps flags but not facts).
+
+Then the explanation layer (Task 4.1, `matcher.explain.attach_explanation`, imported late because it
+re-runs this function for counterfactuals): every outcome gets an `explanation` when
+`options.with_explanation` (the default), and a SCORED result gets `improvements` (and
+`explanation.to_improve`) when `options.with_counterfactual`. Options that are not `ScoreOptions`
+explain with the defaults. `explain/` is pure like `score/`.
 
 A NEEDS_REVIEW returned before the gates run (steps 1 to 4, and faults) reports `gate_status` PASS
 with no gate results: "not evaluated", since the model has no such status. Consumers key on
@@ -123,6 +128,28 @@ def score(
     options: ScoreOptions = ScoreOptions(),
 ) -> MatchResult:
     """Score one résumé against one posting as of `as_of` (see the module docstring)."""
+    result = _bare_score(resume, posting, as_of=as_of, config=config, graph=graph, calibration=calibration,
+                         options=options)
+    wanted = options if isinstance(options, ScoreOptions) else ScoreOptions()
+    if not (wanted.with_explanation or wanted.with_counterfactual):
+        return result
+    from matcher.explain import attach_explanation  # explain/ re-runs this function: imported late
+
+    return attach_explanation(result, resume, posting, as_of=result.as_of, config=config, graph=graph,
+                              calibration=calibration, options=wanted)
+
+
+def _bare_score(
+    resume: Any,
+    posting: Any,
+    *,
+    as_of: Any,
+    config: EngineConfig,
+    graph: SkillGraph,
+    calibration: Any,
+    options: ScoreOptions,
+) -> MatchResult:
+    """`score` before the explanation layer (steps 1 to 8 of the module docstring)."""
     _check_wiring(config, graph)
     day = _valid_as_of(as_of)
     if not isinstance(options, ScoreOptions) or not _calibrates(calibration):

@@ -107,6 +107,24 @@ intervals:           # SPEC §17.3; DECISIONS D-45
   display_spread: 6
   unresolved_token_idf: 0.50
 
+counterfactual:      # SPEC §8 `to_improve` (Task 4.1): learning cost and the added mention
+  # Typical weeks to show a skill of each kind at working level, before the distance factor.
+  weeks_by_kind:
+    TECHNOLOGY: 4
+    TOOL: 2
+    METHODOLOGY: 4
+    DOMAIN: 8
+    SOFT: 2
+    CREDENTIAL: 8
+  # learning_cost = weeks_by_kind × (1 + weeks_per_hop × hops from the nearest résumé skill)
+  weeks_per_hop: 1.0
+  unreachable_hops: 4          # hops counted for a skill farther than this, or not in the graph
+  added_evidence: ROLE_BULLET  # how a suggested skill is added to the most recent role
+  added_verb: EXECUTION
+  # The greedy search re-scores every candidate once, then only the best `max_candidates` by
+  # single-skill gain per week (keeps a detail view fast on a posting with many missing skills).
+  max_candidates: 16
+
 calibration:         # SPEC §7; DECISIONS D-50, D-51
   min_reference_n: 30
   isotonic_min_labels: 500

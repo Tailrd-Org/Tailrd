@@ -9,7 +9,7 @@ that is score/'s job, with the config.
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import Mapping, Optional
+from typing import Iterable, Mapping, Optional
 
 from pydantic import Field
 
@@ -130,6 +130,34 @@ def distance(graph: SkillGraph, a: str, b: str, max_depth: int) -> Optional[int]
         for current in frontier:
             for neighbour in adjacency[current]:
                 if neighbour == b:
+                    return depth
+                if neighbour not in seen:
+                    seen.add(neighbour)
+                    next_frontier.append(neighbour)
+        if not next_frontier:
+            return None
+        frontier = next_frontier
+    return None
+
+
+def nearest_distance(graph: SkillGraph, source: str, targets: Iterable[str], max_depth: int) -> Optional[int]:
+    """`min(distance(graph, source, t, max_depth) for t in targets)` in one breadth-first walk
+    from `source` (None when no target is within `max_depth` hops, or `source` is unknown and not
+    itself a target). Used by the counterfactual learning cost (Task 4.1)."""
+    wanted = set(targets)
+    if source in wanted:
+        return 0
+    wanted &= set(graph.nodes)
+    if source not in graph.nodes or not wanted:
+        return None
+    adjacency = _adjacency(graph)
+    seen = {source}
+    frontier = [source]
+    for depth in range(1, max_depth + 1):
+        next_frontier = []
+        for current in frontier:
+            for neighbour in adjacency[current]:
+                if neighbour in wanted:
                     return depth
                 if neighbour not in seen:
                     seen.add(neighbour)

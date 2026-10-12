@@ -17,7 +17,7 @@ from typing import Literal, Optional, Union
 import yaml
 from pydantic import Field, ValidationError, field_validator, model_validator
 
-from matcher.models import Band, DimensionName, Frozen, VerbClass, canonical_json
+from matcher.models import Band, DimensionName, Evidence, Frozen, SkillKind, VerbClass, canonical_json
 
 WEIGHT_MIN = 0.03  # EVAL §5.1: no dimension vanishes ...
 WEIGHT_MAX = 0.45  # ... or dominates
@@ -364,6 +364,26 @@ class IntervalsConfig(Frozen):
     unresolved_token_idf: float = Field(ge=0.0, le=1.0)
 
 
+class CounterfactualConfig(Frozen):
+    """SPEC §8 `to_improve` (Task 4.1): what learning a missing skill costs, and how it is added."""
+
+    weeks_by_kind: dict[SkillKind, float]
+    weeks_per_hop: float = Field(ge=0.0, le=10.0)
+    unreachable_hops: int = Field(ge=0, le=10)
+    added_evidence: Evidence
+    added_verb: VerbClass
+    max_candidates: int = Field(ge=1, le=100)
+
+    @model_validator(mode="after")
+    def _valid(self) -> "CounterfactualConfig":
+        missing = set(SkillKind) - set(self.weeks_by_kind)
+        if missing:
+            raise ValueError(f"weeks_by_kind missing kinds: {sorted(kind.value for kind in missing)}")
+        if any(not (0.0 < weeks <= 520.0) for weeks in self.weeks_by_kind.values()):
+            raise ValueError("weeks_by_kind values must lie in (0, 520]")
+        return self
+
+
 class CalibrationConfig(Frozen):
     min_reference_n: int = Field(ge=1)
     isotonic_min_labels: int = Field(ge=1)
@@ -402,6 +422,7 @@ class ScoringConfig(Frozen):
     redistribution: RedistributionConfig
     confidence: ConfidenceConfig
     intervals: IntervalsConfig
+    counterfactual: CounterfactualConfig
     calibration: CalibrationConfig
     taxonomy: TaxonomyConfig
     ingest: IngestConfig

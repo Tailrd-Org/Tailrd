@@ -624,7 +624,9 @@ def test_finite_and_clamp01() -> None:
 
 # ─── score/ stays pure (SPEC §1) ────────────────────────────────────────────────────────
 
-_ALLOWED_MATCHER = ("matcher.models", "matcher.errors", "matcher.config", "matcher.graph", "matcher.score")
+# matcher.explain: the engine attaches the explanation layer, which is pure too (tests/test_breakdown.py).
+_ALLOWED_MATCHER = ("matcher.models", "matcher.errors", "matcher.config", "matcher.graph", "matcher.score",
+                    "matcher.explain")
 _IMPURE_STDLIB = {"os", "io", "pathlib", "shutil", "tempfile", "glob", "socket", "subprocess", "urllib",
                   "http", "time", "random", "secrets", "sqlite3"}
 _CLOCK_METHODS = {"today", "now", "utcnow"}  # date.today(), datetime.now(), datetime.utcnow()
