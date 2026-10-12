@@ -10,7 +10,10 @@ component that is undefined for the pair is left out and the weights renormalise
 (D-44), so "zero overlap" stays a valid Limited score (§14.5). Weights, the floor (1e-6) and every
 threshold are `scoring.confidence` in config. The components, in this order (`COMPONENTS`):
 
-* parse_quality: the résumé's parse tier (A 1.0, B 0.8, C 0.55).
+* parse_quality: the résumé's parse tier (A 1.0, B 0.8, C 0.55), no better than tier B when the
+  posting was cut short (its POSTING_TRUNCATED flag: a stored description capped mid-text,
+  DECISIONS D-104). A truncated posting always names POSTING_TRUNCATED among the reasons, so the
+  penalty is never silent.
 * taxonomy_coverage: `(requirement_token_count − len(unresolved tokens)) / requirement_token_count`,
   clamped to [0, 1]; undefined when the posting counted no requirement tokens.
 * evidence_density: the share of matched requirement groups (any credit: `via` is set) whose
@@ -147,8 +150,11 @@ def confidence_components(
     roles = resume.roles
     temporal = clamp01(sum(1 for role in roles if role.dated) / len(roles)) if roles else None
     distinct = len({requirement.skill_id for requirement in posting.requirements})
+    quality = rules.parse_quality[ParseTier(resume.parse_tier).value]
+    if Flag.POSTING_TRUNCATED in posting.flags:  # its requirements may go on past the cut (D-104)
+        quality = min(quality, rules.parse_quality[ParseTier.B.value])
     return {
-        "parse_quality": clamp01(rules.parse_quality[ParseTier(resume.parse_tier).value]),
+        "parse_quality": clamp01(quality),
         "taxonomy_coverage": taxonomy,
         "evidence_density": _evidence_density(prepared, matches),
         "temporal_completeness": temporal,
@@ -197,7 +203,10 @@ def compute_confidence(
     dimensions after redistribution (its `scored_weight` is the dimension coverage); `matches` are
     its requirement groups (`coverage.match_requirements` over all of the posting's requirements)."""
     components = confidence_components(resume, posting, prepared, dimensions, matches, config)
-    return confidence_from_components(components, config)
+    confidence = confidence_from_components(components, config)
+    if Flag.POSTING_TRUNCATED in posting.flags and Flag.POSTING_TRUNCATED not in confidence.reasons:
+        confidence = confidence.model_copy(update={"reasons": (*confidence.reasons, Flag.POSTING_TRUNCATED)})
+    return confidence
 
 
 def outcome_for(confidence: Confidence, config: EngineConfig) -> Outcome:

@@ -44,6 +44,7 @@ class Flag(str, Enum):
     CONTRADICTORY_REQUIREMENTS = "CONTRADICTORY_REQUIREMENTS"
     REQUIREMENTS_TRUNCATED = "REQUIREMENTS_TRUNCATED"
     BOILERPLATE_ONLY = "BOILERPLATE_ONLY"
+    POSTING_TRUNCATED = "POSTING_TRUNCATED"
 
     # --- Scoring: NEEDS_REVIEW reasons (SPEC §13, §14.5) -----------------------------------
     INVALID_INPUT = "INVALID_INPUT"
@@ -141,6 +142,7 @@ FLAG_TEXT: dict[Flag, str] = {
     Flag.CONTRADICTORY_REQUIREMENTS: "This posting's level and its experience requirement disagree.",
     Flag.REQUIREMENTS_TRUNCATED: "This posting lists many requirements; the most specific 25 were weighted fully.",
     Flag.BOILERPLATE_ONLY: "This posting is mostly boilerplate and says little about the role.",
+    Flag.POSTING_TRUNCATED: "The job posting was cut short, so some requirements may be missing.",
     Flag.INVALID_INPUT: "The information was incomplete or malformed, so it couldn't be scored.",
     Flag.INVALID_AS_OF: "The scoring date is earlier than every date on the résumé.",
     Flag.NUMERIC_FAULT: "A calculation failed, so no score is shown.",
