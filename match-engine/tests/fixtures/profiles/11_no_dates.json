@@ -1,0 +1,222 @@
+{
+ "name": "no_dates",
+ "description": "A résumé whose roles carry no dates anywhere.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Backend Developer",
+    "employer": "Granite Peak Software",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.kubernetes",
+      "surface_form": "Kubernetes",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    }
+   },
+   {
+    "title_raw": "Junior Developer",
+    "employer": "Granite Peak Software",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "NO_VERB",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "seniority": {
+     "track": "IC",
+     "level": 1
+    }
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.postgresql",
+    "surface_form": "PostgreSQL",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.terraform",
+    "surface_form": "Terraform",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.agile",
+    "surface_form": "Agile",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.excel",
+    "surface_form": "Excel",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "NEEDS_REVIEW",
+  "raw_score": 0.847449,
+  "dimensions": {
+   "required_skills": 0.820534,
+   "preferred_skills": 0.817969,
+   "experience": null,
+   "seniority": null,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.666032
+  },
+  "confidence": 0.087539,
+  "reasons": [
+   "LOW_CONFIDENCE",
+   "LOW_EVIDENCE_DENSITY",
+   "LOW_TEMPORAL_COMPLETENESS"
+  ],
+  "derivation": "No date anywhere: R = 1.0 for every mention (D-34). Required: python 1, sql participation 0.65 (child via listed postgresql only 0.85 x 0.65), docker 1, aws execution 0.85, postgresql listed 0.65: 0.820534. Preferred: kubernetes 1, terraform listed 0.65 (sibling via aws 0.55 x 0.85 is less): 0.817969. Tools: git 0.70, agile 0.65, excel 0.65: 0.666032. Experience abstains DATES_MISSING (§14.2: contributes nothing, its weight redistributes); seniority abstains (no current and no ended role, D-38). Domain 541511 under 5415: 1.0 (any role, dated or not, D-40); education 1.0. Scored weight 0.75: raw = (0.35 x 0.820534 + 0.10 x 0.817969 + 0.10 + 0.10 + 0.10 x 0.666032) / 0.75 = 0.847449. Confidence: temporal completeness 0 of 2 dated roles = 0 (floored at 1e-6 in the log), evidence density 6 of 10 = 0.6, dimension coverage 0.75: (0.6 x 1e-6 x 0.75)^(1/6) = 0.087539 < 0.60 -> NEEDS_REVIEW with LOW_CONFIDENCE, LOW_EVIDENCE_DENSITY, LOW_TEMPORAL_COMPLETENESS; the raw score stays on the record for the reviewer (D-44)."
+ }
+}

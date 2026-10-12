@@ -1,0 +1,160 @@
+{
+ "name": "student_projects_only",
+ "description": "A student with course projects and a skills list but no employment.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "projects": [
+   {
+    "name": "Course timetable optimiser",
+    "start": {
+     "value": "2026-01-12",
+     "earliest": "2026-01-12",
+     "latest": "2026-01-12",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2026-04-30",
+     "earliest": "2026-04-30",
+     "latest": "2026-04-30",
+     "precision": "DAY"
+    },
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     },
+     {
+      "canonical_id": "skill.pandas",
+      "surface_form": "pandas",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     }
+    ]
+   },
+   {
+    "name": "Housing price notebook",
+    "start": {
+     "value": "2025-09-08",
+     "earliest": "2025-09-08",
+     "latest": "2025-09-08",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2025-12-15",
+     "earliest": "2025-12-15",
+     "latest": "2025-12-15",
+     "precision": "DAY"
+    },
+    "skills": [
+     {
+      "canonical_id": "skill.machine_learning",
+      "surface_form": "machine learning",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     }
+    ]
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.sql",
+    "surface_form": "SQL",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.git",
+    "surface_form": "Git",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science (in progress)",
+    "in_progress": true
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Data Analyst Intern",
+  "title_canonical": "title.data_analyst",
+  "seniority": {
+   "track": "IC",
+   "level": 0
+  },
+  "is_internship": true,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.pandas",
+    "necessity": "REQUIRED",
+    "surface_form": "pandas"
+   },
+   {
+    "skill_id": "skill.machine_learning",
+    "necessity": "PREFERRED",
+    "surface_form": "machine learning"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   }
+  ],
+  "requirement_token_count": 5
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.613658,
+  "dimensions": {
+   "required_skills": 0.778711,
+   "preferred_skills": 0.575363,
+   "experience": 0.0,
+   "seniority": null,
+   "domain": null,
+   "education": 1.0,
+   "tools": 0.608413
+  },
+  "confidence": 0.835857,
+  "flags": [
+   "MIN_YEARS_DEFAULTED",
+   "NO_WORK_EXPERIENCE"
+  ],
+  "derivation": "No roles: latest activity is the latest project end 2026-04-30 (D-34), 161 days before as_of, so R1 = exp(-0.15 x 161 / 365.25) = 0.936019 for the first project and the skills list; the second project ended 2025-12-15, 297 days: R2 = 0.885174. Required: python 1.00 x R1, sql 0.65 x R1 (list), pandas 0.85 x R1 (execution; parent python gives only 0.40 x R1): (0.326779 x 1 + 0.396012 x 0.65 + 0.948491 x 0.85) x R1 / 1.671282 = 0.778711. Preferred: machine learning participation 0.65 x R2 = 0.575363. Tools: git 0.65 x R1 = 0.608413. Experience: no employment at all scores 0.0 with NO_WORK_EXPERIENCE (D-37; projects never count, D-12), against the IC0 default of 6 months (MIN_YEARS_DEFAULTED). Seniority and domain abstain (no roles). Education: a Bachelor in progress counts at its level (D-41), computer science exact: 1.0. Scored weight 0.80: raw = (0.35 x 0.778711 + 0.10 x 0.575363 + 0 + 0.10 x 1 + 0.10 x 0.608413) / 0.80 = 0.613658. Confidence: evidence density 3 of 5 (python, pandas, machine learning shown in project bullets; sql, git list-only) = 0.6, temporal undefined (no roles), requirement count 5 -> 0.85, dimension coverage 0.80: (0.6 x 0.85 x 0.80)^(1/5) = 0.835857 -> SCORED."
+ }
+}

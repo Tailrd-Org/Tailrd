@@ -22,7 +22,6 @@ code, then the smaller candidate code.
 from __future__ import annotations
 
 from collections.abc import Iterable
-from operator import attrgetter
 
 from matcher.config import DomainConfig, EngineConfig
 from matcher.errors import Flag
@@ -35,10 +34,8 @@ from matcher.score.prepare import PreparedResume, ensure_bound
 __all__ = ["INDUSTRY_MATCH", "naics_credit", "score_domain"]
 
 INDUSTRY_MATCH = "INDUSTRY_MATCH"
-# Tiers, named as the `domain` config fields that price them; each tier's price is read through
-# a getter built once here.
+# Tiers, named as the `domain` config fields that price them.
 EXACT, SAME_3DIGIT, SAME_2DIGIT, UNRELATED = "exact", "same_3digit", "same_2digit", "unrelated"
-_PRICE = {tier: attrgetter(tier) for tier in (EXACT, SAME_3DIGIT, SAME_2DIGIT, UNRELATED)}
 
 _Groups = tuple[tuple[str, ...], ...]
 
@@ -79,7 +76,10 @@ def _tier(a: str, b: str, a_sectors: frozenset[str], b_sectors: frozenset[str], 
 
 
 def _credit(tier: str, rules: DomainConfig) -> float:
-    return clamp01(_PRICE[tier](rules))
+    # Each price read by its literal field name: no attribute named at run time (the SPEC §9 scan).
+    prices = {EXACT: rules.exact, SAME_3DIGIT: rules.same_3digit, SAME_2DIGIT: rules.same_2digit,
+              UNRELATED: rules.unrelated}
+    return clamp01(prices[tier])
 
 
 def naics_credit(a: str, b: str, config: EngineConfig) -> float:

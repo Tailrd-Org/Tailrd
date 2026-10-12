@@ -1,0 +1,192 @@
+{
+ "name": "one_critical_miss",
+ "description": "A strong platform candidate who has never used Kubernetes, the posting's rarest requirement.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Cloud Developer",
+    "employer": "Bluefin Analytics",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.nodejs",
+      "surface_form": "Node.js",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.typescript",
+      "surface_form": "TypeScript",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.cloud_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Platform Engineer",
+  "title_canonical": "title.platform_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "REQUIRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "REQUIRED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.nodejs",
+    "necessity": "PREFERRED",
+    "surface_form": "Node.js"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   },
+   {
+    "skill_id": "skill.typescript",
+    "necessity": "IMPLIED",
+    "surface_form": "TypeScript"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.7,
+  "dimensions": {
+   "required_skills": 0.691388,
+   "preferred_skills": 1.0,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 1.0
+  },
+  "confidence": 1.0,
+  "caps": [
+   {
+    "reason": "CRITICAL_MISS",
+    "cap": 0.7,
+    "requirement_ids": [
+     "skill.kubernetes"
+    ]
+   }
+  ],
+  "derivation": "Every skill but kubernetes is an ownership bullet in the current role: m = 1. kubernetes (idf 0.893104 > 0.7) has no exact, child, sibling (docker is absent) or parent match: m = 0 < 0.2, one critical miss. Required = (0.326779 + 0.396012 + 0.660482 + 0.617557) / (that + 0.893104) = 0.691388. Preferred, tools 1. Experience: cos = 0.913591, 56.90 months x cos >= 24 -> 1.0. Seniority, domain 1.0; no education requirement -> 1.0. Uncapped raw = 0.35 x 0.691388 + 0.65 = 0.891986 > 0.70, so the one-miss cap binds (§5.1, D-43): raw = 0.70. Confidence: 9 of 9 matched groups shown, 10 ids, nothing abstains: 1.0."
+ }
+}

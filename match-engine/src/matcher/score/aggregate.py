@@ -35,8 +35,8 @@ engine defect (`EngineFault(INTERNAL_ERROR)`); a NaN or an infinity, or no weigh
 contributions and the result are clamped, so float noise never takes one past 1.
 
 Reads dimension scores and the config only, never a résumé field (SPEC §9). A dimension's key is
-read through the model's field mapping: `score/` never reads a `.name` attribute (the SPEC §9
-forbidden-features scan), and a dimension's name is not a person's.
+read through `DimensionScore.dimension`: `score/` never reads a `name` (the SPEC §9
+forbidden-features scan refuses the attribute and the subscript alike).
 """
 
 from __future__ import annotations
@@ -119,8 +119,8 @@ def _by_name(dimensions: Sequence[DimensionScore]) -> dict[DimensionName, Dimens
         if not isinstance(score, DimensionScore):
             raise EngineFault(Flag.INTERNAL_ERROR, f"not a DimensionScore: {type(score).__name__}")
         try:
-            key = DimensionName(dict(score)["name"])
-        except (KeyError, ValueError) as exc:
+            key = score.dimension
+        except (AttributeError, KeyError, ValueError) as exc:
             raise EngineFault(Flag.INTERNAL_ERROR, "a dimension score without a known dimension") from exc
         if key in found:
             raise EngineFault(Flag.INTERNAL_ERROR, f"dimension {key.value} given twice")

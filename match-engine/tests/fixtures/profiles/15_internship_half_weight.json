@@ -1,0 +1,315 @@
+{
+ "name": "internship_half_weight",
+ "description": "A junior developer whose earlier internship counts at half its duration.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Software Developer Intern",
+    "employer": "Northwind Labs",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.postgresql",
+      "surface_form": "PostgreSQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.kubernetes",
+      "surface_form": "Kubernetes",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": true,
+    "title_canonical": "title.software_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 0
+    },
+    "start": {
+     "value": "2023-05-01",
+     "earliest": "2023-05-01",
+     "latest": "2023-05-01",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2023-08-31",
+     "earliest": "2023-08-31",
+     "latest": "2023-08-31",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Junior Software Developer",
+    "employer": "Northwind Labs",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.postgresql",
+      "surface_form": "PostgreSQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.kubernetes",
+      "surface_form": "Kubernetes",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.software_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 1
+    },
+    "start": {
+     "value": "2025-07-07",
+     "earliest": "2025-07-07",
+     "latest": "2025-07-07",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.937257,
+  "dimensions": {
+   "required_skills": 1.0,
+   "preferred_skills": 1.0,
+   "experience": 0.768378,
+   "seniority": 0.72,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 1.0
+  },
+  "confidence": 1.0,
+  "derivation": "Every posting skill is an ownership bullet in the current role: required, preferred, tools 1. Both roles show all ten skills (relevance 1). The internship counts at 0.5 weight (§5.3): months = (122 x 0.5 + 458 x 1) / 30.4375 = 17.0513; ratio vs 24 = 0.7105 -> 0.60 + 0.40 x (ratio - 0.5) / 0.5 = 0.768378. Seniority: current IC1 vs IC2 = 0.72 (the IC0 internship ended and does not count, D-38). Domain 541511 under 5415: 1.0; education 1.0. Raw = 0.35 + 0.10 + 0.15 x 0.768378 + 0.10 x 0.72 + 0.10 + 0.10 + 0.10 = 0.937257. Confidence 1.0."
+ }
+}

@@ -1,0 +1,172 @@
+{
+ "name": "functional_resume",
+ "description": "A skills-first résumé with no chronology at all.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "skills_blob": [
+   {
+    "canonical_id": "skill.python",
+    "surface_form": "Python",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.sql",
+    "surface_form": "SQL",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.docker",
+    "surface_form": "Docker",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.aws",
+    "surface_form": "AWS",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.kubernetes",
+    "surface_form": "Kubernetes",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.git",
+    "surface_form": "Git",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.excel",
+    "surface_form": "Excel",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ],
+  "flags": [
+   "FUNCTIONAL_RESUME"
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "NEEDS_REVIEW",
+  "raw_score": 0.581494,
+  "dimensions": {
+   "required_skills": 0.537401,
+   "preferred_skills": 0.497874,
+   "experience": null,
+   "seniority": null,
+   "domain": null,
+   "education": 1.0,
+   "tools": 0.400935
+  },
+  "confidence": 0.057887,
+  "reasons": [
+   "LOW_CONFIDENCE",
+   "LOW_EVIDENCE_DENSITY",
+   "LOW_DIMENSION_COVERAGE"
+  ],
+  "flags": [
+   "FUNCTIONAL_RESUME"
+  ],
+  "derivation": "Every skill is SKILLS_BLOB evidence (0.65) and nothing is dated, so R = 1. Required: python, sql, docker, aws 0.65; postgresql only through its parent sql: 0.40 x 0.65 = 0.26 (>= 0.2, no critical miss): 0.537401. Preferred: kubernetes 0.65, terraform via its aws edge 0.55 x 0.65 = 0.3575: 0.497874. Tools: git 0.65, agile 0, excel 0.65: 0.400935. Experience abstains FUNCTIONAL_RESUME (§14.3); seniority and domain abstain (no roles). Education 1.0. Scored weight 0.35 + 0.10 + 0.10 + 0.10 = 0.65: raw = (0.35 x 0.537401 + 0.10 x 0.497874 + 0.10 + 0.10 x 0.400935) / 0.65 = 0.581494. Confidence: evidence density 0 of 9 matched groups shown beyond the list (floored 1e-6), temporal undefined, dimension coverage 0.65: (1e-6 x 0.65)^(1/5) = 0.057887 -> NEEDS_REVIEW, LOW_CONFIDENCE, LOW_EVIDENCE_DENSITY, LOW_DIMENSION_COVERAGE ('we genuinely know less', §14.3)."
+ }
+}

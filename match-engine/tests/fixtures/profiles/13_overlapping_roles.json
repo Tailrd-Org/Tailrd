@@ -1,0 +1,170 @@
+{
+ "name": "overlapping_roles",
+ "description": "Two jobs held at the same time for six months; the overlap counts once.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Data Engineer",
+    "employer": "Tidewater Data",
+    "industry_codes": [
+     "5182"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.data_engineer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2021-01-04",
+     "earliest": "2021-01-04",
+     "latest": "2021-01-04",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2023-12-29",
+     "earliest": "2023-12-29",
+     "latest": "2023-12-29",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Senior Data Engineer",
+    "employer": "Cobalt Transit Authority",
+    "industry_codes": [
+     "5182"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.data_engineer",
+    "seniority": {
+     "track": "IC",
+     "level": 3
+    },
+    "start": {
+     "value": "2023-06-05",
+     "earliest": "2023-06-05",
+     "latest": "2023-06-05",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Data Engineer",
+  "title_canonical": "title.data_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 3
+  },
+  "min_years_total": 5.0,
+  "industry_codes": [
+   "5182"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "PREFERRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   }
+  ],
+  "requirement_token_count": 5
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.837893,
+  "dimensions": {
+   "required_skills": 0.794428,
+   "preferred_skills": 0.659399,
+   "experience": 0.85309,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.659399
+  },
+  "confidence": 0.973277,
+  "derivation": "Recency: role A ended 2023-12-29, 1,014 days before as_of: RA = exp(-0.15 x 1014 / 365.25) = 0.659399. python: max(A ownership x RA, B ownership x 1) = 1; sql: max(A 1.00 x RA, B execution 0.85 x 1) = 0.850000; aws, docker, git appear only in A: RA. Required = (0.326779 + 0.396012 x 0.850000 + 0.660482 x 0.659399) / 1.383273 = 0.794428; preferred docker = tools git = 0.659399. Experience: A shows all five posting skills (relevance 1); B shows python and sql, relevance = sqrt(0.326779^2 + 0.396012^2) / |v_job| = 0.396333. Interval sweep (§5.3, §14.2, D-36): 2021-01-04..2023-06-05 weight 1 (A), 2023-06-05..2023-12-29 weight max(1, relevance B) = 1 (both, counted once), 2023-12-29..2026-10-08 weight 0.3963 (B). Months = (1089 x 1 + 1014 x 0.396333) / 30.4375 = 48.9817 (summing the roles would give 51.6771); ratio vs 60 = 0.8164 -> 0.60 + 0.40 x (ratio - 0.5) / 0.5 = 0.853090. Seniority: current IC3 = IC3; domain 5182 = 5182; no education requirement: 1.0 each. Raw = 0.837893. Confidence: all five groups shown in bullets, requirement count 5 -> 0.85: 0.85^(1/6) = 0.973277 -> SCORED."
+ }
+}

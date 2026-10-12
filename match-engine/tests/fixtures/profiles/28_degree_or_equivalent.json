@@ -1,0 +1,204 @@
+{
+ "name": "degree_or_equivalent",
+ "description": "'Bachelor's degree or equivalent experience'; the candidate finished high school.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Software Developer",
+    "employer": "Northwind Labs",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.postgresql",
+      "surface_form": "PostgreSQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.kubernetes",
+      "surface_form": "Kubernetes",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.software_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "education": [
+   {
+    "level": "HIGH_SCHOOL",
+    "field_ids": [],
+    "field_raw": "Ontario Secondary School Diploma",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [],
+   "or_equivalent": true
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.955,
+  "dimensions": {
+   "required_skills": 1.0,
+   "preferred_skills": 1.0,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 0.55,
+   "tools": 1.0
+  },
+  "confidence": 1.0,
+  "derivation": "High school is two levels below a Bachelor (tier 0.20), and 'or equivalent' softens one tier, once (D-41): 0.55. No field is required: multiplier 1.0. Every other dimension 1.0 (all skills ownership bullets in the current role). Raw = 0.90 + 0.10 x 0.55 = 0.955000."
+ }
+}

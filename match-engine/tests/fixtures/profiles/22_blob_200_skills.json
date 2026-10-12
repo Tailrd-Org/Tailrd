@@ -1,0 +1,1753 @@
+{
+ "name": "blob_200_skills",
+ "description": "A developer whose skills section lists 200 skills, 190 of them unknown to the posting.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Software Developer",
+    "employer": "Northwind Labs",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.software_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.aws",
+    "surface_form": "AWS",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.postgresql",
+    "surface_form": "PostgreSQL",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.kubernetes",
+    "surface_form": "Kubernetes",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.terraform",
+    "surface_form": "Terraform",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.git",
+    "surface_form": "Git",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.agile",
+    "surface_form": "Agile",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.excel",
+    "surface_form": "Excel",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.javascript",
+    "surface_form": "JavaScript",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.react",
+    "surface_form": "React",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.vue",
+    "surface_form": "Vue",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_001",
+    "surface_form": "stuffed_001",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_002",
+    "surface_form": "stuffed_002",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_003",
+    "surface_form": "stuffed_003",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_004",
+    "surface_form": "stuffed_004",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_005",
+    "surface_form": "stuffed_005",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_006",
+    "surface_form": "stuffed_006",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_007",
+    "surface_form": "stuffed_007",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_008",
+    "surface_form": "stuffed_008",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_009",
+    "surface_form": "stuffed_009",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_010",
+    "surface_form": "stuffed_010",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_011",
+    "surface_form": "stuffed_011",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_012",
+    "surface_form": "stuffed_012",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_013",
+    "surface_form": "stuffed_013",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_014",
+    "surface_form": "stuffed_014",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_015",
+    "surface_form": "stuffed_015",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_016",
+    "surface_form": "stuffed_016",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_017",
+    "surface_form": "stuffed_017",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_018",
+    "surface_form": "stuffed_018",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_019",
+    "surface_form": "stuffed_019",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_020",
+    "surface_form": "stuffed_020",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_021",
+    "surface_form": "stuffed_021",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_022",
+    "surface_form": "stuffed_022",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_023",
+    "surface_form": "stuffed_023",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_024",
+    "surface_form": "stuffed_024",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_025",
+    "surface_form": "stuffed_025",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_026",
+    "surface_form": "stuffed_026",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_027",
+    "surface_form": "stuffed_027",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_028",
+    "surface_form": "stuffed_028",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_029",
+    "surface_form": "stuffed_029",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_030",
+    "surface_form": "stuffed_030",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_031",
+    "surface_form": "stuffed_031",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_032",
+    "surface_form": "stuffed_032",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_033",
+    "surface_form": "stuffed_033",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_034",
+    "surface_form": "stuffed_034",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_035",
+    "surface_form": "stuffed_035",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_036",
+    "surface_form": "stuffed_036",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_037",
+    "surface_form": "stuffed_037",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_038",
+    "surface_form": "stuffed_038",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_039",
+    "surface_form": "stuffed_039",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_040",
+    "surface_form": "stuffed_040",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_041",
+    "surface_form": "stuffed_041",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_042",
+    "surface_form": "stuffed_042",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_043",
+    "surface_form": "stuffed_043",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_044",
+    "surface_form": "stuffed_044",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_045",
+    "surface_form": "stuffed_045",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_046",
+    "surface_form": "stuffed_046",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_047",
+    "surface_form": "stuffed_047",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_048",
+    "surface_form": "stuffed_048",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_049",
+    "surface_form": "stuffed_049",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_050",
+    "surface_form": "stuffed_050",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_051",
+    "surface_form": "stuffed_051",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_052",
+    "surface_form": "stuffed_052",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_053",
+    "surface_form": "stuffed_053",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_054",
+    "surface_form": "stuffed_054",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_055",
+    "surface_form": "stuffed_055",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_056",
+    "surface_form": "stuffed_056",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_057",
+    "surface_form": "stuffed_057",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_058",
+    "surface_form": "stuffed_058",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_059",
+    "surface_form": "stuffed_059",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_060",
+    "surface_form": "stuffed_060",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_061",
+    "surface_form": "stuffed_061",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_062",
+    "surface_form": "stuffed_062",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_063",
+    "surface_form": "stuffed_063",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_064",
+    "surface_form": "stuffed_064",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_065",
+    "surface_form": "stuffed_065",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_066",
+    "surface_form": "stuffed_066",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_067",
+    "surface_form": "stuffed_067",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_068",
+    "surface_form": "stuffed_068",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_069",
+    "surface_form": "stuffed_069",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_070",
+    "surface_form": "stuffed_070",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_071",
+    "surface_form": "stuffed_071",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_072",
+    "surface_form": "stuffed_072",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_073",
+    "surface_form": "stuffed_073",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_074",
+    "surface_form": "stuffed_074",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_075",
+    "surface_form": "stuffed_075",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_076",
+    "surface_form": "stuffed_076",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_077",
+    "surface_form": "stuffed_077",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_078",
+    "surface_form": "stuffed_078",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_079",
+    "surface_form": "stuffed_079",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_080",
+    "surface_form": "stuffed_080",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_081",
+    "surface_form": "stuffed_081",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_082",
+    "surface_form": "stuffed_082",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_083",
+    "surface_form": "stuffed_083",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_084",
+    "surface_form": "stuffed_084",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_085",
+    "surface_form": "stuffed_085",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_086",
+    "surface_form": "stuffed_086",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_087",
+    "surface_form": "stuffed_087",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_088",
+    "surface_form": "stuffed_088",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_089",
+    "surface_form": "stuffed_089",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_090",
+    "surface_form": "stuffed_090",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_091",
+    "surface_form": "stuffed_091",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_092",
+    "surface_form": "stuffed_092",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_093",
+    "surface_form": "stuffed_093",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_094",
+    "surface_form": "stuffed_094",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_095",
+    "surface_form": "stuffed_095",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_096",
+    "surface_form": "stuffed_096",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_097",
+    "surface_form": "stuffed_097",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_098",
+    "surface_form": "stuffed_098",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_099",
+    "surface_form": "stuffed_099",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_100",
+    "surface_form": "stuffed_100",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_101",
+    "surface_form": "stuffed_101",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_102",
+    "surface_form": "stuffed_102",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_103",
+    "surface_form": "stuffed_103",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_104",
+    "surface_form": "stuffed_104",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_105",
+    "surface_form": "stuffed_105",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_106",
+    "surface_form": "stuffed_106",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_107",
+    "surface_form": "stuffed_107",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_108",
+    "surface_form": "stuffed_108",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_109",
+    "surface_form": "stuffed_109",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_110",
+    "surface_form": "stuffed_110",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_111",
+    "surface_form": "stuffed_111",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_112",
+    "surface_form": "stuffed_112",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_113",
+    "surface_form": "stuffed_113",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_114",
+    "surface_form": "stuffed_114",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_115",
+    "surface_form": "stuffed_115",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_116",
+    "surface_form": "stuffed_116",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_117",
+    "surface_form": "stuffed_117",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_118",
+    "surface_form": "stuffed_118",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_119",
+    "surface_form": "stuffed_119",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_120",
+    "surface_form": "stuffed_120",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_121",
+    "surface_form": "stuffed_121",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_122",
+    "surface_form": "stuffed_122",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_123",
+    "surface_form": "stuffed_123",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_124",
+    "surface_form": "stuffed_124",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_125",
+    "surface_form": "stuffed_125",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_126",
+    "surface_form": "stuffed_126",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_127",
+    "surface_form": "stuffed_127",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_128",
+    "surface_form": "stuffed_128",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_129",
+    "surface_form": "stuffed_129",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_130",
+    "surface_form": "stuffed_130",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_131",
+    "surface_form": "stuffed_131",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_132",
+    "surface_form": "stuffed_132",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_133",
+    "surface_form": "stuffed_133",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_134",
+    "surface_form": "stuffed_134",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_135",
+    "surface_form": "stuffed_135",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_136",
+    "surface_form": "stuffed_136",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_137",
+    "surface_form": "stuffed_137",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_138",
+    "surface_form": "stuffed_138",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_139",
+    "surface_form": "stuffed_139",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_140",
+    "surface_form": "stuffed_140",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_141",
+    "surface_form": "stuffed_141",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_142",
+    "surface_form": "stuffed_142",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_143",
+    "surface_form": "stuffed_143",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_144",
+    "surface_form": "stuffed_144",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_145",
+    "surface_form": "stuffed_145",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_146",
+    "surface_form": "stuffed_146",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_147",
+    "surface_form": "stuffed_147",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_148",
+    "surface_form": "stuffed_148",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_149",
+    "surface_form": "stuffed_149",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_150",
+    "surface_form": "stuffed_150",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_151",
+    "surface_form": "stuffed_151",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_152",
+    "surface_form": "stuffed_152",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_153",
+    "surface_form": "stuffed_153",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_154",
+    "surface_form": "stuffed_154",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_155",
+    "surface_form": "stuffed_155",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_156",
+    "surface_form": "stuffed_156",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_157",
+    "surface_form": "stuffed_157",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_158",
+    "surface_form": "stuffed_158",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_159",
+    "surface_form": "stuffed_159",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_160",
+    "surface_form": "stuffed_160",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_161",
+    "surface_form": "stuffed_161",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_162",
+    "surface_form": "stuffed_162",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_163",
+    "surface_form": "stuffed_163",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_164",
+    "surface_form": "stuffed_164",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_165",
+    "surface_form": "stuffed_165",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_166",
+    "surface_form": "stuffed_166",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_167",
+    "surface_form": "stuffed_167",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_168",
+    "surface_form": "stuffed_168",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_169",
+    "surface_form": "stuffed_169",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_170",
+    "surface_form": "stuffed_170",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_171",
+    "surface_form": "stuffed_171",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_172",
+    "surface_form": "stuffed_172",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_173",
+    "surface_form": "stuffed_173",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_174",
+    "surface_form": "stuffed_174",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_175",
+    "surface_form": "stuffed_175",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_176",
+    "surface_form": "stuffed_176",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_177",
+    "surface_form": "stuffed_177",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_178",
+    "surface_form": "stuffed_178",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_179",
+    "surface_form": "stuffed_179",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_180",
+    "surface_form": "stuffed_180",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_181",
+    "surface_form": "stuffed_181",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_182",
+    "surface_form": "stuffed_182",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_183",
+    "surface_form": "stuffed_183",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_184",
+    "surface_form": "stuffed_184",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_185",
+    "surface_form": "stuffed_185",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_186",
+    "surface_form": "stuffed_186",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_187",
+    "surface_form": "stuffed_187",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_188",
+    "surface_form": "stuffed_188",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_189",
+    "surface_form": "stuffed_189",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.stuffed_190",
+    "surface_form": "stuffed_190",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.854556,
+  "dimensions": {
+   "required_skills": 0.784445,
+   "preferred_skills": 0.65,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.65
+  },
+  "confidence": 0.818189,
+  "derivation": "The 190 stuffed ids and javascript, react, vue relate to no requirement: they change no m (IDF and the requirement-side sums handle a 200-skill list, §14.5). Required: python 1, sql 1, docker execution 0.85, aws and postgresql listed 0.65 (postgresql's parent sql gives only 0.40): 0.784445. Preferred: kubernetes listed 0.65 (docker edge 0.70 x 0.85 = 0.595), terraform 0.65: 0.65. Tools: git, agile, excel listed: 0.65. Experience: the role's bare credits python 1, sql 1, docker 1, postgresql 0.40 (parent sql), kubernetes 0.70 (docker edge): cos = 0.655063; 56.90 x cos = 37.28 >= 24 -> 1.0. Seniority, domain, education 1.0. Raw = 0.35 x 0.784445 + 0.10 x 0.65 + 0.15 + 0.30 + 0.10 x 0.65 = 0.854556. Confidence: 3 of 10 shown beyond the list = 0.3: 0.3^(1/6) = 0.818189 -> SCORED."
+ }
+}

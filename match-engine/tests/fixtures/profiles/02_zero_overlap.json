@@ -1,0 +1,136 @@
+{
+ "name": "zero_overlap",
+ "description": "A community organiser whose résumé shares no skill with a backend posting.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Community Organiser",
+    "employer": "Eastside Tenants Union",
+    "industry_codes": [],
+    "skills": [
+     {
+      "canonical_id": "skill.communication",
+      "surface_form": "communication",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.leadership",
+      "surface_form": "leadership",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.teamwork",
+      "surface_form": "teamwork",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "start": {
+     "value": "2023-04-03",
+     "earliest": "2023-04-03",
+     "latest": "2023-04-03",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.0175,
+  "band": "Limited match",
+  "dimensions": {
+   "required_skills": 0.0,
+   "preferred_skills": 0.0,
+   "experience": 0.0,
+   "seniority": null,
+   "domain": null,
+   "education": 0.14,
+   "tools": 0.0
+  },
+  "confidence": 0.956352,
+  "caps": [],
+  "derivation": "No résumé skill is equal, below, above or linked to any requirement, so every m = 0: required, preferred and tools score a valid 0.0 (not an abstention). Experience: the role covers nothing of the posting, relevance 0, 0 relevant months -> 0.0 (§5.3 curve at ratio 0). Seniority abstains (no level on the current role), domain abstains (no industry code on the résumé). Education: no degree listed is level NONE, three below the required Bachelor -> 0.20, no field relates -> x 0.70 = 0.14; §5.6 has no abstention, so this is the one non-zero dimension (SPEC §14.5's 'raw = 0.0' cannot hold literally while §5.6 never abstains; see the task report). Scored weight 0.35 + 0.10 + 0.15 + 0.10 + 0.10 = 0.80; raw = 0.10 x 0.14 / 0.80 = 0.017500 -> calibrated 2, Limited. Two critical misses (docker 0.7726, postgresql 0.8751) put the cap at 0.55, which does not bind. Confidence: evidence density undefined (nothing matched), dimension coverage 0.80, the rest 1: 0.80^(1/5) = 0.956352 -> SCORED."
+ }
+}

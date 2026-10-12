@@ -386,9 +386,9 @@ def _fact_flags(dimensions: Iterable[DimensionScore]) -> Iterator[Flag]:
 
 
 def _keyed(dimensions: Iterable[DimensionScore]) -> dict[str, DimensionScore]:
-    """Dimension scores by name, in SPEC order (a dimension's name read through its fields, as the
+    """Dimension scores by dimension, in SPEC order (keyed by `DimensionScore.dimension`, as the
     aggregator does)."""
-    by_name = {DimensionName(dict(score)["name"]): score for score in dimensions}
+    by_name = {score.dimension: score for score in dimensions}
     return {name.value: by_name[name] for name in DimensionName if name in by_name}
 
 

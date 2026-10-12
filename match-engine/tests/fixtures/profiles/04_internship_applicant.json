@@ -1,0 +1,147 @@
+{
+ "name": "internship_applicant",
+ "description": "A second-year student working as a teaching assistant applies to an internship.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Teaching Assistant, Intro to Programming",
+    "employer": "Lakeshore University",
+    "industry_codes": [
+     "6113"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "NO_VERB",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.teaching_assistant",
+    "seniority": {
+     "track": "IC",
+     "level": 0
+    },
+    "start": {
+     "value": "2025-09-02",
+     "earliest": "2025-09-02",
+     "latest": "2025-09-02",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "projects": [
+   {
+    "name": "Campus events board",
+    "start": {
+     "value": "2026-01-05",
+     "earliest": "2026-01-05",
+     "latest": "2026-01-05",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2026-03-31",
+     "earliest": "2026-03-31",
+     "latest": "2026-03-31",
+     "precision": "DAY"
+    },
+    "skills": [
+     {
+      "canonical_id": "skill.react",
+      "surface_form": "React",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     }
+    ]
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.agile",
+    "surface_form": "Agile",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": true
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Software Engineering Intern",
+  "title_canonical": "title.software_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 0
+  },
+  "is_internship": true,
+  "industry_codes": [
+   "5415"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "REQUIRED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.react",
+    "necessity": "PREFERRED",
+    "surface_form": "React"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   }
+  ],
+  "requirement_token_count": 4
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.785623,
+  "dimensions": {
+   "required_skills": 0.751906,
+   "preferred_skills": 0.924558,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 0.15,
+   "education": 1.0,
+   "tools": 0.65
+  },
+  "confidence": 0.906019,
+  "flags": [
+   "MIN_YEARS_DEFAULTED"
+  ],
+  "derivation": "The current role sets R = 1 for its bullets and the skills list. Required: python execution 0.85, git no-verb 0.70: (0.326779 x 0.85 + 0.617557 x 0.70) / 0.944336 = 0.751906. Preferred: react, an ownership project bullet ended 2026-03-31 (191 days): R = 0.924558. Tools: agile listed 0.65. Experience: no years stated, the IC0 default 6 months (MIN_YEARS_DEFAULTED); the role (python, git) has cos = 0.626386 in the space python, git, react, agile; 13.17 months x cos = 8.25 >= 6 -> 1.0. Seniority IC0 = IC0: 1.0. Domain 6113 (universities) vs 5415: unrelated floor 0.15. Education: no requirement -> 1.0. Raw = 0.35 x 0.751906 + 0.10 x 0.924558 + 0.15 + 0.10 + 0.10 x 0.15 + 0.10 + 0.10 x 0.65 = 0.785623. Confidence: evidence density 3 of 4 (agile list-only) = 0.75, requirement count 4 -> 0.40 + 0.45 x 3/4 = 0.7375: (0.75 x 0.7375)^(1/6) = 0.906019 -> SCORED."
+ }
+}

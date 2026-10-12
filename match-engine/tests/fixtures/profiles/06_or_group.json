@@ -1,0 +1,216 @@
+{
+ "name": "or_group",
+ "description": "The posting asks for PostgreSQL or MySQL; the candidate has MySQL only.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Backend Developer",
+    "employer": "Copperleaf Logistics",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.mysql",
+      "surface_form": "MySQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.kubernetes",
+      "surface_form": "Kubernetes",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.backend_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.sql",
+    "surface_form": "SQL",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL",
+    "or_group": "relational_db"
+   },
+   {
+    "skill_id": "skill.mysql",
+    "necessity": "REQUIRED",
+    "surface_form": "MySQL",
+    "or_group": "relational_db"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 11
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.993217,
+  "dimensions": {
+   "required_skills": 0.980619,
+   "preferred_skills": 1.0,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 1.0
+  },
+  "confidence": 1.0,
+  "derivation": "The OR-group {postgresql, mysql} scores max(m) over its members (§14.4, D-31): mysql exact 1.00 (an ownership bullet), postgresql 0 (a shared parent without an edge earns nothing, D-23), so the group m = 1, not the mean 0.5; its IDF is the max member IDF, mysql 0.909028 (D-31). sql: max(list 0.65, child via mysql 0.85 x 1) = 0.85. Required = (0.326779 + 0.85 x 0.396012 + 0.772639 + 0.660482 + 0.909028) / (0.326779 + 0.396012 + 0.772639 + 0.660482 + 0.909028) = 0.980619. Every other requirement is an ownership bullet in the current role: preferred 1, tools 1. Experience: cos over the 11 requirement ids (postgresql credit 0, sql 0.85 child) = 0.932234, 56.90 months x cos >= 24 -> 1.0. Seniority, domain, education 1.0. Raw = 0.35 x 0.980619 + 0.65 = 0.993217. Confidence: all 10 groups shown in bullets (sql via mysql), 11 ids: 1.0."
+ }
+}

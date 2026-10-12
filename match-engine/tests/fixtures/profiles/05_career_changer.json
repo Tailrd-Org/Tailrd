@@ -1,0 +1,256 @@
+{
+ "name": "career_changer",
+ "description": "A former teacher moving into backend work through a data coordinator job and a bootcamp.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "High School Teacher",
+    "employer": "Riverside District School Board",
+    "industry_codes": [
+     "6111"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.communication",
+      "surface_form": "communication",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.leadership",
+      "surface_form": "leadership",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.teacher",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2016-08-29",
+     "earliest": "2016-08-29",
+     "latest": "2016-08-29",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2024-06-28",
+     "earliest": "2024-06-28",
+     "latest": "2024-06-28",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Data Coordinator",
+    "employer": "Riverside District School Board",
+    "industry_codes": [
+     "6111"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.data_coordinator",
+    "seniority": {
+     "track": "IC",
+     "level": 1
+    },
+    "start": {
+     "value": "2024-07-02",
+     "earliest": "2024-07-02",
+     "latest": "2024-07-02",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "projects": [
+   {
+    "name": "Bootcamp capstone: ticketing API",
+    "start": {
+     "value": "2026-03-02",
+     "earliest": "2026-03-02",
+     "latest": "2026-03-02",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2026-05-29",
+     "earliest": "2026-05-29",
+     "latest": "2026-05-29",
+     "precision": "DAY"
+    },
+    "skills": [
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "PROJECT"
+     }
+    ]
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.git",
+    "surface_form": "Git",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.agile",
+    "surface_form": "Agile",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.education"
+    ],
+    "field_raw": "B.Ed.",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Backend Developer",
+  "title_canonical": "title.backend_developer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "REQUIRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.postgresql",
+    "necessity": "REQUIRED",
+    "surface_form": "PostgreSQL"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "PREFERRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.640776,
+  "dimensions": {
+   "required_skills": 0.628895,
+   "preferred_skills": 0.382958,
+   "experience": 1.0,
+   "seniority": 0.72,
+   "domain": 0.15,
+   "education": 0.7,
+   "tools": 0.753666
+  },
+  "confidence": 0.963492,
+  "derivation": "Current role, so the list and the current bullets have R = 1; the capstone ended 2026-05-29 (132 days): Rp = 0.947234. Required: python execution 0.85, sql ownership 1, docker and aws participation 0.65 x Rp, postgresql only through its parent sql: 0.40 x 1 (parent row of §5.1): S = 0.628895 (no group below 0.2, no cap). Preferred: kubernetes via its docker edge 0.70 x 0.65 x Rp, terraform via aws 0.55 x 0.65 x Rp: 0.382958. Tools: git 0.65, agile 0.65, excel 1 (ownership in the current role beats the teacher role's older execution bullet): 0.753666. Experience: teacher role 2016-08-29..2024-06-28 relevance = cos(excel only) = 0.253896; coordinator 2024-07-02..as_of relevance = cos(python 1, sql 1, excel 1, postgresql 0.40 parent) = 0.472401; the 4-day gap is not counted. Months = (2860 x 0.253896 + 828 x 0.472401) / 30.4375 = 36.7077; ratio 1.5295 -> curve 1.000000. Seniority: current IC1 vs IC2, gap 1: 1 - 0.28 = 0.72. Domain: 6111 (schools) vs 5415, no shared prefix or sector group: floor 0.15. Education: Bachelor meets Bachelor (1.00), field education has no relation to computer science: x 0.70. Raw = 0.640776. Confidence: 8 of 10 matched groups shown beyond the list (git, agile list-only): 0.8^(1/6) = 0.963492 -> SCORED."
+ }
+}

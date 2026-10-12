@@ -1,0 +1,82 @@
+{
+ "name": "single_requirement",
+ "description": "A posting that names exactly one skill.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Reporting Analyst",
+    "employer": "Harbourview Credit Union",
+    "industry_codes": [
+     "5415"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.reporting_analyst",
+    "seniority": {
+     "track": "IC",
+     "level": 1
+    },
+    "start": {
+     "value": "2025-02-03",
+     "earliest": "2025-02-03",
+     "latest": "2025-02-03",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "SQL Report Writer",
+  "title_canonical": "title.report_writer",
+  "seniority": {
+   "track": "IC",
+   "level": 1
+  },
+  "min_years_total": 1.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   }
+  ],
+  "requirement_token_count": 1
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.934375,
+  "dimensions": {
+   "required_skills": 0.85,
+   "preferred_skills": null,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": null
+  },
+  "confidence": 0.827037,
+  "derivation": "sql is an execution bullet in the current role: m = 0.85; required = 0.85. Preferred and tools abstain (none listed). Experience: the space is {sql}, cos 1, 20 months >= 12 -> 1.0. Seniority IC1 = IC1, domain 5415 = 5415, no education requirement: 1.0 each. Scored weight 0.80: raw = (0.35 x 0.85 + 0.15 + 0.10 + 0.10 + 0.10) / 0.80 = 0.934375. Confidence penalty (§14.5, §17.1): requirement count 1 -> 0.40, dimension coverage 0.80, the rest 1: (0.40 x 0.80)^(1/6) = 0.827037, still SCORED but well below the 1.0 of a ten-requirement posting."
+ }
+}

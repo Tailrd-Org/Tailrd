@@ -1,0 +1,185 @@
+{
+ "name": "two_critical_misses",
+ "description": "A cloud developer missing both Kubernetes and Go, two rare required skills.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Cloud Developer",
+    "employer": "Bluefin Analytics",
+    "industry_codes": [
+     "541511"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.terraform",
+      "surface_form": "Terraform",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.nodejs",
+      "surface_form": "Node.js",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.agile",
+      "surface_form": "Agile",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.cloud_developer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Platform Engineer",
+  "title_canonical": "title.platform_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.kubernetes",
+    "necessity": "REQUIRED",
+    "surface_form": "Kubernetes"
+   },
+   {
+    "skill_id": "skill.go",
+    "necessity": "REQUIRED",
+    "surface_form": "Go"
+   },
+   {
+    "skill_id": "skill.terraform",
+    "necessity": "PREFERRED",
+    "surface_form": "Terraform"
+   },
+   {
+    "skill_id": "skill.nodejs",
+    "necessity": "PREFERRED",
+    "surface_form": "Node.js"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.agile",
+    "necessity": "IMPLIED",
+    "surface_form": "Agile"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 10
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.55,
+  "dimensions": {
+   "required_skills": 0.425324,
+   "preferred_skills": 1.0,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 1.0
+  },
+  "confidence": 1.0,
+  "caps": [
+   {
+    "reason": "CRITICAL_MISS",
+    "cap": 0.55,
+    "requirement_ids": [
+     "skill.go",
+     "skill.kubernetes"
+    ]
+   }
+  ],
+  "derivation": "kubernetes (idf 0.893104) and go (idf 0.975907) have no match at all: two REQUIRED groups with idf > 0.7 and m < 0.2. Everything else is an ownership bullet (m = 1). Required = (0.326779 + 0.396012 + 0.660482) / (that + 0.893104 + 0.975907) = 0.425324. Preferred, tools 1; experience cos = 0.817858, 56.90 months x cos >= 24 -> 1.0; seniority, domain 1.0; no education requirement 1.0. Uncapped raw = 0.35 x 0.425324 + 0.65 = 0.798863 > 0.55, so the two-miss cap binds: raw = 0.55 (the CapApplied lists the misses in group order, go before kubernetes). Confidence 1.0."
+ }
+}
