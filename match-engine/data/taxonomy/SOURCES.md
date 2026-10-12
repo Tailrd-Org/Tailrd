@@ -36,7 +36,9 @@ as downloaded.
   the common-word corpus.
 - Military crosswalk: active primary codes (Army, Marine Corps, Navy, Air Force, Space Force, Coast Guard) mapped to O*NET-SOC; enlisted AFSCs also under their skill-level-X form (3D052 -> 3D0X2).
 - NAICS 2022: 2-6 digit codes; the sector ranges 31-33, 44-45 and 48-49 are expanded to each code.
-- IDF is empty and related edges are the curated ones only: Task 2.3 computes both from the corpus.
+- This build writes an empty IDF and the curated related edges only; scripts/compute_idf.py and
+  scripts/compute_pmi.py compute IDF, the mined edges and the common words from the posting corpus
+  and add the "Corpus statistics" section below (run them after every build).
 
 ## Rules worth knowing when reading the artifacts
 
@@ -79,19 +81,47 @@ as downloaded.
 
 | Kind | Nodes |
 |---|---|
-| TECHNOLOGY | 2,201 |
+| TECHNOLOGY | 2,200 |
 | METHODOLOGY | 11,120 |
-| DOMAIN | 3,314 |
-| TOOL | 27,896 |
+| DOMAIN | 3,313 |
+| TOOL | 27,893 |
 | SOFT | 134 |
 | CREDENTIAL | 79 |
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 704 | 3,339 |
-| esco | 14,295 | 102,813 |
-| onet | 29,745 | 1,990 |
+| curated | 706 | 3,356 |
+| esco | 14,294 | 102,801 |
+| onet | 29,739 | 1,988 |
 
-- Total: 44,744 nodes, 108,142 aliases; 157 curated related edges; 85 curated ambiguous keys and 2,646 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 83 blocked phrases.
-- Merged into curated nodes: 621 source concepts; dropped nodes: 26; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
+- Total: 44,739 nodes, 108,145 aliases; 157 curated related edges; 85 curated ambiguous keys and 2,643 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 95 blocked phrases.
+- Merged into curated nodes: 625 source concepts; dropped nodes: 29; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
+
+## Corpus statistics
+
+Written by `scripts/compute_idf.py` and `scripts/compute_pmi.py` (Task 2.3; SPEC §3.1-§3.2; DECISIONS
+D-21, D-22) from Tailrd's own postings. Aggregates only: the posting text stays in `data/raw/corpus/`
+(git-ignored, D-04). `corpus_report.md` lists the most frequent ids, the strongest mined edges and the
+noisy-alias review.
+
+- Source: Tailrd scraped postings (scraped_jobs), Neon Development branch: the postings whose
+  description is longer than 200 characters and that are no duplicate (`duplicate_of IS NULL`), pulled
+  by `scripts/pull_corpus.py` on 2026-10-09.
+- 5,473 postings; first seen 2026-05-12 to 2026-05-14; scraped 2026-05-12 to 2026-05-14;
+  `postings.jsonl.gz` sha256 `bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac`.
+- Extraction: each posting is read as its title, a line break and its description, decoded from HTML
+  (entities, then tags; a block tag ends a line), through `Resolver.extract` in prose context over this
+  taxonomy. A skill counts once per posting (df), every unordered pair of a posting's skills once
+  (co-df). 5,344 of the 5,473 descriptions are stored cut short (they end in "..."), so skills named
+  late in a posting are undercounted.
+- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 5,473 postings, for the 1,217 ids seen at least
+  once; an id never seen takes `idf.unseen_default`.
+- `pmi_edges.json`: 1,291 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node,
+  pairs where one id is an ancestor of the other left out; D-22) and 157 curated pairs laid over them.
+- `common_words.json`: 3,845 words, each used in at least 20 postings, that resolve to no key;
+  `resolve()` never fuzzy-matches them.
+- Recompute against any database (reads only `DATABASE_URL`), from `match-engine/`; run the two compute
+  scripts again after every `scripts/build_taxonomy.py`, then the gate (`tests/test_surface_forms.py`):
+
+      .venv/Scripts/python.exe scripts/pull_corpus.py --env-file <path to .env> && .venv/Scripts/python.exe scripts/compute_idf.py && .venv/Scripts/python.exe scripts/compute_pmi.py

@@ -19,16 +19,18 @@ required casing ("Go") and resolves only under these rules:
   curated ambiguous keys get this leniency: the automatic `cased` keys (one-word product and tool
   names, DECISIONS D-26) keep their casing in lists too.
 
-An ambiguous key is never a fuzzy target: a near miss cannot have the required casing.
+An ambiguous key is never a fuzzy target: a near miss cannot have the required casing. Nor is a
+common word ever a fuzzy query (Task 2.3): a word that many postings use ("patients", "salary",
+"analysis", from `common_words.json`) is a word, not a typo of a skill.
 
 `extract` also (DECISIONS D-27): skips fields of study (`field.*` nodes) unless
 `include_fields=True`, and then prefers a field to a skill that shares its key ("Statistics" in
 an education line); lets a blocked phrase ("American Express", "Sous Chef", "Technical Skills")
 consume its words without a mention; never reads a season word followed by a year or a term word,
 or next to another season ("Spring 2024", "Fall and Spring"), a person's initial ("John R.
-Smith"), or a currency code in a money context ("85,000 CAD plus benefits", while "1,200 CAD
-drawings" is the skill) as a skill; and, like `resolve`, reads past a French elision ("d'Excel"
--> Excel). A formal in-progress designation ("CPA
+Smith"), or a currency code in a money context ("85,000 CAD plus benefits", "Pay range (CAD)",
+"CAD per hour", while "1,200 CAD drawings" is the skill) as a skill; and, like `resolve`, reads past
+a French elision ("d'Excel" -> Excel). A formal in-progress designation ("CPA
 candidate") is read only as written, never across ":" or a dash; whether a credential is held,
 pursued or required is the context's business, not the taxonomy's (D-28).
 """
@@ -92,47 +94,95 @@ _SEASON_LINKS = frozenset({"and", "or", "&", "to", "through", "until"})
 _NEAR_MARKS = frozenset(",/&" + DASHES + "-" + APOSTROPHES)  # what may stand between a season and its year
 _YEAR_RE = re.compile(r"(?:19|20)\d\d|\d\d")
 # Currency codes in a money context are money, never the skill (D-27): after "$" or a salary
-# word on their line ("$25/hr CAD", "Salary (CAD)"); before an amount or a rate unit on their line
-# ("CAD $80k", "CAD 2M", "CAD/hr"); in a currency pair ("USD/CAD"); after an amount (thousands,
-# cents, a magnitude, four digits or more) unless a curated noun of the skill's work follows
-# ("85,000 CAD plus benefits" is money, "1,200 CAD drawings" the skill; the nouns come from the
-# resolver settings); after a smaller number when a rate or money word, a range to another number,
-# an addition or a separator follows ("25 CAD hourly", "25 CAD - 30 CAD", "40 CAD + HST", "500 CAD
-# (monthly)"). A year is never a number ("the 2024 CAD standards"), nor is a number glued to
-# letters ("CATIA V5 CAD") or inside the skill name the code follows ("Fusion 360 CAD (cloud)"),
-# and a rate phrase needs a number before the code ("Taught CAD annually" keeps CAD). A small
-# count or version before a clause end keeps the skill ("Fusion 360 CAD.", "10 CAD models"), and
-# a number before a list comma is no number for the code ("Office 365, CAD").
+# word on their line ("$25/hr CAD", "Salary (CAD)"), or a "$" amount, perhaps with its rate, before
+# the code's bracket ("$80,000 (CAD)", "$30.00 per hour (CAD)"); after a pay word earlier in the
+# clause with only link words, numbers and brackets between ("Pay range (CAD)", "All amounts are in
+# CAD", "Currency: CAD"; "a wide range of CAD tools" keeps the skill); before an amount, a range, a
+# rate unit or "per <unit>" on their line ("CAD $80k", "CAD 2M", "CAD 25-30", "CAD/hr", "CAD per
+# hour", "CAD par mois"); in a currency pair ("USD/CAD"); after an amount (thousands, also grouped
+# by a space as in French "70 000", cents, a magnitude, four digits or more) or a number that closes
+# a range ("18 - 20 CAD") unless a curated noun of the skill's work follows, alone or after one
+# modifier ("85,000 CAD plus benefits" is money, "1,200 CAD drawings" and "1,500 CAD shop drawings"
+# the skill; the nouns come from the resolver settings); after a smaller number when a rate or money
+# word, a range to another number, an addition or a separator follows ("25 CAD hourly", "25 CAD - 30
+# CAD", "40 CAD + HST", "500 CAD (monthly)"). A year is never a number ("the 2024 CAD standards"),
+# nor is a number glued to letters ("CATIA V5 CAD") or inside the skill name the code follows
+# ("Fusion 360 CAD (cloud)"), and a rate phrase other than "per <unit>" needs a number before the
+# code ("Taught CAD annually" keeps CAD). A small count or version before a clause end keeps the
+# skill ("Fusion 360 CAD.", "10 CAD models"), and a number before a list comma is no number for the
+# code ("Office 365, CAD").
 _CURRENCIES = frozenset({"cad", "usd", "eur", "gbp"})
 _CURRENCY_CODES = _CURRENCIES | frozenset(
     {"jpy", "chf", "aud", "nzd", "cny", "hkd", "sgd", "mxn", "inr", "sek", "nok", "dkk"}
 )
-_NBSP = chr(0xA0)  # no-break space: a space within a line, like " " and tab
+_SPACE = " \t\u00a0\u202f"  # a space within a line: plain, tab, no-break, narrow no-break (French)
+_GROUP = " \u00a0\u202f"  # what may group the thousands of an amount besides "," ("70 000")
 _RATE_UNIT = r"/\s*(?:hr|h|hour|yr|year|annum)\b"  # written on the code ("CAD/hr"): money by itself
-_RATE_PHRASE = r"(?:per\s+(?:hour|year|annum|month|week|day|hr)|annually|hourly|an\s+hour|a\s+year)\b"
+# "per <unit>" right after the code is money by itself too ("CAD per hour"), and so is French "par".
+_PER_UNIT = r"(?:per\s+(?:hour|hr|day|week|month|year|annum)|par\s+(?:heure|jour|semaine|mois|année|an))\b"
+_RATE_PHRASE = rf"(?:{_PER_UNIT}|(?:annually|hourly|an\s+hour|a\s+year)\b)"  # after a number: money
 _MAGNITUDE = r"(?:k|m|b|bn|million|billion|thousand)"
-_DOLLAR_BEFORE = re.compile(rf"\$\s*[\d,.\u00a0]*\s*{_MAGNITUDE}?\s*(?:/\s*[A-Za-z]+)?\s*$", re.IGNORECASE)
+_DOLLAR_BEFORE = re.compile(
+    rf"\$\s*[\d,.{_GROUP}]*\s*{_MAGNITUDE}?\s*(?:/\s*[A-Za-z]+|{_RATE_PHRASE})?\s*\(?\s*$", re.IGNORECASE
+)
 # The number right before the code; one glued to letters ("V5", "S3") is part of a name.
-_NUMBER_BEFORE = re.compile(rf"(?<![^\W\d])(\d(?:[\d,.\u00a0]*\d)?)\s*({_MAGNITUDE})?\s*$", re.IGNORECASE)
+_NUMBER_BEFORE = re.compile(
+    rf"(?<![^\W\d])(\d{{1,3}}(?:[{_GROUP}]\d{{3}})+(?:[.,]\d+)?|\d(?:[\d,.\u00a0\u202f]*\d)?)\s*({_MAGNITUDE})?\s*$",
+    re.IGNORECASE,
+)
 _YEAR_ONLY = re.compile(r"(?:19|20)\d\d")
-_THOUSANDS = re.compile(r"\d[,\u00a0]\d{3}(?!\d)")
+_THOUSANDS = re.compile(rf"\d[,{_GROUP}]\d{{3}}(?!\d)")
 _CENTS = re.compile(r"\d+\.\d\d")
+# A number that closes a range is an amount, never a version: "18 - 20 CAD", "25 CAD to 30 CAD".
+_RANGE_BEFORE = re.compile(
+    rf"(?<!\w)\d+(?:[.,]\d+)*[{_SPACE}]*(?:(?:{'|'.join(sorted(_CURRENCY_CODES))})[{_SPACE}]*)?"
+    rf"(?:[\-{DASHES}]|to)[{_SPACE}]*\$?[{_SPACE}]*$",
+    re.IGNORECASE,
+)
+_DURATION = r"(?:years?|yrs?|months?|weeks?|days?|hours?|hrs?|times?)\b"  # "CAD 2-3 years": no pay
 _AMOUNT_AFTER = re.compile(
-    rf"[ \t{_NBSP}]*(?:\$|\d{{1,3}}(?:[,\u00a0 ]\d{{3}})+|\d+(?:\.\d+)?\s*{_MAGNITUDE}\b|\d+\.\d\d\b"
-    rf"|(?!(?:19|20)\d\d\b)\d{{4,}}|{_RATE_UNIT})",
+    rf"[{_SPACE}]*(?:\$|\d{{1,3}}(?:[,{_GROUP}]\d{{3}})+|\d+(?:\.\d+)?\s*{_MAGNITUDE}\b|\d+\.\d\d\b"
+    rf"|(?!(?:19|20)\d\d\b)\d{{4,}}"
+    rf"|\d+(?:[.,]\d+)?[{_SPACE}]*(?:[\-{DASHES}]|to\b)[{_SPACE}]*\$?[{_SPACE}]*\d+(?:[.,]\d+)?"
+    rf"(?![{_SPACE}]*{_DURATION})|{_RATE_UNIT}|{_PER_UNIT})",
     re.IGNORECASE,
 )
 # After a small number: a rate phrase, a money or pay word (the award words singular only: "2 CAD
 # awards" counts awards), a range to another number, an addition or a separator.
 _SMALL_NUMBER_MONEY_AFTER = re.compile(
-    rf"[ \t{_NBSP}]*(?:{_RATE_PHRASE}|(?:salary|wages?|budgets?|revenues?|funding|savings|costs?|fees?"
+    rf"[{_SPACE}]*(?:{_RATE_PHRASE}|(?:salary|wages?|budgets?|revenues?|funding|savings|costs?|fees?"
     r"|income|bonus(?:es)?|benefits|equity|depending|DOE|OTE|scholarship|prize|award|grant|bursary"
-    rf"|stipend)\b|(?:[\-{DASHES}]|to\b)[ \t{_NBSP}]*\$?[ \t{_NBSP}]*\d|\+|plus\b|[(|])",
+    rf"|stipend)\b|(?:[\-{DASHES}]|to\b)[{_SPACE}]*\$?[{_SPACE}]*\d|\+|plus\b|[(|])",
     re.IGNORECASE,
 )
-# The word right after the code, on its line: a curated noun there keeps the code a skill.
-_NEXT_WORD = re.compile(rf"[ \t{_NBSP}]+([^\W_][\w\-{APOSTROPHES}]*)")
+# The words right after the code, on its line: a curated noun there, or after one modifier ("shop
+# drawings", "3D models"), keeps the code a skill. A function or rate word is no modifier: "5,000
+# CAD on parts" and "80,000 CAD annual licences" are money.
+_WORD = rf"([^\W_][\w\-{APOSTROPHES}]*)"
+_NEXT_WORD = re.compile(rf"[{_SPACE}]+{_WORD}")
+_NEXT_TWO_WORDS = re.compile(rf"[{_SPACE}]+{_WORD}[{_SPACE}]+{_WORD}")
+_NO_MODIFIER = frozenset({
+    "a", "an", "the", "of", "on", "in", "for", "to", "at", "by", "from", "with", "into", "per", "and", "or",
+    "plus", "as", "each", "every", "worth", "over", "under", "annual", "monthly", "yearly", "weekly", "hourly",
+    "total", "de", "des", "en", "pour", "par", "sur", "et", "ou",
+})
 _SALARY_WORDS = re.compile(r"\b(?:salary|salaire|wages?|compensation|rémunération)\b", re.IGNORECASE)
+# Pay words (Task 2.3): money when only link words, numbers and brackets stand between one and the
+# code in the same clause ("Hourly rate (CAD)", "All figures cited below are in CAD").
+_PAY_WORDS = (
+    r"pay|rates?|ranges?|salary|salaries|salaire|wages?|compensation|rémunération|stipends?|bonus(?:es)?"
+    r"|amounts?|currency|figures|montants?|devise|taux"
+)
+_PAY_LINKS = (
+    r"in|is|are|be|will|all|the|our|its|to|from|between|per|hour|hours|year|month|week|day|cited|quoted"
+    r"|listed|shown|expressed|stated|given|paid|presented|provided|below|above|here|base|hiring|expected"
+    r"|starting|annual|hourly|total|target|canadian|dollars?|en|est|sont|les|des|tous|toutes|ci-dessous"
+    r"|indiqués|exprimés|versés|par|heure|an|année|mois|semaine"
+)
+_PAY_BEFORE = re.compile(
+    rf"\b(?:{_PAY_WORDS})\b(?:[\s():*/$,.\d\-{DASHES}]|\b(?:{_PAY_WORDS}|{_PAY_LINKS})\b)*$", re.IGNORECASE
+)
+_CLAUSE_BREAK = re.compile(r"[.!?](?=\s)|[;|•]")  # what ends the clause a pay word must share
 # A formal in-progress designation ("CPA candidate", "articling student") is read only as written,
 # never across ":" or a dash: "Elementary Teacher - Candidate must hold OCT" names no teacher
 # candidate, "Designation: CFA - Level II" no CFA candidacy (D-28).
@@ -208,6 +258,7 @@ class Resolver:
         blocked_phrases: Iterable[str] = (),
         in_progress: Mapping[str, str] = _NO_AMBIGUOUS,
         currency_skill_nouns: Iterable[str] = (),
+        common_words: Iterable[str] = (),
         fuzzy_log: Optional[FuzzyLog] = None,
     ) -> None:
         """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
@@ -217,7 +268,9 @@ class Resolver:
         designations ("cred.cpa" -> "cred.cpa_in_progress", D-28): those are read only as written.
         `currency_skill_nouns` are the nouns that, right after an amount and a currency code that
         is also a skill, make the code the skill ("1,200 CAD drawings"); otherwise it is money
-        ("85,000 CAD plus benefits", D-27)."""
+        ("85,000 CAD plus benefits", D-27). `common_words` are words frequent in the posting corpus
+        (`common_words.json`, Task 2.3): `resolve` never reads one as a typo, so it never
+        fuzzy-matches ("patients" is no "patents"). Exact matches and `extract` are unaffected."""
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
@@ -231,6 +284,7 @@ class Resolver:
         self._field_index = _build_index(graph, fields=True)
         self._formal = frozenset(in_progress.values())
         self._currency_nouns = frozenset(normalize_surface(noun) for noun in currency_skill_nouns) - {""}
+        self._common_words = frozenset(normalize_surface(word) for word in common_words) - {""}
 
         self._ambiguous: dict[str, str] = {}
         for key, casing in (*ambiguous.items(), *cased.items()):
@@ -264,8 +318,8 @@ class Resolver:
     def resolve(self, surface: str, *, prefer_fields: bool = False) -> Resolution:
         """Exact or alias match over the surface's variants, a skill before a field of study (the
         field first with `prefer_fields`, for an education line's field: "Statistics"); else a
-        bounded fuzzy match for a single long token (logged); else NONE. A leading French elision
-        is read past ("d'Excel"); a blocked phrase is NONE."""
+        bounded fuzzy match for a single long token that is no common word (logged); else NONE. A
+        leading French elision is read past ("d'Excel"); a blocked phrase is NONE."""
         body = _without_elision(surface)
         normalized = normalize_surface(body)
         variants = surface_variants(normalized)
@@ -294,8 +348,14 @@ class Resolver:
         return Resolution(surface=surface, canonical_id=None, method="NONE")
 
     def _fuzzy(self, normalized: str) -> Optional[tuple[str, int]]:
-        """Closest key within the edit bound: smaller distance first, then the smaller key."""
-        if self._max_distance < 1 or " " in normalized or len(normalized) < self._min_length:
+        """Closest key within the edit bound: smaller distance first, then the smaller key. A
+        common word of the posting corpus is a word, not a typo: it has none."""
+        if (
+            self._max_distance < 1
+            or " " in normalized
+            or len(normalized) < self._min_length
+            or normalized in self._common_words
+        ):
             return None
         best: Optional[tuple[int, str]] = None  # (edits, key)
         size = len(normalized)
@@ -593,26 +653,59 @@ def _is_acronym(casing: str) -> bool:
 
 def _is_money(text: str, start: int, end: int, floor: int, nouns: frozenset[str]) -> bool:
     """Whether the currency code text[start:end] stands in a money context (D-27): after "$" or a
-    salary word on its line; before an amount or a rate unit on its line ("CAD 80,000", "CAD/hr");
-    after an amount unless one of `nouns` follows ("85,000 CAD plus benefits" is money, "1,200 CAD
-    drawings" the skill); after a smaller number that a rate or money word, a range to another
-    number, an addition or a separator follows ("25 CAD hourly", "40 CAD + HST"). A year is no
-    number, nor is one glued to letters ("V5") or before `floor`, where the previous window ended
-    ("Fusion 360 CAD (cloud)": 360 belongs to the name). "Proficient in CAD", "Taught CAD
-    annually", "the 2024 CAD standards" and "Fusion 360 CAD." are the skill."""
+    salary word on its line, or a "$" amount before its bracket ("$80,000 (CAD)"); after a pay word
+    of its clause with only link words, numbers and brackets between ("Pay range (CAD)", "All
+    amounts are in CAD"); before an amount, a range, a rate unit or "per <unit>" on its line ("CAD
+    80,000", "CAD 25-30", "CAD/hr", "CAD per hour"); after an amount or a number that closes a
+    range unless one of `nouns` follows, alone or after one modifier ("85,000 CAD plus benefits"
+    and "18 - 20 CAD" are money, "1,200 CAD drawings" and "1,500 CAD shop drawings" the skill);
+    after a smaller number that a rate or money word, a range to another number, an addition or a
+    separator follows ("25 CAD hourly", "40 CAD + HST"). A year is no number, nor is one glued to
+    letters ("V5") or before `floor`, where the previous window ended ("Fusion 360 CAD (cloud)":
+    360 belongs to the name). "Proficient in CAD", "Taught CAD annually", "a wide range of CAD
+    tools", "the 2024 CAD standards" and "Fusion 360 CAD." are the skill."""
     line_start = max(text.rfind("\n", 0, start), text.rfind("\r", 0, start)) + 1
     before = text[max(line_start, start - 30) : start]
     if _DOLLAR_BEFORE.search(before) or _SALARY_WORDS.search(before):
         return True
+    if _PAY_BEFORE.search(_clause_before(text, line_start, start)):
+        return True
     if _AMOUNT_AFTER.match(text, end):
         return True
-    number = _NUMBER_BEFORE.search(text, max(line_start, floor, start - 30), start)
+    low = max(line_start, floor, start - 30)
+    number = _NUMBER_BEFORE.search(text, low, start)
     if number is None or _YEAR_ONLY.fullmatch(number.group(1)):
         return False
-    if _is_amount(number):
-        word = _NEXT_WORD.match(text, end)
-        return word is None or normalize_surface(word.group(1)) not in nouns
+    if _is_amount(number) or _RANGE_BEFORE.search(text, low, number.start(1)):
+        return not _a_noun_of_the_skill_follows(text, end, nouns)
     return _SMALL_NUMBER_MONEY_AFTER.match(text, end) is not None
+
+
+def _clause_before(text: str, line_start: int, start: int) -> str:
+    """The text of the code's clause before it, on its line and at most 60 characters: what
+    follows the last sentence end (". ", "! ", "? ") or ";", "|", bullet there."""
+    window = text[max(line_start, start - 60) : start]
+    cut = 0
+    for match in _CLAUSE_BREAK.finditer(window):
+        cut = match.end()
+    return window[cut:]
+
+
+def _a_noun_of_the_skill_follows(text: str, end: int, nouns: frozenset[str]) -> bool:
+    """Whether one of `nouns` is the next word after text[:end], on its line, or the word after a
+    modifier that is no function or rate word ("1,500 CAD shop drawings", "2,000 CAD 3D models";
+    not "5,000 CAD on parts")."""
+    word = _NEXT_WORD.match(text, end)
+    if word is None:
+        return False
+    if normalize_surface(word.group(1)) in nouns:
+        return True
+    pair = _NEXT_TWO_WORDS.match(text, end)
+    return (
+        pair is not None
+        and normalize_surface(pair.group(1)) not in _NO_MODIFIER
+        and normalize_surface(pair.group(2)) in nouns
+    )
 
 
 def _is_amount(number: re.Match[str]) -> bool:

@@ -18,6 +18,7 @@ import time
 from pathlib import Path
 
 import pytest
+import yaml
 
 from matcher.graph.loader import load_graph, load_json_artifact, load_resolver
 from matcher.models import SkillKind
@@ -129,10 +130,14 @@ def test_fields_of_study_and_their_curated_relations(graph) -> None:
 
 
 def test_curated_edges_stay_in_the_credit_range(graph) -> None:
-    for a, targets in graph.related.items():
-        for b, weight in targets.items():
-            assert 0.4 <= weight <= 0.8, (a, b, weight)
-            assert graph.related_weight(b, a) == weight  # stored both ways
+    # Every curated edge keeps its own weight, in the credit range, stored both ways. Since Task 2.3
+    # the graph also holds edges mined from postings (NPMI in [0.4, 1], possibly one way after the
+    # out-degree cap, DECISIONS D-22); tests/test_corpus_stats.py checks those.
+    curated = yaml.safe_load((ROOT / "config" / "curated_edges.yaml").read_text(encoding="utf-8"))["edges"]
+    assert len(curated) >= 100
+    for a, b, weight in curated:
+        assert 0.4 <= weight <= 0.8, (a, b, weight)
+        assert graph.related[a][b] == graph.related[b][a] == weight, (a, b)  # stored both ways
 
 
 def test_the_committed_taxonomy_was_built_from_the_committed_config() -> None:
@@ -184,7 +189,33 @@ def test_resolver_settings_hold_the_rounds_rules() -> None:
     nouns = settings["currency_skill_nouns"]
     assert nouns == sorted(set(nouns)) and all(noun == noun.lower() and " " not in noun for noun in nouns)
     assert {"drawings", "models", "files", "parts", "sheets", "assemblies", "licences", "licenses",
-            "standards"} <= set(nouns)
+            "standards", "components", "documents"} <= set(nouns)  # the last two: Task 2.3
+    # Task 2.3 (D-27): "control system" inside unrelated compounds names no control system.
+    for phrase in ("document control system", "document control systems", "change control system",
+                   "change control systems", "pest control system", "pest control systems", "cash control system",
+                   "fire alarm control system", "climate control system", "climate control systems"):
+        assert phrase in settings["blocked_phrases"], phrase
+
+
+def test_task_2_3_names(graph, resolver) -> None:
+    # The corpus review (D-26): generic words that reached a specific node in Tailrd's postings are gone.
+    assert not {"skill.act", "skill.google", "esco.ecosystems"} & set(graph.nodes)  # "act on", the company
+    assert "translating" not in graph.nodes["skill.translation"].aliases  # "translating X into Y"
+    assert "shape the future" not in graph.nodes["esco.think_innovatively"].aliases
+    assert "work-life balance" not in graph.nodes["esco.maintain_psychological_well_being"].aliases
+    assert graph.nodes["skill.microsoft_windows_sdk"].aliases == ()  # bare "SDK" was its only alias
+    assert resolver.resolve("SDK").method == "NONE"
+    # PID (D-27): bare "PID" is nothing; PID control is control systems; the detector keeps its names.
+    assert resolver.resolve("PID").method == "NONE"
+    for name in ("PID control", "PID controller", "PID controllers", "PID loop", "PID loops", "PID tuning"):
+        assert resolver.resolve(name).canonical_id == "skill.control_systems", name
+    detector = graph.nodes["skill.photoionization_detectors"]
+    assert detector.source == "curated" and "PID" not in detector.aliases
+    for name in ("photoionization detector", "Photoionization detectors PID", "HNu photoionization detectors PID"):
+        assert resolver.resolve(name).canonical_id == "skill.photoionization_detectors", name
+    # "access control system" is the access-control node, as its plural always was.
+    for name in ("access control system", "access control systems"):
+        assert resolver.resolve(name).canonical_id == "skill.access_control_systems", name
 
 
 def test_round_4_names(graph, resolver) -> None:

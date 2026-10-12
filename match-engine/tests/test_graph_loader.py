@@ -372,6 +372,50 @@ def test_load_resolver_applies_the_currency_skill_nouns(tmp_path: Path, config) 
     assert found == {"plain": [], "nouns": ["skill.cad"]}
 
 
+def test_load_resolver_applies_the_common_words(tmp_path: Path, config, monkeypatch: pytest.MonkeyPatch) -> None:
+    # Task 2.3: common_words.json (hash-pinned like every extra) lists corpus words the fuzzy
+    # fallback never reads as typos; without the file the resolver works as before.
+    settings = {"format": 1, "ambiguous": {}}
+    write_artifacts(tmp_path / "plain", NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings})
+    write_artifacts(tmp_path / "words", NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings, "common_words.json": {"format": 1, "words": ["kubernets"]}})
+    assert load_resolver(tmp_path / "plain", config).resolve("kubernets").canonical_id == "skill.kubernetes"
+    assert "common_words.json" in _manifest(tmp_path / "words")["artifacts"]
+    reads: list[str] = []
+    original = loader_module._read
+
+    def counting(root: Path, name: str) -> bytes:
+        reads.append(name)
+        return original(root, name)
+
+    monkeypatch.setattr(loader_module, "_read", counting)
+    guarded = load_resolver(tmp_path / "words", config)
+    assert guarded.resolve("kubernets").method == "NONE"
+    assert guarded.resolve("kubernetess").canonical_id == "skill.kubernetes"  # another typo still fuzzes
+    assert sorted(reads) == ["MANIFEST.json", "common_words.json", "idf.json", "nodes.json.gz", "pmi_edges.json",
+                             "resolver.json"]
+
+
+@pytest.mark.parametrize("document", [{"format": 1}, {"format": 1, "words": "kubernets"},
+                                      {"format": 1, "words": ["kubernets", ""]}, {"format": 1, "words": [3]}])
+def test_bad_common_words_are_refused(tmp_path: Path, config, document: dict) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": {"format": 1, "ambiguous": {}}, "common_words.json": document})
+    with pytest.raises(ArtifactError, match="common_words.json"):
+        load_resolver(tmp_path, config)
+
+
+def test_a_tampered_common_words_file_is_refused(tmp_path: Path, config) -> None:
+    write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": {"format": 1, "ambiguous": {}},
+                           "common_words.json": {"format": 1, "words": ["kubernets"]}})
+    path = tmp_path / "common_words.json"
+    path.write_bytes(path.read_bytes().replace(b"kubernets", b"kubernetz"))
+    with pytest.raises(ArtifactError, match="common_words.json"):
+        load_resolver(tmp_path, config)
+
+
 def test_load_resolver_applies_cased_keys_and_blocked_phrases(tmp_path: Path, config) -> None:
     settings = {"format": 1, "ambiguous": {"go": "Go"}, "cased": {"react": "React"}, "blocked_phrases": ["Go-Live"]}
     write_artifacts(tmp_path, NODES, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
