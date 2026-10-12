@@ -98,7 +98,8 @@ def _simple(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Opti
     return None
 
 
-_MIN_FUSED = 6  # shortest token tried as two fused header words ("worked" is not split: no halves)
+_MIN_FUSED = 6  # shortest token tried as fused header words
+_MAX_FUSED = 60
 
 
 def _header_words(table: SectionsTable) -> frozenset[str]:
@@ -112,21 +113,29 @@ def _header_words(table: SectionsTable) -> frozenset[str]:
 _HEADER_WORDS: dict[int, tuple[SectionsTable, frozenset[str]]] = {}
 
 
+def _segments(token: str, known: frozenset[str]) -> Optional[list[str]]:
+    """`token` as the fewest header words (each of two letters or more), or None."""
+    best: list[Optional[list[str]]] = [[]] + [None] * len(token)
+    for end in range(2, len(token) + 1):
+        for start in range(0, end - 1):
+            if best[start] is not None and token[start:end] in known:
+                candidate = best[start] + [token[start:end]]
+                if best[end] is None or len(candidate) < len(best[end]):
+                    best[end] = candidate
+    return best[len(token)]
+
+
 def _defused(text: str, table: SectionsTable) -> Optional[str]:
-    """OCR often drops the space between the words of a styled header ("ProfessionalExperience",
-    "Researchand Professional Experience"): each token that is not a header word but splits into
-    two header words is split. None when nothing splits."""
+    """OCR often drops the spaces between the words of a styled header ("ProfessionalExperience",
+    "ResearchandProfessionalExperience"): each token that is not a header word but splits into
+    header words is split. None when nothing splits."""
     known = _header_words(table)
     out, changed = [], False
     for token in header_key(text).split():
-        if token not in known and len(token) >= _MIN_FUSED:
-            for cut in range(2, len(token) - 1):
-                if token[:cut] in known and token[cut:] in known:
-                    out += [token[:cut], token[cut:]]
-                    changed = True
-                    break
-            else:
-                out.append(token)
+        pieces = _segments(token, known) if token not in known and _MIN_FUSED <= len(token) <= _MAX_FUSED else None
+        if pieces and len(pieces) > 1:
+            out += pieces
+            changed = True
         else:
             out.append(token)
     return " ".join(out) if changed else None
