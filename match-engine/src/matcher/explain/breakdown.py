@@ -4,14 +4,16 @@
 
 * Headline. SCORED: "Fit score 76 · Good match" (`bands.display.label`), or "Fit score 71–79 · Good
   match" when the interval is displayed. SCORED_LOW_CONFIDENCE: the band only. GATE_FAIL: "Not
-  eligible: " + the sentence of the first failing gate. NEEDS_REVIEW: "We couldn't score this
-  match". Never a percent sign after the number. `score` and `basis` (`bands.basis[scope]` with the
+  eligible: " + the sentence of the first failing gate. NEEDS_REVIEW: "We couldn't score this"
+  (compliance.md §2). Never a percent sign after the number. `score` and `basis` (`bands.basis[scope]` with the
   score) only when a score is displayed, i.e. SCORED; `band` for SCORED and low confidence.
 * Strengths (SCORED and low confidence; at most four, by contribution): "k of n required skills",
-  "k of n preferred skills" (k ≥ 1; the note names them), "x yrs relevant vs y required" ("vs a
+  "k of n preferred skills" (k ≥ 1; the note names them, a skill credited through a related one as
+  "Terraform (through your AWS experience)", never as held), "x yrs relevant vs y required" ("vs a
   typical y" when the minimum came from the level) when the minimum is met, and seniority,
   education (when the posting states a requirement) and industry when they scored at least 0.8.
-  The required-skills line is always kept when there is one, so every REQUIRED group is named in a
+  No work experience against a stated minimum of zero is "This role doesn't require prior work
+  experience". The required-skills line is always kept when there is one, so every REQUIRED group is named in a
   strength or a gap.
 * Gaps (same outcomes): every REQUIRED and PREFERRED group with m < 0.5 (`gaps.find_gaps`):
   "Missing: Terraform (required)" or "Partly covered: …", with a note naming the résumé skills that
@@ -20,14 +22,16 @@
 * Impacts ("+0.31", raw scale) are shown on SCORED results only: on the other outcomes the score is
   suppressed, and a column of raw contributions would be the number under another name.
 * Notes: one plain sentence per low-confidence reason, gate warning, binding cap, résumé-side
-  abstention (DATES_MISSING, FUNCTIONAL_RESUME) and informational flag (`FLAG_TEXT`). OVERQUALIFIED
+  abstention (DATES_MISSING, FUNCTIONAL_RESUME) and informational flag (`FLAG_TEXT`; not MIN_YEARS_DEFAULTED, nor
+  NO_WORK_EXPERIENCE when an experience item says it). LOW_EVIDENCE_DENSITY names the skills only
+  listed in the skills section, LOW_DIMENSION_COVERAGE the parts not assessed (DECISIONS D-56). OVERQUALIFIED
   is a note and never a gap. A cap is only ever mentioned when it bound (`MatchResult.caps`).
   NEEDS_REVIEW lists its reasons; GATE_FAIL its other reasons and warnings, and that the facts can
   be updated.
 * `to_improve`: the texts of `improvements`.
 
 Total: with `strict=False` (production) a defect while building the detail falls back to the
-headline and the reason sentences, so every result still gets an explanation; `strict=True` (tests)
+headline (a scored result's band at worst) and the reason sentences, so every result still gets an explanation; `strict=True` (tests)
 raises it. Deterministic and pure.
 """
 
@@ -46,6 +50,7 @@ from matcher.models import (
     DegreeLevel,
     DimensionName,
     DimensionScore,
+    Evidence,
     Explanation,
     ExplanationItem,
     Fact,
@@ -65,13 +70,25 @@ __all__ = ["MAX_STRENGTHS", "NEEDS_REVIEW_HEADLINE", "build_explanation", "headl
 
 MAX_STRENGTHS = 4
 STRONG_DIMENSION = 0.8  # seniority / education / industry count as a strength from here
-NEEDS_REVIEW_HEADLINE = "We couldn't score this match"
+NEEDS_REVIEW_HEADLINE = "We couldn't score this"  # compliance.md §2, verbatim
 NOT_ELIGIBLE = "Not eligible: "
 LIMITED_INFORMATION = "We're showing a band instead of a number because some information was limited."
 GATE_FACTS = ("This is based on the details in your profile. If they've changed, update them "
               "and we'll check again.")
 _MAX_NAMED = 6  # skills named in one note before "and N more"
 _RESUME_ABSTENTIONS = (Flag.DATES_MISSING, Flag.FUNCTIONAL_RESUME)
+_MAX_LISTED = 3  # skills named in the "only listed" note before "and N more"
+# Informational flags never shown as notes: the posting's own business, already said by an item.
+_SILENT_FLAGS = frozenset({Flag.MIN_YEARS_DEFAULTED})
+_DIMENSION_TEXT = {
+    DimensionName.REQUIRED_SKILLS: "required skills",
+    DimensionName.PREFERRED_SKILLS: "preferred skills",
+    DimensionName.EXPERIENCE: "experience",
+    DimensionName.SENIORITY: "level",
+    DimensionName.DOMAIN: "industry",
+    DimensionName.EDUCATION: "education",
+    DimensionName.TOOLS: "other keywords",
+}
 _DEGREE_TEXT = {
     DegreeLevel.HIGH_SCHOOL: "a high school diploma",
     DegreeLevel.ASSOCIATE: "a college diploma or associate degree",
@@ -129,11 +146,62 @@ def _cap_note(result: MatchResult, graph: SkillGraph) -> list[str]:
     return notes
 
 
-def _notes(result: MatchResult, graph: SkillGraph) -> list[str]:
+def _only_listed(result: MatchResult, prepared: Optional[PreparedResume], graph: SkillGraph) -> str:
+    """LOW_EVIDENCE_DENSITY, said from the data: the résumé skills behind a matched requirement
+    whose only affirmed evidence is the skills section (what D-44's density counts as not shown)."""
+    listed: list[str] = []
+    if prepared is not None:
+        for dimension in result.dimensions.values():
+            for fact in group_facts(dimension.facts):
+                via = fact.detail.get("via")
+                if not (isinstance(via, str) and (fact.value or 0.0) > 0.0) or via in listed:
+                    continue
+                if prepared.affirmed_evidence.get(via) is Evidence.SKILLS_BLOB:
+                    listed.append(via)
+    if not listed:
+        return ("Some matching skills are only listed in your skills section; showing them in a "
+                "project or role would count for more.")
+    labels = sorted(skill_label(graph, skill_id) for skill_id in listed)
+    if len(labels) > _MAX_LISTED:
+        labels = [*labels[:_MAX_LISTED], f"{len(labels) - _MAX_LISTED} more"]
+    if len(listed) == 1:
+        return (f"{labels[0]} is only listed in your skills section; showing it in a project or role "
+                "would count for more.")
+    return (f"{join_labels(labels)} are only listed in your skills section; showing them in a project "
+            "or role would count for more.")
+
+
+def _not_assessed(result: MatchResult) -> str:
+    """LOW_DIMENSION_COVERAGE, naming the parts that abstained (§5.1's weight moved to §5.2 for a
+    posting with no required skills counts as assessed, D-42)."""
+    names = []
+    for name in DimensionName:
+        dimension = result.dimensions.get(name.value)
+        if dimension is None or not dimension.abstained:
+            continue
+        if name is DimensionName.REQUIRED_SKILLS and dimension.abstain_reason == Flag.NO_REQUIRED_REQUIREMENTS:
+            continue
+        names.append(_DIMENSION_TEXT[name])
+    if not names:
+        return flag_sentence(Flag.LOW_DIMENSION_COVERAGE)
+    return f"We couldn't assess {join_labels(names)} for this match."
+
+
+def reason_sentence(reason: Flag, result: MatchResult, prepared: Optional[PreparedResume], graph: SkillGraph) -> str:
+    """The note for one reason code: FLAG_TEXT, except the two said from the data."""
+    if reason == Flag.LOW_EVIDENCE_DENSITY:
+        return _only_listed(result, prepared, graph)
+    if reason == Flag.LOW_DIMENSION_COVERAGE:
+        return _not_assessed(result)
+    return flag_sentence(reason)
+
+
+def _notes(result: MatchResult, graph: SkillGraph, prepared: Optional[PreparedResume] = None,
+           shown_codes: frozenset[str] = frozenset()) -> list[str]:
     outcome = Outcome(result.outcome)
     notes: list[str] = []
     if outcome is Outcome.NEEDS_REVIEW:
-        notes.extend(flag_sentence(reason) for reason in result.reasons)
+        notes.extend(reason_sentence(reason, result, prepared, graph) for reason in result.reasons)
         return _unique(notes)
     if outcome is Outcome.GATE_FAIL:
         failed = [gate.reason for gate in result.gates if gate.status is GateStatus.FAIL and gate.reason]
@@ -141,13 +209,18 @@ def _notes(result: MatchResult, graph: SkillGraph) -> list[str]:
         notes.extend(flag_sentence(reason) for reason in result.reasons if reason not in failed)
     if outcome is Outcome.SCORED_LOW_CONFIDENCE:
         notes.append(LIMITED_INFORMATION)
-        notes.extend(flag_sentence(reason) for reason in result.reasons)
+        notes.extend(reason_sentence(reason, result, prepared, graph) for reason in result.reasons)
     notes.extend(flag_sentence(gate.reason) for gate in result.gates if gate.status is GateStatus.WARN and gate.reason)
     notes.extend(_cap_note(result, graph))
     for dimension in result.dimensions.values():
         if dimension.abstained and dimension.abstain_reason in _RESUME_ABSTENTIONS:
             notes.append(flag_sentence(dimension.abstain_reason))
-    notes.extend(flag_sentence(flag) for flag in result.flags)
+    for flag in result.flags:
+        if flag in _SILENT_FLAGS:
+            continue
+        if flag == Flag.NO_WORK_EXPERIENCE and shown_codes & {"EXPERIENCE", "EXPERIENCE_SHORT"}:
+            continue  # the experience item already says so
+        notes.append(flag_sentence(flag))
     if outcome is Outcome.GATE_FAIL:
         notes.append(GATE_FACTS)
     return _unique(notes)
@@ -172,6 +245,19 @@ def _group_label(graph: SkillGraph, fact: Fact) -> str:
     return skill_label(graph, fact.subject)
 
 
+def _held_label(graph: SkillGraph, fact: Fact) -> str:
+    """A matched requirement as the candidate holds it: its own name when the résumé shows it (or
+    one of its OR-group members), "Terraform (through your AWS experience)" when a related skill
+    earned the credit. Never names an unheld skill as held."""
+    label = skill_label(graph, fact.subject)
+    via = fact.detail.get("via")
+    raw = fact.detail.get("members")
+    members = {part for part in raw.split(",") if part} if isinstance(raw, str) else set()
+    if isinstance(via, str) and via and via != fact.subject and via not in members:
+        return f"{label} (through your {skill_label(graph, via)} experience)"
+    return label
+
+
 def _coverage_strength(dimension: Optional[DimensionScore], graph: SkillGraph, word: str, code: str) -> Optional[tuple[float, ExplanationItem]]:
     if dimension is None or dimension.abstained:
         return None
@@ -179,7 +265,7 @@ def _coverage_strength(dimension: Optional[DimensionScore], graph: SkillGraph, w
     met = [fact for fact in groups if fact.code == REQ_MATCH]
     if not met:
         return None
-    note = _named([skill_label(graph, fact.subject) for fact in met])
+    note = _named([_held_label(graph, fact) for fact in met])
     item = ExplanationItem(label=f"{len(met)} of {len(groups)} {word} skills", impact=signed(dimension.contribution),
                            note=note, code=code)
     return dimension.contribution, item
@@ -203,7 +289,13 @@ def _experience(dimension: Optional[DimensionScore]) -> tuple[Optional[tuple[flo
     months = _number(summary.value)
     minimum = _number(summary.detail.get("min_months"))
     typical = summary.subject == "SENIORITY_DEFAULT"
-    if _first(dimension, Flag.NO_WORK_EXPERIENCE.value) is not None:
+    if _first(dimension, Flag.NO_WORK_EXPERIENCE.value) is not None and minimum <= 0.0:
+        item = ExplanationItem(label="This role doesn't require prior work experience",
+                               impact=signed(dimension.contribution), code="EXPERIENCE")
+        return (dimension.contribution, item), None
+    if minimum <= 0.0:
+        label = f"{years(months)} yrs relevant (none required)"
+    elif _first(dimension, Flag.NO_WORK_EXPERIENCE.value) is not None:
         asks = f"typical for this level: {years(minimum)} yrs" if typical else f"this role asks for {years(minimum)} yrs"
         label = f"No work experience listed ({asks})"
     else:
@@ -359,9 +451,9 @@ def _build(
     outcome = Outcome(result.outcome)
     strengths: tuple[ExplanationItem, ...] = ()
     gaps: tuple[ExplanationItem, ...] = ()
+    if prepared is None and resume is not None and result.dimensions:  # the notes read it too
+        prepared = prepare_resume(resume, graph, config, result.as_of)
     if outcome in (Outcome.SCORED, Outcome.SCORED_LOW_CONFIDENCE) and result.dimensions:
-        if prepared is None and resume is not None:
-            prepared = prepare_resume(resume, graph, config, result.as_of)
         strengths, gaps = _breakdown(result, posting, prepared, graph, config)
         if outcome is not Outcome.SCORED:
             strengths, gaps = _without_impact(strengths), _without_impact(gaps)
@@ -374,7 +466,7 @@ def _build(
         strengths=strengths,
         gaps=gaps,
         to_improve=tuple(improvement.text for improvement in improvements) if shown else (),
-        notes=tuple(_notes(result, graph)),
+        notes=tuple(_notes(result, graph, prepared, frozenset(item.code for item in (*strengths, *gaps)))),
     )
 
 
@@ -385,7 +477,12 @@ def _fallback(result: MatchResult, config: EngineConfig) -> Explanation:
     try:
         line = headline(result, config)
     except Exception:
-        line = NEEDS_REVIEW_HEADLINE if outcome is Outcome.NEEDS_REVIEW else ""
+        if outcome in (Outcome.SCORED, Outcome.SCORED_LOW_CONFIDENCE) and result.band is not None:
+            line = Band(result.band).value
+        elif outcome is Outcome.GATE_FAIL:
+            line = NOT_ELIGIBLE.rstrip(": ")
+        else:
+            line = NEEDS_REVIEW_HEADLINE
     return Explanation(
         band=result.band if outcome in (Outcome.SCORED, Outcome.SCORED_LOW_CONFIDENCE) else None,
         score=result.display_score if shown else None,

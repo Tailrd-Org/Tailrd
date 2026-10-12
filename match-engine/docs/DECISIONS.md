@@ -503,6 +503,65 @@ two tracked applications.
 **D-52 Bands and naming.** Bands come from the calibrated integer: ≥85 Strong, ≥70 Good, ≥55
 Partial, else Limited. Display "Fit score 76 · Good match", never "76% match".
 
+## Explanation (§8) [Task 4.1]
+
+**D-53 Wiring.** `score()` runs the scorer, then `matcher.explain.attach_explanation`: an
+`explanation` for every outcome when `options.with_explanation` (the default), `improvements` and
+`explanation.to_improve` when `options.with_counterfactual`. The import is late (explain/ re-runs
+`score()` for counterfactuals), so score/'s purity allowlist includes `matcher.explain`, and explain/
+carries the same purity guard (no I/O, no clock, stdlib + pydantic + matcher only). Options that are
+not `ScoreOptions` explain with the defaults. Bulk sweeps pass `with_explanation=False`.
+`build_explanation` and `improve` take `strict`, passed from `options.strict`: tests see a defect,
+production degrades to the headline and the reason sentences (never an empty headline: a scored
+result falls back to its band) and to no improvements.
+
+**D-54 What each outcome shows.** SCORED: "Fit score 76 · Good match" (a displayed interval
+replaces the number: "Fit score 71–79 · Good match"), the basis, strengths, gaps, notes and
+improvements, with signed raw-scale impacts ("+0.31"; a value that rounds to zero is "0.00").
+SCORED_LOW_CONFIDENCE: the band as headline, strengths and gaps WITHOUT impacts (a column of raw
+contributions would be the suppressed number under another name, D-44), notes. GATE_FAIL: "Not
+eligible: <sentence of the first failing gate>", no strengths or gaps, the other reasons and warnings,
+and a line that the profile facts can be updated. NEEDS_REVIEW: "We couldn't score this" and one
+sentence per reason, no strengths or gaps.
+
+**D-55 Truthful names.** A matched requirement is named as held only when the résumé shows it (or
+one of its OR-group members); credit earned through a related skill reads "Terraform (through your
+Amazon Web Services experience)". The required-skills line ("k of n required skills") is always
+kept, so every REQUIRED group is named in a strength or a gap. Gaps are REQUIRED and PREFERRED groups
+with m < 0.5, impact `-(effective weight × idf×wm / Σ idf×wm × (1 − m))`; IMPLIED groups are never
+gaps (missing a keyword the posting only mentions is normal) but may be suggestions. With no work
+experience and a stated minimum of zero, the experience item is the strength "This role doesn't
+require prior work experience". Education is a strength only when the posting states a requirement.
+
+**D-56 Which notes.** Low-confidence and review reasons, gate warnings, caps that BOUND (D-43:
+"Missing Terraform, a skill this role centres on, limits this score."; a non-binding critical miss
+is only its own gap), the résumé-side abstentions DATES_MISSING and FUNCTIONAL_RESUME, and the
+informational flags, except MIN_YEARS_DEFAULTED (the experience item already says "vs a typical")
+and NO_WORK_EXPERIENCE when an experience item is shown. Posting-side abstentions are not notes.
+Two reasons are said from the data instead of FLAG_TEXT: LOW_EVIDENCE_DENSITY names the matched
+skills whose only affirmed evidence is the skills section ("JavaScript is only listed in your skills
+section; showing it in a project or role would count for more.", up to three then "and N more";
+projects are bullet-level evidence, D-12), and LOW_DIMENSION_COVERAGE names the parts that abstained.
+No note says "most".
+
+**D-57 Suggestions (`to_improve`).** SCORED only (the other outcomes show no number to move). Target:
+the next band's minimum above the calibrated score; already Strong gets none. Candidates: members of
+REQUIRED, PREFERRED and IMPLIED groups with m < 0.5. A skill is added as one AFFIRMED
+`counterfactual.added_evidence` / `added_verb` mention in the most recent role (current, latest
+start; else latest end; else the first listed), or a new undated project when there are no roles.
+`learning_cost = weeks_by_kind[kind] × (1 + weeks_per_hop × hops)`, hops from the nearest résumé
+skill capped at `unreachable_hops` (also for a skill absent from the graph, costed as TECHNOLOGY).
+Every candidate is re-scored alone; the best `counterfactual.max_candidates` (16) by raw gain per week
+form the pool; greedy by raw gain per week up to `max_counterfactual_steps`; one pass that drops or
+swaps for a cheaper skill while the target is still reached (total weeks never rise). The chosen set
+(when it reaches the target) and up to three single skills that raise the integer score; the band in
+parentheses only when it changes. Retuning any `counterfactual` value changes the config hash and so
+re-fingerprints every stored score (D-82), although no score moves: change it deliberately.
+
+**D-58 Skill names.** Graph labels are display text, except ESCO's lower-case phrases, which get a
+capital first letter unless the second letter is a capital ("pH meters"). An id the graph does not
+hold is shown from its own spelling ("skill.event_sourcing" → "Event sourcing").
+
 ## Gates (§4) [Tailrd]
 
 **D-60** Unknown candidate status never fails a gate; it warns. Work authorisation fails only

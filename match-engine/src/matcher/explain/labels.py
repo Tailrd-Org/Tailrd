@@ -82,9 +82,11 @@ def flag_sentence(flag: Flag) -> str:
 
 
 def signed(value: float) -> str:
-    """`+0.31` / `-0.08`; a value that rounds to zero keeps the sign of the side it came from."""
-    text = f"{abs(value):.2f}"
-    return ("-" if value < 0 else "+") + text
+    """`+0.31` / `-0.08`, rounded first: a value that rounds to zero is "0.00", never "-0.00"."""
+    rounded = round(value, 2)
+    if rounded == 0:
+        return "0.00"
+    return f"{rounded:+.2f}"
 
 
 def years(months: float) -> str:

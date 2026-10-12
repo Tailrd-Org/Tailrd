@@ -48,7 +48,7 @@ def attach_explanation(
     falls back to the headline and the reasons (`build_explanation`)."""
     if not (options.with_explanation or options.with_counterfactual):
         return result
-    scored = Outcome(result.outcome) in (Outcome.SCORED, Outcome.SCORED_LOW_CONFIDENCE)
+    scored = bool(result.dimensions)  # scored far enough to explain (a low-confidence review included)
     valid_resume = _model(Resume, resume) if scored else None
     valid_posting = _model(JobPosting, posting) if scored else None
     improvements: tuple[Improvement, ...] = ()

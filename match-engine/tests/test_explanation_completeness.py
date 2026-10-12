@@ -26,7 +26,8 @@ from hypothesis import strategies as st
 from matcher.audit.trace import build_trace
 from matcher.calibrate import FixedCalibrator
 from matcher.errors import FLAG_TEXT, NEEDS_REVIEW_REASONS, Flag
-from matcher.explain.breakdown import NEEDS_REVIEW_HEADLINE
+from matcher.explain.breakdown import NEEDS_REVIEW_HEADLINE, reason_sentence
+from matcher.score.prepare import prepare_resume
 from matcher.explain.labels import skill_label
 from matcher.models import (
     DateValue,
@@ -86,7 +87,7 @@ def check_complete(result: MatchResult, graph) -> None:
         _check_required_named(result, graph)
     elif outcome is Outcome.SCORED_LOW_CONFIDENCE:
         assert e.score is None and e.band == result.band is not None and e.headline == result.band.value
-        assert any(FLAG_TEXT[reason] in e.notes for reason in result.reasons)
+        assert any(_sentence(reason, result, graph) in e.notes for reason in result.reasons)
         _check_required_named(result, graph)
     elif outcome is Outcome.GATE_FAIL:
         assert e.score is None and e.band is None and e.basis == ""
@@ -94,7 +95,14 @@ def check_complete(result: MatchResult, graph) -> None:
     else:
         assert outcome is Outcome.NEEDS_REVIEW
         assert e.score is None and e.band is None and e.headline == NEEDS_REVIEW_HEADLINE
-        assert all(FLAG_TEXT[reason] in e.notes for reason in result.reasons)
+        assert all(_sentence(reason, result, graph) in e.notes for reason in result.reasons)
+
+
+def _sentence(reason, result: MatchResult, graph) -> str:
+    """The note a reason gets: FLAG_TEXT, or the data-built sentence (fix round 1)."""
+    resume = _RESUMES.get(result.input_digest)
+    prepared = prepare_resume(resume, graph, _CONFIG[0], result.as_of) if resume is not None and result.dimensions else None
+    return reason_sentence(reason, result, prepared, graph)
 
 
 def _check_required_named(result: MatchResult, graph) -> None:
@@ -111,12 +119,33 @@ def _check_required_named(result: MatchResult, graph) -> None:
     else:
         assert line == []
     assert met + len(gaps) == len(groups)
+    if met and met <= 6:
+        for fact in groups:
+            via = fact.detail.get("via")
+            members = set(str(fact.detail.get("members", "")).split(","))
+            if fact.code == "REQ_MATCH" and via and via != fact.subject and via not in members:
+                held = f"{skill_label(graph, fact.subject)} (through your {skill_label(graph, via)} experience)"
+                assert held in line[0].note, (held, line[0].note)
     for fact in groups:
         if fact.code != "REQ_MATCH":
             assert any(skill_label(graph, fact.subject) in item.label for item in gaps), fact.subject
 
 
+_RESUMES: dict = {}  # input digest -> the valid résumé, so a check can rebuild the prepared résumé
+_CONFIG: list = []
+
+
 def _score(resume, posting, graph, config, as_of=AS_OF, **options) -> MatchResult:
+    result = _raw_score(resume, posting, graph, config, as_of, **options)
+    try:
+        _RESUMES[result.input_digest] = resume if isinstance(resume, Resume) else Resume.model_validate(resume)
+    except Exception:
+        pass
+    _CONFIG[:] = [config]
+    return result
+
+
+def _raw_score(resume, posting, graph, config, as_of=AS_OF, **options) -> MatchResult:
     return score(resume, posting, as_of=as_of, config=config, graph=graph, calibration=FIXED,
                  options=ScoreOptions(strict=True, **options))
 

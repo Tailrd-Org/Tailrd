@@ -80,7 +80,8 @@ def test_skill_label_of_an_unknown_id_reads_its_own_spelling(small_graph) -> Non
 def test_small_text_helpers() -> None:
     assert join_labels(["A"]) == "A" and join_labels(["A", "B"]) == "A and B"
     assert join_labels(["A", "B", "C"]) == "A, B and C" and join_labels([]) == ""
-    assert (signed(0.314), signed(-0.0751), signed(0.0)) == ("+0.31", "-0.08", "+0.00")
+    assert (signed(0.314), signed(-0.0751), signed(0.0)) == ("+0.31", "-0.08", "0.00")
+    assert (signed(-0.004), signed(0.004), signed(-0.005001)) == ("0.00", "0.00", "-0.01")
     assert years(42.0) == "3.5" and years(0.0) == "0.0"
 
 
@@ -276,8 +277,8 @@ def test_overqualified_is_a_note_and_never_a_gap(small_graph, config) -> None:
 
 def test_no_work_experience_reads_plainly(small_graph, config) -> None:
     result = pair("student_projects_only", small_graph, config)
-    assert FLAG_TEXT[Flag.NO_WORK_EXPERIENCE] in result.explanation.notes
     assert "No work experience listed (typical for this level: 1.0 yrs)" in [i.label for i in result.explanation.gaps]
+    assert FLAG_TEXT[Flag.NO_WORK_EXPERIENCE] not in result.explanation.notes  # the gap already says it
 
 
 # ─── Totality ─────────────────────────────────────────────────────────────────────────────
@@ -328,3 +329,58 @@ def test_explain_package_imports_only_pure_modules_and_reads_no_clock() -> None:
                 else:
                     assert top == "pydantic" or top in sys.stdlib_module_names, f"{path.name} imports {name}"
                     assert top not in _IMPURE, f"{path.name} imports {name}"
+
+
+# ─── Fix round 1: truthfulness ───────────────────────────────────────────────────────────────
+
+
+def test_a_skill_credited_through_a_related_one_is_never_named_as_held(small_graph, config) -> None:
+    result = pair("related_only", small_graph, config)
+    line = next(item for item in result.explanation.strengths if item.code == "REQUIRED_SKILLS")
+    assert line.label == "3 of 5 required skills"
+    assert line.note == ("Kubernetes (through your Docker experience), Python and "
+                         "Terraform (through your Amazon Web Services experience)")
+
+
+def test_no_work_experience_against_a_zero_minimum_is_not_a_strength(small_graph, config) -> None:
+    result = pair("projects_no_minimum", small_graph, config)
+    labels = [item.label for item in result.explanation.strengths]
+    assert "This role doesn't require prior work experience" in labels
+    assert not any(label.startswith("No work experience") for label in labels)
+    assert FLAG_TEXT[Flag.NO_WORK_EXPERIENCE] not in result.explanation.notes  # the item already says it
+
+
+def test_the_evidence_note_names_the_skills_that_are_only_listed(small_graph, config) -> None:
+    result = pair("student_projects_only", small_graph, config)
+    assert Flag.LOW_EVIDENCE_DENSITY in result.reasons
+    notes = result.explanation.notes
+    assert FLAG_TEXT[Flag.LOW_EVIDENCE_DENSITY] not in notes
+    assert ("JavaScript is only listed in your skills section; showing it in a project or role "
+            "would count for more.") in notes
+    assert not any("Most" in note for note in notes)
+
+
+def test_dimension_coverage_names_what_could_not_be_assessed(small_graph, config) -> None:
+    result = pair("student_projects_only", small_graph, config)
+    assert Flag.LOW_DIMENSION_COVERAGE in result.reasons
+    abstained = [name for name, d in result.dimensions.items() if d.abstained]
+    assert abstained == ["preferred_skills", "seniority", "domain", "tools"]
+    assert "We couldn't assess preferred skills, level, industry and other keywords for this match." in result.explanation.notes
+    assert FLAG_TEXT[Flag.LOW_DIMENSION_COVERAGE] not in result.explanation.notes
+    assert FLAG_TEXT[Flag.MIN_YEARS_DEFAULTED] not in result.explanation.notes
+
+
+def test_needs_review_headline_is_the_compliance_wording() -> None:
+    assert NEEDS_REVIEW_HEADLINE == "We couldn't score this"
+
+
+def test_the_fallback_never_leaves_a_scored_result_without_a_headline(small_graph, config, monkeypatch) -> None:
+    resume, posting = PAIRS["good_match"]()
+    result = run(resume, posting, small_graph, config, with_explanation=False)
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("defect")
+
+    monkeypatch.setattr(breakdown, "find_gaps", broken)
+    monkeypatch.setattr(breakdown, "headline", broken)
+    assert build_explanation(result, resume, posting, None, small_graph, config).headline == "Good match"

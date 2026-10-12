@@ -156,7 +156,32 @@ def stretch_role():
     return resume, posting
 
 
+def related_only():
+    """Review probe: Python, JavaScript, Docker and AWS in bullets against a posting that needs
+    Kubernetes and Terraform: both are credited through related skills (Docker, AWS), never held."""
+    posting = JobPosting(seniority=IC1, requirements=reqs(("skill.python", "skill.go", "skill.terraform",
+                                                            "skill.kubernetes", "skill.typescript")),
+                         requirement_token_count=5)
+    role = Role(seniority=IC1, start=on(date(2024, 1, 15)), is_current=True,
+                skills=tuple(bullet(s) for s in ("skill.python", "skill.javascript", "skill.docker", "skill.aws")))
+    return Resume(roles=(role,)), posting
+
+
+def projects_no_minimum():
+    """Review probe: a student with a capstone project (bullets) and no roles, for a role that
+    states zero years."""
+    from matcher.models import Project
+
+    capstone = Project(name="Capstone", skills=tuple(bullet(s) for s in ("skill.react", "skill.nodejs",
+                                                                         "skill.python", "skill.sql")))
+    posting = JobPosting(seniority=IC1, min_years_total=0.0, requirements=reqs(
+        ("skill.react", "skill.nodejs", "skill.python", "skill.sql", "skill.docker")), requirement_token_count=5)
+    return Resume(projects=(capstone,)), posting
+
+
 PAIRS = {
+    "related_only": related_only,
+    "projects_no_minimum": projects_no_minimum,
     "stretch_role": stretch_role,
     "good_match": good_match,
     "strong_match": strong_match,
