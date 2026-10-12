@@ -1,0 +1,563 @@
+# Employer -> industry codes (SPEC §5.5; DECISIONS D-40; Task 6.3; read by parse/industry.py).
+#
+# Codes are NAICS 2022 (the edition data/taxonomy/naics.json holds; a test checks every code
+# here against it): software publishers are 5132 and newspapers 5131 in this edition (2017's 5112
+# and 5111). A sector may be written as NAICS writes it (44-45, 31-33, 48-49).
+#
+# Order of reading (parse/industry.py):
+# 1. `companies`: a curated table of normalised names and aliases. Names are compared casefolded and
+#    accent-free, "&" read as "and", periods and apostrophes deleted ("U.S." is "us", "McDonald's"
+#    "mcdonalds"), other punctuation read as a space, a bracketed tag dropped ("Postman
+#    (Greenhouse)" is an ATS tag from Tailrd's job feed), a leading "the" and trailing
+#    `legal_suffixes` removed; each side of a spaced slash is tried ("City of Ottawa / Ville
+#    d'Ottawa"); a name the table lacks is tried again without trailing `name_qualifiers` ("Google
+#    Canada", "TD Bank Group"). Never by a shorter prefix: "Apple Tree Daycare" is not Apple.
+# 2. `rules` over the name (`phrases` and `name_only`), then over the context (a role's first
+#    bullet, a posting's company description; `phrases` only, since bullets talk about the work:
+#    "a data warehouse", "a CI pipeline", "data mining"). The first rule listed that matches wins,
+#    so specific rules come first ("food bank" before "bank", "university" before "temple").
+# The table holds the employers most frequent in Tailrd's catalogue (one aggregate read of the
+# Development database, company and posting count, top 150, 2026-10-09; names whose industry is
+# unclear, such as "Stealth Startup", "ATC" or "DREAM", are left out) and well-known Canadian and
+# US employers.
+format: 1
+
+legal_suffixes: [inc, incorporated, ltd, limited, llc, llp, lp, corp, corporation, co, company, plc, gmbh,
+                 ag, sa, sas, ltee, ulc, pbc, pty, bv, nv, srl, spa, sarl, senc, senccrl]
+name_qualifiers: [canada, canadian, usa, us, america, north america, americas, international, global,
+                  group, holdings, worldwide, the americas, en canada, in canada, du canada, ca,
+                  operations, careers, jobs]
+
+companies:
+  # ─── Tailrd's catalogue (most frequent employers first) ───────────────────────────────────
+  - {name: Carvana, naics: ["4411"]}
+  - {name: SpaceX, aliases: [Space Exploration Technologies], naics: ["3364"]}
+  - {name: Toast, naics: ["5132"]}
+  - {name: Verkada, naics: ["5132"]}
+  - {name: Databricks, naics: ["5132"]}
+  - {name: Waymo, naics: ["5417"]}
+  - {name: Stripe, naics: ["5223"]}
+  - {name: Datadog, naics: ["5132"]}
+  - {name: Twilio, naics: ["5132"]}
+  - {name: GitLab, naics: ["5132"]}
+  - {name: Jane Street, aliases: [Jane Street Capital], naics: ["5231"]}
+  - {name: Brex, naics: ["5222"]}
+  - {name: Cloudflare, naics: ["5182"]}
+  - {name: Okta, naics: ["5132"]}
+  - {name: Scale AI, naics: ["5132"]}
+  - {name: Elastic, naics: ["5132"]}
+  - {name: Figma, naics: ["5132"]}
+  - {name: Appian, naics: ["5132"]}
+  - {name: Pinterest, naics: ["5162"]}
+  - {name: Vercel, naics: ["5182"]}
+  - {name: Robinhood, aliases: [Robinhood Markets], naics: ["5231"]}
+  - {name: Cresta, naics: ["5132"]}
+  - {name: Lyft, naics: ["4853"]}
+  - {name: Klaviyo, naics: ["5132"]}
+  - {name: Affirm, naics: ["5222"]}
+  - {name: Fivetran, naics: ["5132"]}
+  - {name: Postman, naics: ["5132"]}
+  - {name: LangChain, naics: ["5132"]}
+  - {name: Nuro, naics: ["5417"]}
+  - {name: Dropbox, naics: ["5182"]}
+  - {name: MongoDB, naics: ["5132"]}
+  - {name: Spotify, naics: ["5162"]}
+  - {name: Instacart, aliases: [Maplebear], naics: ["4922"]}
+  - {name: Notion, aliases: [Notion Labs], naics: ["5132"]}
+  - {name: Peloton, aliases: [Peloton Interactive], naics: ["3399"]}
+  - {name: Scotiabank, aliases: [Bank of Nova Scotia, The Bank of Nova Scotia], naics: ["5221"]}
+  - {name: Chime, naics: ["5221"]}
+  - {name: Intercom, naics: ["5132"]}
+  - {name: Manulife, aliases: [Manulife Financial, Manulife Investment Management, John Hancock], naics: ["5241"]}
+  - {name: Reddit, naics: ["5162"]}
+  - {name: ZoomInfo, naics: ["5132"]}
+  - {name: Flexport, naics: ["4885"]}
+  - {name: JetBrains, naics: ["5132"]}
+  - {name: Lifemark Health Group, aliases: [Lifemark, Lifemark Health], naics: ["6213"]}
+  - {name: Lumentum, aliases: [Lumentum Operations], naics: ["3344"]}
+  - {name: Mixpanel, naics: ["5132"]}
+  - {name: Airbnb, naics: ["7211"]}
+  - {name: Deel, naics: ["5132"]}
+  - {name: Gusto, naics: ["5132"]}
+  - {name: Kinaxis, naics: ["5132"]}
+  - {name: Bandwidth, naics: ["517"]}
+  - {name: LaunchDarkly, naics: ["5132"]}
+  - {name: Amplitude, naics: ["5132"]}
+  - {name: ElevenLabs, naics: ["5132"]}
+  - {name: OneTrust, naics: ["5132"]}
+  - {name: Contentful, naics: ["5132"]}
+  - {name: Replit, naics: ["5132"]}
+  - {name: CGI, aliases: [CGI Group, CGI Inc], naics: ["5415"]}
+  - {name: Ciena, naics: ["3342"]}
+  - {name: Hootsuite, naics: ["5132"]}
+  - {name: Iterable, naics: ["5132"]}
+  - {name: Definity, aliases: [Definity Financial, Economical Insurance], naics: ["5241"]}
+  - {name: Opendoor, naics: ["5312"]}
+  - {name: Acceldata, naics: ["5132"]}
+  - {name: Asana, naics: ["5132"]}
+  - {name: Braze, naics: ["5132"]}
+  - {name: General Dynamics Mission Systems, aliases: [General Dynamics, General Dynamics Land Systems], naics: ["3345"]}
+  - {name: Webflow, naics: ["5132"]}
+  - {name: Attentive, naics: ["5132"]}
+  - {name: Oura, naics: ["3345"]}
+  - {name: Sweetgreen, naics: ["7225"]}
+  - {name: Groupe SII, naics: ["5415"]}
+  - {name: Marvell Technology, aliases: [Marvell], naics: ["3344"]}
+  - {name: Wattpad, naics: ["5162"]}
+  - {name: 6sense, naics: ["5132"]}
+  - {name: Airtable, naics: ["5132"]}
+  - {name: Capital One, naics: ["5221"]}
+  - {name: Collibra, naics: ["5132"]}
+  - {name: Duolingo, naics: ["5132"]}
+  - {name: SingleStore, naics: ["5132"]}
+  - {name: Starburst, aliases: [Starburst Data], naics: ["5132"]}
+  - {name: Wealthsimple, naics: ["5239"]}
+  - {name: BDO, aliases: [BDO Canada, BDO USA], naics: ["5412"]}
+  - {name: Ericsson, naics: ["3342"]}
+  - {name: Fastly, naics: ["5182"]}
+  - {name: Fullscript, naics: ["4561"]}
+  - {name: Glossier, naics: ["4561"]}
+  - {name: Huawei, aliases: [Huawei Canada, Huawei Technologies], naics: ["3342"]}
+  - {name: Lockheed Martin, naics: ["3364"]}
+  - {name: Sendbird, naics: ["5132"]}
+  - {name: Super.com, aliases: [Super com, SnapTravel], naics: ["5615"]}
+  - {name: Vonage, naics: ["517"]}
+  - {name: Bombardier, naics: ["3364"]}
+  - {name: Calendly, naics: ["5132"]}
+  - {name: Cockroach Labs, aliases: [CockroachDB], naics: ["5132"]}
+  - {name: Hatch, aliases: [Hatch Ltd], naics: ["5413"]}
+  - {name: PCL Construction, aliases: [PCL], naics: ["23"]}
+  - {name: PagerDuty, naics: ["5132"]}
+  - {name: SAP, aliases: [SAP SE, SAP Canada, SAP America], naics: ["5132"]}
+  - {name: Snowflake, naics: ["5132"]}
+  - {name: StubHub, naics: ["5615"]}
+  - {name: ATS Corporation, aliases: [ATS Automation, ATS Automation Tooling Systems], naics: ["3339"]}
+  - {name: AssemblyAI, naics: ["5132"]}
+  - {name: Associated Engineering, naics: ["5413"]}
+  - {name: Autodesk, naics: ["5132"]}
+  - {name: D2L, aliases: [Desire2Learn], naics: ["5132"]}
+  - {name: Discord, naics: ["5162"]}
+  - {name: Egis, aliases: [Egis in Canada, Egis Group], naics: ["5413"]}
+  - {name: Flipp, naics: ["5132"]}
+  - {name: Fortinet, naics: ["5132"]}
+  - {name: General Motors, aliases: [GM, GM Canada], naics: ["3361"]}
+  - {name: HP, aliases: [HP Inc, Hewlett Packard, Hewlett-Packard], naics: ["3341"]}
+  - {name: Hitachi Rail, naics: ["3365"]}
+  - {name: PepsiCo, aliases: [Pepsi, PepsiCo Foods], naics: ["3121"]}
+  - {name: Provincial Health Services Authority, aliases: [PHSA], naics: ["6221"]}
+  - {name: S&C Electric Company, aliases: [S and C Electric], naics: ["3353"]}
+  - {name: Sun Pharma, aliases: [Sun Pharmaceutical Industries], naics: ["3254"]}
+  - {name: Salesloft, naics: ["5132"]}
+  - {name: Vanta, naics: ["5132"]}
+  - {name: ADP, aliases: [Automatic Data Processing], naics: ["5412"]}
+  - {name: AECOM, naics: ["5413"]}
+  - {name: Apple, aliases: [Apple Inc], naics: ["3341", "3342"]}
+  - {name: AtkinsRéalis, aliases: [SNC-Lavalin, SNC Lavalin], naics: ["5413"]}
+  - {name: Belron, aliases: [Belron Canada], naics: ["8111"]}
+  - {name: Bird Construction, naics: ["23"]}
+  - {name: CircleCI, naics: ["5132"]}
+  - {name: Coursera, naics: ["6117"]}
+  - {name: Cohere, naics: ["5132"]}
+
+  # ─── Canadian banks, insurers, investors ──────────────────────────────────────────────────────
+  - {name: Royal Bank of Canada, aliases: [RBC, RBC Royal Bank, RBC Bank], naics: ["5221"]}
+  - {name: RBC Capital Markets, aliases: [RBC Dominion Securities, RBC Global Asset Management], naics: ["5231"]}
+  - {name: TD Bank, aliases: [TD, Toronto-Dominion Bank, The Toronto-Dominion Bank, TD Canada Trust, TD Bank Group], naics: ["5221"]}
+  - {name: TD Securities, naics: ["5231"]}
+  - {name: BMO, aliases: [BMO Financial Group, Bank of Montreal, BMO Bank of Montreal], naics: ["5221"]}
+  - {name: BMO Capital Markets, naics: ["5231"]}
+  - {name: CIBC, aliases: [Canadian Imperial Bank of Commerce], naics: ["5221"]}
+  - {name: CIBC Capital Markets, naics: ["5231"]}
+  - {name: National Bank of Canada, aliases: [Banque Nationale, Banque Nationale du Canada, National Bank, Banque Nationale du Canada BNC], naics: ["5221"]}
+  - {name: Desjardins, aliases: [Mouvement Desjardins, Desjardins Group, Groupe Desjardins], naics: ["5221"]}
+  - {name: Tangerine, aliases: [Tangerine Bank], naics: ["5221"]}
+  - {name: EQ Bank, aliases: [Equitable Bank], naics: ["5221"]}
+  - {name: ATB Financial, naics: ["5221"]}
+  - {name: Vancity, naics: ["5221"]}
+  - {name: HSBC, aliases: [HSBC Bank Canada], naics: ["5221"]}
+  - {name: Laurentian Bank, aliases: [Banque Laurentienne], naics: ["5221"]}
+  - {name: Bank of Canada, aliases: [Banque du Canada], naics: ["5211"]}
+  - {name: Sun Life, aliases: [Sun Life Financial, Sun Life Assurance], naics: ["5241"]}
+  - {name: Canada Life, aliases: [Great-West Life, Great-West Lifeco], naics: ["5241"]}
+  - {name: Intact, aliases: [Intact Financial, Intact Insurance], naics: ["5241"]}
+  - {name: Aviva, aliases: [Aviva Canada], naics: ["5241"]}
+  - {name: Co-operators, aliases: [The Co-operators], naics: ["5241"]}
+  - {name: Wawanesa, aliases: [Wawanesa Insurance], naics: ["5241"]}
+  - {name: iA Financial Group, aliases: [Industrial Alliance, iA Groupe financier], naics: ["5241"]}
+  - {name: Beneva, naics: ["5241"]}
+  - {name: CPP Investments, aliases: [Canada Pension Plan Investment Board, CPPIB], naics: ["5239"]}
+  - {name: OMERS, naics: ["5239"]}
+  - {name: Ontario Teachers' Pension Plan, aliases: [OTPP], naics: ["5239"]}
+  - {name: CDPQ, aliases: [Caisse de dépôt et placement du Québec], naics: ["5239"]}
+  - {name: Brookfield, aliases: [Brookfield Asset Management], naics: ["5239"]}
+  - {name: Questrade, naics: ["5231"]}
+  - {name: Interac, naics: ["5223"]}
+  - {name: Moneris, naics: ["5223"]}
+  - {name: Nuvei, naics: ["5223"]}
+  - {name: Lightspeed, aliases: [Lightspeed Commerce], naics: ["5132"]}
+
+  # ─── US financial employers ─────────────────────────────────────────────────────────────────
+  - {name: JPMorgan Chase, aliases: [JPMorgan, JP Morgan, J.P. Morgan, JPMorgan Chase & Co, Chase], naics: ["5221"]}
+  - {name: Bank of America, aliases: [BofA, Bank of America Merrill Lynch], naics: ["5221"]}
+  - {name: Wells Fargo, naics: ["5221"]}
+  - {name: Citi, aliases: [Citigroup, Citibank], naics: ["5221"]}
+  - {name: Goldman Sachs, naics: ["5231"]}
+  - {name: Morgan Stanley, naics: ["5231"]}
+  - {name: American Express, aliases: [Amex], naics: ["5222"]}
+  - {name: Visa, naics: ["5223"]}
+  - {name: Mastercard, naics: ["5223"]}
+  - {name: PayPal, naics: ["5223"]}
+  - {name: Block, aliases: [Square], naics: ["5223"]}
+  - {name: BlackRock, naics: ["5239"]}
+  - {name: Fidelity, aliases: [Fidelity Investments], naics: ["5239"]}
+  - {name: Vanguard, naics: ["5239"]}
+  - {name: Citadel, aliases: [Citadel Securities], naics: ["5239"]}
+  - {name: Two Sigma, naics: ["5239"]}
+  - {name: State Farm, naics: ["5241"]}
+  - {name: Allstate, naics: ["5241"]}
+  - {name: Progressive, aliases: [Progressive Insurance], naics: ["5241"]}
+  - {name: MetLife, naics: ["5241"]}
+  - {name: Federal Reserve, aliases: [Federal Reserve Bank, Federal Reserve Board], naics: ["5211"]}
+
+  # ─── technology ─────────────────────────────────────────────────────────────────────────────
+  - {name: Google, aliases: [Alphabet, Google DeepMind, DeepMind, YouTube], naics: ["5192"]}
+  - {name: Microsoft, naics: ["5132"]}
+  - {name: Amazon, aliases: [Amazon.com, Amazon com], naics: ["44-45"]}
+  - {name: Amazon Web Services, aliases: [AWS], naics: ["5182"]}
+  - {name: Meta, aliases: [Meta Platforms, Facebook, Instagram, WhatsApp], naics: ["5162"]}
+  - {name: Netflix, naics: ["5162"]}
+  - {name: IBM, naics: ["5415"]}
+  - {name: Oracle, naics: ["5132"]}
+  - {name: Salesforce, naics: ["5132"]}
+  - {name: Adobe, naics: ["5132"]}
+  - {name: Intel, naics: ["3344"]}
+  - {name: NVIDIA, naics: ["3344"]}
+  - {name: AMD, aliases: [Advanced Micro Devices], naics: ["3344"]}
+  - {name: Qualcomm, naics: ["3344"]}
+  - {name: Cisco, aliases: [Cisco Systems], naics: ["3342"]}
+  - {name: Uber, naics: ["4853"]}
+  - {name: Shopify, naics: ["5132"]}
+  - {name: OpenText, aliases: [Open Text], naics: ["5132"]}
+  - {name: BlackBerry, naics: ["5132"]}
+  - {name: Nokia, naics: ["3342"]}
+  - {name: Samsung, aliases: [Samsung Electronics], naics: ["3344"]}
+  - {name: Tesla, naics: ["3361"]}
+  - {name: LinkedIn, naics: ["5162"]}
+  - {name: Snap, aliases: [Snapchat], naics: ["5162"]}
+  - {name: TikTok, aliases: [ByteDance], naics: ["5162"]}
+  - {name: Zoom, aliases: [Zoom Video Communications], naics: ["5132"]}
+  - {name: Slack, naics: ["5132"]}
+  - {name: Atlassian, naics: ["5132"]}
+  - {name: Intuit, naics: ["5132"]}
+  - {name: Workday, naics: ["5132"]}
+  - {name: ServiceNow, naics: ["5132"]}
+  - {name: OpenAI, naics: ["5132"]}
+  - {name: Anthropic, naics: ["5132"]}
+  - {name: Constellation Software, naics: ["5132"]}
+  - {name: Celestica, naics: ["3344"]}
+  - {name: Ubisoft, naics: ["5132"]}
+  - {name: Electronic Arts, aliases: [EA], naics: ["5132"]}
+  - {name: Thomson Reuters, naics: ["5192"]}
+  - {name: Accenture, naics: ["5415", "5416"]}
+  - {name: Capgemini, naics: ["5415"]}
+  - {name: Infosys, naics: ["5415"]}
+  - {name: Tata Consultancy Services, aliases: [TCS], naics: ["5415"]}
+  - {name: Wipro, naics: ["5415"]}
+  - {name: Cognizant, naics: ["5415"]}
+
+  # ─── accounting, consulting, law ────────────────────────────────────────────────────────────
+  - {name: Deloitte, aliases: [Deloitte Canada, Deloitte LLP, Deloitte Touche], naics: ["5412", "5416"]}
+  - {name: PwC, aliases: [PricewaterhouseCoopers, PwC Canada], naics: ["5412"]}
+  - {name: EY, aliases: [Ernst & Young, Ernst and Young], naics: ["5412"]}
+  - {name: KPMG, naics: ["5412"]}
+  - {name: Grant Thornton, aliases: [Raymond Chabot Grant Thornton], naics: ["5412"]}
+  - {name: MNP, naics: ["5412"]}
+  - {name: RSM, naics: ["5412"]}
+  - {name: McKinsey & Company, aliases: [McKinsey], naics: ["5416"]}
+  - {name: Boston Consulting Group, aliases: [BCG], naics: ["5416"]}
+  - {name: Bain & Company, aliases: [Bain], naics: ["5416"]}
+  - {name: Oliver Wyman, naics: ["5416"]}
+  - {name: Osler, aliases: [Osler Hoskin & Harcourt], naics: ["5411"]}
+  - {name: McCarthy Tétrault, naics: ["5411"]}
+  - {name: Torys, naics: ["5411"]}
+  - {name: Blake Cassels & Graydon, aliases: [Blakes], naics: ["5411"]}
+  - {name: Stikeman Elliott, naics: ["5411"]}
+  - {name: Fasken, naics: ["5411"]}
+  - {name: Borden Ladner Gervais, aliases: [BLG], naics: ["5411"]}
+  - {name: Gowling WLG, naics: ["5411"]}
+  - {name: Norton Rose Fulbright, naics: ["5411"]}
+
+  # ─── telecom, media, utilities, energy ──────────────────────────────────────────────────────
+  - {name: Bell Canada, aliases: [Bell, BCE], naics: ["517"]}
+  - {name: Bell Media, naics: ["5161"]}
+  - {name: Rogers, aliases: [Rogers Communications], naics: ["517"]}
+  - {name: Telus, aliases: [TELUS Communications], naics: ["517"]}
+  - {name: Vidéotron, aliases: [Videotron], naics: ["517"]}
+  - {name: Freedom Mobile, naics: ["517"]}
+  - {name: Verizon, naics: ["517"]}
+  - {name: AT&T, aliases: [AT and T], naics: ["517"]}
+  - {name: T-Mobile, naics: ["517"]}
+  - {name: Comcast, naics: ["517"]}
+  - {name: CBC, aliases: [CBC/Radio-Canada, Radio-Canada, Canadian Broadcasting Corporation], naics: ["5161"]}
+  - {name: Corus Entertainment, naics: ["5161"]}
+  - {name: The Globe and Mail, aliases: [Globe and Mail], naics: ["5131"]}
+  - {name: Toronto Star, naics: ["5131"]}
+  - {name: Postmedia, naics: ["5131"]}
+  - {name: The New York Times, aliases: [New York Times], naics: ["5131"]}
+  - {name: Disney, aliases: [The Walt Disney Company, Walt Disney], naics: ["5121"]}
+  - {name: Hydro One, naics: ["22"]}
+  - {name: Ontario Power Generation, aliases: [OPG], naics: ["22"]}
+  - {name: Hydro-Québec, aliases: [Hydro Quebec], naics: ["22"]}
+  - {name: BC Hydro, naics: ["22"]}
+  - {name: Toronto Hydro, naics: ["22"]}
+  - {name: Fortis, aliases: [FortisBC, FortisAlberta], naics: ["22"]}
+  - {name: Enbridge, naics: ["486"]}
+  - {name: TC Energy, aliases: [TransCanada], naics: ["486"]}
+  - {name: Suncor, aliases: [Suncor Energy], naics: ["211"]}
+  - {name: Imperial Oil, naics: ["211"]}
+  - {name: Canadian Natural Resources, aliases: [CNRL], naics: ["211"]}
+  - {name: Cenovus, aliases: [Cenovus Energy], naics: ["211"]}
+  - {name: Shell, aliases: [Shell Canada], naics: ["211"]}
+  - {name: ExxonMobil, aliases: [Exxon Mobil, Exxon], naics: ["211"]}
+  - {name: Chevron, naics: ["211"]}
+
+  # ─── manufacturing, aerospace, defence ──────────────────────────────────────────────────────
+  - {name: Ford, aliases: [Ford Motor Company, Ford Motor Company of Canada], naics: ["3361"]}
+  - {name: Toyota, aliases: [Toyota Motor Manufacturing Canada], naics: ["3361"]}
+  - {name: Honda, aliases: [Honda of Canada Mfg], naics: ["3361"]}
+  - {name: Stellantis, naics: ["3361"]}
+  - {name: Magna, aliases: [Magna International], naics: ["3363"]}
+  - {name: Boeing, naics: ["3364"]}
+  - {name: Airbus, naics: ["3364"]}
+  - {name: Pratt & Whitney, aliases: [Pratt and Whitney, Pratt & Whitney Canada, P&WC], naics: ["3364"]}
+  - {name: Northrop Grumman, naics: ["3364"]}
+  - {name: RTX, aliases: [Raytheon, Raytheon Technologies, Collins Aerospace], naics: ["3364"]}
+  - {name: CAE, naics: ["3364"]}
+  - {name: MDA, aliases: [MDA Space], naics: ["3364"]}
+  - {name: Blue Origin, naics: ["3364"]}
+  - {name: Honeywell, naics: ["3345"]}
+  - {name: General Electric, aliases: [GE, GE Aerospace, GE Vernova], naics: ["3353"]}
+  - {name: Siemens, naics: ["3353"]}
+  - {name: Nestlé, aliases: [Nestle], naics: ["311"]}
+  - {name: Coca-Cola, aliases: [The Coca-Cola Company, Coca Cola], naics: ["3121"]}
+  - {name: Kraft Heinz, naics: ["311"]}
+  - {name: Maple Leaf Foods, naics: ["3116"]}
+  - {name: McCain Foods, aliases: [McCain], naics: ["3114"]}
+  - {name: Saputo, naics: ["3115"]}
+  - {name: Unilever, naics: ["3256"]}
+  - {name: Procter & Gamble, aliases: [P&G, Procter and Gamble], naics: ["3256"]}
+  - {name: Molson Coors, naics: ["3121"]}
+  - {name: Pfizer, naics: ["3254"]}
+  - {name: Moderna, naics: ["3254"]}
+  - {name: AstraZeneca, naics: ["3254"]}
+  - {name: Sanofi, aliases: [Sanofi Pasteur], naics: ["3254"]}
+  - {name: GSK, aliases: [GlaxoSmithKline], naics: ["3254"]}
+  - {name: Merck, naics: ["3254"]}
+  - {name: Johnson & Johnson, aliases: [Johnson and Johnson, J&J], naics: ["3254"]}
+  - {name: Roche, naics: ["3254"]}
+  - {name: Novartis, naics: ["3254"]}
+  - {name: Apotex, naics: ["3254"]}
+  - {name: AbCellera, naics: ["5417"]}
+  - {name: Barrick, aliases: [Barrick Gold], naics: ["212"]}
+  - {name: Teck, aliases: [Teck Resources], naics: ["212"]}
+  - {name: Nutrien, naics: ["3253"]}
+  - {name: Cameco, naics: ["212"]}
+
+  # ─── retail, food service, hospitality ───────────────────────────────────────────────────────
+  - {name: Walmart, aliases: [Walmart Canada], naics: ["455"]}
+  - {name: Costco, aliases: [Costco Wholesale], naics: ["455"]}
+  - {name: Target, naics: ["455"]}
+  - {name: Canadian Tire, aliases: [Canadian Tire Corporation], naics: ["455"]}
+  - {name: Loblaw, aliases: [Loblaw Companies, Loblaws, Real Canadian Superstore, No Frills], naics: ["4451"]}
+  - {name: Sobeys, aliases: [Empire Company], naics: ["4451"]}
+  - {name: Shoppers Drug Mart, aliases: [Shoppers], naics: ["4561"]}
+  - {name: Rexall, naics: ["4561"]}
+  - {name: CVS, aliases: [CVS Health], naics: ["4561"]}
+  - {name: Walgreens, naics: ["4561"]}
+  - {name: The Home Depot, aliases: [Home Depot], naics: ["4441"]}
+  - {name: Lowe's, aliases: [Lowes], naics: ["4441"]}
+  - {name: Best Buy, naics: ["4492"]}
+  - {name: Indigo, aliases: [Indigo Books & Music, Chapters Indigo], naics: ["4592"]}
+  - {name: Lululemon, aliases: [lululemon athletica], naics: ["4581"]}
+  - {name: Hudson's Bay, aliases: [Hudson's Bay Company, HBC, The Bay], naics: ["4551"]}
+  - {name: Dollarama, naics: ["455"]}
+  - {name: Winners, aliases: [TJX, TJX Canada], naics: ["4581"]}
+  - {name: Old Navy, naics: ["4581"]}
+  - {name: IKEA, naics: ["4491"]}
+  - {name: Starbucks, naics: ["7225"]}
+  - {name: Tim Hortons, aliases: [Tims], naics: ["7225"]}
+  - {name: McDonald's, aliases: [McDonalds], naics: ["7225"]}
+  - {name: Second Cup, naics: ["7225"]}
+  - {name: A&W, aliases: [A and W], naics: ["7225"]}
+  - {name: Chipotle, aliases: [Chipotle Mexican Grill], naics: ["7225"]}
+  - {name: Marriott, aliases: [Marriott International], naics: ["7211"]}
+  - {name: Hilton, naics: ["7211"]}
+  - {name: Fairmont, aliases: [Fairmont Hotels], naics: ["7211"]}
+
+  # ─── transport, logistics, staffing, real estate ─────────────────────────────────────────────
+  - {name: Air Canada, naics: ["4811"]}
+  - {name: WestJet, naics: ["4811"]}
+  - {name: Porter Airlines, aliases: [Porter], naics: ["4811"]}
+  - {name: CN, aliases: [Canadian National Railway, CN Rail], naics: ["4821"]}
+  - {name: CPKC, aliases: [Canadian Pacific, Canadian Pacific Kansas City, CP Rail], naics: ["4821"]}
+  - {name: Via Rail, aliases: [VIA Rail Canada], naics: ["4821"]}
+  - {name: Metrolinx, naics: ["4851"]}
+  - {name: Toronto Transit Commission, aliases: [TTC], naics: ["4851"]}
+  - {name: Société de transport de Montréal, aliases: [STM], naics: ["4851"]}
+  - {name: TransLink, naics: ["4851"]}
+  - {name: Canada Post, aliases: [Postes Canada], naics: ["4911"]}
+  - {name: Purolator, naics: ["4921"]}
+  - {name: FedEx, aliases: [Federal Express], naics: ["4921"]}
+  - {name: UPS, aliases: [United Parcel Service], naics: ["4921"]}
+  - {name: DHL, naics: ["4921"]}
+  - {name: Randstad, naics: ["5613"]}
+  - {name: Adecco, naics: ["5613"]}
+  - {name: Robert Half, naics: ["5613"]}
+  - {name: ManpowerGroup, aliases: [Manpower], naics: ["5613"]}
+  - {name: CBRE, naics: ["5312"]}
+  - {name: Colliers, aliases: [Colliers International], naics: ["5312"]}
+  - {name: JLL, aliases: [Jones Lang LaSalle], naics: ["5312"]}
+  - {name: Cadillac Fairview, naics: ["5313"]}
+  - {name: Oxford Properties, naics: ["5313"]}
+
+  # ─── engineering and construction ───────────────────────────────────────────────────────────
+  - {name: Stantec, naics: ["5413"]}
+  - {name: WSP, aliases: [WSP Global, WSP Canada], naics: ["5413"]}
+  - {name: Jacobs, aliases: [Jacobs Engineering], naics: ["5413"]}
+  - {name: Arcadis, naics: ["5413"]}
+  - {name: EllisDon, naics: ["23"]}
+  - {name: Aecon, aliases: [Aecon Group], naics: ["23"]}
+  - {name: Ledcor, naics: ["23"]}
+  - {name: Graham Construction, naics: ["23"]}
+  - {name: Kiewit, naics: ["23"]}
+
+  # ─── public sector, health, non-profits (names without a rule keyword) ───────────────────────
+  - {name: Statistics Canada, aliases: [StatCan, Statistique Canada], naics: ["92"]}
+  - {name: Canada Revenue Agency, aliases: [CRA, Agence du revenu du Canada], naics: ["92"]}
+  - {name: Health Canada, aliases: [Santé Canada], naics: ["92"]}
+  - {name: Transport Canada, naics: ["92"]}
+  - {name: Shared Services Canada, aliases: [Services partagés Canada], naics: ["92"]}
+  - {name: Public Services and Procurement Canada, aliases: [PSPC], naics: ["92"]}
+  - {name: Employment and Social Development Canada, aliases: [ESDC], naics: ["92"]}
+  - {name: Innovation Science and Economic Development Canada, aliases: [ISED], naics: ["92"]}
+  - {name: Ontario Public Service, aliases: [OPS], naics: ["92"]}
+  - {name: Department of National Defence, aliases: [DND, National Defence], naics: ["9281"]}
+  - {name: Canadian Armed Forces, aliases: [CAF, Canadian Forces, Royal Canadian Navy, Royal Canadian Air Force, Canadian Army], naics: ["9281"]}
+  - {name: U.S. Army, aliases: [US Army, United States Army, Army National Guard, U.S. Army Reserve, US Army Reserve], naics: ["9281"]}
+  - {name: U.S. Navy, aliases: [US Navy, United States Navy], naics: ["9281"]}
+  - {name: U.S. Marine Corps, aliases: [US Marine Corps, United States Marine Corps, USMC], naics: ["9281"]}
+  - {name: U.S. Air Force, aliases: [US Air Force, United States Air Force, USAF], naics: ["9281"]}
+  - {name: U.S. Coast Guard, aliases: [US Coast Guard, United States Coast Guard, USCG], naics: ["9281"]}
+  - {name: U.S. Space Force, aliases: [US Space Force, United States Space Force, USSF], naics: ["9281"]}
+  - {name: Alberta Health Services, aliases: [AHS], naics: ["6221"]}
+  - {name: University Health Network, aliases: [UHN], naics: ["6221"]}
+  - {name: SickKids, aliases: [The Hospital for Sick Children], naics: ["6221"]}
+  - {name: Sunnybrook, aliases: [Sunnybrook Health Sciences Centre], naics: ["6221"]}
+  - {name: Vancouver Coastal Health, naics: ["6221"]}
+  - {name: Fraser Health, naics: ["6221"]}
+  - {name: Kaiser Permanente, naics: ["6221"]}
+  - {name: Mayo Clinic, naics: ["6221"]}
+  - {name: Cleveland Clinic, naics: ["6221"]}
+  - {name: Canadian Red Cross, aliases: [Red Cross, American Red Cross], naics: ["6242"]}
+  - {name: Salvation Army, aliases: [The Salvation Army], naics: ["8131"]}
+  - {name: YMCA, aliases: [YWCA, YMCA Canada], naics: ["8134"]}
+  - {name: United Way, aliases: [Centraide], naics: ["8132"]}
+  - {name: Habitat for Humanity, naics: ["8133"]}
+  - {name: Big Brothers Big Sisters, naics: ["6241"]}
+  - {name: Boys and Girls Club, aliases: [Boys and Girls Clubs, Boys & Girls Club, Boys & Girls Clubs of Canada, Boys and Girls Club of Canada], naics: ["6241"]}
+
+# Keyword rules: `phrases` are read over the name and the context, `name_only` over the name alone.
+# Phrases are compared as words (normalised like names). The first rule listed that matches wins.
+rules:
+  # ─── specific phrases that contain a general word of a later rule ────────────────────────
+  - {naics: ["6242"], phrases: [food bank, banque alimentaire, food rescue, soup kitchen, homeless shelter]}
+  - {naics: ["5211"], phrases: [central bank, banque centrale]}
+  - {naics: ["4441"], phrases: [hardware store, home improvement, building supplies, quincaillerie]}
+  - {naics: ["4451"], phrases: [grocery, grocer, supermarket, epicerie, food market, convenience store, depanneur]}
+  - {naics: ["4561"], phrases: [pharmacy, pharmacie, drug mart, drugstore]}
+  - {naics: ["5418"], phrases: [marketing agency, advertising agency, digital agency, creative agency, pr agency, public relations firm, branding agency, agence de publicite, agence marketing]}
+  - {naics: ["5613"], phrases: [staffing agency, recruitment agency, recruiting firm, placement agency, temp agency, agence de placement, staffing firm]}
+  - {naics: ["5415"], phrases: [it consulting, technology consulting, it services, managed services, systems integrator, systems integration, services informatiques]}
+  - {naics: ["5413"], phrases: [engineering consulting, consulting engineers, engineering firm, engineering services, genie conseil], name_only: [architects, architecture]}
+  - {naics: ["6214"], phrases: [community health centre, community health center, centre de sante, clsc]}
+  - {naics: ["6213"], phrases: [physiotherapy, physiotherapie, chiropractic, optometry, physical therapy, rehabilitation clinic]}
+  - {naics: ["6212"], phrases: [dental, dentistry, dentist, dentaire, orthodontics, orthodontic]}
+  - {naics: ["5419"], phrases: [veterinary, veterinarian, animal hospital, clinique veterinaire]}
+  - {naics: ["6231"], phrases: [long term care, nursing home, retirement home, retirement residence, chsld]}
+  - {naics: ["6244"], phrases: [daycare, day care, child care, childcare, early learning centre, early learning center, garderie, centre de la petite enfance]}
+  - {naics: ["7212"], phrases: [summer camp, day camp], name_only: [camp]}
+  - {naics: ["7139"], phrases: [ski resort, golf club, golf course, fitness centre, fitness center, climbing gym], name_only: [fitness, gym, golf, bowling]}
+  - {naics: ["5231"], phrases: [investment bank, investment banking, capital markets, securities firm, brokerage firm, trading firm]}
+  - {naics: ["5239"], phrases: [asset management, wealth management, investment management, private equity, venture capital, hedge fund, pension plan, gestion de patrimoine], name_only: [investments, capital]}
+  - {naics: ["5221"], phrases: [bank, banque, banking, credit union, caisse populaire, trust company], name_only: [caisse]}
+  - {naics: ["5241"], phrases: [insurance, assurance, assurances, insurer, reinsurance, mutual insurance]}
+  - {naics: ["5223"], phrases: [payment processing, payment processor, fintech], name_only: [payments]}
+  - {naics: ["5412"], phrases: [accounting firm, cpa firm, chartered accountants, chartered professional accountants, cpas, cabinet comptable, comptables professionnels agrees, bookkeeping firm, tax services], name_only: [accounting, accountants]}
+  - {naics: ["5411"], phrases: [law firm, barristers, solicitors, lawyers, attorneys, law office, law offices, legal services, avocats, cabinet d avocats, legal clinic]}
+  # ─── education (before religious and government words: "Temple University") ───────────────
+  - {naics: ["6111"], phrases: [school board, district school board, school district, catholic school board, commission scolaire, centre de services scolaire, elementary school, primary school, public school, middle school, ecole primaire, ecole secondaire], name_only: [high school, secondary school, academy]}
+  - {naics: ["6112"], phrases: [cegep, community college]}
+  - {naics: ["6113"], phrases: [university, universite], name_only: [college, polytechnique, institute of technology, school of business, law school, faculty]}
+  - {naics: ["6117"], phrases: [tutoring company, tutoring centre, tutoring center, test prep, edtech], name_only: [tutoring]}
+  # ─── health ──────────────────────────────────────────────────────────────────────────────
+  - {naics: ["6221"], phrases: [hospital, hopital, health sciences centre, health sciences center, medical centre, medical center, centre hospitalier, health authority, regional health], name_only: [chu]}
+  - {naics: ["6214"], phrases: [health centre, health center, outpatient clinic]}
+  - {naics: ["6211"], phrases: [clinic, clinique, medical clinic, family practice, walk in clinic]}
+  - {naics: ["6216"], phrases: [home care, home health, soins a domicile]}
+  # ─── software, telecom, media ────────────────────────────────────────────────────────────
+  - {naics: ["5132"], phrases: [video games, game studio, games studio, jeux video], name_only: [gaming, games]}
+  - {naics: ["5132", "5415"], phrases: [software, saas, logiciel, logiciels, software as a service]}
+  - {naics: ["5182"], phrases: [cloud hosting, web hosting], name_only: [data centre, data center, hosting]}
+  - {naics: ["5162"], phrases: [social network], name_only: [social media, streaming, podcast, podcasts]}
+  - {naics: ["517"], phrases: [telecom, telecoms, telecommunications, telecommunication, internet provider, internet service provider, telco], name_only: [wireless, telephone, isp]}
+  - {naics: ["5161"], phrases: [broadcasting, broadcaster, tv network, radio station, television network], name_only: [television, radio, tele, tv]}
+  - {naics: ["5131", "5161"], phrases: [newspaper, news organization, news outlet, publishing house, magazine], name_only: [media, news, journal, publishing, editions, presse]}
+  - {naics: ["5121"], phrases: [film production, animation studio, production company], name_only: [film, films, studios, cinema, pictures]}
+  - {naics: ["3344"], phrases: [semiconductor, semiconductors, microelectronics]}
+  - {naics: ["334"], phrases: [consumer electronics, electronics manufacturer], name_only: [electronics]}
+  # ─── defence and government ──────────────────────────────────────────────────────────────
+  - {naics: ["9281"], phrases: [army, navy, air force, marine corps, armed forces, national defence, national defense, coast guard, space force, national guard, forces armees canadiennes, defense nationale], name_only: [military]}
+  - {naics: ["92"], phrases: [government, gouvernement, ministry, ministere, municipality, municipalite, city of, ville de, town of, region of, regional municipality, county of, township of, province of, state of, public service, fonction publique, crown corporation, secretariat, house of commons, parliament, legislative assembly, assemblee nationale, police service, service de police, fire department], name_only: [department of, federal, provincial, municipal, county, township, agency, police, senate]}
+  # ─── nonprofits, religion, community ─────────────────────────────────────────────────────
+  - {naics: ["8131"], phrases: [church, parish, mosque, synagogue, eglise], name_only: [temple, ministries]}
+  - {naics: ["8134"], phrases: [community centre, community center, youth centre, youth center, centre communautaire]}
+  - {naics: ["8133"], phrases: [non profit, nonprofit, not for profit, charity, charitable organization, ngo, osbl, organisme sans but lucratif, advocacy group], name_only: [foundation, fondation, association, charitable]}
+  # ─── hospitality, food, retail ───────────────────────────────────────────────────────────
+  - {naics: ["7225"], phrases: [restaurant, restaurants, cafe, coffee shop, bistro, pizzeria, diner, eatery, bakery, boulangerie, catering, food services, food truck, brasserie], name_only: [coffee, pizza, grill, pub, kitchen]}
+  - {naics: ["7211"], phrases: [hotel, hotels, resort, motel, hostel, auberge, hotellerie], name_only: [inn]}
+  - {naics: ["7121"], phrases: [museum, musee, art gallery, historic site, zoo, aquarium]}
+  - {naics: ["5192"], phrases: [public library, bibliotheque], name_only: [library, archives]}
+  - {naics: ["4581"], phrases: [clothing store, apparel, fashion retailer, boutique de vetements], name_only: [clothing, fashion]}
+  - {naics: ["4411"], phrases: [car dealership, dealership, auto sales, used cars, concessionnaire]}
+  - {naics: ["44-45"], phrases: [retail, retailer, retail store, department store, commerce de detail, e commerce, ecommerce, online store], name_only: [store, stores, shop, shops, outlet, mall, magasin, boutique, marketplace]}
+  - {naics: ["8111"], phrases: [auto repair, auto body, collision centre, collision center], name_only: [garage]}
+  # ─── manufacturing, transport, energy ───────────────────────────────────────────────────
+  - {naics: ["3361"], phrases: [automotive, automobile, vehicle manufacturing, motor company, constructeur automobile], name_only: [motors]}
+  - {naics: ["3364"], phrases: [aerospace, aerospatiale, aircraft, avionics, spacecraft], name_only: [satellite, rocket, space]}
+  - {naics: ["4811"], phrases: [airline, airlines, airways, compagnie aerienne]}
+  - {naics: ["4821"], phrases: [railway, railroad], name_only: [rail]}
+  - {naics: ["4851"], phrases: [transit authority, public transit, transit commission, transport en commun], name_only: [transit]}
+  - {naics: ["4921"], phrases: [courier, couriers, parcel delivery, express delivery]}
+  - {naics: ["4931", "4841"], phrases: [logistics, logistique, freight, trucking, warehousing, distribution centre, distribution center, transport routier, entreposage], name_only: [shipping, warehouse, supply chain]}
+  - {naics: ["3254", "5417"], phrases: [pharma, pharmaceutical, pharmaceuticals, biotech, biotechnology, therapeutics, biopharma, biopharmaceutical, life sciences, pharmaceutique, biotechnologie, vaccines]}
+  - {naics: ["5417"], phrases: [research institute, research centre, research center, institut de recherche, centre de recherche], name_only: [laboratory, laboratories, r and d]}
+  - {naics: ["3121"], phrases: [brewery, brewing, winery, distillery, brasserie artisanale], name_only: [beverages]}
+  - {naics: ["311"], phrases: [food processing, food products, agroalimentaire], name_only: [foods]}
+  - {naics: ["31-33"], phrases: [manufacturing, manufacturer, fabricant, usine], name_only: [factory, fabrication]}
+  - {naics: ["211"], phrases: [oil and gas, oil sands, petroleum, petrolier, gas exploration]}
+  - {naics: ["486"], phrases: [pipeline company, pipeline operator], name_only: [pipeline, pipelines]}
+  - {naics: ["22"], phrases: [utilities company, electric utility, power generation, hydro, electricity, nuclear, renewables, solar, wind power, water services], name_only: [utilities, utility, energy, energie, power]}
+  - {naics: ["212"], phrases: [mining company, gold corp, exploration company], name_only: [mining, mines, mine, minier, miniere]}
+  - {naics: ["23"], phrases: [construction, constructors, contractors, contracting, builders, homebuilder, general contractor, batiment, entrepreneur general, renovations, roofing, plumbing, electrical contractor]}
+  - {naics: ["5312"], phrases: [real estate, realty, realtor, realtors, immobilier, property brokerage]}
+  - {naics: ["5313"], phrases: [property management, gestion immobiliere, condominium management]}
+  - {naics: ["5418"], phrases: [advertising, public relations]}
+  - {naics: ["5613"], phrases: [staffing, recruitment services]}
+  - {naics: ["5416"], phrases: [management consulting, consultancy, services conseils, conseil en gestion], name_only: [consulting, consultants, advisory]}
+  - {naics: ["7111"], phrases: [theatre company, theater company, orchestra, symphony, dance company, opera], name_only: [theatre, theater]}
+  - {naics: ["7112"], phrases: [sports team, hockey club, football club, soccer club, basketball club]}
+  - {naics: ["11"], phrases: [agriculture, agricultural, ranch, orchard, agricole], name_only: [farm, farms, ferme, greenhouse, greenhouses]}
+  - {naics: ["113"], phrases: [forestry, logging company, foresterie]}
+  - {naics: ["8121"], phrases: [hair salon, barbershop, nail salon], name_only: [salon, spa]}
+  - {naics: ["5616"], phrases: [security services, security company, alarm monitoring]}
+  - {naics: ["5617"], phrases: [janitorial, cleaning services, landscaping, pest control]}
