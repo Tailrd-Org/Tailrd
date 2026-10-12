@@ -320,6 +320,27 @@ with a status word, the bracketed-status reading and the absorption of a licence
 in-progress form; they leaked through punctuation and turned posting requirements into
 candidacies.
 
+**D-28a Reading credential status on a résumé (Task 6.4). [Tailrd]** `parse/resume.py`
+`credential_status` reads the status D-28 leaves to the parser, for every mention (role titles and
+bullets included). A status word marks a credential only next to that credential's own mention,
+because a licence GATE_FAIL needs explicit evidence and a loose word must never turn a held licence
+into a pursued one. Noun words (student(s), candidate(s), trainee(s), apprentice(s), apprenticeship;
+étudiant, candidat, stagiaire, apprenti) count only right after the credential, with nothing but
+brackets, a hyphen or an acronym between ("RN students", "Primary Care Paramedic (PCP) student",
+"CDL-A trainee", "Electrician (309A) Apprentice"). Following words (in progress, pending, expected,
+anticipated, in training, writing the, Level I/II/III, en cours, en formation, prévu) count after it
+with only punctuation (never ; | •), connectors, issuer names, months, years or the credential's
+program word (diploma, program, certificate, designation, exam, licence, ...) between ("CPA, in
+progress", "RN (pending NCLEX)", "Primary Care Paramedic Diploma, Centennial College (expected
+2026)"); a degree ("Master of Nursing", "BScN"), another skill or another lower-case word
+("renewal pending", "Hazmat endorsement pending") stops them. Leading words (pursuing, completing,
+currently completing, working towards, enrolled, studying for) count before it with only articles and
+prepositions between ("Pursuing a CPA designation", "enrolled in RN bridging"). The nearest
+credential is marked, with the same credential's alias right before it ("Registered Nurse (RN)
+candidate"). A marked credential becomes its formal in-progress designation, stays when it is one,
+and is dropped when it has none. A held mention elsewhere is never downgraded: status marks only the
+mention it stands next to.
+
 **D-29 Military crosswalk skills. [Spec §14.3: clarified]** A code's `skill_ids` come only from
 the O*NET occupations it maps to: their hot or in-demand technologies and top five knowledge areas
 (importance >= 3). Never a sibling occupation's skills (the earlier "All Other" family union gave
