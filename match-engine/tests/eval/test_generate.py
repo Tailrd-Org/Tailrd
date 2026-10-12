@@ -337,6 +337,20 @@ def test_fit_level_coverage_is_constructed(profs, posting_by_id) -> None:
     assert means[3] > means[2] > means[1] > means[0]
 
 
+def test_a_posting_with_one_required_skill_staffs_every_level(vocab, posts) -> None:
+    # Regression (Task 7.1 part B, real postings): levels 1 and 2 cover at least one required skill,
+    # so a one-skill posting left none to "stuff" on the skills line and random.sample raised.
+    posting = posts[0]
+    first = next(r for r in posting.requirements if r.necessity is Necessity.REQUIRED)
+    one = posting.model_copy(update={"requirements": tuple(
+        r for r in posting.requirements if r is first or r.necessity is not Necessity.REQUIRED)})
+    people = profiles.generate_profiles(vocab, [one], 40, seed=3)  # 10 per level: the 30 % branch is hit
+    assert {p.fit_level for p in people} == {0, 1, 2, 3}
+    for p in people:
+        if p.fit_level:
+            assert _coverage(p, one) == 1.0  # the one required skill is shown in the work history
+
+
 def test_level_zero_is_a_different_family(profs, posting_by_id) -> None:
     for p in profs:
         posting = posting_by_id[p.target_posting_id]
