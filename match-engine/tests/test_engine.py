@@ -131,7 +131,7 @@ def test_a_full_match_is_scored_at_100(small_graph, config) -> None:
     assert result.caps == () and result.reasons == () and result.flags == ()
     assert result.calibration == CalibrationInfo(method="identity", scope="test", n=0, version="test")
     assert result.interval is None  # only on request
-    assert result.explanation is None and result.improvements == ()  # Milestone 4
+    assert result.explanation is not None and result.improvements == ()  # counterfactuals on request
     assert result.engine_version == config.engine_version
     assert result.config_hash == combined_hash(config, small_graph.version)
     assert result.as_of == AS_OF and result.input_digest == _digest(resume, posting, AS_OF)
