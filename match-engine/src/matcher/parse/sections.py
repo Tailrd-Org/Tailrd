@@ -95,7 +95,16 @@ def _simple(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Opti
     core = " ".join(word for word in key.split() if word not in table.filler_words)
     if core and core != key and core in index:
         return index[core]
+    if " " not in key and len(key) >= _MIN_FUSED:
+        # OCR often drops the space of a styled header ("ProfessionalExperience"): one token equal to
+        # a multi-word header with its spaces removed is that header.
+        for listed, found in index.items():
+            if " " in listed and listed.replace(" ", "") == key:
+                return found
     return None
+
+
+_MIN_FUSED = 8  # shortest fused header considered ("workhistory" is 11)
 
 
 def _composite_parts(text: str, table: SectionsTable) -> list[str]:

@@ -247,6 +247,36 @@ def test_layout_styled_headers(pc) -> None:
     assert _kinds(plain) == [K.CONTACT, K.EXPERIENCE, K.SKILLS]
 
 
+def test_a_military_transition_resume_keeps_its_civilian_roles(pc) -> None:
+    """Task 5.3 format-invariance finding: in a PDF the styled "Civilian Work Experience" header was an
+    unknown (OTHER) section, so every civilian role was lost; the plain-text rendering kept them."""
+    rows = [
+        ("Blake Specimen", 18.0, True),
+        ("Military Service", 13.0, True),
+        ("Branch: U.S. Army", 10.5, False),
+        ("Civilian Work Experience", 13.0, True),
+        ("DevOps Engineer III, Pinecrest Platforms July 2024 to Current", 10.5, False),
+        ("- Implemented backup routines using Golang and AWS", 10.5, False),
+        ("Skills", 13.0, True),
+        ("Python, SQL", 10.5, False),
+    ]
+    sections, _ = segment([text for text, _, _ in rows], parse_config=pc, layout=_layout(rows))
+    assert _kinds(sections) == [K.CONTACT, K.EXPERIENCE, K.EXPERIENCE, K.SKILLS]
+    for header in ("Civilian Work Experience", "Civilian Experience", "Civilian Employment"):
+        assert classify_header(header, pc) is K.EXPERIENCE, header
+
+
+def test_an_ocr_fused_header_is_still_a_header(pc) -> None:
+    """Task 5.3 format-invariance finding: OCR of a scanned page read "Professional Experience" as
+    "ProfessionalExperience", the experience section disappeared and every role with it."""
+    assert classify_header("ProfessionalExperience", pc) is K.EXPERIENCE
+    assert classify_header("WORKHISTORY", pc) is K.EXPERIENCE
+    assert classify_header("Networking", pc) is None  # an ordinary word is not a fused header
+    sections, _ = segment(["Alex Kim", "ProfessionalExperience", "Barista, Cafe Uno | 2024 - Present",
+                           "- Served 200 customers a day"], parse_config=pc)
+    assert _kinds(sections) == [K.CONTACT, K.EXPERIENCE]
+
+
 def test_a_layout_that_does_not_match_the_lines_is_ignored(pc) -> None:
     layout = _layout([("Something else", 13.0, True)])
     sections, _ = segment(["EXPERIENCE", "Barista | 2024 – Present"], parse_config=pc, layout=layout)
