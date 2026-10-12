@@ -114,7 +114,12 @@ def test_more_than_25_weighted_requirements_keep_the_top_25_by_idf() -> None:
 
 def test_overflow_ties_break_by_id_and_a_group_is_one_unit() -> None:
     text = "Requirements\n" + "\n".join(f"- {name}" for name in THIRTY[:26]) + "\n- AWS or GCP"
-    posting = parse(text)  # every IDF is the unseen default: ties everywhere
+    e = env()
+    # An empty IDF table makes every IDF the unseen default, so every unit ties (independent of the
+    # committed corpus IDF).
+    posting = parse_posting("Software Developer", text, meta=PostingMeta(locations=(TORONTO,)), as_of=AS_OF,
+                            resolver=e["resolver"], graph=_idf_graph({}), config=e["config"],
+                            parse_config=e["parse_config"], titles=e["titles"])
     rows = reqs(posting)
     weighted = {r.or_group or r.skill_id for r in posting.requirements if r.necessity is not Necessity.IMPLIED}
     assert len(weighted) == 25
