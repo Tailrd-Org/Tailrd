@@ -1,0 +1,671 @@
+# Job-posting parse tables (SPEC §14.4; Task 6.5; read by parse/posting.py).
+#
+# Phrases are compared as folded words (case- and accent-insensitive; hyphens and apostrophes split
+# words, so "you'll need" is "you ll need" and "nice-to-have" is "nice to have"). Patterns (the
+# `*_patterns` keys) are Python regular expressions, compiled case-insensitively at load; a pattern
+# that does not compile is refused. Everything English and French.
+format: 1
+
+# ─── sections ────────────────────────────────────────────────────────────────────────────────
+# A header is a short line (at most `max_header_words` words) whose words, without the filler
+# words, are a listed phrase without its filler words: "What You'll Need:", "**Minimum
+# Qualifications**", "## Nice to Have", "ATOUTS". "Label: text" on one line opens the section and
+# the text after the colon belongs to it. The longest matching phrase decides; on a tie the kind
+# listed first here wins (preferred before required: "Preferred Qualifications").
+sections:
+  max_header_words: 8
+  filler: [the, our, your, a, an, and, "&", of, to, for, this, that, what, we, re, are, you, ll,
+           will, who, is, in, with, key, s, le, la, les, l, de, des, du, et, vos, votre, nos, notre,
+           ce, que, qui, vous]
+  preferred:
+    - preferred qualifications
+    - preferred skills
+    - preferred experience
+    - preferred
+    - nice to have
+    - nice to haves
+    - nice to have skills
+    - good to have
+    - bonus
+    - bonus points
+    - bonus if you have
+    - bonus skills
+    - pluses
+    - plus
+    - assets
+    - asset
+    - additional qualifications
+    - desired qualifications
+    - desired skills
+    - desirable
+    - it would be great if you have
+    - extra credit
+    - even better if
+    - atouts
+    - un atout
+    - competences souhaitees
+    - qualifications souhaitees
+    - ce serait un plus
+    - serait un atout
+  required:
+    - requirements
+    - requirement
+    - job requirements
+    - qualifications
+    - minimum qualifications
+    - basic qualifications
+    - required qualifications
+    - required skills
+    - minimum requirements
+    - must have
+    - must haves
+    - what you need
+    - what you ll need
+    - what you will need
+    - what you bring
+    - what you ll bring
+    - what we re looking for
+    - what we are looking for
+    - who you are
+    - about you
+    - you have
+    - you are
+    - you
+    - your profile
+    - your skills
+    - skills
+    - technical skills
+    - key skills
+    - skills and experience
+    - skills and qualifications
+    - experience and qualifications
+    - qualifications and experience
+    - education and experience
+    - experience
+    - education
+    - ideal candidate
+    - the ideal candidate
+    - to be successful
+    - to succeed in this role
+    - exigences
+    - exigences du poste
+    - qualifications requises
+    - competences requises
+    - competences
+    - profil recherche
+    - votre profil
+    - profil
+    - ce que nous recherchons
+    - ce que vous apportez
+    - formation et experience
+  responsibilities:
+    - responsibilities
+    - key responsibilities
+    - job responsibilities
+    - duties
+    - duties and responsibilities
+    - what you ll do
+    - what you will do
+    - what you ll be doing
+    - what you will be doing
+    - the role
+    - about the role
+    - your role
+    - role
+    - the job
+    - about the job
+    - job description
+    - role description
+    - position description
+    - about the position
+    - the position
+    - day to day
+    - a day in the life
+    - in this role
+    - in this role you will
+    - your impact
+    - impact
+    - the opportunity
+    - the team
+    - about the team
+    - tech stack
+    - our stack
+    - our tech stack
+    - technologies we use
+    - responsabilites
+    - taches
+    - vos taches
+    - vos responsabilites
+    - votre role
+    - description du poste
+    - le poste
+    - le role
+    - mandat
+  about:
+    - about us
+    - about
+    - about the company
+    - who we are
+    - company overview
+    - company description
+    - our company
+    - our mission
+    - our story
+    - a propos
+    - a propos de nous
+    - qui sommes nous
+    - l entreprise
+  ignored:
+    - benefits
+    - perks
+    - perks and benefits
+    - benefits and perks
+    - what we offer
+    - why join us
+    - why join
+    - why work here
+    - why you ll love working here
+    - compensation
+    - compensation and benefits
+    - salary
+    - pay
+    - pay range
+    - salary range
+    - equal opportunity
+    - equal opportunity employer
+    - equal employment opportunity
+    - eeo
+    - eeo statement
+    - diversity
+    - diversity and inclusion
+    - diversity equity and inclusion
+    - accessibility
+    - accommodation
+    - accommodations
+    - how to apply
+    - application process
+    - to apply
+    - next steps
+    - our values
+    - values
+    - culture
+    - location
+    - hours
+    - schedule
+    - work schedule
+    - disclaimer
+    - privacy
+    - privacy notice
+    - additional information
+    - avantages
+    - avantages sociaux
+    - ce que nous offrons
+    - remuneration
+    - salaire
+    - equite
+    - diversite
+    - pour postuler
+    - comment postuler
+
+# ─── modal phrases (SPEC §14.4 "requirements buried in prose") ───────────────────────────────
+# A clause's own phrase decides its necessity; see parse/posting.py for how a clause without one
+# inherits. `preferred` is checked before `required` ("Python is required; Go is a plus" splits at
+# the ";"), and a clause holding both reads as preferred ("must have ... is a plus" is rare and
+# the softer reading cannot invent a requirement). `implied` phrases (interest, learning,
+# opportunity) make the clause IMPLIED wherever it is: "Willingness to learn Kubernetes" names no
+# requirement. `negated` phrases make the clause IMPLIED too: "No Rust experience required".
+modals:
+  required:
+    - must
+    - must have
+    - required
+    - requires
+    - require
+    - requirement
+    - requirements
+    - mandatory
+    - minimum
+    - at least
+    - essential
+    - necessary
+    - you have
+    - you ve got
+    - you possess
+    - you bring
+    - you ll need
+    - you will need
+    - you need
+    - need to have
+    - needs to have
+    - should have
+    - should possess
+    - you must
+    - currently pursuing
+    - currently enrolled
+    - enrolled in
+    - pursuing a
+    - doit
+    - doivent
+    - devez
+    - requis
+    - requise
+    - requises
+    - exige
+    - exigee
+    - exiges
+    - exigees
+    - obligatoire
+    - obligatoires
+    - essentiel
+    - essentielle
+    - au moins
+    - minimum de
+    - vous avez
+    - vous possedez
+    - vous detenez
+    - vous maitrisez
+  preferred:
+    - nice to have
+    - good to have
+    - bonus
+    - bonus points
+    - preferred
+    - preferably
+    - preference
+    - ideally
+    - a plus
+    - is a plus
+    - are a plus
+    - big plus
+    - huge plus
+    - definite plus
+    - strong plus
+    - pluses
+    - an asset
+    - asset
+    - assets
+    - desirable
+    - desired
+    - advantageous
+    - an advantage
+    - beneficial
+    - helpful
+    - would be great
+    - would be nice
+    - un atout
+    - atout
+    - atouts
+    - un plus
+    - serait un plus
+    - souhaitable
+    - souhaite
+    - souhaitee
+    - souhaites
+    - souhaitees
+    - idealement
+    - de preference
+    - constitue un atout
+  implied:
+    - if you have
+    - if you re
+    - if you are
+    - whether you have
+    - si vous avez
+    - willingness to learn
+    - willing to learn
+    - eager to learn
+    - eagerness to learn
+    - desire to learn
+    - interest in
+    - interested in
+    - passion for
+    - curiosity about
+    - opportunity to
+    - opportunities to
+    - chance to
+    - you will learn
+    - you ll learn
+    - will learn
+    - learn about
+    - get exposure
+    - exposure to
+    - we use
+    - we will teach
+    - training provided
+    - will be trained
+    - mentorship in
+    - volonte d apprendre
+    - interet pour
+    - occasion de
+    - vous apprendrez
+  negated:
+    - not required
+    - not necessary
+    - not needed
+    - not a requirement
+    - no experience
+    - no prior experience
+    - no experience required
+    - don t need
+    - do not need
+    - doesn t need
+    - is not required
+    - aren t required
+    - pas requis
+    - pas necessaire
+    - aucune experience
+
+# Words that, in the same clause, show a credential is to be HELD ("RN with 3+ years", "Must hold
+# a valid P.Eng. licence", "CPA designation required"); a credential mentioned otherwise ("work
+# under RN supervision") is no licence requirement. A credential that opens its clause holds too.
+credential_holding:
+  - licence
+  - license
+  - licensed
+  - licensure
+  - designation
+  - designated
+  - certification
+  - certifications
+  - certified
+  - certificate
+  - registration
+  - registered
+  - registrable
+  - eligible
+  - eligibility
+  - accreditation
+  - accredited
+  - chartered
+  - credential
+  - credentials
+  - good standing
+  - hold
+  - holds
+  - holding
+  - possess
+  - possession
+  - valid
+  - current
+  - active
+  - must be
+  - required
+  - mandatory
+  - must
+  - permis
+  - titre
+  - membre
+  - detenir
+  - valide
+
+# ─── OR-groups (SPEC §14.4; DECISIONS D-31) ──────────────────────────────────────────────────
+or_groups:
+  # A list after one of these is a set of alternatives, whatever its last connector:
+  # "such as AWS, GCP and Azure", "one of Java, Kotlin or Scala".
+  lead_ins:
+    - such as
+    - e g
+    - eg
+    - for example
+    - for instance
+    - like
+    - one of
+    - any of
+    - one or more of
+    - at least one of
+    - either
+    - tels que
+    - telles que
+    - tel que
+    - telle que
+    - comme
+    - par exemple
+    - p ex
+    - l un des
+    - un des
+  # "X or equivalent", "Java or a similar language": a one-member group flagged or_equivalent.
+  equivalent_words: [equivalent, equivalents, similar, comparable, alternative, alternatives, other, another,
+                     equivalente, equivalentes, equivalents, similaire, similaires, autre, autres]
+
+# ─── years of experience ─────────────────────────────────────────────────────────────────────
+years:
+  # Number words read as numbers ("two years", "deux ans").
+  number_words: {zero: 0, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8,
+                 nine: 9, ten: 10, eleven: 11, twelve: 12, fifteen: 15, twenty: 20,
+                 un: 1, une: 1, deux: 2, trois: 3, quatre: 4, cinq: 5, sept: 7, huit: 8, neuf: 9, dix: 10}
+  # The words after "N years" that make it about something else ("18 years of age", "a 4-year
+  # degree", "2 years of college", "a 2-year contract"): never an experience requirement.
+  not_experience: [age, old, ago, degree, degrees, program, programme, college, university, school,
+                   contract, term, commitment, warranty, guarantee, study, studies, schooling, course,
+                   courses, diploma, residency, lease, plan, agreement, membership, anniversary,
+                   etudes, contrat, diplome]
+  # The total-experience word: "3+ years of experience" without a skill is `min_years_total`.
+  experience_words: [experience, experiences, exp, expertise, background, work, working, industry,
+                     professional, employment, experience]
+
+# ─── education requirement (SPEC §5.6) ───────────────────────────────────────────────────────
+education:
+  # Degree phrases the résumé vocabulary lacks, as postings write them.
+  phrases:
+    BACHELOR: [undergraduate degree, university degree, four year degree, 4 year degree, bachelor level,
+               college degree, technical degree, stem degree, post secondary degree,
+               diplome universitaire, diplome universitaire de premier cycle, grade universitaire]
+    MASTER: [graduate degree, advanced degree, postgraduate degree, post graduate degree,
+             diplome d etudes superieures, diplome de deuxieme cycle, deuxieme cycle]
+    ASSOCIATE: [post secondary diploma, college diploma, post secondary education, post secondary program,
+                post secondary programme, post secondary studies, post secondary institution, two year degree,
+                2 year degree, diplome d etudes collegiales, diplome collegial, etudes postsecondaires]
+  # Bare degree words ("Master", "Bachelor") count only in a clause that names a degree, a field of
+  # study or schooling ("Scrum Master", "master data management" are no degree).
+  cues: [degree, degrees, diploma, graduate, graduates, graduating, studies, studying, program, programme,
+         enrolled, pursuing, student, students, major, majoring, diplome, diplomes, etudes, etudiant,
+         etudiante, programme, baccalaureat, maitrise, doctorat]
+  # "a degree in Computer Science" with no level word: a bachelor's.
+  degree_in_field: BACHELOR
+  # "or equivalent (work) experience" relaxes the requirement (or_equivalent).
+  equivalent:
+    - or equivalent
+    - or an equivalent
+    - or equivalent experience
+    - or equivalent work experience
+    - or equivalent practical experience
+    - or equivalent combination
+    - equivalent experience
+    - equivalent combination of education and experience
+    - or relevant experience
+    - or related experience
+    - or comparable experience
+    - ou l equivalent
+    - ou equivalent
+    - experience equivalente
+
+# ─── gates (SPEC §4; DECISIONS D-60..D-64) ────────────────────────────────────────────────────
+# The countries a gate may name, as patterns (compiled case-insensitively; "US" keeps its casing so
+# "work for us" names no country). The patterns below write {country} where one may stand.
+countries:
+  CA: ['(?<![A-Za-z])canad(?:a|ian|ians|ien|ienne|iens|iennes)(?![A-Za-z])']
+  US: ['(?<![A-Za-z])united\s+states(?:\s+of\s+america)?(?![A-Za-z])',
+       '(?<![A-Za-z])(?-i:U\.\s?S\.(?:\s?A\.)?|USA|US)(?![A-Za-z])',
+       '(?<![A-Za-z])americans?(?![A-Za-z])',
+       '(?<![A-Za-z])[ée]tats[\s-]unis(?![A-Za-z])']
+
+work_authorization:
+  # A sentence holding one of these and a requirement word ("must", "require", "eligible", "only",
+  # "legally", ...) is a work-authorisation requirement; {country} names the gate's country.
+  authorized_patterns:
+    - "(?:authori[sz]ed|eligible|entitled|permitted|able|allowed|right)\\s+to\\s+(?:legally\\s+)?work\\s+(?:in|within|for)\\s+(?:the\\s+)?{country}"
+    - "(?:legal|legally)\\s+(?:authori[sz]ed|eligible|entitled|able)\\s+to\\s+work\\b"
+    - "(?:authori[sz]ed|eligible|entitled)\\s+to\\s+work\\b"
+    - "\\bright\\s+to\\s+work\\b"
+    - "\\bwork\\s+(?:authori[sz]ation|permit|eligibility)\\b"
+    - "autoris[ée]e?s?\\s+[àa]\\s+travailler"
+    - "permis\\s+de\\s+travail"
+  requirement_words: [must, required, require, requires, requirement, need, needs, should, only, legal,
+                      legally, eligible, eligibility, valid, proof, mandatory, doit, doivent, devez,
+                      requis, exige, obligatoire, valide]
+  sponsorship_refused_patterns:
+    - "\\b(?:unable|not\\s+able|cannot|can\\s+not|can'?t|will\\s+not|won'?t|do(?:es)?\\s+not|are\\s+not|is\\s+not)\\s+(?:to\\s+)?(?:currently\\s+)?(?:provide|offer|support|consider)?\\s*(?:any\\s+)?(?:visa|work\\s+visa|employment\\s+visa|immigration|work\\s+permit)?\\s*sponsor"
+    - "\\bno\\s+(?:visa\\s+|immigration\\s+|work\\s+visa\\s+|employer\\s+)?sponsorship"
+    - "\\bsponsorship\\s+(?:is\\s+|will\\s+)?(?:not|un)\\s*(?:be\\s+)?(?:available|offered|provided|possible|supported)"
+    - "\\bwithout\\s+(?:the\\s+need\\s+for\\s+)?(?:current\\s+or\\s+future\\s+|now\\s+or\\s+in\\s+the\\s+future\\s+)?(?:visa\\s+|employer\\s+|company\\s+)?sponsorship"
+    - "\\bnot\\s+(?:now\\s+or\\s+in\\s+the\\s+future\\s+)?require\\s+(?:visa\\s+|employer\\s+|company\\s+)?sponsorship"
+    - "\\bnot\\s+eligible\\s+for\\s+(?:visa\\s+)?sponsorship"
+    - "\\baucun\\s+parrainage"
+    - "\\bsans\\s+parrainage"
+    - "\\bne\\s+(?:pouvons|peut|pourrons)\\s+pas\\s+parrainer"
+  sponsorship_offered_patterns:
+    - "\\b(?:visa\\s+)?sponsorship\\s+(?:is\\s+)?(?:available|offered|provided)"
+    - "\\bwe\\s+(?:will\\s+|can\\s+|do\\s+)?sponsor\\b"
+    - "\\bwill(?:ing)?\\s+(?:to\\s+)?sponsor\\b"
+    - "\\bopen\\s+to\\s+sponsor(?:ing|ship)?\\b"
+    - "\\bparrainage\\s+(?:est\\s+)?(?:disponible|offert)"
+  # A citizenship requirement ("Must be a U.S. citizen", "Canadian citizenship is required",
+  # "U.S. citizens only"). {country} may be absent ("Citizenship required"): the gate then takes the
+  # posting's countries (DECISIONS D-61; Task 3.4 review).
+  citizenship_patterns:
+    - "\\b{country}\\s+citizen(?:ship|s)?\\b"
+    - "\\bcitizen(?:ship)?\\s+of\\s+(?:the\\s+)?{country}"
+    - "\\bcitizenship\\s+(?:is\\s+)?(?:required|mandatory)"
+    - "\\bcitizens\\s+only\\b"
+    - "\\bcitoyen(?:net[ée]|ne)?s?\\s+{country}"
+  citizenship_words: [must, required, require, requires, only, mandatory, need, needs, eligible, eligibility,
+                      doit, doivent, requis, requise, exige, exigee, obligatoire]
+  # "citizen or permanent resident" (also "U.S. person", "green card"): authorisation in the
+  # country, not citizenship (a permanent resident is eligible).
+  resident_patterns:
+    - "\\bcitizens?(?:ship)?\\s*(?:,|or|/|and/or)\\s*(?:a\\s+)?(?:lawful\\s+|legal\\s+)?permanent\\s+residen(?:t|ts|ce|cy)"
+    - "\\bpermanent\\s+residen(?:t|ts|ce|cy)\\s*(?:,|or|/|and/or)\\s*(?:a\\s+)?citizen"
+    - "\\bcitizens?(?:ship)?\\s*(?:,|or|/)\\s*(?:a\\s+)?green\\s+card"
+    - "\\bgreen\\s+card\\s+holders?\\b"
+    - '(?<![A-Za-z])(?-i:U\.\s?S\.|US)\s+persons?\b'
+    - "\\bcitoyen(?:net[ée]|ne)?s?\\s+(?:canadien(?:ne)?s?\\s+)?ou\\s+r[ée]sident(?:e)?s?\\s+permanent"
+
+security_clearance:
+  # A sentence is about a security clearance only when it matches one of these (so "customs
+  # clearance", "medical clearance" and "our secret sauce" never are).
+  context_patterns:
+    - "\\bsecurity\\s+clearance"
+    - "\\b(?:government|federal|dod|dnd|nato|active|interim|current)\\s+(?:security\\s+)?clearance"
+    - "\\b(?:secret|top\\s+secret|confidential|ts\\s*/\\s*sci|ts|sci)\\s+(?:level\\s+)?(?:security\\s+)?clearance"
+    - "\\bclearance\\s+(?:at\\s+the\\s+|level\\s+)?(?:secret|top\\s+secret|ts\\s*/\\s*sci|reliability)"
+    - "\\bts\\s*/\\s*sci\\b"
+    - "\\btop\\s+secret\\b"
+    - "\\b(?:enhanced\\s+)?reliability\\s+(?:status|clearance|level|screening)"
+    - "\\bpublic\\s+trust\\b"
+    - "\\bcote\\s+de\\s+(?:s[ée]curit[ée]|fiabilit[ée])"
+    - "\\bhabilitation\\s+de\\s+s[ée]curit[ée]"
+  # Levels, most specific first. `countries`: the ladders the level may sit on; a level with one
+  # country takes it, others take the country the sentence names, else the posting's.
+  levels:
+    - {suffix: TS_SCI, countries: [US], patterns: ["\\bts\\s*/\\s*sci\\b", "\\btop\\s+secret\\s*/\\s*sci\\b", "\\bsci\\s+eligib"]}
+    - {suffix: TOP_SECRET, countries: [US, CA], patterns: ["\\btop\\s+secret\\b", "\\bts\\s+(?:security\\s+)?clearance\\b", "\\btr[èe]s\\s+secret\\b"]}
+    - {suffix: ENHANCED_RELIABILITY, countries: [CA], patterns: ["\\benhanced\\s+reliability\\b", "\\bfiabilit[ée]\\s+approfondie\\b"]}
+    - {suffix: SECRET, countries: [US, CA], patterns: ["\\bsecret\\b"]}
+    - {suffix: RELIABILITY, countries: [CA], patterns: ["\\breliability\\b", "\\bfiabilit[ée]\\b"]}
+    - {suffix: PUBLIC_TRUST, countries: [US], patterns: ["\\bpublic\\s+trust\\b"]}
+    - {suffix: CONFIDENTIAL, countries: [US], patterns: ["\\bconfidential\\s+(?:level\\s+)?(?:security\\s+)?clearance\\b"]}
+  # The country a sentence names for its clearance.
+  country_patterns:
+    US: ['(?<![A-Za-z])(?-i:U\.\s?S\.|US)(?![A-Za-z])', '\bunited\s+states\b', '\bdod\b', '\bdepartment\s+of\s+defense\b']
+    CA: ['\bcanad', '\bdnd\b', '\bpspc\b', '(?<![A-Za-z])(?-i:GC)(?![A-Za-z])', '\bgouvernement\s+du\s+canada\b']
+  # An active clearance is required (FAIL when the résumé shows none, D-60) only when the sentence
+  # says so; "Secret clearance required" alone is read as obtainable (WARN), since a phantom FAIL
+  # costs more than a warning.
+  active_patterns:
+    - "\\bactive\\b"
+    - "\\bcurrent(?:ly)?\\s+(?:hold|holds|possess|have|maintain)"
+    - "\\bcurrent\\s+(?:\\w+\\s+){0,3}clearance"
+    - "\\b(?:must|should)\\s+(?:currently\\s+)?(?:hold|possess|have)\\b"
+    - "\\bexisting\\b"
+    - "\\bin\\s+good\\s+standing\\b"
+    - "\\bvalid\\s+(?:\\w+\\s+){0,3}clearance"
+    - "\\bd[ée]tenir\\b"
+    - "\\bvalide\\b"
+  obtainable_patterns:
+    - "\\b(?:able|ability|eligible|eligibility|willing|willingness)\\s+to\\s+(?:obtain|acquire|get|receive|undergo|be\\s+granted)"
+    - "\\bobtain\\b"
+    - "\\beligib(?:le|ility)\\s+(?:for|to)\\b"
+    - "\\bobtainable\\b"
+    - "\\bsponsor(?:ship)?\\s+(?:for|of)\\s+(?:a\\s+)?(?:security\\s+)?clearance"
+    - "\\bobtenir\\b"
+  negation_patterns:
+    - "\\bno\\s+(?:\\w+\\s+){0,2}clearance\\b"
+    - "\\bclearance\\s+(?:is\\s+)?not\\s+(?:required|necessary|needed)"
+    - "\\b(?:does|do|will)\\s+not\\s+require\\b"
+    - "\\bnot\\s+require\\s+(?:a\\s+)?(?:security\\s+)?clearance"
+
+# ─── unresolved requirement tokens (SPEC §16 coverage input; §17.1 taxonomy coverage) ─────────
+unresolved:
+  # The noun phrase after one of these, in a REQUIRED or PREFERRED clause, is a requirement token.
+  triggers:
+    - experience with
+    - experience in
+    - experience using
+    - hands on experience with
+    - knowledge of
+    - working knowledge of
+    - proficiency in
+    - proficiency with
+    - proficient in
+    - proficient with
+    - familiarity with
+    - familiar with
+    - expertise in
+    - expertise with
+    - skilled in
+    - fluency in
+    - connaissance de
+    - connaissances de
+    - connaissance des
+    - connaissances des
+    - maitrise de
+    - maitrise des
+    - experience avec
+    - experience en
+  # Words dropped from the front of such a phrase ("a modern framework", "at least one").
+  lead_words: [a, an, the, one, or, more, any, some, at, least, of, modern, common, popular, standard, basic,
+               strong, solid, good, excellent, deep, advanced, working, practical, hands, "on", relevant,
+               various, multiple, several, using, with, in, other, such, as, both, either, all, their,
+               un, une, le, la, les, des, du, de, l]
+  # A phrase whose every word is one of these (after the lead words) is no requirement token:
+  # "a fast-paced environment", "best practices", "the following".
+  generic_words: [environment, environments, team, teams, teamwork, setting, settings, role, roles, company,
+                  companies, project, projects, field, fields, industry, industries, practice, practices,
+                  principle, principles, concept, concepts, fundamentals, fundamental, tool, tools,
+                  technology, technologies, system, systems, area, areas, work, working, following,
+                  similar, related, relevant, best, fast, paced, large, small, scale, scaled, startup,
+                  startups, organization, organizations, organisation, organisations, customers, customer,
+                  clients, client, stakeholders, people, others, products, product, data, software,
+                  application, applications, development, use, using, language, languages, framework,
+                  frameworks, platform, platforms, process, processes, ability, skills, skill, knowledge,
+                  experience, things, stuff, etc, high, quality, level, levels, complex, new, latest,
+                  year, years, month, months, office, remote, hybrid, building, design, designing,
+                  writing, code, coding, programming, testing, debugging, solving, problem, problems,
+                  communication, written, verbal, english, french, equipe, environnement, outils,
+                  domaine, logiciels, donnees]
+  # All-capital words that are no technology ("USA", "CEO", "EEO", "GPA", province codes).
+  acronym_stoplist: [USA, US, CA, UK, EU, CEO, CTO, CFO, COO, VP, HR, EEO, EEOC, GPA, ASAP, FAQ, TBD, NA, OR, AND,
+                     "ON", BC, AB, QC, MB, SK, NS, NB, NL, PE, NY, NJ, WA, TX, MA, IL, PST, EST, CST, MST, UTC,
+                     PHD, MBA, BS, BA, MS, MA, BSC, MSC, BENG, MENG, DEI, LGBTQ, LGBTQIA, ADA, OFCCP, CV,
+                     PTO, RRSP, TFSA, ESPP, OTE, USD, CAD, EUR, GBP, AM, PM, II, III, IV, ID, OK, FT, PT,
+                     CO, OP, COOP, NOTE, NEW, ALL, THE, YOU, WE, IT, AI]
+
+# ─── posting pathologies (SPEC §14.4) ────────────────────────────────────────────────────────
+truncation:
+  # Older stored descriptions were cut at these lengths and end with "..." (or "…"): the text is
+  # parsed as far as it goes, its last (cut) word is dropped, and the posting is flagged TRUNCATED.
+  caps: [2000, 3000]
+  tolerance: 12
+  markers: ["...", "…"]
+boilerplate:
+  # BOILERPLATE_ONLY: fewer than `max_requirements` distinct requirements and at least
+  # `min_share` of the text in boilerplate sections (about, benefits, EEO, how to apply).
+  max_requirements: 3
+  min_share: 0.5
+contradiction:
+  # CONTRADICTORY_REQUIREMENTS: a posting at or below `max_level` that requires at least
+  # `min_years` of experience ("Junior Developer, 10 years required"). Both facts are kept.
+  max_level: IC1
+  min_years: 5
+# The description is read up to this many characters (a bound on absurd inputs; flag TRUNCATED).
+max_chars: 60000

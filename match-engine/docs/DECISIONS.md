@@ -605,6 +605,96 @@ transferred) differs, which fixes today's never-invalidated terms.
 **D-85 Thresholds.** Every hard-coded 80/60 in the backend and web app is replaced by the band
 from the engine (85/70/55). Alerts go out for confident (`SCORED`) Strong matches only.
 
+## Posting parser (Task 6.5) [Tailrd]
+
+The guiding rule for every entry below: a phantom requirement lowers every candidate's score on
+the posting, so where a reading is uncertain the softer one is taken (IMPLIED over REQUIRED, a
+warning gate over a failing one, no level over a guessed one). Tables: `config/parse/posting.yaml`
+(part of `ParseConfig`, so of its version).
+
+**D-100 Sections and necessity.** A short header line, a "Label: text" line, or a line ending in
+":" that contains a header phrase ("Requirements for this role include:") opens REQUIRED,
+PREFERRED, RESPONSIBILITIES, ABOUT or IGNORED; a label inside a bullet holds for that bullet only.
+Necessity is per clause (cut at commas, brackets, ":" and but/while): the clause's own modal phrase
+decides, in the order implied (learning, interest, opportunity, "if you have"), negated ("not
+required", "no ... required"), preferred, required; implied and negated phrases are read over
+every word, the other two only outside skill mentions ("asset management" is no "asset"). A
+required phrase inside a PREFERRED section stays PREFERRED. A clause without a phrase takes the
+next clause's when the clauses between are bare lists and that clause continues the list ("Java,
+Python or Go is required"), else the previous clause's when it is itself a bare list ("Must have:
+Python, SQL"), else the section default (prose and responsibilities: IMPLIED). So "Strong Python
+skills, experience with Docker is a plus" leaves Python at the section default. ABOUT and IGNORED
+text yields no requirement. A statement that is only a list ("- Rust", "Go, Rust or C++") is read
+in the resolver's list context, so an ambiguous name may open it; "- Excel at problem solving" is a
+sentence and stays prose.
+
+**D-101 OR-groups.** Runs of mentions joined only by list separators. A run after a lead-in ("such
+as", "e.g.", "one of") or written "X, Y or Z" is one group; inside an "and" list only the "X or Y"
+and "X/Y" pairs are; "or equivalent/similar/other ..." after a run (or a lone mention) flags the
+group `or_equivalent`. Groups sharing a member merge (more ways in, never fewer). A group one of
+whose members is also required alone at least as strongly is redundant and its other members fall
+to IMPLIED: "Python" plus "Python or Go" must not leave Go as a lone REQUIRED skill the posting never
+asked for. Labels `or:<n>` by first appearance. A skill keeps its strongest occurrence; on a tie a
+standalone occurrence beats a group membership.
+
+**D-102 Years.** A years phrase sets `min_years` on the run of mentions right after it (8 words at
+most, same sentence), else on a mention right before it ("Python (3+ years)"), else, when an
+experience word is near, `min_years_total`, from REQUIRED clauses only and the smallest stated (an
+alternative such as "5 years, or 3 with a Master's" must not become the higher bar). "1-2 years"
+is 1, "0-2 years" 0. Never experience: a following age/degree/program/contract/term word, or a
+preceding within/past/last/next/for. A skill's years read only from its chosen necessity's
+occurrences. Clamped to `as_of.year - release_year` with UNREALISTIC_REQUIREMENT. Contradiction:
+IC0/IC1 with `min_years_total`, else the largest REQUIRED per-skill years (D-37's order), at or
+above `contradiction.min_years` (5).
+
+**D-103 Education and credentials.** Degree words in REQUIRED/PREFERRED clauses; a bare
+"Master"/"Bachelor" counts only beside a schooling word or a field ("Scrum Master", "master data
+management" are none); posting phrases ("undergraduate degree", "graduate degree",
+"post-secondary program") and "degree in <field>" (bachelor's) add levels; alternatives take the
+lowest; REQUIRED wins over PREFERRED; fields are the clause's `field.*` ids, and in a schooling
+statement a skill that is also the field is the field ("degree in Statistics" asks for no
+statistics skill). Credentials are never skill requirements. In a REQUIRED clause that shows the
+credential is held (a holding word anywhere in the clause, its own name's words included, or the
+credential opening the clause) it is `certifications_required` and a `LicenseGate`; alternatives
+share one gate and one held member holds the group ("P.Eng. or EIT designation"); a credential with
+a non-credential alternative or "or equivalent" is required but gates nothing (the posting accepts
+another way in). PREFERRED credentials are `certifications_preferred`. "Under RN supervision" is
+neither.
+
+**D-104 Text, truncation, empty descriptions.** Entities are decoded (twice at most: Tailrd stores
+escaped HTML), tags become line breaks ("<li>" a bullet) or vanish, script/style bodies drop,
+inline bullet glyphs split lines, then `normalize_text`. A description whose length is within
+`truncation.tolerance` of a cap (2,000 or 3,000) and that ends in "..." or "…" is TRUNCATED: its
+last word is dropped when the cut fell inside it ("Java..." from "JavaScript"), BOILERPLATE_ONLY is
+never concluded from it, and the scorer caps the pair's parse-quality component at tier B
+(`score/confidence.py`; the requirements may go on past the cut). An empty description is title and
+metadata only: seniority, internship, family, industry, remote policy and the location gate are
+kept, nothing is read from the title as a requirement, and POSTING_UNSCORABLE sends the pair to
+NEEDS_REVIEW. `max_chars` (60,000) bounds absurd inputs (also TRUNCATED).
+
+**D-105 Gates from posting text.** Read from every sentence (footer and EEO text included) except
+preferred ones. Work authorisation: "authorized/eligible to work in <country>" (the country named,
+else none: the gate falls back to the posting's places, D-61), "work permit", "right to work";
+sponsorship refused or offered (both stated: unknown). Citizenship: "<country> citizen(ship)",
+"citizenship required", "citizens only", with a requirement word, never negated; it ALWAYS carries
+countries: the one named, else the posting's (Task 3.4 review). "Citizen or permanent resident",
+"green card" and "U.S. person" are authorisation in the country, not citizenship. "US" is matched
+with its casing ("work for us" names no country). Clearance: only in a sentence about a security
+clearance (never "customs clearance"), never a negated one; levels become `<CC>_<LEVEL>` ladder
+tokens (TS/SCI, Public Trust, Confidential: US; Reliability, Enhanced Reliability: CA; Secret, Top
+Secret: the country named, else the posting's single country, else no level); alternatives take
+the lowest level; `active_required` only when the sentence says active/current/hold/possess/valid
+and no "able to obtain" ("Secret clearance required" alone warns, D-60). Onsite with places: a
+`LocationGate`.
+
+**D-106 Overflow, boilerplate, coverage.** Overflow ranks REQUIRED/PREFERRED units (a group is one
+unit) by IDF, ties by the smallest member id; the rest become IMPLIED at the overflow multiplier.
+BOILERPLATE_ONLY: fewer than 3 distinct requirements and at least half the text in ABOUT/IGNORED
+sections. `requirement_token_count` is the distinct ids mentioned in REQUIRED/PREFERRED clauses
+plus the unresolved tokens there (phrases after "experience with", "knowledge of", ... with lead
+and generic words dropped, and tech-shaped words: inner capitals, ".js"/".NET", "C++", unlisted
+acronyms), sorted by their normal form.
+
 ## Audit and monitoring
 
 **D-90 Audit trace. [Spec: "full feature trace" undefined]** `audit.build_trace(result)` is the

@@ -306,6 +306,18 @@ def test_parse_quality_comes_from_the_tier(small_graph, config, tier, expected) 
     assert close(conf.components["parse_quality"], expected)
 
 
+@pytest.mark.parametrize("tier, expected", [(ParseTier.A, 0.8), (ParseTier.B, 0.8), (ParseTier.C, 0.55)])
+def test_a_truncated_posting_caps_parse_quality_at_tier_b(small_graph, config, tier, expected) -> None:
+    # A stored description cut mid-text (Task 6.5, D-104): its requirements may go on past the cut.
+    resume = SPEC_RESUME.model_copy(update={"parse_tier": tier})
+    posting = SPEC_POSTING.model_copy(update={"flags": (Flag.TRUNCATED,)})
+    truncated = _pair_confidence(resume, posting, small_graph, config)
+    assert close(truncated.components["parse_quality"], expected)
+    whole = _pair_confidence(SPEC_RESUME, SPEC_POSTING, small_graph, config)
+    if tier is ParseTier.A:
+        assert truncated.value < whole.value
+
+
 @pytest.mark.parametrize("count, unresolved, expected", [
     (0, (), None),  # no requirement tokens: undefined (D-44)
     (4, (), 1.0),
