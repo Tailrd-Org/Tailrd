@@ -361,6 +361,18 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "US-based", "dual citizen", "PR card", "GC", "perm res", "only", "Canada: Yes", "US: No", "applying for",
     "waiting on", "starting", "would need sponsorship", "need visa", "for us", "us citizen", "the states",
     "citizen of", "Latin American", "North American",
+    # Decide-b round 4: pending across a separator, ability and plan wording, labelled lines, typos,
+    # demonyms, bracketed statuses, question echoes, whitespace runs.
+    "lottery", "H-1B lottery", "in process", "(pending)", "- pending", "TN-eligible", "can get a", "could get",
+    "plan to get", "planning to apply for", "relocate to the US on a", "relocating to the US with", "move to",
+    "Canada: citizen", "US: needs sponsorship", "Canada: PR", "USA: sponsorship required", ": open work permit",
+    ": student", "citizan", "Canadain", "authroized", "Autorized", "I'm", "im", "living", "who", "Need an LMIA",
+    "LMIA", "would need a new LMIA", "Need H-1B sponsorship", "will need H-1B", "Asylum seeker", "with open work permit",
+    "Refugee status in", "protected person", "post grad work permit", "postgraduate work permit", "None",
+    "None needed", "citizen of both", "work in both", "(citizen)", "yes (citizen)", "not yet authorized",
+    "don't currently have", "Do you require sponsorship?", "Are you authorized?", "No, I need sponsorship",
+    "No - I will require sponsorship", "nope", "yep", "nah", "N/A - citizen", "I-485", "applying for PR",
+    "eligible to get", "seeking", "planning", " " * 40, "\t\t", "\n\n", "\r\n", NBSP * 3, "Canada and Canada and",
 ]
 
 EXOTIC_WORDS = [
@@ -400,7 +412,9 @@ POSTAL_CODES = ["V6E 3P3", "V6E3P3", "v6e 3p3", "M5V 2T6", "K1A 0B1", "02139", "
 SEPARATORS_IN_ADDRESS = [", "] * 8 + [",", " , ", ";", "\n", " ", ",,", "; ", ",\n", NBSP + "," + NBSP]
 YES_NO = ["Yes", "No", "", "", "", " ", "yes ", "n", "N/A", "NA", "n / a", "Not applicable", "Not yet",
           "Not currently, but I will in the future", "Not required now but will be after OPT", "TBD", "Y", "maybe", "None", "Not sure", "TRUE", "false", "Oui",
-          "Non", "yes.", NBSP + "Yes", BOM + "No"]
+          "Non", "yes.", NBSP + "Yes", BOM + "No", "nope", "Yep", "Do you require sponsorship? No I do not",
+          "Do you now or in the future require sponsorship? No.", "N/A - citizen", "N/A (US citizen)",
+          "Will you need sponsorship?", "No" + " " * 30 + "until 2027", "Not" + "\t\n " + "yet"]
 COUNTRY_QUERIES = [None, "", "US", "CA", "GB", "DE", "AT", "FR", "CH", "IN", "MX", "NO", "ES", "IE"]
 RESIDENCE_QUERIES = [None, "US", "CA", "DE", "GB", "IN"]
 

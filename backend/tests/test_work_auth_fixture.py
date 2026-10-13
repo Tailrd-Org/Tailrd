@@ -17,11 +17,16 @@ from backend.services.profile_facts import authorized_in, needs_sponsorship_in, 
 FIXTURE = Path(__file__).resolve().parents[2] / "chrome-extension" / "test" / "fixtures" / "work-auth-cases.json"
 CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))
 NON_CITIZEN = {"permanent_resident", "work_permit", "student", "denied"}
+NON_PR = {"work_permit", "student", "denied"}
+#: Lost value on the whole fixture after fix round 4 (it was 28 before).
+LOST_VALUE_CEILING = 1
 
 
 def _judge(exp, val, kind):
-    if exp is None or val is None:
+    if exp is None:
         return None
+    if val is None:
+        return "L" if exp is True or exp is False else None
     favourable = kind == "a"
     if exp == "nf":
         return ("N" if kind == "a" else "Y") if val is False else None
@@ -47,31 +52,34 @@ def grade_case(c: dict) -> list[str]:
         ja = _judge(e.get("a"), av, "a")
         if ja:
             errs.append(f"{ja} {x} authorized={av}")
-        if e.get("cit") is True and basis in NON_CITIZEN:
-            errs.append(f"N {x} basis {basis}")
+        if e.get("cit") is True and basis != "citizen":
+            errs.append(f"{'N' if basis in NON_CITIZEN else 'L'} {x} basis {basis} (citizen expected)")
         if e.get("cit") is False and basis == "citizen":
             errs.append(f"Y {x} basis citizen")
+        if e.get("pr") is False and basis == "permanent_resident":
+            errs.append(f"Y {x} basis permanent_resident")
+        if e.get("pr") is True and basis not in ("permanent_resident", "citizen"):
+            errs.append(f"{'N' if basis in NON_PR else 'L'} {x} basis {basis} (permanent resident expected)")
         js = _judge(e.get("sp"), sp, "sp")
         if js:
             errs.append(f"{js} {x} needsSponsorship={sp}")
     return errs
 
 
-def test_the_fixture_holds_the_210_reviewer_phrasings():
-    assert len(CASES) == 210
+def test_the_fixture_holds_the_348_reviewer_phrasings():
+    assert len(CASES) == 348
 
 
 @pytest.mark.parametrize("case", CASES, ids=[f"{i}-{c['source']}" for i, c in enumerate(CASES)])
 def test_each_case(case):
-    errs = grade_case(case)
-    if case.get("gap") == "wrong-no":
-        assert [e for e in errs if e.startswith("Y")] == []
-    else:
-        assert errs == []
+    assert [e for e in grade_case(case) if not e.startswith("L")] == []
 
 
-def test_totals_zero_wrong_yes_and_wrong_no_within_base():
-    wrong_yes = sum(1 for c in CASES if any(e.startswith("Y") for e in grade_case(c)))
-    wrong_no = sum(1 for c in CASES if any(e.startswith("N") for e in grade_case(c)))
+def test_totals_zero_wrong_yes_zero_wrong_no_lost_value_within_ceiling():
+    graded = [grade_case(c) for c in CASES]
+    wrong_yes = sum(1 for errs in graded if any(e.startswith("Y") for e in errs))
+    wrong_no = sum(1 for errs in graded if any(e.startswith("N") for e in errs))
+    lost = sum(1 for errs in graded if errs and all(e.startswith("L") for e in errs))
     assert wrong_yes == 0
-    assert wrong_no <= 34
+    assert wrong_no == 0
+    assert lost <= LOST_VALUE_CEILING

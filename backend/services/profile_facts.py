@@ -92,6 +92,7 @@ __all__ = [
     "Region",
     "WorkAuthFacts",
     "authorized_in",
+    "collapse_spaces",
     "countries_in",
     "country_of",
     "location_facts",
@@ -781,8 +782,19 @@ def residence_of(location: LocationFacts) -> Optional[str]:
 # Work authorization
 # ---------------------------------------------------------------------------
 
-_YES_PREFIX = _js_regex(r"^(yes|y|true|oui|si)\b")
-_NO_PREFIX = _js_regex(r"^(no|n|false|non|none|not)\b")
+_YES_PREFIX = _js_regex(r"^(yes|y|yeah|yep|yup|true|oui|si)\b")
+_NO_PREFIX = _js_regex(r"^(no|n|nope|nah|false|non|none|not)\b")
+_WHITESPACE_RUN = _js_regex(r"\s+")
+_LINE_BREAK = re.compile(r"[\n\r]")
+# A leading question echoed before the answer (TS: ``QUESTION_ECHO``).
+_QUESTION_ECHO = _js_regex(r"^(do|does|are|is|will|would|have|has|can|could)\b")
+
+
+def collapse_spaces(text: str) -> str:
+    """Every run of whitespace as one character: a newline when the run holds a line break (a
+    labelled answer keeps its lines), else a space (TS: ``collapseSpaces``). Applied to user text
+    before any other pattern (decide-b round 4), so no pattern ever meets a long whitespace run."""
+    return _WHITESPACE_RUN.sub(lambda m: "\n" if _LINE_BREAK.search(m.group(0)) else " ", text)
 _NEGATED_NEED = _js_regex(r"\b(will not|won't|do not|don't|does not|doesn't|no longer|never)\s+(need|require)")
 _PLAIN_NEED = _js_regex(r"\b(will|do|does|would)\s+(need|require)\b")
 _NOT_REQUIRED = _js_regex(r"\b(not required|not needed)\b")
@@ -805,9 +817,15 @@ def polarity_of(text: Optional[str]) -> Optional[bool]:
     "N/A", "NA", "N.A.", "not applicable" are None: unanswered, never a No (owner decisions
     2026-10-13).
     """
-    t = _trim(text or "").lower()
+    t = _trim(collapse_spaces(text or "")).lower()
     if not t:
         return None
+    # "Do you now or in the future require sponsorship? No.": the answer follows the echo.
+    q = t.rfind("?")
+    if q >= 0 and _QUESTION_ECHO.search(t):
+        rest = _trim(t[q + 1:])
+        if rest:
+            t = rest
     if _NOT_APPLICABLE.search(t):
         return None
     # "Not sure", "TBD": unanswered. Never a No (decide-b review I-2).
@@ -919,6 +937,35 @@ _AFFIRMATIVE = _js_regex(
 #: A status that settles sponsorship for the country (none needed), or a No.
 _SETTLED = frozenset({"citizen", "permanent_resident", "denied"})
 
+# "N/A - citizen": not applicable because of a settled status (TS: ``NA_BECAUSE_SETTLED``).
+_NA_BECAUSE_SETTLED = _js_regex(
+    r"^(?:n ?[/.]? ?a\b\.?|not applicable\b)[^a-z0-9]{0,4}(?:i'?m |i am )?(?:an? )?(?:[a-z]+ )?"
+    r"(?:citizen|permanent resident)\b"
+)
+# Words that move a leading No to another time (TS: ``NOT_TODAY``).
+_NOT_TODAY = _js_regex(r"\b(?:but|later|future|eventually|after|until|yet|currently|now)\b")
+_LEADING_NO = _js_regex(r"^(no|nope|n)\b")
+
+# Misspellings of the status words, read as the word (TS: ``TYPOS``).
+_TYPOS = (
+    (_js_regex(r"\b(?:citizan|citzen|citizn|citezen|citisen|citizon)(s|ship)?\b", re.IGNORECASE), "citizen"),
+    (_js_regex(r"\b(?:canadain|candian|canadien|canadan|canandian)\b", re.IGNORECASE), "canadian"),
+    (_js_regex(r"\b(?:amercian|amerian|amrican)\b", re.IGNORECASE), "american"),
+    (_js_regex(r"\b(?:authroized|autorized|athorized|authorzed|authorizd|authoirzed|authozied|authrized|autherized"
+               r"|authorixed)\b", re.IGNORECASE), "authorized"),
+    (_js_regex(r"\b(?:elligible|eligable|elegible)\b", re.IGNORECASE), "eligible"),
+    (_js_regex(r"\b(?:permenant|permanant|perminant)\b", re.IGNORECASE), "permanent"),
+)
+
+
+def _normalize_answer(text: str) -> str:
+    """The work-authorization answer as the patterns read it: whitespace runs collapsed (first,
+    before any other pattern) and status typos corrected (TS: ``normalizeAnswer``)."""
+    t = _trim(collapse_spaces(text))
+    for pattern, word in _TYPOS:
+        t = pattern.sub(lambda m, word=word: word + (m.group(1) or "") if m.re.groups else word, t)
+    return t
+
 
 @dataclass
 class _Bound:
@@ -1017,13 +1064,15 @@ def _key_source(k: str) -> str:
 _COUNTRY_KEYS = tuple(_country_keys())
 _COUNTRY_ALT = r"(?:u_\s?s(?:_\s?a)?_?|u_\s?k_?|" + "|".join(_key_source(k) for k in _COUNTRY_KEYS) + ")"
 _C = r"\b" + _COUNTRY_ALT + r"\b"
-_LIST = _C + r"(?:\s*(?:&|\/|\+|\band\b|\bor\b)\s*(?:the\s+)?" + _C + ")*"
+# At most eight countries in one list (TS: ``LIST``): a longer one costs O(n^2).
+_LIST = _C + r"(?:\s*(?:&|\/|\+|\band\b|\bor\b)\s*(?:the\s+)?" + _C + "){0,7}"
 _COUNTRY_RE = _js_regex(_C)
 # In the text the patterns read, every country name is replaced by a run of MARK of the same
 # length (TS: ``MARK``): the patterns then test one character instead of every name.
 _MARK = "\u00a7"
 _M = _MARK + "+"
-_MLIST = _M + r"(?:\s*(?:&|\/|\+|\band\b|\bor\b)\s*(?:the\s+)?" + _M + ")*"
+# A list starts at the start of a name, never again inside the same run of marks (TS: ``MLIST``).
+_MLIST = "(?<!" + _MARK + ")" + _M + r"(?:\s*(?:&|\/|\+|\band\b|\bor\b)\s*(?:the\s+)?" + _M + "){0,7}"
 _MARK_RUN = re.compile(_M)
 
 
@@ -1055,17 +1104,27 @@ def _code_of_key(match: str) -> Optional[str]:
 
 # Visas and statuses that only exist in one country (TS: ``VISA``).
 _VISA = (
-    r"h-?1-?b|tn|l-?1a?|e-?3|o-?1|ead|stem\s+opt|opt|cpt|f-?1|j-?1|m-?1|green\s*card|gc|pgwp|pr"
-    r"|permanent\s+residen(?:ce|cy|t)|work\s+permit|citizenship"
+    r"h-?1-?b|tn|l-?1a?|e-?3|o-?1|ead|stem\s+opt|opt|cpt|f-?1|j-?1|m-?1|green\s*card|gc|pgwp"
+    r"|post[\s-]?grad(?:uate|uation)?\s+work\s+permit|pr"
+    r"|permanent\s+residen(?:ce|cy|t)|work\s+permit|citizenship|refugee\s+status|protected\s+person"
 )
-# Needing, applying for or waiting on a visa is not holding it (TS: ``VISA_INTENT``).
+# Needing, applying for, waiting on, being able or planning to get a visa is not holding it; nor is
+# a visa that is eligible, pending, in process, in a lottery or starting later, the pending word
+# possibly across one spaced dash, colon or bracket (TS: ``VISA_INTENT``).
 _VISA_INTENT = _js_regex(
     r"\b(?:need|needs|needed|require|requires|required|would\s+need|will\s+need|will\s+get|will\s+apply\s+for"
     r"|apply\s+for|applying\s+for|applied\s+for|waiting\s+(?:on|for)|awaiting|hoping\s+(?:to\s+get|for)"
-    r"|eligible\s+for|pending)\s+(?:an?\s+|my\s+|the\s+)?(?:(?:the\s+)?" + _LIST + r"\s+)?(?:" + _VISA + r")\b"
+    r"|eligible\s+for|pending"
+    r"|(?:can|could|would|might|may)\s+(?:get|obtain|apply\s+for|qualify\s+for)|eligible\s+to\s+(?:get|obtain|apply\s+for)"
+    r"|qualify\s+for|plan(?:s|ning)?\s+(?:to\s+(?:get|obtain|apply\s+for)|on\s+(?:getting|applying\s+for))"
+    r"|intend(?:s|ing)?\s+to\s+(?:get|obtain|apply\s+for)|going\s+to\s+(?:get|apply\s+for))"
+    r"\s+(?:an?\s+|my\s+|the\s+)?(?:(?:the\s+)?" + _LIST + r"\s+)?(?:" + _VISA + r")\b"
     r"(?:\s+(?:visa|status|application|approval|petition))?"
-    r"|\b(?:" + _VISA + r")\s+(?:eligible|eligibility|application|approval|petition|pending|in\s+progress"
-    r"|processing|starting|begins?|start\s+date)\b"
+    r"|\b(?:relocat\w*|mov(?:e|es|ed|ing))\s+to\s+(?:the\s+)?" + _LIST + r"\s+(?:on|with|via|using|through|under)\s+"
+    r"(?:an?\s+|the\s+)?(?:" + _VISA + r")\b(?:\s+(?:visa|status))?"
+    r"|\b(?:" + _VISA + r")\b(?:\s(?:visa|status|application|card))?(?:\s?[-–—:(\[]\s?|\s|-)"
+    r"(?:eligible|eligibility|application|approval|petition|pending|in\s+progress|in\s+process|processing|starting"
+    r"|begins?|start\s+date|lottery|applied|submitted)\b"
 )
 
 
@@ -1084,7 +1143,7 @@ _WEAK_BREAK = _js_regex(r"^(?:,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s)\Z")
 _ANSWER_WORD = _js_regex(
     r"^\s*(?:(yes|y|yeah|yep|oui|si|[\u2705\u2714\u2611\u2713])|(no|n|nope|non|[\u274c\u2717\u2718\u2716]))\s*$"
 )
-_PURE_LIST = _js_regex(r"^\s*(?:(?:only\s+)?(?:in|for)\s+)?(?:the\s+)?(" + _MLIST + r")\s*(?:only\s*)?$")
+_PURE_LIST = _js_regex(r"^\s*(?:(?:only\s+)?(?:in|for)\s+)?(?:the\s+)?(" + _MLIST + r")\s*(?:only\s*)?(?::\s*)?$")
 _STATUS_ONLY_CITIZEN = _js_regex(r"\b(?:dual\s+)?citizen\w*\b|\bnationals?\b")
 _STATUS_ONLY_PR = _js_regex(r"\bpermanent\s+resident\w*|\bperm(?:anent)?\.?\s+res\w*|\bpr\b")
 _STATUS_ONLY_PERMIT = _js_regex(r"\b(?:open\s+)?work\s+(?:permit|visa)\b")
@@ -1107,8 +1166,10 @@ _L = "(" + _MLIST + ")"
 _POSTFIX_PATTERNS = (
     (_js_regex(_L + r"\s*(?:work\s+(?:authori[sz]ation|auth|permit)\s*)?(?::|-|\u2013)?\s*(?:\b(?:yes|oui)\b|"
                + _YES_MARK + ")"), "affirmative"),
-    (_js_regex(_L + r"\s*(?:work\s+(?:authori[sz]ation|auth|permit)\s*)?(?::|-|\u2013)?\s*(?:\bno\b|\bnot\s+"
-               r"(?:legally\s+)?(?:authori[sz]ed|eligible|allowed|permitted)\b|" + _NO_MARK + ")"), "deny"),
+    (_js_regex(_L + r"\s*(?:work\s+(?:authori[sz]ation|auth|permit)\s*)?(?::|-|\u2013)?\s*(?:\bno\b"
+               r"|\bnone\b(?!\s(?:needed|required|necessary))|\bnot\s+"
+               r"(?:(?:yet|currently)\s+)?(?:legally\s+)?(?:authori[sz]ed|eligible|allowed|permitted)\b|" + _NO_MARK + ")"),
+     "deny"),
 )
 _PREFIX_ANSWER_PATTERNS = (
     (_js_regex(r"(?:\b(?:yes|oui)\b|" + _YES_MARK + r")\s*(?:[:\-\u2013]\s*)?(?:(?:for|in)\s+)?(?:the\s+)?" + _L),
@@ -1125,40 +1186,74 @@ _PATTERNS = (
     (_js_regex(r"(?:\bcannot|\bcan['\u2019]?t|\bcan\s+not|\bunable\s+to|\bnot\s+able\s+to)\s+(?:legally\s+)?work\s+"
                r"(?:in|for)\s+(?:the\s+)?" + _L), "deny"),
     (_js_regex(r"\b(?:ineligible|unauthori[sz]ed)\s+(?:to\s+work\s+)?(?:(?:in|for)\s+)?(?:the\s+)?" + _L), "deny"),
-    (_js_regex(r"(?:\bno|\bwithout|\b(?:do|does)\s+not\s+have|\b(?:don|doesn)['\u2019]?t\s+have|" + _NO_MARK
+    (_js_regex(r"(?:\bno|\bwithout|\b(?:do|does)\s+not\s+(?:currently\s+|yet\s+)?have"
+               r"|\b(?:don|doesn)['\u2019]?t\s+(?:currently\s+|yet\s+)?have|" + _NO_MARK
                + r")\s*(?:an?\s+|any\s+)?(?:the\s+)?" + _L + r"\s+(?:work\s+)?" + _AUTH_NOUN), "deny"),
-    (_js_regex(r"(?:\bno|\bwithout|\b(?:do|does)\s+not\s+have|\b(?:don|doesn)['\u2019]?t\s+have)\s+(?:an?\s+|any\s+)?"
+    (_js_regex(r"(?:\bno|\bwithout|\b(?:do|does)\s+not\s+(?:currently\s+|yet\s+)?have"
+               r"|\b(?:don|doesn)['\u2019]?t\s+(?:currently\s+|yet\s+)?have)\s+(?:an?\s+|any\s+)?"
                r"(?:work\s+)?(?:authori[sz]ation|permit|right|status)\s+(?:to\s+work\s+)?(?:in|for)\s+(?:the\s+)?" + _L),
      "deny"),
     # "not a citizen of the US", "US citizen not"
     (_js_regex(r"\bnot\s+(?:an?\s+)?(?:citizen\w*|nationals?|resident\w*)\s+of\s+(?:the\s+)?" + _L), "notCitizen"),
     (_js_regex(_L + r"\s+citizen\w*\s+(?:not|no)\s*$"), "notCitizen"),
-    # Citizenship.
+    # Citizenship: "US citizen", "Canada: citizen", "citizen of (both) Canada and the US".
     (_js_regex(_L + r"\s+(?:dual\s+)?(?:citizen\w*|nationals?)\b"), "citizen"),
-    (_js_regex(r"\b(?:dual\s+)?(?:citizen\w*|nationals?)\s*(?:of|:|-|\u2013)\s*(?:the\s+)?" + _L), "citizen"),
-    # Permanent residence.
+    (_js_regex(_L + r"\s?:\s?(?:dual\s+)?(?:citizen|citizenship|national)\b(?!\s(?:of|in)\b)"), "citizen"),
+    (_js_regex(r"\b(?:dual\s+)?(?:citizen\w*|nationals?)\s*(?:of|:|-|\u2013)\s*(?:both\s+)?(?:the\s+)?" + _L), "citizen"),
+    # Permanent residence: "US permanent resident", "Canada: PR", "PR of Canada".
     (_js_regex(_L + r"\s+(?:permanent\s+resident\w*|perm(?:anent)?\.?\s+res(?:ident)?\w*|pr|lpr|landed\s+immigrant)\b"),
      "pr"),
+    (_js_regex(_L + r"\s?:\s?(?:permanent\s+resident|pr|lpr|landed\s+immigrant)\b(?!\s(?:of|in)\b)"), "pr"),
     (_js_regex(r"\b(?:permanent\s+resident\w*|perm(?:anent)?\.?\s+res(?:ident)?\w*|pr|lpr)\s*(?:of|in|:|-|\u2013)\s*"
                r"(?:the\s+)?" + _L), "pr"),
     # Authorized to work there.
-    (_js_regex(r"\b" + _AUTH_ADJ + r"\s+(?:to\s+(?:legally\s+)?work\s+)?(?:only\s+)?(?:in|for|within)\s+(?:the\s+)?" + _L),
-     "affirmative"),
-    (_js_regex(r"\bcan\s+(?:legally\s+)?work\s+(?:only\s+)?(?:in|for)\s+(?:the\s+)?" + _L), "affirmative"),
+    (_js_regex(r"\b" + _AUTH_ADJ + r"\s+(?:to\s+(?:legally\s+)?work\s+)?(?:only\s+)?(?:in|for|within)\s+(?:both\s+)?"
+               r"(?:the\s+)?" + _L), "affirmative"),
+    (_js_regex(r"\bcan\s+(?:legally\s+)?work\s+(?:only\s+)?(?:in|for)\s+(?:both\s+)?(?:the\s+)?" + _L), "affirmative"),
     (_js_regex(r"\bright\s+to\s+work\s+in\s+(?:the\s+)?" + _L), "affirmative"),
     (_js_regex(r"\bonly\s+(?:(?:in|for)\s+)?(?:the\s+)?" + _L), "affirmative"),
     (_js_regex(_L + r"\s+only\b"), "affirmative"),
     # A permit or student visa named for a country.
     (_js_regex(_L + r"\s+(?:open\s+)?(?:work\s+permit|work\s+visa)"), "permit"),
+    (_js_regex(_L + r"\s?:\s?(?:an?\s)?(?:open\s+)?(?:work\s+permit|work\s+visa)"), "permit"),
     (_js_regex(r"\b(?:open\s+)?(?:work\s+permit|work\s+visa)\s*(?:in|for|of|:|-)\s*(?:the\s+)?" + _L), "permit"),
+    # "Refugee status in Canada", "protected person in Canada": allowed to work.
+    (_js_regex(r"\b(?:refugee\s+status|protected\s+person(?:\s+status)?)\s+(?:in|of)\s+(?:the\s+)?" + _L), "permit"),
     (_js_regex(_L + r"\s+(?:student\s+visa|study\s+permit)"), "student"),
+    (_js_regex(_L + r"\s?:\s?(?:an?\s)?(?:student\s+visa|study\s+permit|international\s+student|student)\b"), "student"),
     (_js_regex(r"\b(?:student\s+visa|international\s+student)\s+(?:in|for)\s+(?:the\s+)?" + _L), "student"),
-    # Sponsorship needed there.
+    # Sponsorship needed there: "need sponsorship for the US", "need an LMIA to work in Canada", "US
+    # requires sponsorship", "US: need visa", "USA: sponsorship required".
     (_js_regex(r"\b(?:would\s+need|will\s+need|would\s+require|will\s+require|need|needs|needed|require|requires"
-               r"|required|requiring)\s+(?:a\s+|an\s+)?(?:visa\s+|work\s+)?(?:sponsorship|sponsor|visa)\s+"
+               r"|required|requiring)\s+(?:a\s+|an\s+)?(?:new\s+)?(?:visa\s+|work\s+)?(?:sponsorship|sponsor|visa|lmia)\s+"
                r"(?:to\s+work\s+)?(?:for|in)\s+(?:the\s+)?" + _L), "sponsored"),
-    (_js_regex(_L + r"\s+(?:\w+\s+)?(?:requires?|needs?)\s+(?:a\s+)?(?:visa\s+)?(?:sponsorship|visa)"), "sponsored"),
+    (_js_regex(_L + r"(?:\s?:)?\s(?:\w+\s)?(?:requires?|needs?|requiring)\s(?:a\s|an\s)?(?:visa\s)?(?:sponsorship|visa)"),
+     "sponsored"),
+    (_js_regex(_L + r"(?:\s?:)?\s(?:visa\s)?sponsorship\s(?:is\s)?(?:required|needed)\b"), "sponsored"),
 )
+# Bound to Canada wherever it is said: an LMIA exists only there (TS: ``LMIA_NEED``).
+_LMIA_NEED = _js_regex(r"\b(?:need|needs|needed|require|requires|required|requiring)\s(?:an?\s)?(?:new\s)?lmia\b")
+# Needing an employer-sponsored US visa, read before the visa is masked (TS: ``SPONSORED_VISA_NEED``).
+_SPONSORED_VISA_NEED = _js_regex(
+    r"\b(?:need|needs|needed|require|requires|required|requiring|would\s(?:need|require)|will\s(?:need|require))\s"
+    r"(?:an?\s|the\s|my\s)?(?:new\s)?(?:h-?1-?b|l-?1a?|e-?3|o-?1)\b"
+)
+# A unit that is one demonym and nothing that changes it (TS: ``DEMONYM_UNIT``).
+_DEMONYM_UNIT = _js_regex(r"^\s?(?:i['’]?m\s|im\s|i\sam\s)?(?:an?\s)?(" + _M + r")\s?(?:$|(?:living|residing|based|who)\b)")
+# A status-only unit in brackets after a single country (TS: ``SINGLE_COUNTRY_AT_END``).
+_SINGLE_COUNTRY_AT_END = _js_regex(r"(" + _MLIST + r")\s?(?::\s?(?:yes|oui)\s?)?$")
+# A unit that is only a denial: "not yet authorized" (TS: ``DENIAL_ONLY``).
+_DENIAL_ONLY = _js_regex(
+    r"^\s?not\s(?:(?:yet|currently)\s)?(?:legally\s)?(?:authori[sz]ed|eligible|allowed|permitted)(?:\sto\swork)?\s?$"
+)
+# Intent or plan words: a permit "with" them is not one held (TS: ``INTENT_WORDS``).
+_INTENT_WORDS = _js_regex(
+    r"\b(?:plan\w*|hop(?:e|es|ing)|want\w*|would|will|intend\w*|looking|seek(?:s|ing)?|wish(?:es|ing)?|apply(?:ing)?)\b"
+)
+# A letter or an answer mark: a unit without one binds nothing to its countries (TS: ``WORD_OR_MARK``).
+_WORD_OR_MARK = re.compile("[a-z✅✔☑✓❌✗✘✖]")
+# "in Canada with an open work permit" (TS: ``PERMIT_WITH``).
+_PERMIT_WITH = _js_regex(r"\bin\s(?:the\s)?(" + _MLIST + r")\swith\s(?:an?\s)?(?:open\s)?work\s(?:permit|visa)\b")
 # "not in the US", "not the U.S.", "not a US citizen", "not Canadian" (TS: ``NOT_PLACE``).
 _NOT_PLACE = _js_regex(
     r"\b(?:not|never)\s+(?:(?:yet|currently|presently)\s+)?(?:(?:in|for|within)\s+)?(an?\s+)?(?:the\s+)?(" + _MLIST
@@ -1170,7 +1265,7 @@ _INHERENT = (
     (_js_regex(r"\b(?:ead|stem\s+opt|opt|cpt)\b"), "US", "permit"),
     (_js_regex(r"\b(?:f-?1|j-?1|m-?1)\b"), "US", "student"),
     (_js_regex(r"\b(?:green\s*card|gc|lpr)\b"), "US", "pr"),
-    (_js_regex(r"\b(?:pgwp|post[\s-]graduation\s+work\s+permit)\b"), "CA", "permit"),
+    (_js_regex(r"\b(?:pgwp|post[\s-]?grad(?:uate|uation)?\s+work\s+permit)\b"), "CA", "permit"),
     (_js_regex(r"\bstudy\s+permit\b"), "CA", "student"),
     (_js_regex(r"\b(?:pr\s+card|landed\s+immigrant)\b"), "CA", "pr"),
 )
@@ -1183,6 +1278,7 @@ _LOWERCASE_US_AFTER = _js_regex(
     r"|-|resident|:|yes\b|no\b|only\b|requires?\b|needs?\b|[\u2705\u2714\u2611\u2713\u274c\u2717\u2718\u2716])"
 )
 _QUESTION = re.compile(r"\?")
+_CLOSING_BRACKET = _js_regex(r"^\s?\)")
 _SPONSOR_WORD = _js_regex(r"\bsponsor")
 _DENIED_UNSCOPED = _js_regex(
     r"\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted"
@@ -1226,7 +1322,8 @@ def _read_work_auth(text: str) -> _Reading:
             setattr(b, key, True)
             mentioned[code] = None
 
-    masked = _mask_visa_intent(_mask_abbreviations(text))
+    unmasked = _mask_abbreviations(text)
+    masked = _mask_visa_intent(unmasked)
 
     names: dict[int, tuple[str, str]] = {}
     pieces: list[str] = []
@@ -1298,6 +1395,8 @@ def _read_work_auth(text: str) -> _Reading:
             keys.append("permit")
         if _SPONSOR_NEED.search(s) and not _SPONSOR_NEGATED.search(s):
             keys.append("sponsored")
+        if _DENIAL_ONLY.search(s):
+            keys.append("deny")
         return keys
 
     def list_of(u: _Unit) -> list[str]:
@@ -1324,10 +1423,53 @@ def _read_work_auth(text: str) -> _Reading:
             paired.add(i)
             paired.add(i + 1)
 
+    # A status-only unit in brackets after one country: "Authorized to work in Canada (citizen)",
+    # "Canada: yes (citizen)". A list before it is ambiguous and binds nothing.
+    for i in range(1, len(units)):
+        if i in paired or _trim(units[i - 1].break_after) != "(" or not _CLOSING_BRACKET.search(units[i].break_after):
+            continue
+        keys = [k for k in status_only(units[i]) if k in ("citizen", "pr", "permit")]
+        if not keys:
+            continue
+        prev = units[i - 1]
+        m = _SINGLE_COUNTRY_AT_END.search(norm[prev.start:prev.end])
+        if not m:
+            continue
+        codes = codes_at(prev.start + m.start(1), prev.start + m.end(1))
+        if len(codes) != 1:
+            continue
+        for k in keys:
+            bind(codes, k)
+        paired.add(i)
+
     for i, u in enumerate(units):
         if i in paired:
             continue
         s = norm[u.start:u.end]
+        before = unmasked[u.start:u.end]
+        # Needs that bind a country of their own, said with no country.
+        negated_need = bool(_SPONSOR_NEGATED.search(before))
+        if not negated_need and _LMIA_NEED.search(before):
+            bind(["CA"], "sponsored")
+        if not negated_need and _SPONSORED_VISA_NEED.search(before):
+            bind(["US"], "sponsored")
+        # A unit with no country binds nothing more: only a no-country sponsorship need is left.
+        if _MARK not in s:
+            if not _SPONSOR_NEGATED.search(s) and _SPONSOR_NEED.search(s):
+                sponsorship_no_country = True
+            continue
+        # "Canadian", "I'm Canadian", "American living in Toronto".
+        dm = _DEMONYM_UNIT.search(s)
+        if dm:
+            name = names.get(u.start + dm.start(1))
+            if name and name[1] in _DEMONYMS and len(name[1]) == len(dm.group(1)):
+                bind([name[0]], "citizen")
+        # Countries and punctuation alone: every pattern below needs a word or an answer mark.
+        if not _WORD_OR_MARK.search(_MARK_RUN.sub("", s)):
+            continue
+        if not _INTENT_WORDS.search(s):
+            for m in _PERMIT_WITH.finditer(s):
+                bind(codes_at(u.start + m.start(1), u.start + m.end(1)), "permit")
 
         def list_codes(m: re.Match[str], group: int, u: _Unit = u) -> list[str]:
             return codes_at(u.start + m.start(group), u.start + m.end(group))
@@ -1385,11 +1527,13 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
 
     The explicit per-country answers (authorizedUS / authorizedCanada) are applied last.
     """
-    text = _trim(_text(profile, "workAuthorization"))
+    text = _normalize_answer(_text(profile, "workAuthorization"))
     by_country: dict[str, CountryAuth] = {}
-    raw_sponsorship = _text(profile, "requiresSponsorship")
+    raw_sponsorship = _trim(collapse_spaces(_text(profile, "requiresSponsorship")))
     stated_sponsorship = polarity_of(raw_sponsorship)
-    sponsorship_unclear = _trim(raw_sponsorship) != "" and stated_sponsorship is None
+    # "N/A - citizen" says why no sponsorship applies: unanswered, but not unclear.
+    sponsorship_unclear = (raw_sponsorship != "" and stated_sponsorship is None
+                           and not _NA_BECAUSE_SETTLED.search(raw_sponsorship.lower()))
     reading = _read_work_auth(text)
 
     if not reading.mentioned:
@@ -1397,8 +1541,14 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
         lower = text.lower()
         every = _status_flags_of(_mask_visa_intent(_mask_abbreviations(text)))
         denied = bool(_DENIED_UNSCOPED.search(lower)) or (not every.pr and bool(_NOT_A_CITIZEN.search(lower)))
-        # "No sponsorship needed" is not a No to being authorized.
-        bare_yes = None if _SPONSOR_WORD.search(lower) else polarity_of(text)
+        # "No sponsorship needed" is not a No to being authorized. "No, I need sponsorship" is: a
+        # leading No that a sponsorship need confirms, with nothing that moves it to later.
+        if _SPONSOR_WORD.search(lower):
+            bare_yes = (False if (_LEADING_NO.search(lower) and _SPONSOR_NEED.search(lower)
+                                  and not _SPONSOR_NEGATED.search(lower) and not _NOT_TODAY.search(lower))
+                        else None)
+        else:
+            bare_yes = polarity_of(text)
         unscoped: Optional[bool] = None
         if denied or bare_yes is False:
             unscoped = False

@@ -869,6 +869,14 @@ citizenship that misses a citizenship requirement. One row decides, in order:
    passes; an unknown need warns (`WORK_AUTH_MISMATCH`, or `WORK_AUTH_UNKNOWN` when C is empty).
    A gate with no country and no sponsorship policy passes.
 Every WARN of the table is an unknown (D-60) and takes `work_authorization.unknown_status`.
+*Amended (decide-b round 4, the Tailrd adapter `fit_engine._profile_work_auth`):* `needs_sponsorship`
+is one flag for every country, so only an unscoped need sets it True: the applicant's own
+sponsorship answer when nothing in their work authorisation is scoped to a country. A need scoped to
+some countries ("US: needs sponsorship", "not authorised in the US", an explicit No for one country)
+gives None, so step 3 warns and never fails a country whose authorisation is merely unknown (an
+"American living in Toronto, no Canadian work permit" never fails a US posting). `authorized_countries`
+is exactly the countries the reader gives a positive status; a pending, applied-for, lottery or
+eligible status is never one.
 
 **D-62 Licence evidence. [Tailrd]** Held credentials are the AFFIRMED mentions with
 CERTIFICATION or ROLE_TITLE evidence (never a bullet such as "administered medications under RN

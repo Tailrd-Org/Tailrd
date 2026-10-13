@@ -744,7 +744,9 @@ POLARITY = [
     ('no longer require sponsorship', False),
     ('I will require sponsorship', True), ('Do need sponsorship', True),
     ('Sponsorship required', True), ('Sponsorship needed', True),
-    ('', None), ('   ', None), ('maybe', None), ('unsure', None), ('Nope', None), ('yep', None), ('Never', None),
+    ('', None), ('   ', None), ('maybe', None), ('unsure', None), ('Never', None),
+    # decide-b round 4: the informal yes and no words are answers.
+    ('Nope', False), ('yep', True), ('Yeah', True), ('nah', False),
     # whitespace as JavaScript trims it: a byte-order mark, a non-breaking space, a line separator
     ('\ufeff Yes \u00a0', True), ('\u00a0no\u2028', False),
 ]
