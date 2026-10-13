@@ -58,7 +58,9 @@ the reason UNSUPPORTED_LANGUAGE and no résumé: the given language (ingest's), 
 language of the lines, an unsupported one deciding only with three lines or more (`_text_language`). `total_experience_months` is the union of the dated
 roles' intervals (None when no role is dated).
 
-`parse_resume_bytes` is `ingest_bytes` then `parse_resume_text`; an ingest failure is its reasons.
+`parse_resume_bytes` is `ingest_bytes` then `parse_ingested`: OCR-sourced text repaired
+(`ingest.ocr_repair`, config/parse/ocr.yaml), then `parse_resume_text`; an ingest failure is its
+reasons.
 `resume_from_document` reads Tailrd's stored résumé document (D-80) through the same helpers, so a
 document and the same résumé written as text agree; a document with no experience, education,
 projects or skills content falls back to `raw_text`. Nothing here raises unless `strict=True`:
@@ -81,7 +83,8 @@ from pydantic import model_validator
 from matcher.config import EngineConfig
 from matcher.errors import Flag
 from matcher.graph.loader import load_graph, load_resolver_settings
-from matcher.ingest import TextLine, ingest_bytes
+from matcher.ingest import IngestResult, TextLine, ingest_bytes
+from matcher.ingest.ocr_repair import exact_key, repair_ocr
 from matcher.ingest.language import SUPPORTED_LANGUAGES, detect_line_language
 from matcher.ingest.normalize_text import normalize_text
 from matcher.models import (
@@ -119,6 +122,7 @@ __all__ = [
     "credential_status",
     "default_taxonomy_dir",
     "load_resume_resources",
+    "parse_ingested",
     "parse_resume_bytes",
     "parse_resume_text",
     "resume_from_document",
@@ -1145,10 +1149,28 @@ def parse_resume_bytes(data: bytes, filename: str, *, as_of: dt.date, resolver: 
                        strict: bool = False) -> ParsedResume:
     """`ingest_bytes`, then `parse_resume_text` with ingest's lines, tier, language and flags. An
     ingest failure gives its reasons (and its flags) and no résumé."""
-    ingested = ingest_bytes(data, filename, config=config)
+    return parse_ingested(ingest_bytes(data, filename, config=config), as_of=as_of, resolver=resolver,
+                          config=config, parse_config=parse_config, resources=resources, strict=strict)
+
+
+def parse_ingested(ingested: IngestResult, *, as_of: dt.date, resolver: Resolver, config: EngineConfig,
+                   parse_config: ParseConfig, resources: ResumeResources | None = None,
+                   strict: bool = False) -> ParsedResume:
+    """`parse_resume_text` of an ingest result: OCR-sourced text repaired first (`repair_ocr`, the
+    `ocr` table, Task 5.4), then read with ingest's lines, tier, language and flags. A failed ingest
+    gives its reasons (and its flags) and no résumé."""
     if not ingested.ok:
         return ParsedResume(resume=None, reasons=ingested.reasons, flags=ingested.flags,
                             parse_config_version=getattr(parse_config, "version", ""))
+    try:
+        ingested = repair_ocr(ingested, table=parse_config.ocr, title_words=_entries.TITLE_NOUNS,
+                              known=exact_key(resolver), place=lambda text: bool(_entries.place_of(text)),
+                              header=lambda text: header_key(text) in parse_config.sections.header_index)
+    except Exception:
+        if strict:
+            raise
+        _logger.warning("parse_ingested: OCR repair failed", exc_info=True)
+        return _failed(Flag.INTERNAL_ERROR, parse_config)
     return parse_resume_text(ingested.text, as_of=as_of, resolver=resolver, config=config,
                              parse_config=parse_config, lines=ingested.lines, tier=ingested.tier,
                              language=ingested.language, flags=ingested.flags, resources=resources, strict=strict)

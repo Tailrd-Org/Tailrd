@@ -1,0 +1,48 @@
+# OCR text repair (Task 5.4, the M6 format-invariance gate; read by ingest/ocr_repair.py through
+# parse/config.py). Applied to OCR-sourced text only (ingest flag OCR_USED), before parsing.
+# Each entry puts back what the page shows in a spelling OCR misread; nothing is ever added.
+format: 1
+
+# A roman level misread as l/I mixes, repaired only as its own word right after a title word
+# ("Data Analyst Ill," -> "Data Analyst III,"). "Il" may also be a misread "III" with a letter
+# lost; it is read as what it shows (II), never guessed up.
+level_tokens:
+  Ill: III
+  IlI: III
+  IIl: III
+  lII: III
+  lIl: III
+  llI: III
+  lll: III
+  Il: II
+  lI: II
+  ll: II
+
+# A bullet glyph misread at a line start: up to three of these (spaces between them allowed), or
+# one of the letters followed by a space, then an upper-case letter or a digit, is the bullet "- ".
+bullet_glyphs: [":", ".", ";", "。"]
+letter_bullets: [e, o]
+
+# Characters OCR swaps inside acronyms ("Bl" for "BI", "Cl/CD" for "CI/CD", "laC" for "IaC"). A word
+# with an upper-case letter and one of these is repaired with the swaps (then in upper case) only
+# when the repaired form is an exact key of the resolver and the word as read is not.
+acronym_swaps:
+  l: I
+acronym_max_length: 12
+
+# A space misread as one of these between a lower-case letter and a capitalised word
+# ("07/2023 to.Present" -> "to Present"; "Node.js" and known keys such as "ASP.NET" stay).
+space_glyphs: ["."]
+
+# A region code read in lower case at a line end ("Denver, co" -> "Denver, CO"), repaired only when
+# the capitals make the line a place and it was not one.
+place_code_letters: 2
+
+# A speck read as a final period after a section header ("Education." -> "Education"): dropped only
+# when the rest of the line is exactly a listed header (config/parse/sections.yaml). Typed text
+# keeps "Experience." a sentence.
+header_period: true
+
+# Letters OCR reads once where the page shows a pair ("Ilustrator" for "Illustrator"): a word that
+# is no exact resolver key is repaired with one of them doubled only when that form is one.
+doubled_letters: [l]
