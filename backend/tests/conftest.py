@@ -145,22 +145,3 @@ def questions_asked(mock) -> dict:
     if not mock.await_args_list:
         return {}
     return mock.await_args_list[0].args[0]
-
-
-@pytest.fixture(autouse=True)
-def _cold_analysis_memo():
-    """Give every test a cold résumé↔job analysis memo.
-
-    ``match_engine`` memoises analyze_job for ANALYSIS_MEMO_TTL so one "tailor my
-    résumé" journey buys the analysis once instead of three times. That cache is
-    process-global by design, which across a test session means one test's
-    result silently answers another's call, so a test that stubs the LLM to
-    raise never reaches it. Production is unaffected (the key contains the
-    résumé text and job description, so no two users can collide), but tests
-    have to start from nothing or they become order-dependent.
-    """
-    from backend.services.match_engine import reset_analysis_memo
-
-    reset_analysis_memo()
-    yield
-    reset_analysis_memo()

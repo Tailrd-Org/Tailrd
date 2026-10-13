@@ -3,12 +3,15 @@ ResumeTailor, generates tailored resume versions for specific job postings.
 
 Uses Claude to rewrite/reorder resume content to emphasize skills and experience
 relevant to the target job. Stores tailored versions linked to specific jobs.
+The LLM writes the rewrite text only: every before/after score is the deterministic match
+engine's (``tailor_document``, Task 9.3, D-83).
 """
 
 import difflib
 import logging
 from dataclasses import dataclass
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from backend.db.models import TailoredResume, ScrapedJob, ResumeProfileDB
 from backend.schemas.ai import JobAnalysisOut, TailoredResumeOut
@@ -117,7 +120,7 @@ class ResumeTailor:
 
 @dataclass
 class TailorResult:
-    """Output of one tailoring pass: the rewritten doc + before/after scores."""
+    """Output of one tailoring pass: the rewritten doc + the engine's before/after analyses."""
     document: ResumeDocument
     original_text: str
     tailored_text: str
@@ -128,6 +131,29 @@ class TailorResult:
     gaps: list[str]
     figures_to_verify: list[str]
 
+    def score_fields(self) -> dict:
+        """The before/after fields every tailoring response carries (RewriteOut, TailorResumeOut).
+        Scores are None unless that side is SCORED; ``new_ats_score`` is the same engine number
+        as ``new_overall_score`` (D-123)."""
+        return {
+            "original_overall_score": self.before.overall_score,
+            "new_overall_score": self.after.overall_score,
+            "new_ats_score": self.after.ats_score,
+            "new_keyword_coverage": self.after.keyword_coverage,
+            "original_outcome": self.before.outcome,
+            "outcome": self.after.outcome,
+            "original_match_label": self.before.match_label,
+            "match_label": self.after.match_label,
+            "reasons": self.reasons(),
+        }
+
+    def reasons(self) -> list[str]:
+        """Why the tailored side shows no number: exactly the engine's sentence for each of its
+        reason codes (compliance.md section 2, ``matcher.errors.FLAG_TEXT``), nothing of our own.
+        A skill the rewrite only listed shows as LOW_EVIDENCE_DENSITY when that is the cause.
+        Empty when the tailored side is SCORED."""
+        return list(self.after.reasons)
+
 
 async def tailor_document(
     db: Session,
@@ -137,29 +163,47 @@ async def tailor_document(
     job_description: str,
     sections: list[str] | None = None,
     add_keywords: list[str] | None = None,
+    *,
+    user_id: int | None = None,
+    job: ScrapedJob | None = None,
+    raw_text: str | None = None,
 ) -> TailorResult:
     """Tailor a structured résumé to a job and score it before/after.
 
     Shared by the web ``/ai/custom-resume`` flow and the extension
     ``/api/tailor-resume`` endpoint so the two cannot drift.
 
-    Keyword semantics: when ``add_keywords`` is None, all of the job's missing
-    keywords are woven in (best one-click result); when a list is given (even
-    empty), exactly that set is used.
+    Scores (Task 9.3, D-83): the original and the tailored document are scored by the
+    deterministic match engine against the SAME parsed posting (the job row's cached posting
+    when ``job`` is given, else the pasted ``job_description``). The LLM is called once, for the
+    rewrite text, and is fed the engine's missing requirements; it is never asked for a score,
+    a label or a keyword list. ``user_id`` brings in the user's saved answers (work
+    authorisation, location), as the feed reads them; ``raw_text`` is read only when a document
+    has no content (D-80).
+
+    Keyword semantics: when ``add_keywords`` is None, the engine's suggested terms are woven in
+    (``suggested_keywords``: the REQUIRED skills the résumé does not show at all, at most 10;
+    partial matches and preferred skills stay chips the user can pick); when a list is given
+    (even empty), exactly that set is used.
     """
     from backend.services.match_engine import MatchEngine  # local: avoid import cycle
 
     engine = MatchEngine(db)
     tailor = ResumeTailor(db)
     original_text = document_to_text(original_document)
-    before = await engine.analyze_job(original_text, job_title, company, job_description)
-    keywords = add_keywords if add_keywords is not None else list(before.missing_keywords)
+    # The engine is CPU-bound (and builds itself on first use): keep it off the event loop.
+    posting = await run_in_threadpool(
+        engine.posting, job=job, job_title=job_title, company=company, job_description=job_description,
+    )
+    before = await run_in_threadpool(engine.analyze, original_document, posting, user_id=user_id,
+                                     raw_text=raw_text)
+    keywords = add_keywords if add_keywords is not None else list(before.suggested_keywords)
     structured = await tailor.llm.tailor_resume_structured(
         original_document, job_description, sections, keywords
     )
     document = structured.document
     tailored_text = document_to_text(document)
-    after = await engine.analyze_job(tailored_text, job_title, company, job_description)
+    after = await run_in_threadpool(engine.analyze, document, posting, user_id=user_id, raw_text=raw_text)
     diff_summary = tailor.compute_diff(original_text, tailored_text)
     changes = describe_changes(original_document, document)
 

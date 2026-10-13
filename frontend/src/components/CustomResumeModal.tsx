@@ -74,6 +74,8 @@ interface Analysis {
   strengths: string[];
   weaknesses: string[];
   suggestions: string[];
+  // Why there is no number (compliance.md section 2): shown whenever the outcome is not SCORED.
+  reasons?: string[];
 }
 
 interface RewriteResult {
@@ -91,6 +93,8 @@ interface RewriteResult {
   outcome?: string | null;
   original_match_label?: string;
   match_label?: string;
+  // Task 9.3 fix round 1: why the tailored side shows no number (empty when SCORED).
+  reasons?: string[];
   version_id?: number | null;
   changes?: string[];
   gaps?: string[];
@@ -164,6 +168,20 @@ function Gauge({ score, label, size = "lg" }: { score: number | null; label: str
       </svg>
       <div className="ai-gauge2-lbl">{label}</div>
     </div>
+  );
+}
+
+// The engine's plain sentences for a result without a number (low confidence, not scored, not
+// eligible), shown under the gauge. A SCORED result, or an older response without an outcome,
+// shows nothing here.
+function Reasons({ outcome, reasons }: { outcome?: string | null; reasons?: string[] }) {
+  if (!outcome || outcome === "SCORED" || !reasons || reasons.length === 0) return null;
+  return (
+    <ul className="ai-reasons">
+      {reasons.map((text) => (
+        <li key={text}>{text}</li>
+      ))}
+    </ul>
   );
 }
 
@@ -419,6 +437,7 @@ export default function CustomResumeModal({
           </div>
           <Gauge score={analysis.overall_score} label={analysis.match_label} />
         </div>
+        <Reasons outcome={analysis.outcome} reasons={analysis.reasons} />
 
         <div className="ai-cmp">
           {/* Overview row: the job vs your resume */}
@@ -654,6 +673,7 @@ export default function CustomResumeModal({
                 size="sm"
               />
             </div>
+            <Reasons outcome={rewrite.outcome} reasons={rewrite.reasons} />
             <div className="ai-side-jump">
               <Spark />
               <p>{jumpHeadline}</p>

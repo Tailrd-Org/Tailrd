@@ -10,10 +10,12 @@ import { authedRequest } from "./client";
 
 interface TailorApiResponse {
   document: ResumeDoc;
-  original_overall_score: number;
-  new_overall_score: number;
-  new_ats_score: number;
-  new_keyword_coverage: number;
+  original_overall_score: number | null;
+  new_overall_score: number | null;
+  new_ats_score: number | null;
+  new_keyword_coverage: number | null;
+  match_label?: string;
+  reasons?: string[];
   matched_keywords: string[];
   missing_keywords: string[];
   diff_summary: string;
@@ -45,13 +47,15 @@ export function buildTailorRequestBody(
 export function mapTailorResponse(r: TailorApiResponse): TailorResult {
   return {
     document: r.document,
-    originalScore: r.original_overall_score,
-    newScore: r.new_overall_score,
-    atsScore: r.new_ats_score,
-    keywordCoverage: r.new_keyword_coverage,
+    originalScore: r.original_overall_score ?? null,
+    newScore: r.new_overall_score ?? null,
+    atsScore: r.new_ats_score ?? null,
+    keywordCoverage: r.new_keyword_coverage ?? null,
     matchedKeywords: r.matched_keywords ?? [],
     missingKeywords: r.missing_keywords ?? [],
     diffSummary: r.diff_summary ?? "",
+    matchLabel: r.match_label ?? "",
+    reasons: r.reasons ?? [],
   };
 }
 

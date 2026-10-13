@@ -1,243 +1,129 @@
 """
-MatchEngine: the LLM résumé/job analysis the tailoring flow still uses (``analyze_job``).
+MatchEngine: the tailoring flow's résumé/job analysis, on the deterministic match engine (Task 9.3).
 
-No job score comes from here any more. Every match score Tailrd shows is the deterministic fit
-engine's (services/fit_engine.py, DECISIONS D-83); the old LLM breakdown, fit analysis and
-background analysis (``compute_breakdown``, ``analyze_fit``, ``queue_analysis``) were removed.
-Task 9.3 moves the tailoring flow's own scores onto the engine as well.
+No AI is called here (DECISIONS D-83). Every score the tailoring flow shows, its band, its
+matched / missing requirements and its before / after numbers come from scoring a résumé
+document against one parsed posting with ``services/fit_engine.py``. The LLM writes the rewrite
+text and nothing else; it is fed the engine's missing requirements (display labels).
+
+Field mapping (``JobAnalysisOut``, D-123):
+    overall_score     the engine's displayed (calibrated) score, 0-100; only for SCORED.
+    ats_score         the SAME number. The engine has no separate "ATS" model, and inventing a
+                      second number would be a score with no basis; the field stays for the
+                      clients that read it.
+    match_label       the band ("Strong match" ...) for SCORED and SCORED_LOW_CONFIDENCE;
+                      "We couldn't score this" for NEEDS_REVIEW; "Not eligible" for GATE_FAIL.
+    keyword_coverage  the engine's coverage over the required and preferred skill requirements
+                      (idf-weighted, 0-100); None when no requirement carries weight.
+    matched_keywords  requirements the résumé meets (REQ_MATCH), as display labels.
+    missing_keywords  requirements partly covered or absent (REQ_PARTIAL, REQ_MISS).
+    suggested_keywords  what a one-click rewrite weaves in by default: the REQUIRED skills at
+                      REQ_MISS, by best member, at most 10 (additive; fix round 1).
+    strengths /
+    weaknesses        the engine explanation's strengths and gaps (labels); a failed gate's
+                      reason leads ``weaknesses``.
+    suggestions       the engine's counterfactual (``to_improve``) when asked for.
+    outcome           the engine outcome (additive).
+    reasons           why the result is not SCORED, as sentences (additive).
+SCORED_LOW_CONFIDENCE shows the band only: ``overall_score`` and ``ats_score`` are None.
+
+The engine is imported lazily (D-107): the app's other routes never pay for it. Building it takes
+about ten seconds cold, which a user-initiated tailoring request may pay.
 """
 
-import hashlib
-import json
+from __future__ import annotations
+
 import logging
-import os
-import time
-from collections import OrderedDict
-from typing import Optional
+from typing import Any, Optional
 
 from sqlalchemy.orm import Session
 
 from backend.schemas.ai import JobAnalysisOut
-from backend.services.llm import get_llm_service
+from backend.schemas.resume_document import ResumeDocument
 
 logger = logging.getLogger(__name__)
 
-
-DEFAULT_MATCH_MODEL = "gpt-4o-mini"
-
-
-def _match_model() -> str:
-    """Model used for the tailoring flow's résumé/job analysis (``analyze_job``).
-
-    The analysis does not need the flagship model: default to the cheap sibling
-    and leave the quality-sensitive rewrite flows on OPENAI_MODEL.
-    """
-    return os.getenv("OPENAI_MATCH_MODEL", DEFAULT_MATCH_MODEL).strip().strip("﻿") or DEFAULT_MATCH_MODEL
+OUTCOME_SCORED = "SCORED"
+OUTCOME_LOW_CONFIDENCE = "SCORED_LOW_CONFIDENCE"
+OUTCOME_NEEDS_REVIEW = "NEEDS_REVIEW"
+OUTCOME_GATE_FAIL = "GATE_FAIL"
+UNSCORED_LABEL = "We couldn't score this"
+NOT_ELIGIBLE_LABEL = "Not eligible"
 
 
-# ── Analysis memo ────────────────────────────────────────────────────────────
-#
-# One "tailor my résumé" journey asked for the SAME résumé↔job analysis up to
-# three times in 34 seconds (prod, 2026-08-11): once when the user opened the
-# job, once for the "See Your Difference" panel, and once more as the rewrite's
-# own before-state. Identical prompt, identical answer, three round-trips the
-# user waits through.
-#
-# Keyed on the rendered prompt, so the key IS the complete input — no chance of
-# a stale hit from a résumé edit or a different job. Process-local and
-# short-lived: on Fluid Compute an instance serves consecutive requests from the
-# same user, which is exactly the window this needs to cover. A miss simply
-# costs what it costs today, so this can never return a wrong answer, only fail
-# to save one.
-ANALYSIS_MEMO_TTL = float(os.getenv("MATCH_ANALYSIS_MEMO_TTL", "600"))
-ANALYSIS_MEMO_MAX = 128
+def analysis_from_result(result: Any, *, engine: Any = None) -> JobAnalysisOut:
+    """The tailoring analysis for one engine ``MatchResult`` (see the module docstring)."""
+    from backend.services import fit_engine
 
-_analysis_memo: "OrderedDict[str, tuple[float, JobAnalysisOut]]" = OrderedDict()
-
-
-def _memo_key(prompt: str, model: str) -> str:
-    return hashlib.sha256(f"{model}\x00{prompt}".encode("utf-8")).hexdigest()
-
-
-def _memo_get(key: str) -> Optional[JobAnalysisOut]:
-    hit = _analysis_memo.get(key)
-    if hit is None:
-        return None
-    stored_at, value = hit
-    if time.time() - stored_at > ANALYSIS_MEMO_TTL:
-        _analysis_memo.pop(key, None)
-        return None
-    _analysis_memo.move_to_end(key)
-    # A copy, so a caller mutating the result cannot poison later hits.
-    return value.model_copy(deep=True)
-
-
-def _memo_put(key: str, value: JobAnalysisOut) -> None:
-    _analysis_memo[key] = (time.time(), value.model_copy(deep=True))
-    _analysis_memo.move_to_end(key)
-    while len(_analysis_memo) > ANALYSIS_MEMO_MAX:
-        _analysis_memo.popitem(last=False)
-
-
-def reset_analysis_memo() -> None:
-    """Drop every memoised analysis (tests, and anything that needs a cold read)."""
-    _analysis_memo.clear()
-
-
-def score_to_label(score: int) -> str:
-    """Map a match score (0-100) to a human-readable label.
-
-    >=80 → "STRONG MATCH"
-    >=60 → "GOOD MATCH"
-    <60  → "FAIR MATCH"
-    """
-    if score >= 80:
-        return "STRONG MATCH"
-    elif score >= 60:
-        return "GOOD MATCH"
+    outcome = result.outcome.value
+    band = result.band.value if result.band is not None else None
+    score = result.display_score if outcome == OUTCOME_SCORED else None
+    if outcome == OUTCOME_GATE_FAIL:
+        label = NOT_ELIGIBLE_LABEL
+    elif outcome in (OUTCOME_SCORED, OUTCOME_LOW_CONFIDENCE) and band:
+        label = band
     else:
-        return "FAIR MATCH"
+        label = UNSCORED_LABEL
+    coverage = fit_engine.requirement_coverage(result, engine=engine)
+    explanation = result.explanation
+    strengths = [item.label for item in explanation.strengths] if explanation is not None else []
+    weaknesses = [item.label for item in explanation.gaps] if explanation is not None else []
+    suggestions = [str(text) for text in explanation.to_improve] if explanation is not None else []
+    reasons = fit_engine.reason_sentences(result) if outcome != OUTCOME_SCORED else []
+    if outcome == OUTCOME_GATE_FAIL:
+        weaknesses = [*reasons, *(text for text in weaknesses if text not in reasons)]
+    return JobAnalysisOut(
+        overall_score=score,
+        ats_score=score,
+        match_label=label,
+        keyword_coverage=coverage.percent,
+        matched_keywords=list(coverage.matched),
+        missing_keywords=list(coverage.missing),
+        suggested_keywords=list(coverage.suggested),
+        strengths=strengths,
+        weaknesses=weaknesses,
+        suggestions=suggestions,
+        outcome=outcome,
+        reasons=reasons,
+    )
 
-
-JOB_ANALYSIS_PROMPT = """
-Analyze how well this resume matches the job posting, like an applicant tracking
-system (ATS) would. Return ONLY a JSON object with these exact fields:
-
-{{
-  "overall_score": <0-100 overall fit>,
-  "ats_score": <0-100 how well the resume would pass an automated ATS keyword scan>,
-  "matched_keywords": ["important skills/keywords from the job that ARE in the resume"],
-  "missing_keywords": ["important skills/keywords from the job that are NOT in the resume"],
-  "strengths": ["short strength phrases"],
-  "weaknesses": ["short gap phrases"],
-  "suggestions": ["1-2 sentence actionable suggestions to improve the match for this role"]
-}}
-
-Job title: {job_title}
-Company: {company}
-
-Resume:
-{resume_text}
-
-Job Posting:
-{job_description}
-"""
 
 class MatchEngine:
-    """The tailoring flow's LLM résumé/job analysis (no job scoring)."""
+    """The tailoring flow's analysis: one posting, any number of résumé documents scored on it."""
 
-    def __init__(self, db: Session):
+    def __init__(self, db: Optional[Session]):
         self.db = db
-        self._llm = None
 
-    @property
-    def llm(self):
-        """Lazily construct the LLM service.
+    def posting(self, *, job: Any = None, job_title: str = "", company: str = "",
+                job_description: str = "") -> Any:
+        """The parsed posting: a job row's cached posting (D-84, committed when refreshed), else
+        the pasted text parsed by the engine."""
+        from backend.services import fit_engine
 
-        Deferred so that pure helpers (e.g. JSON parsing) and unit tests can
-        use MatchEngine without an OPENAI_API_KEY in the environment.
-        """
-        if self._llm is None:
-            self._llm = get_llm_service()
-        return self._llm
+        if job is not None:
+            posting = fit_engine.posting_for_job(job)
+            if self.db is not None:
+                fit_engine.commit_posting_cache(self.db, job)
+            return posting
+        return fit_engine.posting_from_text(job_title or "", company or "", job_description or "")
 
-    async def analyze_job(
-        self,
-        resume_text: str,
-        job_title: str,
-        company: str,
-        job_description: str,
-    ) -> JobAnalysisOut:
-        """Resume↔job analysis for the rewrite flow.
+    def analyze(self, document: ResumeDocument, posting: Any, *, user_id: Optional[int] = None,
+                raw_text: Optional[str] = None, with_suggestions: bool = False) -> JobAnalysisOut:
+        """Score one résumé document on ``posting`` (blocking: call from a worker thread).
 
-        Adds an ATS score plus matched/missing keyword lists (and a derived
-        keyword-coverage percentage) on top of the overall fit score.
+        ``raw_text`` is read only when the document has no content (D-80), as for a stored
+        profile, so a text-only résumé is still scored."""
+        from backend.services import fit_engine
+        from backend.services.resume_document import document_to_record
 
-        Memoised for ``ANALYSIS_MEMO_TTL``: the "See Your Difference" panel and
-        the rewrite's own before-state ask the identical question seconds apart,
-        so the second and third asks are served from memory.
-        """
-        prompt = JOB_ANALYSIS_PROMPT.format(
-            job_title=job_title or "",
-            company=company or "",
-            resume_text=resume_text[:3000],
-            job_description=job_description[:3000],
-        )
+        result = fit_engine.score_document(self.db, user_id, document_to_record(document), posting,
+                                           raw_text=raw_text, with_suggestions=with_suggestions)
+        return analysis_from_result(result)
 
-        model = _match_model()
-        key = _memo_key(prompt, model)
-        cached = _memo_get(key)
-        if cached is not None:
-            logger.info("llm_memo op=match.analyze hit=1")
-            return cached
-
-        response = await self.llm._generate(prompt, model=model, op="match.analyze")
-        data = self._parse_json_response(response)
-
-        def _strs(key: str) -> list[str]:
-            # The model sometimes returns a single string where the schema asks
-            # for a list (e.g. one suggestion). Iterating a str yields its
-            # characters, so coerce a lone string into a one-element list first.
-            val = data.get(key, [])
-            if isinstance(val, str):
-                val = [val]
-            elif not isinstance(val, list):
-                val = []
-            return [str(v).strip() for v in val if str(v).strip()]
-
-        def _score(key: str) -> int:
-            try:
-                return max(0, min(100, int(data.get(key, 0) or 0)))
-            except (TypeError, ValueError):
-                return 0
-
-        matched = _strs("matched_keywords")
-        missing = _strs("missing_keywords")
-        total = len(matched) + len(missing)
-        coverage = round(100 * len(matched) / total) if total else 0
-        overall = _score("overall_score")
-
-        result = JobAnalysisOut(
-            overall_score=overall,
-            ats_score=_score("ats_score"),
-            match_label=score_to_label(overall),
-            keyword_coverage=coverage,
-            matched_keywords=matched,
-            missing_keywords=missing,
-            strengths=_strs("strengths"),
-            weaknesses=_strs("weaknesses"),
-            suggestions=_strs("suggestions"),
-        )
-        # Only a parsed, non-empty analysis is worth remembering: banking a zero
-        # born from a parse hiccup would freeze it in for the whole TTL.
-        if overall or matched or missing:
-            _memo_put(key, result)
-        return result
-
-    def _parse_json_response(self, response: str) -> dict:
-        """Parse JSON from LLM response, handling code fences."""
-        json_str = response.strip()
-
-        # Handle markdown code fences
-        if "```" in json_str:
-            parts = json_str.split("```")
-            for part in parts:
-                part = part.strip()
-                if part.startswith("json"):
-                    part = part[4:].strip()
-                if part.startswith("{"):
-                    json_str = part
-                    break
-
-        # Find first { and last }
-        if not json_str.startswith("{"):
-            start = json_str.find("{")
-            end = json_str.rfind("}")
-            if start >= 0 and end > start:
-                json_str = json_str[start : end + 1]
-
-        try:
-            return json.loads(json_str)
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse match response: %s", response[:300])
-            return {}
+    def analyze_job(self, document: ResumeDocument, *, user_id: Optional[int] = None, job: Any = None,
+                    job_title: str = "", company: str = "", job_description: str = "",
+                    raw_text: Optional[str] = None, with_suggestions: bool = True) -> JobAnalysisOut:
+        """Step 1 "See Your Difference": the analysis of one résumé for one job (row or text),
+        with the engine's suggestions."""
+        posting = self.posting(job=job, job_title=job_title, company=company, job_description=job_description)
+        return self.analyze(document, posting, user_id=user_id, raw_text=raw_text, with_suggestions=with_suggestions)

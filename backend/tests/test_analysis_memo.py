@@ -1,115 +1,76 @@
-"""The résumé↔job analysis memo.
+"""The tailoring analysis after Task 9.3 (D-83): no LLM, so nothing to memoise but the posting.
 
-Prod 2026-08-11 showed one "tailor my résumé" journey buying the SAME analysis
-three times in 34 seconds: opening the job, the "See Your Difference" panel, and
-the rewrite's own before-state. These pin that the repeat asks are free — and,
-more importantly, that a hit can never be the wrong answer.
+Prod 2026-08-11 showed one "tailor my résumé" journey buying the SAME LLM analysis three times
+in 34 seconds. The analysis is now the deterministic engine's, so a repeat ask costs CPU only and
+can never disagree with the first. The one cost that remains is parsing a pasted posting (the
+extension has no job row to cache it on): these pin that a pasted posting is parsed once per
+journey, and that a hit can never be the wrong posting.
 """
+
+import datetime as dt
 
 import pytest
 
-from backend.schemas.ai import JobAnalysisOut
+from backend.services import fit_engine
 from backend.services import match_engine
-from backend.services.match_engine import MatchEngine
 
-RESUME = "Python engineer, 2 years, FastAPI and Postgres."
-JD = "Backend engineer. Python, Kubernetes, AWS."
-GOOD = ('{"overall_score": 72, "ats_score": 68, "matched_keywords": ["Python"],'
-        ' "missing_keywords": ["Kubernetes", "AWS"], "strengths": ["Python depth"],'
-        ' "weaknesses": ["No k8s"], "suggestions": ["Mention container work"]}')
+JD = "Requirements\n- 2+ years of Python\n- Kubernetes and AWS"
 
 
 @pytest.fixture(autouse=True)
-def _cold_memo():
-    match_engine.reset_analysis_memo()
+def _cold_cache(monkeypatch):
+    monkeypatch.setattr(fit_engine, "fit_as_of", lambda today=None: dt.date(2026, 10, 1))
+    fit_engine.reset_text_postings()
     yield
-    match_engine.reset_analysis_memo()
+    fit_engine.reset_text_postings()
 
 
-def _engine(monkeypatch, payload=GOOD):
+@pytest.fixture
+def parses(monkeypatch):
     calls = {"n": 0}
+    real = fit_engine.parse_posting
 
-    async def fake(self, prompt, system=None, model=None, json_mode=False, op="unknown"):
+    def counting(*args, **kwargs):
         calls["n"] += 1
-        return payload
+        return real(*args, **kwargs)
 
-    monkeypatch.setattr("backend.services.openai_service.OpenAIService._generate", fake)
-    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
-    return MatchEngine(db=None), calls
+    monkeypatch.setattr(fit_engine, "parse_posting", counting)
+    return calls
 
 
-@pytest.mark.asyncio
-async def test_the_same_analysis_is_bought_once(monkeypatch):
-    engine, calls = _engine(monkeypatch)
-    first = await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    second = await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    assert calls["n"] == 1, "second identical analysis hit the API"
+def test_the_same_pasted_posting_is_parsed_once(parses):
+    first = fit_engine.posting_from_text("Backend Engineer", "Acme", JD)
+    second = fit_engine.posting_from_text("Backend Engineer", "Acme", JD)
+    assert parses["n"] == 1
     assert first == second
 
 
-@pytest.mark.asyncio
-async def test_an_edited_resume_is_a_different_question(monkeypatch):
-    """The whole point of the rewrite flow: the AFTER analysis must not be
-    served the BEFORE answer."""
-    engine, calls = _engine(monkeypatch)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    await engine.analyze_job(RESUME + " Also Kubernetes.", "Backend Engineer", "Acme", JD)
-    assert calls["n"] == 2
-
-
-@pytest.mark.asyncio
 @pytest.mark.parametrize("title,company,jd", [
     ("Different Role", "Acme", JD),
     ("Backend Engineer", "Other Co", JD),
-    ("Backend Engineer", "Acme", JD + " Also Terraform."),
+    ("Backend Engineer", "Acme", JD + "\n- Terraform"),
 ])
-async def test_any_changed_input_is_a_miss(monkeypatch, title, company, jd):
-    engine, calls = _engine(monkeypatch)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    await engine.analyze_job(RESUME, title, company, jd)
-    assert calls["n"] == 2
+def test_any_changed_input_is_a_miss(parses, title, company, jd):
+    fit_engine.posting_from_text("Backend Engineer", "Acme", JD)
+    fit_engine.posting_from_text(title, company, jd)
+    assert parses["n"] == 2
 
 
-@pytest.mark.asyncio
-async def test_a_switched_model_is_a_miss(monkeypatch):
-    engine, calls = _engine(monkeypatch)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    monkeypatch.setenv("OPENAI_MATCH_MODEL", "gpt-4.1-nano")
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    assert calls["n"] == 2
+def test_a_new_posting_version_is_a_miss(parses, monkeypatch):
+    """Keyed like the feed's posting cache (D-84): a new year, parse table or config re-parses."""
+    fit_engine.posting_from_text("Backend Engineer", "Acme", JD)
+    monkeypatch.setattr(fit_engine, "fit_as_of", lambda today=None: dt.date(2027, 1, 1))
+    fit_engine.posting_from_text("Backend Engineer", "Acme", JD)
+    assert parses["n"] == 2
 
 
-@pytest.mark.asyncio
-async def test_an_unparseable_response_is_not_banked(monkeypatch):
-    """A zero from a parse hiccup must not be frozen in for the whole TTL."""
-    engine, calls = _engine(monkeypatch, payload="not json at all")
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    assert calls["n"] == 2
-
-
-@pytest.mark.asyncio
-async def test_an_expired_entry_is_refetched(monkeypatch):
-    engine, calls = _engine(monkeypatch)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    monkeypatch.setattr(match_engine, "ANALYSIS_MEMO_TTL", -1)
-    await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    assert calls["n"] == 2
-
-
-@pytest.mark.asyncio
-async def test_a_caller_mutating_the_result_cannot_poison_later_hits(monkeypatch):
-    engine, _ = _engine(monkeypatch)
-    first = await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    first.missing_keywords.clear()          # tailor_document reads this list
-    second = await engine.analyze_job(RESUME, "Backend Engineer", "Acme", JD)
-    assert second.missing_keywords == ["Kubernetes", "AWS"]
-
-
-@pytest.mark.asyncio
-async def test_the_memo_is_bounded(monkeypatch):
-    engine, _ = _engine(monkeypatch)
-    monkeypatch.setattr(match_engine, "ANALYSIS_MEMO_MAX", 4)
+def test_the_cache_is_bounded(parses, monkeypatch):
+    monkeypatch.setattr(fit_engine, "_TEXT_POSTING_CACHE_SIZE", 4)
     for i in range(12):
-        await engine.analyze_job(f"{RESUME} v{i}", "Backend Engineer", "Acme", JD)
-    assert len(match_engine._analysis_memo) <= 4
+        fit_engine.posting_from_text("Backend Engineer", "Acme", f"{JD}\n- skill {i}")
+    assert len(fit_engine._TEXT_POSTINGS) <= 4
+
+
+def test_the_llm_analysis_memo_is_gone():
+    for gone in ("reset_analysis_memo", "_analysis_memo", "ANALYSIS_MEMO_TTL", "JOB_ANALYSIS_PROMPT"):
+        assert not hasattr(match_engine, gone), gone

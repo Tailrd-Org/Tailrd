@@ -54,6 +54,10 @@ def _int_env(name: str, default: int) -> int:
 # can tighten them from Vercel without a redeploy of code.
 LLM_PER_MINUTE = _int_env("LLM_PER_MINUTE", 12)
 LLM_DAILY_QUOTA = _int_env("LLM_DAILY_QUOTA", 150)
+# The tailoring analysis runs the match engine, not an LLM (D-123): free, so it never touches the
+# AI quota above, but it is CPU per request, so it has its own cheap per-user buckets.
+FIT_ANALYSIS_PER_MINUTE = _int_env("FIT_ANALYSIS_PER_MINUTE", 20)
+FIT_ANALYSIS_PER_DAY = _int_env("FIT_ANALYSIS_PER_DAY", 1000)
 
 
 def client_identity(request: Optional[Request], user_id: Optional[int]) -> str:
@@ -175,4 +179,29 @@ async def llm_guard(
     """
     enforce_llm_limits(db, request, user_id)
     set_cost_user(user_id)
+    return user_id
+
+
+def fit_analysis_guard(
+    request: Request,
+    user_id: int = Depends(get_verified_user_id),
+    db: Session = Depends(get_db),
+) -> int:
+    """Drop-in replacement for ``get_verified_user_id`` on the match-engine analysis routes
+    (Task 9.3 fix round 1, D-123): per-user minute and day buckets, shared by every analysis route,
+    on the same database-backed counters. Never charges the daily AI quota: no AI is called."""
+    if not _enabled():
+        return user_id
+    identity = client_identity(request, user_id)
+    for name, limit, window in (
+        ("fit_analysis_min", FIT_ANALYSIS_PER_MINUTE, 60),
+        ("fit_analysis_day", FIT_ANALYSIS_PER_DAY, 86_400),
+    ):
+        retry_after = _hit(db, name, identity, limit, window)
+        if retry_after is not None:
+            raise HTTPException(
+                status_code=429,
+                detail="Too many requests. Please try again later.",
+                headers={"Retry-After": str(retry_after)},
+            )
     return user_id

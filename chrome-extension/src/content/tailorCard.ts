@@ -9,8 +9,11 @@ function esc(s: string): string {
   return s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-/** "Match 7.2 → 8.5" / "Match held at 8.0" from 0-100 scores. */
-export function scoreJumpText(before: number, after: number): string {
+/** "Match 7.2 → 8.5" / "Match held at 8.0" from 0-100 scores. The match engine gives no
+ * number when it is not confident or cannot score (null): then the label it sent is shown. */
+export function scoreJumpText(before: number | null, after: number | null, label = ""): string {
+  if (after === null) return before !== null && label ? `Match ${(before / 10).toFixed(1)} → ${label}` : label;
+  if (before === null) return `Match ${(after / 10).toFixed(1)}`;
   const b = (before / 10).toFixed(1);
   const a = (after / 10).toFixed(1);
   if (after > before) return `Match ${b} → ${a}`;
@@ -20,14 +23,24 @@ export function scoreJumpText(before: number, after: number): string {
 
 /** Inner HTML for the result card. `selected` = keyword chips currently on. */
 export function buildTailorCardHtml(result: TailorResult, selected: Set<string>): string {
-  const jump = scoreJumpText(result.originalScore, result.newScore);
-  const stats = `ATS ${result.atsScore} · ${result.keywordCoverage}% coverage`;
+  const jump = scoreJumpText(result.originalScore, result.newScore, result.matchLabel);
+  const stats = [
+    result.atsScore !== null ? `ATS ${result.atsScore}` : "",
+    result.keywordCoverage !== null ? `${result.keywordCoverage}% coverage` : "",
+  ]
+    .filter(Boolean)
+    .join(" · ");
   const chips = result.missingKeywords
     .map(
       (k) =>
         `<button class="ap-kw${selected.has(k) ? " on" : ""}" data-kw="${esc(k)}" type="button">${esc(k)}</button>`
     )
     .join("");
+  // Why there is no number (the engine's sentences), so a withheld score is never unexplained.
+  const reasons = result.reasons ?? [];
+  const reasonsBlock = reasons.length
+    ? `<ul class="ap-tailor-reasons">${reasons.map((r) => `<li>${esc(r)}</li>`).join("")}</ul>`
+    : "";
   const kwBlock = result.missingKeywords.length
     ? `<div class="ap-kw-label">Keywords from the posting you could add</div><div class="ap-kw-row">${chips}</div>`
     : "";
@@ -38,6 +51,7 @@ export function buildTailorCardHtml(result: TailorResult, selected: Set<string>)
   return (
     `<div class="ap-tailor-scores"><span class="ap-tailor-jump">${esc(jump)}</span>` +
     `<span class="ap-tailor-stats">${esc(stats)}</span></div>` +
+    reasonsBlock +
     kwBlock +
     `<div class="ap-tailor-actions">` +
     `<button class="ap-btn-upload ap-btn-icon" id="ap-tailor-preview" type="button">${eye}Preview résumé</button>` +

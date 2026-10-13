@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.db.models import ScrapedJob, ResumeProfileDB, ResumeVersion, CoverLetter
 from backend.auth.dependencies import get_verified_user_id, verify_cron_secret
-from backend.services.usage_limiter import llm_guard
+from backend.services.usage_limiter import fit_analysis_guard, llm_guard
 from backend.services.match_notifier import sweep_match_alerts
 from backend.schemas.match import MatchBreakdown, MatchInterval, MatchItem
 from backend.services import fit_reads
@@ -365,23 +365,23 @@ def delete_cover_letter(
 
 @router.post("/job-analysis/{job_id}", response_model=JobAnalysisOut)
 @router.post("/custom-resume-analysis/{job_id}", response_model=JobAnalysisOut)
-async def job_analysis(
+def job_analysis(
     job_id: int,
     body: RewriteIn | None = None,
-    user_id: int = Depends(llm_guard),
+    user_id: int = Depends(fit_analysis_guard),
     db: Session = Depends(get_db),
 ):
-    """Step 1 'See Your Difference': match score + matched/missing keywords."""
+    """Step 1 'See Your Difference': the engine's score, band and matched/missing requirements.
+
+    The deterministic match engine (Task 9.3, D-83), on the job's cached posting (D-84): no AI
+    is called, so it does not count against the daily AI limit; it has its own per-user rate
+    limit (fit_analysis_guard, shared with the pasted-text route). A plain (sync) route, so the
+    engine (about ten seconds to build cold) runs in a worker thread."""
     job = _get_job(job_id, db)
     resume = _resolve_resume(db, user_id, body.resume_id if body else None)
-
-    try:
-        engine = MatchEngine(db)
-        return await engine.analyze_job(
-            resume.raw_text, job.title, job.company, job.description
-        )
-    except (ConnectionError, httpx.ConnectError):
-        raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
+    return MatchEngine(db).analyze_job(
+        db_record_to_document(resume), user_id=user_id, job=job, raw_text=resume.raw_text,
+    )
 
 
 @router.post("/rewrite/{job_id}", response_model=RewriteOut)
@@ -394,6 +394,9 @@ async def rewrite_resume(
 ):
     """Step 3 'Review': tailor the resume (structured) with the chosen
     sections/keywords, report before/after scores, and save the version.
+
+    The scores are the match engine's, of the original and the tailored document on the
+    job's cached posting (Task 9.3, D-83); the LLM writes the rewrite text only.
 
     Returns a structured ``ResumeDocument``, the single source the renderer,
     PDF, and DOCX all consume, so the download always matches the preview.
@@ -410,12 +413,11 @@ async def rewrite_resume(
         result = await tailor_document(
             db, original_document, job.title, job.company, job.description,
             opts.sections, opts.add_keywords,
+            user_id=user_id, job=job, raw_text=resume.raw_text,
         )
-    except (ConnectionError, httpx.ConnectError):
+    except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
 
-    before = result.before
-    after = result.after
     document = result.document
     tailored_text = result.tailored_text
     diff_summary = result.diff_summary
@@ -438,10 +440,7 @@ async def rewrite_resume(
         tailored_text=tailored_text,
         original_text=original_text,
         diff_summary=diff_summary,
-        original_overall_score=before.overall_score,
-        new_overall_score=after.overall_score,
-        new_ats_score=after.ats_score,
-        new_keyword_coverage=after.keyword_coverage,
+        **result.score_fields(),
         version_id=version.id,
         changes=result.changes,
         gaps=result.gaps,

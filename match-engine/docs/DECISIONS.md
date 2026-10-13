@@ -1277,3 +1277,50 @@ runner adds only `libgl1` and `libglib2.0-0` for OpenCV. The parse cache is rest
 from `generator_fingerprint` and `parser_fingerprint` (D-118) and saved even when `make eval-fast`
 fails (split restore and save), so the next run is warm while guardrails are red. Actions are pinned
 by full commit SHA.
+
+**D-123 Tailoring scores. [Tailrd]** Task 9.3 completes D-83 for the tailoring flow. Every number,
+band and keyword in `/ai/job-analysis`, `/ai/custom-resume-analysis`, `/ai/rewrite`,
+`/ai/custom-resume` and the extension's `/api/tailor-resume`, `/api/custom-resume-analysis` and
+`/api/custom-resume` comes from scoring a résumé DOCUMENT against one parsed posting with the
+engine (`fit_engine.score_document`). The original and the tailored document are scored against the
+same posting: the job row's cached posting (D-84), or pasted text parsed by the engine
+(`posting_from_text`, memoised per input and posting version). The document is read in the
+stored-profile shape (`resume_document.document_to_record`, the inverse of `db_record_to_document`),
+with the user's saved answers, through the same calibration, so the "before" of a stored résumé
+equals its feed score. Nothing is banked and no trace is written. Field mapping:
+`overall_score` is the displayed (calibrated) score. `ats_score` is the SAME number: the engine has
+no separate ATS model, and the field stays for the clients that read it. `match_label` is the band,
+"We couldn't score this" (NEEDS_REVIEW) or "Not eligible" (GATE_FAIL, with the gate's reason
+leading `weaknesses` and in `reasons`). `keyword_coverage` is the engine's idf-weighted coverage over
+the required and preferred skill requirements. `matched_keywords` are requirements at REQ_MATCH;
+`missing_keywords` are those at REQ_PARTIAL or REQ_MISS, as display labels ("A or B" for an
+OR-group). Only SCORED shows a number: SCORED_LOW_CONFIDENCE shows the band with null scores (D-86).
+An additive `outcome` (and `reasons`) field lets clients key on the outcome. The LLM is called once
+per rewrite, for the rewrite text, and is fed the engine's missing requirements; the LLM analysis
+prompt, its memo and the 80/60 `score_to_label` are removed. The two analysis routes call no AI, so
+they no longer count against the daily AI limit. Consequence: a rewrite that only LISTS a skill (no
+evidence in a role or project) can lower the engine's evidence density, so the "after" can be
+SCORED_LOW_CONFIDENCE (band only) where the "before" had a number.
+Fix round 1 (review of 9.3):
+- *Failures.* Any failure of the rewrite's LLM call (connection, timeout, HTTP error, an
+  unexpected response, a reply that is not JSON or not a résumé document) is a `RewriteFailedError`
+  (a `ConnectionError`). The rewrite routes answer it with a 503 and save no version. A failed
+  rewrite is never a 200 that returns the original as if it were the rewrite.
+- *Limits.* The two analysis routes call no AI, but each is CPU work, so they share a cheap
+  per-user rate limit (`usage_limiter.fit_analysis_guard`: 20 a minute and 1,000 a day by default,
+  `FIT_ANALYSIS_PER_MINUTE` / `FIT_ANALYSIS_PER_DAY`, on the same database-backed counters). It
+  never charges the daily AI quota. A pasted job description is capped at 20,000 characters (title
+  and company at 2,000), and longer input is a 422. `posting_from_text` cuts to the same length for
+  any other caller.
+- *Reasons.* The rewrite responses carry an additive `reasons` list for the tailored side: the
+  engine's plain sentences (compliance.md section 2, `matcher.errors.FLAG_TEXT`). When a SCORED
+  original became SCORED_LOW_CONFIDENCE, nothing is added: fix round 2 removed a fixed sentence of
+  our own that was added whatever the real cause (LOW_EVIDENCE_DENSITY already says when skills
+  are only listed). The list is exactly the engine's sentence for each reason code. Clients show
+  the reasons whenever the outcome is not SCORED.
+- *What is woven in.* `missing_keywords` stays the full chip list (REQ_PARTIAL and REQ_MISS,
+  required then preferred; "A or B" for an OR-group). A one-click rewrite (no `add_keywords`) weaves
+  in only the additive `suggested_keywords`: the REQUIRED groups at REQ_MISS, by best member, at
+  most 10.
+- *`gaps`.* `gaps` stays LLM prose by decision. It is honest-gap text written with the rewrite, not
+  a score, a label or a keyword list, so it can differ from the engine's `missing_keywords`.
