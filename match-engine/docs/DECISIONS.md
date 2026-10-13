@@ -1314,8 +1314,10 @@ Fix round 1 (review of 9.3):
   any other caller.
 - *Reasons.* The rewrite responses carry an additive `reasons` list for the tailored side: the
   engine's plain sentences (compliance.md section 2, `matcher.errors.FLAG_TEXT`). When a SCORED
-  original became SCORED_LOW_CONFIDENCE, the list opens with a fixed sentence about skills listed
-  without an example. Clients show the reasons whenever the outcome is not SCORED.
+  original became SCORED_LOW_CONFIDENCE, nothing is added: fix round 2 removed a fixed sentence of
+  our own that was added whatever the real cause (LOW_EVIDENCE_DENSITY already says when skills
+  are only listed). The list is exactly the engine's sentence for each reason code. Clients show
+  the reasons whenever the outcome is not SCORED.
 - *What is woven in.* `missing_keywords` stays the full chip list (REQ_PARTIAL and REQ_MISS,
   required then preferred; "A or B" for an OR-group). A one-click rewrite (no `add_keywords`) weaves
   in only the additive `suggested_keywords`: the REQUIRED groups at REQ_MISS, by best member, at

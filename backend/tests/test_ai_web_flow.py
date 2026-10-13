@@ -252,10 +252,12 @@ class TestRewrite:
         assert data["outcome"] == "SCORED_LOW_CONFIDENCE"
         assert data["new_overall_score"] is None and data["new_ats_score"] is None
         assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
-        # Fix round 1, Important 3: the response says why the number went away.
-        from backend.services.resume_tailor import LISTED_ONLY_SENTENCE
-        assert data["reasons"][0] == LISTED_ONLY_SENTENCE
-        assert len(data["reasons"]) >= 2  # then the engine's own sentence(s) for what limited it
+        # The response says why the number went away, in the engine's own words only: exactly
+        # the compliance.md section 2 sentence for each reason code (fix round 2).
+        from matcher.errors import FLAG_TEXT
+
+        assert data["reasons"]
+        assert all(text in FLAG_TEXT.values() for text in data["reasons"]), data["reasons"]
 
     def test_a_timeout_is_a_503_and_saves_no_version(self, client, db_session):
         """Fix round 1, Important 1: a stalled LLM is an error, never a 200 'rewrite' that is

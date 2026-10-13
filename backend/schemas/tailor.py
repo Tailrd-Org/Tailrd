@@ -34,8 +34,8 @@ class TailorResumeOut(BaseModel):
     outcome: str | None = None
     original_match_label: str = ""
     match_label: str = ""
-    # Why the tailored side shows no number (compliance.md section 2 sentences), led by a
-    # fixed sentence when a SCORED before became SCORED_LOW_CONFIDENCE (D-123). Empty if SCORED.
+    # Why the tailored side shows no number: exactly the engine's compliance.md section 2
+    # sentence for each reason code (D-123). Empty if SCORED.
     reasons: list[str] = []
     matched_keywords: list[str] = []
     missing_keywords: list[str] = []

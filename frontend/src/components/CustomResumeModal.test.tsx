@@ -280,7 +280,8 @@ describe("CustomResumeModal", () => {
   it("shows why the review score went away (low confidence after a SCORED before)", async () => {
     get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
     const analyze = vi.fn().mockResolvedValue(analysis);
-    const why = "Skills listed without an example where you used them make us less sure, so we show the band instead of a number. Add a bullet that shows the skill to get a score.";
+    // The engine's own LOW_EVIDENCE_DENSITY sentence (compliance.md section 2).
+    const why = "Most matching skills are only listed, not shown in your experience.";
     const rewrite = {
       document: { header: {}, sections: [], theme: {} },
       original_document: { header: {}, sections: [], theme: {} },

@@ -22,13 +22,6 @@ from backend.services.resume_document import document_to_text, describe_changes
 
 logger = logging.getLogger(__name__)
 
-#: Leads ``reasons`` when the original was SCORED and the rewrite is SCORED_LOW_CONFIDENCE: the
-#: usual cause is a skill the rewrite only listed, with no example of its use (D-123).
-LISTED_ONLY_SENTENCE = (
-    "Skills listed without an example where you used them make us less sure, so we show the band "
-    "instead of a number. Add a bullet that shows the skill to get a score."
-)
-
 
 class ResumeTailor:
     """Generates tailored resume versions for specific job postings."""
@@ -155,13 +148,11 @@ class TailorResult:
         }
 
     def reasons(self) -> list[str]:
-        """Why the tailored side shows no number: the engine's plain sentences (compliance.md
-        section 2), led by ``LISTED_ONLY_SENTENCE`` when a SCORED original became
-        SCORED_LOW_CONFIDENCE. Empty when the tailored side is SCORED."""
-        reasons = list(self.after.reasons)
-        if self.before.outcome == "SCORED" and self.after.outcome == "SCORED_LOW_CONFIDENCE":
-            reasons = [LISTED_ONLY_SENTENCE, *(text for text in reasons if text != LISTED_ONLY_SENTENCE)]
-        return reasons
+        """Why the tailored side shows no number: exactly the engine's sentence for each of its
+        reason codes (compliance.md section 2, ``matcher.errors.FLAG_TEXT``), nothing of our own.
+        A skill the rewrite only listed shows as LOW_EVIDENCE_DENSITY when that is the cause.
+        Empty when the tailored side is SCORED."""
+        return list(self.after.reasons)
 
 
 async def tailor_document(

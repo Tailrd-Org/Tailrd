@@ -55,8 +55,9 @@ async def test_tailor_document_threads_changes_gaps_figures(monkeypatch):
 
 
 def test_score_fields_explain_a_number_that_went_away():
-    """Fix round 1, Important 3: SCORED before, SCORED_LOW_CONFIDENCE after: the reasons open with
-    the listed-only sentence, then the engine's own sentences."""
+    """Fix round 2: the reasons are exactly the engine's sentences for the tailored result's reason
+    codes (compliance.md section 2), whatever the before was. No sentence of our own is added:
+    LOW_EVIDENCE_DENSITY already says "only listed" when that is the cause."""
     before = _analysis(48, ["AWS"])
     after = JobAnalysisOut(overall_score=None, ats_score=None, match_label="Partial match", keyword_coverage=60,
                            outcome="SCORED_LOW_CONFIDENCE",
@@ -65,8 +66,8 @@ def test_score_fields_explain_a_number_that_went_away():
     result = rt.TailorResult(document=doc, original_text="", tailored_text="", before=before, after=after,
                              diff_summary="", changes=[], gaps=[], figures_to_verify=[])
     fields = result.score_fields()
-    assert fields["reasons"] == [rt.LISTED_ONLY_SENTENCE, "Several parts of the match couldn't be assessed."]
-    assert chr(0x2014) not in rt.LISTED_ONLY_SENTENCE
+    assert fields["reasons"] == ["Several parts of the match couldn't be assessed."]
+    assert not hasattr(rt, "LISTED_ONLY_SENTENCE")
 
     scored = rt.TailorResult(document=doc, original_text="", tailored_text="", before=before,
                              after=_analysis(55, []), diff_summary="", changes=[], gaps=[], figures_to_verify=[])

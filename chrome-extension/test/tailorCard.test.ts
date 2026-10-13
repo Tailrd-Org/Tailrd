@@ -58,11 +58,11 @@ describe("buildTailorCardHtml", () => {
   });
   it("shows why the score went away, escaped", () => {
     const html = buildTailorCardHtml(
-      { ...result, newScore: null, atsScore: null, reasons: ["Skills listed <only> make us less sure."] },
+      { ...result, newScore: null, atsScore: null, reasons: ["Most matching skills are only <listed>, not shown in your experience."] },
       new Set()
     );
     expect(html).toContain('class="ap-tailor-reasons"');
-    expect(html).toContain("Skills listed &lt;only&gt; make us less sure.");
+    expect(html).toContain("Most matching skills are only &lt;listed&gt;, not shown in your experience.");
   });
   it("has no reasons block when there are none", () => {
     expect(buildTailorCardHtml(result, new Set())).not.toContain("ap-tailor-reasons");
