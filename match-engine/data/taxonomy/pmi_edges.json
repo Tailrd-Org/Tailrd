@@ -928,8 +928,7 @@
    "skill.compliance":0.4776673892672798,
    "skill.gaap":0.4284950511625399,
    "skill.month_end_close":0.5130420876895523,
-   "skill.netsuite":0.44489070158305366,
-   "skill.reconciliation":0.5458101219225869
+   "skill.netsuite":0.44489070158305366
   },
   "skill.autocad":{
    "skill.solidworks":0.5
@@ -1376,7 +1375,7 @@
   },
   "skill.deep_learning":{
    "skill.gpu_computing":0.6848953410790332,
-   "skill.reinforcement_learning":0.655764380949645
+   "skill.reinforcement_learning":0.6364933994599642
   },
   "skill.design":{
    "field.design":0.8
@@ -1479,8 +1478,7 @@
   },
   "skill.erp":{
    "skill.accounting":0.459405354390183,
-   "skill.oracle_db":0.7377190385175744,
-   "skill.reconciliation":0.48972565329564866
+   "skill.oracle_db":0.7377190385175744
   },
   "skill.etl":{
    "esco.information_architecture":0.6729556644278731,
@@ -1501,8 +1499,7 @@
    "skill.ms_word":0.7855201907969512,
    "skill.multitasking":0.46849677752164753,
    "skill.outlook":0.6764795465530288,
-   "skill.powerpoint":0.7549922342960719,
-   "skill.reconciliation":0.43501902921981217
+   "skill.powerpoint":0.7549922342960719
   },
   "skill.fcaw":{
    "skill.gtaw":0.86930682858479
@@ -1521,8 +1518,7 @@
    "field.finance":0.8,
    "skill.accounting":0.5553482319897867,
    "skill.financial_reporting":0.46861088086040625,
-   "skill.netsuite":0.41954268408256346,
-   "skill.reconciliation":0.4128959275039815
+   "skill.netsuite":0.41954268408256346
   },
   "skill.financial_analysis":{
    "cred.cfa":0.8,
@@ -1541,8 +1537,7 @@
    "skill.budgeting":0.49012626195754183,
    "skill.finance":0.46861088086040625,
    "skill.gaap":0.7339010373408096,
-   "skill.month_end_close":0.6895336767804051,
-   "skill.reconciliation":0.6233742404144716
+   "skill.month_end_close":0.6895336767804051
   },
   "skill.food_safety":{
    "cred.food_handler":0.8
@@ -1601,8 +1596,7 @@
   "skill.gaap":{
    "skill.auditing":0.4284950511625399,
    "skill.financial_reporting":0.7339010373408096,
-   "skill.month_end_close":0.7804709310687192,
-   "skill.reconciliation":0.754566850589127
+   "skill.month_end_close":0.7804709310687192
   },
   "skill.gcp":{
    "cred.gcp_ace":0.8,
@@ -1633,7 +1627,7 @@
    "skill.llm":0.5696376636859289,
    "skill.machine_learning":0.467848978953189,
    "skill.pytorch":0.5412159116272801,
-   "skill.reinforcement_learning":0.4757700237586662
+   "skill.reinforcement_learning":0.42442758428907484
   },
   "skill.git":{
    "skill.agile":0.5066141983856367,
@@ -1946,7 +1940,7 @@
   "skill.llm":{
    "skill.generative_ai":0.5696376636859289,
    "skill.pytorch":0.4028787738586857,
-   "skill.reinforcement_learning":0.5609547031475939
+   "skill.reinforcement_learning":0.5383682560088252
   },
   "skill.logistics":{
    "esco.international_trade":0.4435943834283301,
@@ -2010,8 +2004,7 @@
   "skill.month_end_close":{
    "skill.auditing":0.5130420876895523,
    "skill.financial_reporting":0.6895336767804051,
-   "skill.gaap":0.7804709310687192,
-   "skill.reconciliation":0.7303502378934386
+   "skill.gaap":0.7804709310687192
   },
   "skill.motor_vehicles":{
    "esco.park_vehicles":1.0
@@ -2045,7 +2038,6 @@
    "skill.accounting":0.551018952860848,
    "skill.auditing":0.44489070158305366,
    "skill.finance":0.41954268408256346,
-   "skill.reconciliation":0.5767145782746823,
    "skill.salesforce":0.5208060008328719
   },
   "skill.networking":{
@@ -2060,7 +2052,7 @@
   "skill.nlp":{
    "skill.machine_learning":0.47719061711202704,
    "skill.pinterest":0.5505567136354024,
-   "skill.reinforcement_learning":0.6430017982511933,
+   "skill.reinforcement_learning":0.6957212693722328,
    "skill.spark":0.5390104137355027,
    "skill.statistics":0.5803298822424781
   },
@@ -2216,7 +2208,7 @@
   "skill.pinterest":{
    "skill.adaptability":0.6775696967394368,
    "skill.nlp":0.5505567136354024,
-   "skill.reinforcement_learning":0.4409562056439298
+   "skill.reinforcement_learning":0.49515828310280535
   },
   "skill.plc":{
    "esco.apply_advanced_manufacturing":0.4656885818615069,
@@ -2370,16 +2362,6 @@
    "skill.ui":0.5298643515688646,
    "skill.vue":0.65
   },
-  "skill.reconciliation":{
-   "skill.auditing":0.5458101219225869,
-   "skill.erp":0.48972565329564866,
-   "skill.excel":0.43501902921981217,
-   "skill.finance":0.4128959275039815,
-   "skill.financial_reporting":0.6233742404144716,
-   "skill.gaap":0.754566850589127,
-   "skill.month_end_close":0.7303502378934386,
-   "skill.netsuite":0.5767145782746823
-  },
   "skill.redis":{
    "skill.postgresql":0.8222026186749323
   },
@@ -2387,11 +2369,11 @@
    "skill.fpga":0.7723593418500051
   },
   "skill.reinforcement_learning":{
-   "skill.deep_learning":0.655764380949645,
-   "skill.generative_ai":0.4757700237586662,
-   "skill.llm":0.5609547031475939,
-   "skill.nlp":0.6430017982511933,
-   "skill.pinterest":0.4409562056439298
+   "skill.deep_learning":0.6364933994599642,
+   "skill.generative_ai":0.42442758428907484,
+   "skill.llm":0.5383682560088252,
+   "skill.nlp":0.6957212693722328,
+   "skill.pinterest":0.49515828310280535
   },
   "skill.reliability":{
    "skill.pcb":0.40071589722278644

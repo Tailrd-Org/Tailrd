@@ -1,18 +1,18 @@
 {
  "artifacts":{
   "common_words.json":"e923418f6d601f2636d5a8b055701e1abaa5337e755aba100e8ff36cc32d5c54",
-  "idf.json":"cc6addd72ed175076c586a9592162f26231f44ddf7ea524a5c8d84995ef90b53",
+  "idf.json":"17121e2a386abe9c0ece14dfc9fca1e1c35ca0341e08640a6236f6b0d9b283d1",
   "mos_crosswalk.json":"f6ee0717a5692a73a53cd245e3357d0a1e4fc0914ce8f23893d7bdda3505b846",
   "naics.json":"45cba4f2c7d3dc39012dab982bbba5a86fe2a2b7bcfaf1d06216c3fa76ba8fdc",
-  "nodes.json.gz":"c66d8fe9441adf82dd27d9f5576b05744776126837bd5dac1e023a5bf8597901",
-  "pmi_edges.json":"0251a87a35c8d395e3094de6d05fbd2dffa2a34d389f791958d4a39dba2c7476",
-  "resolver.json":"0ff22a8e6938256a6e50a0b38d9607588cfb9d41cf89d2f5c2eaa6468174f7cc",
+  "nodes.json.gz":"e24a6c476d2799a19c39324569ea077e005b0971ab7ae705a0e7dc993a7ed466",
+  "pmi_edges.json":"493c64ed0c3775890f9626d0411a8573fbf4e4e6994b9e75a8f6e07e6f743347",
+  "resolver.json":"25ff9be1f1bab96cb88606245cbf4d0a67306a1e357f2609f9105fe346fe95c7",
   "titles.json":"69cf73692e9247a9be0330505ea0fee4197786b44fb15e4e1f9eed03a621a738"
  },
  "format":1,
  "sources":{
   "corpus":"Tailrd scraped postings (scraped_jobs), Neon Development branch: 5,473 postings, first seen 2026-05-12 to 2026-05-14; postings.jsonl.gz sha256 bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac",
-  "curated":"config/curated_taxonomy.yaml sha256 6c98c940aa019db9bf95b0c04a5c9795cd0e96c3a7f4296a80a7c7a009ba542d; config/curated_edges.yaml sha256 3f89a0e12b1933d2deebded785284336a15b2999d3b8883f79796e52128938a8",
+  "curated":"config/curated_taxonomy.yaml sha256 67117b6f6ea9e012000ea7564637b0c666017fd57a11d38676969bea8e70d0a1; config/curated_edges.yaml sha256 3f89a0e12b1933d2deebded785284336a15b2999d3b8883f79796e52128938a8",
   "esco_en":"ESCO v1.2.1 classification, English, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20en%20-%20csv.zip; sha256 f9761b0b52be1828b38a3e5e0ae59a93a7b0ce358bc800f52f57a8b002adeb3e",
   "esco_fr":"ESCO v1.2.1 classification, French, CSV; https://ec.europa.eu/esco/download/ESCO%20dataset%20-%20v1.2.1%20-%20classification%20-%20fr%20-%20csv.zip; sha256 84fe49774fad90bdfd27d080440ffb1fdef1fbd62939f6436d2fc21f4d58d4e8",
   "naics_2022":"NAICS 2022, 2-6 digit codes and titles (U.S. Census Bureau); https://www.census.gov/naics/2022NAICS/2-6%20digit_2022_Codes.xlsx; sha256 be12ba41002803359f49181c9bf33a03fbd08578f4f4a4c0bbad7aadaaea0316",

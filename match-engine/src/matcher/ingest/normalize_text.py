@@ -7,7 +7,8 @@ from a PDF, a DOCX, a scan or a .txt file (EVAL §2.2 format invariance):
 2. Unicode format characters (category Cf) are removed: zero-width space and joiners, word
    joiner, BOM, bidi marks and isolates, soft hyphens. A soft hyphen that ends a line is kept
    until step 5 needs it.
-3. NFKC: ligatures (U+FB00..FB06 become ff, fi, fl, ffi, ffl, ...), full-width forms,
+3. The trademark, service-mark and registered signs are dropped (NFKC would spell "™" as the
+   letters "TM" glued to the name: "Spark™" read "SparkTM"). Then NFKC: ligatures (U+FB00..FB06 become ff, fi, fl, ffi, ffl, ...), full-width forms,
    superscripts, and compatibility spaces (NBSP and friends) become their plain forms.
 4. Per line: every control character and every Unicode space becomes " "; smart quotes become
    straight; a bullet glyph at the start of the line becomes "- "; runs of spaces collapse; the
@@ -53,6 +54,8 @@ _SPACE_LIKE = (
     + [0x202F, 0x205F, 0x3000]
 )
 _TRANSLATE = {cp: " " for cp in _SPACE_LIKE} | _QUOTES
+# Trademark, service-mark and registered signs: dropped before NFKC (Task 7.3 fix round 1).
+_MARKS = {0x2122: None, 0x2120: None, 0x00AE: None}
 
 
 def _is_format(char: str) -> bool:
@@ -76,7 +79,7 @@ def _strip_format_chars(line: str) -> str:
 def normalize_line(line: str) -> str:
     """Steps 2-4 for one line (no line breaks inside). A line-final soft hyphen is kept for the
     joiner; every other format character is gone."""
-    text = unicodedata.normalize("NFKC", _strip_format_chars(line)).translate(_TRANSLATE)
+    text = unicodedata.normalize("NFKC", _strip_format_chars(line).translate(_MARKS)).translate(_TRANSLATE)
     text = _SPACE_RUNS.sub(" ", text).strip()
     if text:
         text = _BULLET_START.sub("- ", text, count=1).rstrip()

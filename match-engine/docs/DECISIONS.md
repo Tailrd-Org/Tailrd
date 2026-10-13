@@ -410,11 +410,22 @@ manage the general ledger, develop plans related to client discharge, distribute
 non-destructive testing, printed circuit boards, OpenAI ChatGPT, Platform as a service PaaS, Time
 series modeling TSM software. A new name that is also an ordinary word keeps to its sense:
 Amplitude, HTTP, HTTPS and RAG are curated ambiguous keys (their casing; a URL's "https" or a
-cleaning rag is no skill), and blocked phrases keep the Indigenous sense of reconciliation ("Truth
-and Reconciliation", "reconciliation with Indigenous") and a "RAG status" out. Bare "Go-to-market"
+cleaning rag is no skill), and a blocked phrase keeps "RAG status" out. Fix round 1: a name whose
+bare form has another common sense is kept only in its qualified forms. Reconciliation resolves only
+as account, bank, balance sheet, GL or intercompany reconciliation ("equity, diversity, inclusion and
+reconciliation" names no accounting skill), so the eval label "Reconciliation" stays unresolved.
+The nursing node is cardiac telemetry monitoring (cardiac telemetry, telemetry nursing, telemetry
+unit); bare "telemetry monitoring" is as often software observability and stays unresolved, so the
+eval label "Telemetry Monitoring" does too. "RL" is no alias of reinforcement learning ("RL
+circuits"). Bare "ASNT" (the society) names non-destructive testing, the domain; only certification
+wording ("ASNT Level II", "ASNT certified") is the credential. "Miro" is list-only (D-144). Time
+series analysis is its own node, the parent of time series forecasting, and case management has no
+parent (social work, insurance and healthcare alike). Bare "Go-to-market"
 stays blocked (D-27), so only "Go-to-market strategy" and its spellings are the skill and bare
-"GTM" is not one. "CNO registration" is the Registered Nurse licence (the College of Nurses of
-Ontario also registers practical nurses; a posting that means RPN still reads RN). "Graduate Nurse"
+"GTM" is not one. "CNO registration" names no credential (fix round 1): the College of Nurses of
+Ontario registers RNs, RPNs and NPs, so reading it as the RN licence gated RPN postings on RN and let
+an RPN résumé pass RN gates; the RN and RPN names themselves remain the only source of nursing gates.
+"Graduate Nurse"
 is a name of the formal in-progress node `cred.nursing_student` (D-28, D-62), so it never reaches
 the licence. Bare "GN" is not an alias yet: in "RN or Graduate Nurse (GN) status" the posting parser
 gives the restated designation in brackets a second gate of its own (it does the same today for "P.Eng.
@@ -437,7 +448,9 @@ the key comes ",", "/", "&", "and" or "or", and a skill starts there ("Go, Pytho
 cue word (fluent, bilingual, proficiency, language, spoken, written, asset, required, ...) or
 another listed language stands in it ("English and French required", "French is an asset"). The
 casing rule still holds ("go, Python" opens nothing), skills lists and `resolve` are unchanged,
-and "English Bay" or "French doors" stay words. Other languages (Spanish, Mandarin) are not listed:
+and "English Bay" or "French doors" stay words unless the sentence has a cue: the cues include
+general requirement words, so "French doors required." reads French (a capitalised "French" in mid
+sentence resolved before this rule too). Other languages (Spanish, Mandarin) are not listed:
 the rule widens only for the names the posting parser lane found missed.
 
 **D-142 PhD is a degree level, not a node (Task 7.3). [Tailrd]** "PhD" (21 postings in the queue)
@@ -456,9 +469,17 @@ than 50 postings (D-98), and a later `build_taxonomy.py` run would drop them. Re
 and organisations (SpaceX, DoD); job titles (CIO/CTO, HRBP); generic words and phrases (analytics,
 automation, factory, manufacturing, monitoring, operations, production environment, technical
 project delivery, full-cycle quota-carrying, LOB, SDK, scripting); acronyms with several common
-senses (CI, DSS, FP, IPC, NAS, RT, SOC, UT, GTM, networking), whose unambiguous long forms are
+senses (CI, DSS, FP, IPC, NAS, RT, SOC, UT, GTM, networking, and in fix round 1 RL), whose unambiguous long forms are
 aliases instead (ultrasonic testing, radiographic testing, NAS 410, FP&A); STEM (an umbrella of
 fields); a phrase whose skill already resolves ("building data processing pipelines"); PhD (D-142).
+SparkTM was withdrawn in fix round 1: it was "Spark™" spelled out by NFKC, and the ingest
+normaliser now drops the trademark, service-mark and registered signs before NFKC.
+
+**D-144 List-only names (Task 7.3 fix round 1). [Tailrd]** A key listed under `list_only` (Miro) is
+also a given name. In prose it stands only inside a skill list in its sentence: ",", "/", "&",
+"and" or "or" joins it to another skill before or after it ("Ran workshops in Figma and Miro",
+"Miro, Figma and Jira"). "Worked with Miro Kovac" and the résumé name line "Miro Petrov" name no
+tool. Longer keys ("Miro board") are unrestricted, and skills lists and `resolve` are unchanged.
 
 ## Scoring
 

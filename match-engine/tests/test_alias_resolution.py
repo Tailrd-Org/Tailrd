@@ -1117,3 +1117,23 @@ def test_the_sentence_initial_rule_needs_the_casing_and_leaves_lists_and_resolve
     assert _ids(initial_resolver, "go, python", context="list") == ["skill.go", "skill.python"]
     assert initial_resolver.resolve("Go").canonical_id == "skill.go"
     assert initial_resolver.resolve("go").method == "NONE"
+
+
+def test_a_list_only_name_stands_in_prose_only_inside_a_skill_list(config) -> None:
+    # Fix round 1 (D-144): "Miro" is a given name as often as the whiteboard tool. In prose it stands
+    # only next to another skill across a list separator; in a skills list it always stands.
+    graph = _graph(_node("skill.miro", "Miro", "Miro board"), _node("skill.figma", "Figma"),
+                   _node("skill.jira", "Jira"))
+    r = Resolver(graph, config, list_only=["Miro"])
+    assert _ids(r, "Worked with Miro Kovac on the launch.") == []
+    assert _ids(r, "Miro Petrov\nToronto, ON") == []
+    assert _ids(r, "Ran workshops in Figma and Miro.") == ["skill.figma", "skill.miro"]
+    assert _ids(r, "Used Miro, Figma and Jira daily.") == ["skill.miro", "skill.figma", "skill.jira"]
+    assert _ids(r, "Used Figma. Miro is fine too.") == ["skill.figma"]  # the list does not cross a sentence
+    assert _ids(r, "Paired Figma with Miro Kovac.") == ["skill.figma"]  # "with" joins no list
+    assert _ids(r, "Tools are Figma and\nMiro Kovac runs the team.") == ["skill.figma"]  # a line break ends it
+    assert _ids(r, "Mapped journeys on a Miro board.") == ["skill.miro"]  # another key: no restriction
+    assert _ids(r, "Miro, Jira", context="list") == ["skill.miro", "skill.jira"]
+    assert _ids(r, "Miro", context="list") == ["skill.miro"]
+    assert r.resolve("Miro").canonical_id == "skill.miro"
+    assert _ids(Resolver(graph, config), "Worked with Miro Kovac on the launch.") == ["skill.miro"]

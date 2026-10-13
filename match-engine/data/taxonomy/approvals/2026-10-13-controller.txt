@@ -5,10 +5,14 @@
 # Each token is a curated label or alias in config/curated_taxonomy.yaml (a node with a reviewed
 # parent), not a provisional node, so a rebuild keeps it; `refresh_taxonomy.py --apply --approve`
 # with this file then has nothing left to write. Rejected tokens and the reasons: the Task 7.3 report.
+# Fix round 1 (review of Task 7.3): RL is withdrawn (bare "RL" is also RL circuits; "reinforcement
+# learning" stays), SparkTM is withdrawn (the ingest normaliser now drops the trademark sign, so
+# "Spark™" reads Spark), and bare ASNT names the testing domain, not a held certification.
+# For the owner's audit in particular: HPO (hyperparameter optimisation; also the Human Phenotype
+# Ontology in bioinformatics), ASNT, GPU, RAG.
 SaaS
 B2B
 distributed systems
-SparkTM
 ASNT
 MLOps
 NDE
@@ -25,5 +29,4 @@ GPU
 HPO
 IAM
 RAG
-RL
 SAST

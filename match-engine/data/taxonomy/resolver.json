@@ -135,7 +135,6 @@
   "Department of Finance",
   "document control system",
   "document control systems",
-  "economic reconciliation",
   "Epic Games",
   "Executive Chef",
   "Express Employment Professionals",
@@ -149,7 +148,6 @@
   "Head Chef",
   "Hep C",
   "Hepatitis C",
-  "Indigenous reconciliation",
   "Language Skills",
   "NCLEX-RN",
   "Pastry Chef",
@@ -160,7 +158,6 @@
   "RAG reporting",
   "RAG status",
   "RAG statuses",
-  "reconciliation with Indigenous",
   "Rope Access",
   "Ropes Access",
   "Schedule C",
@@ -173,8 +170,6 @@
   "Swift Transportation",
   "Swift Water",
   "Technical Skills",
-  "Truth & Reconciliation",
-  "Truth and Reconciliation",
   "Unity Health",
   "Vitamin A",
   "Vitamin B",
@@ -2899,6 +2894,9 @@
   "cred.registered_nurse":"cred.nursing_student",
   "cred.teaching_license":"cred.teacher_candidate"
  },
+ "list_only":[
+  "miro"
+ ],
  "sentence_initial":{
   "cues":[
    "asset",

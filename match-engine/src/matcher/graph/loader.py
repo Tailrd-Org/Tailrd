@@ -261,7 +261,8 @@ def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
     code that is also a skill after an amount ("1,200 CAD drawings", D-27). `fuzzy_exclusions`
     (Task 7.3, D-140) are ordinary words `resolve` never fuzzy-matches ("patients");
     `sentence_initial` is `{"keys": [...], "languages": [...], "cues": [...]}`, the keys that may
-    open a prose sentence that lists skills or, for a language, speaks of languages (D-141). All but
+    open a prose sentence that lists skills or, for a language, speaks of languages (D-141);
+    `list_only` are keys that stand in prose only inside a skill list ("Miro", D-144). All but
     `ambiguous` may be absent (empty)."""
     root = Path(taxonomy_dir)
     return _resolver_settings(root, _manifest_artifacts(root))
@@ -277,7 +278,7 @@ def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, An
             isinstance(key, str) and isinstance(value, str) for key, value in mapping.items()
         ):
             raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map strings to strings")
-    for name in ("blocked_phrases", "currency_skill_nouns", "fuzzy_exclusions"):
+    for name in ("blocked_phrases", "currency_skill_nouns", "fuzzy_exclusions", "list_only"):
         values = settings.get(name, [])
         if not _non_empty_strings(values):
             raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must be a list of non-empty strings")
@@ -319,6 +320,7 @@ def load_resolver(
         fuzzy_log=fuzzy_log,
         fuzzy_exclusions=settings.get("fuzzy_exclusions", ()),
         sentence_initial=settings.get("sentence_initial", {}),
+        list_only=settings.get("list_only", ()),
     )
 
 

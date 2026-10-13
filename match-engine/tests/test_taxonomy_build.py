@@ -459,6 +459,7 @@ def test_fuzzy_exclusions_and_the_sentence_initial_rule_are_written_for_the_reso
     # Task 7.3 (D-140): curated, written normalised and sorted.
     settings = _json(built, "resolver.json")
     assert settings["fuzzy_exclusions"] == ["patient", "patients"]
+    assert settings["list_only"] == ["confluence"]
     assert settings["sentence_initial"] == {"keys": ["go"], "languages": [], "cues": ["fluent", "spoken"]}
     resolver = load_resolver(built, config)
     assert [m.canonical_id for m in resolver.extract("Go, Python and SQL.")] == [
@@ -474,6 +475,7 @@ def test_fuzzy_exclusions_and_the_sentence_initial_rule_are_written_for_the_reso
         ("sentence_initial:\n  keys: [Go]\n  other: [x]\n", "sentence_initial"),
         ("sentence_initial: [Go]\n", "sentence_initial"),
         ("fuzzy_exclusions: patients\n", "fuzzy_exclusions"),
+        ("list_only: [Nosuchtool]\n", "list_only"),  # a list-only key must be a key
     ],
 )
 def test_bad_fuzzy_exclusions_or_sentence_initial_settings_fail_the_build(tmp_path: Path, block: str,

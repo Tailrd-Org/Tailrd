@@ -70,9 +70,12 @@ VOCABULARY_GAPS = [
     ("Product Analytics", "skill.product_analytics"),
     ("Product Roadmapping", "skill.product_roadmapping"),
     ("Roadmap Planning", "skill.product_roadmapping"),
-    ("Reconciliation", "skill.reconciliation"),
+    ("bank reconciliation", "skill.reconciliation"),
+    ("balance sheet reconciliation", "skill.reconciliation"),
     ("Tableau Desktop Specialist", "cred.tableau_desktop_specialist"),
-    ("Telemetry Monitoring", "skill.telemetry_monitoring"),
+    ("cardiac telemetry", "skill.cardiac_telemetry"),
+    ("telemetry nursing", "skill.cardiac_telemetry"),
+    ("telemetry unit", "skill.cardiac_telemetry"),
     ("Time Series Forecasting", "skill.time_series_forecasting"),
     ("UX Design Certificate", "cred.google_ux_certificate"),
     ("User Stories", "skill.user_stories"),
@@ -87,11 +90,14 @@ def test_a_common_skill_the_eval_vocabulary_named_now_resolves(resolver, surface
     assert node_id == expected and method in ("EXACT", "ALIAS"), (surface, node_id, method)
 
 
-def test_every_skill_of_the_default_vocabulary_has_a_spelling_that_resolves(resolver) -> None:
+def test_every_skill_of_the_default_vocabulary_but_two_has_a_spelling_that_resolves(resolver) -> None:
+    # Fix round 1 (D-140): bare "Reconciliation" and "Telemetry Monitoring" stay unresolved; each also
+    # names something else (Indigenous reconciliation, software telemetry).
     from eval.generate.vocabulary import default_vocabulary
     from eval.suites import build_id_map
 
-    assert build_id_map(default_vocabulary(), resolver).unknown == frozenset()
+    assert build_id_map(default_vocabulary(), resolver).unknown == frozenset(
+        {"skill.reconciliation", "skill.telemetry_monitoring"})
 
 
 @pytest.mark.parametrize(
@@ -113,8 +119,21 @@ def test_new_nodes_have_their_kind(graph, node_id: str, kind: SkillKind) -> None
         # the Indigenous sense of reconciliation is no accounting skill
         ("We are committed to Truth and Reconciliation.", []),
         ("Our commitment to reconciliation with Indigenous Peoples guides us.", []),
-        ("Prepared month-end reconciliation and variance analysis.", ["skill.reconciliation",
-                                                                      "skill.variance_analysis"]),
+        ("Prepared bank reconciliations and variance analysis.", ["skill.reconciliation",
+                                                                   "skill.variance_analysis"]),
+        # fix round 1: bare reconciliation, telemetry monitoring, RL and Miro keep their other senses
+        ("Demonstrated commitment to equity, diversity, inclusion and reconciliation.", []),
+        ("Understanding of reconciliation and Indigenous self-determination.", []),
+        ("Knowledge of Indigenous history and reconciliation.", []),
+        ("Built telemetry monitoring dashboards for our services.", []),
+        ("Analyzed RL circuits in the electronics lab.", ["esco.electronics"]),  # no reinforcement learning
+        ("Measured RL and RC circuits.", []),
+        ("Worked with Miro Kovac on the launch.", []),
+        ("Miro Petrov\nmiro.petrov@example.com", []),
+        ("Ran design workshops in Figma and Miro.", ["skill.figma", "skill.miro"]),
+        ("Mapped journeys on a Miro board.", ["skill.miro"]),
+        ("Member of ASNT.", ["skill.ndt"]),
+        ("Holds ASNT Level II in UT.", ["cred.ndt_certification"]),
     ],
 )
 def test_new_names_stay_out_of_their_ordinary_senses(resolver, text: str, expected: list) -> None:
@@ -132,8 +151,6 @@ def test_new_names_stay_out_of_their_ordinary_senses(resolver, text: str, expect
         ("B2B", "skill.b2b"),
         ("business-to-business", "skill.b2b"),
         ("B2B sales", "skill.sales"),  # the longer curated alias keeps its node
-        ("CNO registration", "cred.registered_nurse"),
-        ("College of Nurses of Ontario registration", "cred.registered_nurse"),
         ("Graduate Nurse", "cred.nursing_student"),
         ("AWS Solutions Architect certification", "cred.aws_saa"),
         ("AWS Certified DevOps Engineer - Professional", "cred.aws_devops_pro"),
@@ -156,7 +173,7 @@ def test_graduate_nurse_is_the_in_progress_node_and_never_the_licence(resolver) 
     # a second, GN-only gate; the parser already reads "RN or GN" by phrase.
     assert resolver.resolve("GN").method == "NONE"
     assert _ids(resolver, "RN or Graduate Nurse with current CNO registration.") == [
-        "cred.registered_nurse", "cred.nursing_student", "cred.registered_nurse"]
+        "cred.registered_nurse", "cred.nursing_student"]
 
 
 def test_an_aws_job_title_is_no_certification(resolver) -> None:
@@ -216,7 +233,7 @@ def test_every_approved_token_resolves(resolver, token: str) -> None:
     assert node_id is not None and method in ("EXACT", "ALIAS"), (token, node_id, method)
 
 
-@pytest.mark.parametrize("token", ["SpaceX", "GTM", "STEM", "production environment", "LOB", "analytics", "factory",
+@pytest.mark.parametrize("token", ["SpaceX", "GTM", "RL", "SparkTM", "STEM", "production environment", "LOB", "analytics", "factory",
                                    "operations", "automation", "manufacturing", "CIO/CTO", "DoD", "HRBP",
                                    "full-cycle quota-carrying", "technical project delivery", "SDK", "DSS",
                                    "SOC", "IPC", "UT", "RT", "CI", "FP", "monitoring", "networking",
@@ -224,3 +241,73 @@ def test_every_approved_token_resolves(resolver, token: str) -> None:
 def test_a_rejected_token_stays_unresolved(resolver, token: str) -> None:
     assert token not in _approved()
     assert resolver.resolve(token).canonical_id is None, token
+
+
+# ─── fix round 1 ──────────────────────────────────────────────────────────────────────────
+
+
+def test_rl_circuits_name_nothing(resolver) -> None:
+    assert resolver.resolve("RL circuits").canonical_id is None
+    assert resolver.resolve("RL").canonical_id is None
+
+
+@pytest.mark.parametrize("surface", ["CNO registration", "College of Nurses of Ontario registration"])
+def test_cno_registration_names_no_credential(resolver, surface: str) -> None:
+    # The College of Nurses of Ontario registers RNs, RPNs and NPs: the registration names no licence.
+    assert resolver.resolve(surface).canonical_id is None
+
+
+@pytest.mark.parametrize("line", ["Current CNO registration in good standing", "RPN with current CNO registration",
+                                  "Current CNO registration as an RPN"])
+def test_an_rpn_posting_with_cno_registration_has_no_rn_gate(line: str) -> None:
+    from matcher.models import LicenseGate
+    from tests.posting_helpers import parse
+
+    posting = parse(f"Requirements\n- {line}\n- Wound care", title="Registered Practical Nurse")
+    gated = {i for g in posting.gates if isinstance(g, LicenseGate) for i in g.credential_ids}
+    assert "cred.registered_nurse" not in gated
+
+
+def _resume(text: str):
+    import datetime as dt
+
+    from matcher.config import load_config
+    from matcher.parse.config import load_parse_config
+    from matcher.parse.resume import load_resume_resources, parse_resume_text
+
+    config, parse_config = load_config(), load_parse_config()
+    return parse_resume_text(text, as_of=dt.date(2026, 10, 9), strict=False, resolver=load_resolver(TAXONOMY, config),
+                             config=config, parse_config=parse_config,
+                             resources=load_resume_resources(TAXONOMY, parse_config=parse_config)).resume
+
+
+def test_an_rpn_resume_with_cno_registration_does_not_pass_an_rn_gate(graph) -> None:
+    from matcher.config import load_config
+    from matcher.models import GateStatus
+    from matcher.score.gates import evaluate_gates
+    from tests.posting_helpers import parse
+
+    config = load_config()
+    posting = parse("Requirements\n- Registered Nurse (RN) licence required\n- Wound care", title="Registered Nurse")
+    rpn = _resume("Jane Doe\njane@example.com\n\nLicences\nCNO registration (RPN), 2021\n\nExperience\n"
+                  "Registered Practical Nurse, Sunnybrook, 2021 - Present\n- Wound care and medication administration")
+    rn = _resume("Ann Roe\nann@example.com\n\nLicences\nRegistered Nurse (RN), 2021\n\nExperience\n"
+                 "Registered Nurse, Sunnybrook, 2021 - Present\n- Wound care and medication administration")
+    assert evaluate_gates(rpn, posting, graph, config)[0] is not GateStatus.PASS
+    assert evaluate_gates(rn, posting, graph, config)[0] is GateStatus.PASS  # the gate itself works
+
+
+def test_a_trademark_sign_never_glues_letters_to_a_name() -> None:
+    from tests.posting_helpers import parse
+
+    posting = parse("Requirements\n- Experience with Tableau\u2122 and Apache Spark\u2122\n- Python\u00ae scripting")
+    assert {"skill.tableau", "skill.spark", "skill.python"} <= {r.skill_id for r in posting.requirements}
+    assert not posting.unresolved_requirement_tokens
+
+
+def test_case_management_and_time_series_analysis_have_their_own_place(graph) -> None:
+    from matcher.graph.traversal import ancestors
+
+    assert "skill.patient_care" not in set(ancestors(graph, "skill.case_management", 10))
+    assert graph.nodes["skill.time_series_analysis"].label == "Time series analysis"
+    assert "skill.time_series_analysis" in graph.nodes["skill.time_series_forecasting"].parents

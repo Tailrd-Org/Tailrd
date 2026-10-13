@@ -265,6 +265,7 @@ class Resolver:
         fuzzy_log: Optional[FuzzyLog] = None,
         fuzzy_exclusions: Iterable[str] = (),
         sentence_initial: Optional[Mapping[str, Iterable[str]]] = None,
+        list_only: Iterable[str] = (),
     ) -> None:
         """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
         lists waive it. `cased` keys (automatic, D-26) need their casing in lists too.
@@ -282,7 +283,10 @@ class Resolver:
         (`keys`) that may open a prose sentence when the sentence is a skill list (another skill
         follows the key after ",", "/", "&", "and" or "or"), and among them the languages
         (`languages`) that may also open one that speaks of languages (a `cues` word or another
-        language stands in it): "Go, Python and Rust.", "English and French required." """
+        language stands in it): "Go, Python and Rust.", "English and French required."
+        `list_only` (curated, fix round 1, DECISIONS D-144) are keys that are also given names
+        ("Miro"): in prose such a key stands only inside a skill list (a list separator joins it to
+        another skill, before or after it); skills lists and `resolve` are unchanged."""
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
@@ -304,6 +308,7 @@ class Resolver:
             frozenset(normalize_surface(k) for k in initial.get("languages", ())) & self._initial_keys
         )
         self._language_cues = frozenset(normalize_surface(w) for w in initial.get("cues", ())) - {""}
+        self._list_only = frozenset(normalize_surface(k) for k in list_only) - {""}
 
         self._ambiguous: dict[str, str] = {}
         for key, casing in (*ambiguous.items(), *cased.items()):
@@ -492,6 +497,8 @@ class Resolver:
                     return j - i + 1, None
                 if node_id in self._formal and _crosses(text, tokens, i, j, _FORMAL_BREAKS):
                     continue  # "Teacher - Candidate" is no teacher candidate
+                if key in self._list_only and context == "prose" and not self._in_skill_list(text, tokens, i, j):
+                    continue  # "Worked with Miro Kovac": a name, not the tool (D-144)
                 if j == i and (
                     (key in _SEASONS and _dates_a_season(text, tokens, i))
                     or (len(key) == 1 and self._is_initial(text, tokens, i, start, end))
@@ -518,6 +525,49 @@ class Resolver:
             tokens[k].norm in self._language_cues or tokens[k].norm in self._initial_languages
             for k in range(i + 1, end)
         )
+
+    def _in_skill_list(self, text: str, tokens: list[_Token], i: int, j: int) -> bool:
+        """Whether the span of tokens i..j stands in a skill list within its sentence: a list
+        separator joins it to a skill after it ("Miro, Figma") or before it ("Figma and Miro")."""
+        end = j + 1
+        while end < len(tokens) and not tokens[end].sentence_start:
+            end += 1
+        return self._lists_a_skill(text, tokens, j, end) or self._follows_a_skill(text, tokens, i)
+
+    def _follows_a_skill(self, text: str, tokens: list[_Token], i: int) -> bool:
+        """Whether a skill ends right before token i, across ",", "/", "&", "and" or "or", within
+        its sentence."""
+        if i == 0 or tokens[i].sentence_start:
+            return False
+        k = i - 1
+        gap = text[tokens[k].end : tokens[i].start].strip()
+        if gap:
+            if not all(ch in _LIST_SEPARATORS for ch in gap):
+                return False
+        elif tokens[k].norm in _LIST_LINKS:
+            if k == 0 or tokens[k].sentence_start or text[tokens[k - 1].end : tokens[k].start].strip():
+                return False
+            k -= 1
+        else:
+            return False
+        for start in range(k, max(-1, k - _MAX_WINDOW), -1):
+            if start < k and not tokens[start + 1].joined:
+                break
+            if start < k and tokens[start + 1].sentence_start:
+                break
+            words = [token.norm for token in tokens[start : k + 1]]
+            hit = self._lookup(
+                surface_variants(" ".join(words)),
+                text[tokens[start].start : tokens[k].end],
+                "prose",
+                sentence_start=tokens[start].sentence_start,
+                include_fields=False,
+            )
+            if hit is not None and not hit[0].startswith(_FIELD_PREFIX):
+                return True
+            if tokens[start].sentence_start:
+                break
+        return False
 
     def _lists_a_skill(self, text: str, tokens: list[_Token], i: int, end: int) -> bool:
         """Whether a list separator follows token i and a skill starts right after it, before

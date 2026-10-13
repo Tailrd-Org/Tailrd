@@ -19,6 +19,12 @@ def test_nfkc_expands_ligatures() -> None:
     assert normalize_text(f"{LIG_FI}le {LIG_FL}ow e{LIG_FF}ort o{LIG_FFI}ce") == "file flow effort office"
 
 
+def test_trademark_service_mark_and_registered_signs_are_dropped() -> None:
+    # Task 7.3 fix round 1: NFKC spells U+2122 as the letters TM glued to the name ("SparkTM").
+    assert normalize_text("Apache Spark™, Tableau™ and Python®; FedEx℠") == (
+        "Apache Spark, Tableau and Python; FedEx")
+
+
 def test_nfkc_folds_compatibility_forms() -> None:
     fullwidth = "".join(chr(0xFF00 + ord(c) - 0x20) for c in "Python")
     assert normalize_text(fullwidth) == "Python"

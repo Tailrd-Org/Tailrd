@@ -79,13 +79,14 @@ as downloaded.
   `fuzzy_exclusions` (curated) are ordinary words `resolve` never fuzzy-matches ("patients", D-140);
   `sentence_initial` (curated) names the keys that may open a prose sentence that lists skills, and
   the languages that may open one about languages ("Go, Python and Rust", "French is an asset", D-141).
+  `list_only` (curated) keys stand in prose only inside a skill list ("Miro", a given name too; D-144).
 
 ## Counts
 
 | Kind | Nodes |
 |---|---|
 | TECHNOLOGY | 2,202 |
-| METHODOLOGY | 11,148 |
+| METHODOLOGY | 11,149 |
 | DOMAIN | 3,318 |
 | TOOL | 27,894 |
 | SOFT | 134 |
@@ -93,11 +94,11 @@ as downloaded.
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 765 | 3,595 |
+| curated | 766 | 3,595 |
 | esco | 14,285 | 102,745 |
 | onet | 29,736 | 1,983 |
 
-- Total: 44,786 nodes, 108,323 aliases; 183 curated related edges; 89 curated ambiguous keys and 2,640 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 111 blocked phrases.
+- Total: 44,787 nodes, 108,323 aliases; 183 curated related edges; 89 curated ambiguous keys and 2,640 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 106 blocked phrases.
 - Merged into curated nodes: 636 source concepts; dropped nodes: 30; keys dropped as ambiguous between nodes: 613; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
 
@@ -124,7 +125,7 @@ noisy-alias review.
   (14,886 copies left out).
 - `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,244 ids seen at least
   once; an id never seen takes `idf.unseen_default`.
-- `pmi_edges.json`: 761 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
+- `pmi_edges.json`: 753 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
   where one id is an ancestor of the other left out; D-22) and 183 curated pairs laid over them.
 - `common_words.json`: 2,884 words, each used in at least 20 postings, that resolve to no key;
   `resolve()` never fuzzy-matches them.

@@ -42,6 +42,8 @@ currency_skill_nouns: [drawings, Licences]
 
 fuzzy_exclusions: [Patients, patient]
 
+list_only: [Confluence]
+
 sentence_initial:
   keys: [Go]
   languages: []

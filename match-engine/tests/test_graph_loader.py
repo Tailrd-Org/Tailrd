@@ -336,6 +336,8 @@ def test_load_resolver_reads_the_manifest_once(tmp_path: Path, config, monkeypat
         ({"format": 1, "ambiguous": {}, "currency_skill_nouns": "drawings"}, "currency_skill_nouns"),
         ({"format": 1, "ambiguous": {}, "currency_skill_nouns": ["drawings", ""]}, "currency_skill_nouns"),
         ({"format": 1, "ambiguous": {}, "fuzzy_exclusions": "patients"}, "fuzzy_exclusions"),
+        ({"format": 1, "ambiguous": {}, "list_only": "Miro"}, "list_only"),
+        ({"format": 1, "ambiguous": {}, "list_only": [""]}, "list_only"),
         ({"format": 1, "ambiguous": {}, "fuzzy_exclusions": ["patients", 3]}, "fuzzy_exclusions"),
         ({"format": 1, "ambiguous": {}, "sentence_initial": ["go"]}, "sentence_initial"),
         ({"format": 1, "ambiguous": {}, "sentence_initial": {"keys": "go"}}, "sentence_initial"),

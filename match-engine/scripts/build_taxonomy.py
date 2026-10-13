@@ -430,6 +430,7 @@ class Curated:
     fuzzy_exclusions: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-140)
     # {"keys", "languages", "cues"} -> normalised, sorted (resolver.json; D-141)
     sentence_initial: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    list_only: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-144)
 
 
 def content_tokens(surface: str) -> frozenset[str]:
@@ -569,6 +570,8 @@ def load_curated(path: Path) -> Curated:
         currency_skill_nouns=tuple(sorted(nouns)),
         fuzzy_exclusions=tuple(sorted({normalize_surface(word) for word in exclusions} - {""})),
         sentence_initial=initial,
+        list_only=tuple(sorted({normalize_surface(word) for word in
+                                _strings(doc.get("list_only"), f"{path.name}: list_only")} - {""})),
     )
 
 
@@ -1534,6 +1537,7 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "  `fuzzy_exclusions` (curated) are ordinary words `resolve` never fuzzy-matches (\"patients\", D-140);",
         "  `sentence_initial` (curated) names the keys that may open a prose sentence that lists skills, and",
         "  the languages that may open one about languages (\"Go, Python and Rust\", \"French is an asset\", D-141).",
+        "  `list_only` (curated) keys stand in prose only inside a skill list (\"Miro\", a given name too; D-144).",
         "",
         "## Counts",
         "",
@@ -1630,7 +1634,11 @@ def build(
         "currency_skill_nouns": list(curated.currency_skill_nouns),
         "fuzzy_exclusions": list(curated.fuzzy_exclusions),
         "sentence_initial": {name: list(words) for name, words in curated.sentence_initial.items()},
+        "list_only": list(curated.list_only),
     }
+    unknown = sorted(set(curated.list_only) - index_keys)
+    if unknown:
+        raise BuildError(f"list_only keys that no node claims: {unknown}")
     uncased = sorted(set(curated.sentence_initial.get("keys", ())) - set(resolver_settings["ambiguous"])
                      - set(resolver_settings["cased"]))
     if uncased:
@@ -1670,7 +1678,8 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
     resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
                         blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"],
                         currency_skill_nouns=settings["currency_skill_nouns"],
-                        fuzzy_exclusions=settings["fuzzy_exclusions"], sentence_initial=settings["sentence_initial"])
+                        fuzzy_exclusions=settings["fuzzy_exclusions"], sentence_initial=settings["sentence_initial"],
+                        list_only=settings["list_only"])
     held = set(curated.in_progress)  # the professional licences and the CFA charter
     targets = set(curated.in_progress.values())
     failures = []

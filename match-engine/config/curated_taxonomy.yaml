@@ -101,7 +101,7 @@ skills:
   - {id: skill.bigquery, label: BigQuery, kind: TECHNOLOGY, aliases: [Google BigQuery, Big Query], parents: [skill.sql, skill.data_warehousing, skill.gcp], release_year: 2011}
   - {id: skill.kafka, label: Apache Kafka, kind: TECHNOLOGY, aliases: [kafka, Kafka Streams, Confluent Kafka], parents: [skill.data_engineering], release_year: 2011}
   - {id: skill.rabbitmq, label: RabbitMQ, kind: TECHNOLOGY, aliases: [Rabbit MQ], release_year: 2007}
-  - {id: skill.spark, label: Apache Spark, kind: TECHNOLOGY, aliases: [spark, SparkTM, Apache SparkTM, pyspark, Spark SQL, Apache Spark software], parents: [skill.big_data], release_year: 2014}
+  - {id: skill.spark, label: Apache Spark, kind: TECHNOLOGY, aliases: [spark, pyspark, Spark SQL, Apache Spark software], parents: [skill.big_data], release_year: 2014}
   - {id: skill.hadoop, label: Apache Hadoop, kind: TECHNOLOGY, aliases: [hadoop, HDFS, Hadoop MapReduce, MapReduce], parents: [skill.big_data], release_year: 2006}
   - {id: skill.airflow, label: Apache Airflow, kind: TECHNOLOGY, aliases: [airflow], parents: [skill.data_engineering], release_year: 2015}
   - {id: skill.dbt, label: dbt, kind: TECHNOLOGY, aliases: [data build tool, dbt Core, dbt Cloud], parents: [skill.data_engineering, skill.sql], release_year: 2016}
@@ -501,7 +501,7 @@ skills:
   - {id: skill.bookkeeping, label: Bookkeeping, kind: METHODOLOGY, aliases: [book keeping, bookkeeper skills, tenue de livres], parents: [skill.accounting]}
   - {id: skill.accounts_payable, label: Accounts payable, kind: METHODOLOGY, aliases: [A/P, accounts payable processing, comptes fournisseurs], parents: [skill.accounting]}
   - {id: skill.accounts_receivable, label: Accounts receivable, kind: METHODOLOGY, aliases: [A/R, accounts receivable management, comptes clients], parents: [skill.accounting]}
-  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [reconciliation, bank reconciliation, bank reconciliations, account reconciliations, reconciliations, rapprochement bancaire], parents: [skill.accounting]}
+  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [bank reconciliation, bank reconciliations, account reconciliations, balance sheet reconciliation, balance sheet reconciliations, GL reconciliation, GL reconciliations, intercompany reconciliation, intercompany reconciliations, rapprochement bancaire], parents: [skill.accounting]}
   - {id: skill.budgeting, label: Budgeting, kind: METHODOLOGY, aliases: [budget management, budget planning, budgets, budget preparation, budgétisation], parents: [skill.finance]}
   - {id: skill.forecasting, label: Forecasting, kind: METHODOLOGY, aliases: [financial forecasting, demand forecasting, sales forecasting, prévisions financières, prévisions des ventes, prévision de la demande, prévisions budgétaires]}
   - {id: skill.auditing, label: Auditing, kind: METHODOLOGY, aliases: [audit, audits, internal audit, external audit, financial audit, audit interne, vérification comptable, vérification interne], parents: [skill.accounting]}
@@ -631,20 +631,22 @@ skills:
   - {id: skill.campaign_management, label: Campaign management, kind: METHODOLOGY, aliases: [marketing campaign management, marketing campaigns, campaign planning, campaign execution], parents: [skill.marketing]}
   - {id: skill.cro, label: Conversion rate optimization, kind: METHODOLOGY, aliases: [conversion rate optimisation, conversion optimization, conversion optimisation], parents: [skill.digital_marketing]}
   - {id: skill.design_systems, label: Design systems, kind: DOMAIN, aliases: [design system, UI design systems], parents: [skill.ui]}
-  - {id: skill.miro, label: Miro, kind: TOOL, aliases: [Miro board, Miro whiteboard, RealtimeBoard]}
+  - {id: skill.miro, label: Miro, kind: TOOL, aliases: [Miro board, Miro whiteboard, RealtimeBoard]}  # bare "Miro": list_only
   - {id: skill.code_review, label: Code review, kind: METHODOLOGY, aliases: [code reviews, peer code review, peer code reviews, code reviewing, conduct ICT code review], parents: [skill.software_development]}
   - {id: skill.incident_response, label: Incident response, kind: METHODOLOGY, aliases: [incident handling, security incident response, incident response planning], parents: [skill.sre, skill.cybersecurity]}
-  - {id: skill.time_series_forecasting, label: Time series forecasting, kind: METHODOLOGY, aliases: [time-series forecasting, time series modeling, time series modelling, time series analysis], parents: [skill.forecasting, skill.statistics]}
+  - {id: skill.time_series_analysis, label: Time series analysis, kind: METHODOLOGY, aliases: [time-series analysis, time series modeling, time series modelling], parents: [skill.statistics]}
+  - {id: skill.time_series_forecasting, label: Time series forecasting, kind: METHODOLOGY, aliases: [time-series forecasting], parents: [skill.forecasting, skill.time_series_analysis]}
   - {id: skill.fpa, label: Financial planning and analysis, kind: METHODOLOGY, aliases: [FP&A, financial planning & analysis, budgeting and forecasting, budgeting & forecasting], parents: [skill.finance]}
   - {id: skill.cost_accounting, label: Cost accounting, kind: METHODOLOGY, aliases: [cost accountancy, perform cost accounting activities], parents: [skill.accounting]}
   - {id: skill.general_ledger, label: General ledger, kind: METHODOLOGY, aliases: [general ledger accounting, GL accounting, manage the general ledger], parents: [skill.accounting]}
   - {id: skill.month_end_close, label: Month-end close, kind: METHODOLOGY, aliases: [month end close, month-end closing, month-end close process, period close, period-end close, financial close], parents: [skill.accounting]}
   - {id: skill.variance_analysis, label: Variance analysis, kind: METHODOLOGY, aliases: [budget variance analysis, variance reporting, budget-to-actual analysis], parents: [skill.financial_analysis]}
   - {id: skill.care_planning, label: Care planning, kind: METHODOLOGY, aliases: [care plans, care plan development, nursing care plans, patient care planning], parents: [skill.patient_care]}
-  - {id: skill.case_management, label: Case management, kind: METHODOLOGY, aliases: [apply case management], parents: [skill.patient_care]}
+  - {id: skill.case_management, label: Case management, kind: METHODOLOGY, aliases: [apply case management], parents: []}  # social work, insurance and healthcare alike
   - {id: skill.discharge_planning, label: Discharge planning, kind: METHODOLOGY, aliases: [discharge plans, patient discharge planning, develop plans related to client discharge], parents: [skill.patient_care]}
   - {id: skill.patient_education, label: Patient education, kind: METHODOLOGY, aliases: [patient teaching, patient and family education, health teaching], parents: [skill.patient_care]}
-  - {id: skill.telemetry_monitoring, label: Telemetry monitoring, kind: METHODOLOGY, aliases: [cardiac telemetry, telemetry nursing, cardiac monitoring, ECG monitoring], parents: [skill.patient_care]}
+  # bare "telemetry monitoring" is software observability as often as nursing: only the cardiac forms
+  - {id: skill.cardiac_telemetry, label: Cardiac telemetry monitoring, kind: METHODOLOGY, aliases: [cardiac telemetry, telemetry nursing, telemetry unit, cardiac monitoring, ECG monitoring], parents: [skill.patient_care]}
   # ─── Task 7.3 (D-140): parked gaps and the review-queue tokens the build controller approved ───
   # (data/taxonomy/approvals/2026-10-13-controller.txt; the tokens and their counts: review_queue.csv)
   - {id: skill.saas, label: SaaS, kind: DOMAIN, aliases: [software as a service, software-as-a-service], parents: [skill.cloud_computing]}
@@ -656,14 +658,14 @@ skills:
   - {id: skill.chatgpt, label: ChatGPT, kind: TOOL, aliases: [OpenAI ChatGPT, Chat GPT], parents: [skill.generative_ai]}
   - {id: skill.langchain, label: LangChain, kind: TECHNOLOGY, aliases: [Lang Chain], parents: [skill.llm, skill.python]}
   - {id: skill.rag, label: Retrieval-augmented generation, kind: METHODOLOGY, aliases: [RAG, retrieval augmented generation, RAG pipelines], parents: [skill.llm, skill.generative_ai]}
-  - {id: skill.reinforcement_learning, label: Reinforcement learning, kind: DOMAIN, aliases: [RL], parents: [skill.machine_learning]}
+  - {id: skill.reinforcement_learning, label: Reinforcement learning, kind: DOMAIN, parents: [skill.machine_learning]}  # bare "RL" is also RL circuits
   - {id: skill.hyperparameter_tuning, label: Hyperparameter tuning, kind: METHODOLOGY, aliases: [hyperparameter optimization, hyperparameter optimisation, hyper-parameter tuning, HPO], parents: [skill.machine_learning]}
   - {id: skill.gpu_computing, label: GPU computing, kind: TECHNOLOGY, aliases: [GPU, GPUs, GPU programming, GPGPU, GPU acceleration], parents: [skill.programming]}
   - {id: skill.http, label: HTTP, kind: TECHNOLOGY, aliases: [HTTPS, HTTP/HTTPS, Hypertext Transfer Protocol, HTTP protocol], parents: [skill.web_development, skill.networking]}
   - {id: skill.iam, label: Identity and access management, kind: DOMAIN, aliases: [IAM, AWS IAM], parents: [skill.cybersecurity]}
   - {id: skill.sast, label: Static application security testing, kind: METHODOLOGY, aliases: [SAST, static analysis security testing], parents: [skill.cybersecurity, skill.software_testing]}
   - {id: skill.pcb, label: Printed circuit boards, kind: DOMAIN, aliases: [PCB, PCBs, printed circuit board]}
-  - {id: skill.ndt, label: Non-destructive testing, kind: DOMAIN, aliases: [NDT, NDE, non-destructive evaluation, nondestructive testing, nondestructive evaluation, non-destructive inspection]}
+  - {id: skill.ndt, label: Non-destructive testing, kind: DOMAIN, aliases: [NDT, NDE, ASNT, non-destructive evaluation, nondestructive testing, nondestructive evaluation, non-destructive inspection]}
   - {id: skill.ultrasonic_testing, label: Ultrasonic testing, kind: METHODOLOGY, aliases: [ultrasonic inspection], parents: [skill.ndt]}
   - {id: skill.paut, label: Phased array ultrasonic testing, kind: METHODOLOGY, aliases: [PAUT, phased array UT, phased array ultrasonics, phased array inspection], parents: [skill.ultrasonic_testing]}
   - {id: skill.radiographic_testing, label: Radiographic testing, kind: METHODOLOGY, aliases: [radiographic inspection], parents: [skill.ndt]}
@@ -672,7 +674,7 @@ skills:
 
 credentials:
   # ─── licences the license gate treats as professional (config/gates.yaml) ────────────────
-  - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN, R.N., CNO registration, College of Nurses of Ontario registration, Registered Nurse licence, Registered Nurse license, infirmière autorisée, infirmier autorisé]}
+  - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN, R.N., Registered Nurse licence, Registered Nurse license, infirmière autorisée, infirmier autorisé]}
   - {id: cred.licensed_practical_nurse, label: Licensed Practical Nurse, kind: CREDENTIAL, aliases: [LPN, RPN, Registered Practical Nurse, L.P.N., Licensed Vocational Nurse, LVN, infirmière auxiliaire autorisée]}
   - {id: cred.cpa, label: Chartered Professional Accountant, kind: CREDENTIAL, aliases: [CPA, CPA Canada, Certified Public Accountant, C.P.A., CPA designation, comptable professionnel agréé]}
   - {id: cred.commercial_drivers_license, label: Commercial driver's licence, kind: CREDENTIAL, aliases: [CDL, commercial driver's license, commercial drivers license, Class A CDL, Class AZ licence, AZ licence, AZ license, DZ licence, DZ license, Class A license]}
@@ -767,7 +769,7 @@ credentials:
   - {id: cred.aws_data_analytics_specialty, label: AWS Certified Data Analytics – Specialty, kind: CREDENTIAL, aliases: [AWS Certified Data Analytics Specialty, AWS Data Analytics Specialty, DAS-C01]}
   - {id: cred.tableau_desktop_specialist, label: Tableau Desktop Specialist, kind: CREDENTIAL, aliases: [Tableau Desktop Specialist certification, Tableau Certified Desktop Specialist]}
   - {id: cred.google_ux_certificate, label: Google UX Design Certificate, kind: CREDENTIAL, aliases: [UX Design Certificate, Google UX Design Professional Certificate, Google UX Design Certification, UX design certification]}
-  - {id: cred.ndt_certification, label: NDT personnel certification, kind: CREDENTIAL, aliases: [ASNT, ASNT certification, ASNT certified, ASNT Level I, ASNT Level II, ASNT Level III, SNT-TC-1A, NAS 410, NAS410, EN 4179, NDT certification, NDT Level II]}
+  - {id: cred.ndt_certification, label: NDT personnel certification, kind: CREDENTIAL, aliases: [ASNT certification, ASNT certified, ASNT Level I, ASNT Level II, ASNT Level III, SNT-TC-1A, NAS 410, NAS410, EN 4179, NDT certification, NDT Level II]}
 
 fields:
   - {id: field.science, label: Science, kind: DOMAIN, aliases: [sciences, natural sciences, BSc, B.Sc., Bachelor of Science, sciences naturelles], parents: []}
@@ -965,10 +967,8 @@ blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, C
   # rope-access titles is no Microsoft Access; child care among benefits is no early childhood education
   building blocks, Access Management, Access Control, Access Engineer, Ropes Access, Rope Access,
   child care benefits, Child care and pet benefits,
-  # Task 7.3 (D-140): the Indigenous sense of reconciliation is no accounting skill; "RAG status" is a
-  # project-status colour code
-  Truth and Reconciliation, Truth & Reconciliation, reconciliation with Indigenous, Indigenous reconciliation,
-  economic reconciliation, RAG status, RAG statuses, RAG reporting]
+  # Task 7.3 (D-140): "RAG status" is a project-status colour code
+  RAG status, RAG statuses, RAG reporting]
 
 # Professional licences (config/gates.yaml) -> the credential of their formal in-progress
 # designations (D-28). The build fails when a licence has none, or when one of those names reaches
@@ -1006,6 +1006,11 @@ licence_probes:
 # virtualization, "heating" -> betting) where the posting corpus is too small to list it among the
 # common words (common_words.json, Task 2.3). Exact matches are unaffected.
 fuzzy_exclusions: [patient, patients, parents, analyse, analysed, supervisors, heating, tenants, seniors]
+
+# Keys that are also given names (fix round 1, DECISIONS D-144): in prose they stand only inside a skill
+# list, joined to another skill by ",", "/", "&", "and" or "or" ("Figma and Miro"); "Worked with Miro
+# Kovac" and a name line "Miro Petrov" name no tool. Skills lists and `resolve` are unchanged.
+list_only: [Miro]
 
 # Keys that may open a prose sentence (Task 7.3, DECISIONS D-141). An ambiguous or cased key never
 # opens one ("Go above and beyond"), except one listed here when the sentence lists skills (right
