@@ -426,6 +426,27 @@ def test_the_breakdown_needs_a_resume(db_session, app_client, no_llm):
     assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
 
 
+@pytest.mark.parametrize("bucket", ["MATCH_BREAKDOWN_PER_MINUTE", "MATCH_BREAKDOWN_PER_DAY"])
+def test_the_breakdown_has_its_own_per_user_rate_limit(db_session, app_client, no_llm, monkeypatch, bucket):
+    """60 a minute and 2,000 a day by default (I-5), in a bucket of its own: the analysis
+    routes' bucket is not charged, and the AI quota is never touched (no_llm refuses it)."""
+    from backend.services import usage_limiter
+
+    assert usage_limiter.MATCH_BREAKDOWN_PER_MINUTE == 60
+    assert usage_limiter.MATCH_BREAKDOWN_PER_DAY == 2000
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+    monkeypatch.setattr(usage_limiter, bucket, 2)
+    monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_MINUTE", 1)
+    monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_DAY", 1)
+    _user(db_session)
+    job = _job(db_session)  # no résumé: the route answers 400 after the guard, without the engine
+    assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
+    assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
+    third = app_client.post(f"/ai/match-breakdown/{job.id}")
+    assert third.status_code == 429
+    assert third.headers.get("Retry-After")
+
+
 def test_the_ai_scoring_endpoints_are_gone(db_session, app_client):
     _user(db_session)
     _resume(db_session)
@@ -771,6 +792,62 @@ async def test_an_engine_that_cannot_be_built_reports_engine_unavailable(db_sess
     assert summary["status"] == "engine_unavailable"
     assert summary["error"] == "FitEngineError"
     assert refreshes == []
+
+
+@pytest.mark.asyncio
+async def test_a_loader_error_reports_engine_unavailable_and_builds_once(db_session, monkeypatch):
+    """A taxonomy loader error (not a panel error) is an unbuildable engine: the sweep reports
+    engine_unavailable, and the failure is remembered, so the sweep never rebuilds per chunk."""
+    from matcher.graph.loader import ArtifactError
+
+    from backend.services import fit_engine
+
+    builds = []
+
+    def broken_graph(*_a, **_k):
+        builds.append(1)
+        raise ArtifactError("MANIFEST does not list nodes.json.gz")
+
+    monkeypatch.setattr(fit_engine, "load_graph", broken_graph)
+    monkeypatch.setattr(fit_engine, "_ENGINE", None)
+    monkeypatch.setattr(fit_engine, "_BUILD_FAILURE", None, raising=False)
+    _user(db_session)
+    _resume(db_session)
+    for _ in range(3):
+        _job(db_session)
+    monkeypatch.setattr(match_notifier, "SWEEP_CHUNK", 1)
+    summary = await match_notifier.sweep_match_alerts(db_session)
+    assert summary["status"] == "engine_unavailable"
+    assert summary["error"] == "FitEngineError"
+    assert summary["scoring_errors"] == 0
+    assert len(builds) == 1
+    with pytest.raises(fit_engine.FitEngineError, match="ArtifactError"):
+        fit_engine.get_engine()
+    assert len(builds) == 1  # still remembered
+
+
+def test_a_remembered_build_failure_expires(monkeypatch):
+    from backend.services import fit_engine
+
+    builds = []
+
+    def broken_config(*_a, **_k):
+        builds.append(1)
+        raise OSError("config/weights.yaml is missing")
+
+    clock = [1000.0]
+    monkeypatch.setattr(fit_engine, "load_config", broken_config)
+    monkeypatch.setattr(fit_engine, "_ENGINE", None)
+    monkeypatch.setattr(fit_engine, "_BUILD_FAILURE", None, raising=False)
+    monkeypatch.setattr(fit_engine, "_monotonic", lambda: clock[0], raising=False)
+    for _ in range(2):
+        with pytest.raises(fit_engine.FitEngineError, match="OSError"):
+            fit_engine.get_engine()
+    assert len(builds) == 1
+    clock[0] += fit_engine.BUILD_FAILURE_TTL_S + 1
+    with pytest.raises(fit_engine.FitEngineError):
+        fit_engine.get_engine()
+    assert len(builds) == 2
 
 
 @pytest.mark.asyncio

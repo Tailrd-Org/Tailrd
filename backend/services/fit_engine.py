@@ -181,23 +181,49 @@ class FitEngine:
 
 _ENGINE: Optional[FitEngine] = None
 _ENGINE_LOCK = threading.Lock()
+# A build failure is remembered for this long, so one sweep (every chunk, the calibration refresh
+# and the drift report) does not pay a full rebuild per call when an artifact is broken.
+BUILD_FAILURE_TTL_S = 300.0
+_BUILD_FAILURE: Optional[tuple[float, FitEngineError]] = None
+_monotonic = time.monotonic
 
 
 def get_engine() -> FitEngine:
-    """The process-wide engine, built on first use (thread-safe). Cold build: see build_engine."""
-    global _ENGINE
+    """The process-wide engine, built on first use (thread-safe). Cold build: see build_engine.
+    A failed build raises FitEngineError, and the same error again for BUILD_FAILURE_TTL_S."""
+    global _ENGINE, _BUILD_FAILURE
     engine = _ENGINE
     if engine is not None:
         return engine
     with _ENGINE_LOCK:
-        if _ENGINE is None:
+        if _ENGINE is not None:
+            return _ENGINE
+        failure = _BUILD_FAILURE
+        if failure is not None and _monotonic() - failure[0] < BUILD_FAILURE_TTL_S:
+            raise failure[1]
+        try:
             _ENGINE = build_engine()
+        except FitEngineError as exc:
+            _BUILD_FAILURE = (_monotonic(), exc)
+            raise
+        _BUILD_FAILURE = None
         return _ENGINE
 
 
 def build_engine(root: Path = MATCH_ENGINE_ROOT) -> FitEngine:
-    """Load and verify every engine artifact. Raises (never degrades) when one is missing or
-    does not match its MANIFEST: a half-built engine would score with the wrong data."""
+    """Load and verify every engine artifact. Raises FitEngineError (never degrades) when one is
+    missing, unreadable or does not match its MANIFEST: a half-built engine would score with the
+    wrong data. Every loader error (ConfigError, ArtifactError, PanelError, OSError, ValueError) is
+    converted, so a caller sees one error type and the sweep reports engine_unavailable (I-1)."""
+    try:
+        return _build_engine(root)
+    except FitEngineError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError) as exc:  # ConfigError/ArtifactError/PanelError are ValueErrors
+        raise FitEngineError(f"{type(exc).__name__}: {exc}") from exc
+
+
+def _build_engine(root: Path) -> FitEngine:
     started = time.perf_counter()
     taxonomy = root / "data" / "taxonomy"
     config = load_config(root / "config")
@@ -450,7 +476,9 @@ def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Map
 
 def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
                     material: Optional[str] = None) -> str:
-    """"fit<major>:" + sha256(canonical Resume JSON + combined hash), cut to 64 characters.
+    """"fit<major>:" + sha256(canonical Resume JSON + combined hash + panel version), cut to 64
+    characters. The panel version is in it (final review M-1): a panel rebuild recalibrates
+    every display score, so every banked row goes stale and is rescored, as for a config change.
 
     A résumé that could not be parsed has no canonical JSON: its fingerprint hashes its reasons
     and ``material`` (a digest of the stored input), so a NEEDS_REVIEW row is current until the
@@ -461,7 +489,7 @@ def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
     else:
         body = "review|" + ",".join(flag.value for flag in parsed.reasons) + "|" + (material or "")
     prefix = f"fit{engine.major}:"
-    digest = hashlib.sha256((body + engine.combined_hash).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256((body + engine.combined_hash + engine.panel_version).encode("utf-8")).hexdigest()
     return (prefix + digest)[:_FINGERPRINT_LEN]
 
 
@@ -1081,6 +1109,25 @@ def score_document(db, user_id: Optional[int], document: Mapping[str, Any], post
     return _score_pair(parsed, posting, calibrator, engine, day, options, "tailor")
 
 
+def score_profile(db, user_id: Optional[int], profile: Any, posting: JobPosting, *,
+                  with_suggestions: bool = False, engine: Optional[FitEngine] = None,
+                  as_of: Optional[dt.date] = None) -> MatchResult:
+    """A stored ``ResumeProfileDB`` against one posting, with its explanation; never banked.
+
+    The tailoring "before" when it is the stored profile itself, with no edits in the request
+    (I-3): the résumé is read by ``resume_for_profile``, exactly as the feed reads it, so the
+    D-152 dated-text fallback applies to a never-edited legacy profile and the "before" equals
+    the job card. A rewritten document is never scored here (``score_document``)."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    settings = _settings_for(db, user_id) if db is not None and user_id is not None else None
+    parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
+    calibrator = (_calibrator(db, engine) if db is not None
+                  else PercentileCalibrator(list(engine.panel), min_reference_n=engine.min_reference_n))
+    options = _TAILOR_SUGGEST_OPTIONS if with_suggestions else _TAILOR_OPTIONS
+    return _score_pair(parsed, posting, calibrator, engine, day, options, "tailor")
+
+
 @dataclasses.dataclass(frozen=True)
 class RequirementCoverage:
     """The skill requirements of a result: display labels, and the engine's coverage as 0-100."""
@@ -1212,6 +1259,7 @@ __all__ = [
     "resume_for_document",
     "resume_for_profile",
     "score_document",
+    "score_profile",
     "score_order",
     "shadow_config_dir",
     "shadow_scores",

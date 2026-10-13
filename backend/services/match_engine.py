@@ -108,23 +108,34 @@ class MatchEngine:
         return fit_engine.posting_from_text(job_title or "", company or "", job_description or "")
 
     def analyze(self, document: ResumeDocument, posting: Any, *, user_id: Optional[int] = None,
-                raw_text: Optional[str] = None, with_suggestions: bool = False) -> JobAnalysisOut:
+                raw_text: Optional[str] = None, with_suggestions: bool = False,
+                profile: Any = None) -> JobAnalysisOut:
         """Score one résumé document on ``posting`` (blocking: call from a worker thread).
 
         ``raw_text`` is read only when the document has no content (D-80), so a text-only résumé is
         still scored. Unlike a stored profile, the D-152 dated-text fallback never applies: the
-        document is scored as written."""
+        document is scored as written.
+
+        ``profile``: the stored ``ResumeProfileDB`` that ``document`` was read from, unedited in
+        this request (the job-id routes' "before", I-3). It is then scored as the feed scores it
+        (``fit_engine.score_profile``, fallback allowed), so the "before" equals the job card."""
         from backend.services import fit_engine
         from backend.services.resume_document import document_to_record
 
-        result = fit_engine.score_document(self.db, user_id, document_to_record(document), posting,
-                                           raw_text=raw_text, with_suggestions=with_suggestions)
+        if profile is not None:
+            result = fit_engine.score_profile(self.db, user_id, profile, posting,
+                                              with_suggestions=with_suggestions)
+        else:
+            result = fit_engine.score_document(self.db, user_id, document_to_record(document), posting,
+                                               raw_text=raw_text, with_suggestions=with_suggestions)
         return analysis_from_result(result)
 
     def analyze_job(self, document: ResumeDocument, *, user_id: Optional[int] = None, job: Any = None,
                     job_title: str = "", company: str = "", job_description: str = "",
-                    raw_text: Optional[str] = None, with_suggestions: bool = True) -> JobAnalysisOut:
+                    raw_text: Optional[str] = None, with_suggestions: bool = True,
+                    profile: Any = None) -> JobAnalysisOut:
         """Step 1 "See Your Difference": the analysis of one résumé for one job (row or text),
-        with the engine's suggestions."""
+        with the engine's suggestions. ``profile``: see ``analyze``."""
         posting = self.posting(job=job, job_title=job_title, company=company, job_description=job_description)
-        return self.analyze(document, posting, user_id=user_id, raw_text=raw_text, with_suggestions=with_suggestions)
+        return self.analyze(document, posting, user_id=user_id, raw_text=raw_text, with_suggestions=with_suggestions,
+                            profile=profile)

@@ -975,8 +975,8 @@ stands. Unknown stays None.
 engine version, the parse-config version, the combined config hash and the year of the scoring
 date (a requirement's years-since-release clamp reads the year). Any of them changing re-parses a
 posting the next time it is read; a parser fault is an INTERNAL_ERROR review and is never cached.
-Until Task 9.2 removes `local_match`, its `{"v": 1, "top", "tags"}` entries and these share the
-column and would overwrite each other, so 9.2 must switch every reader at once. Because the
+Before Task 9.2, `local_match`'s `{"v": 1, "top", "tags"}` entries and these shared the column,
+so 9.2 switched every reader at once and removed `local_match` (done). Because the
 version holds the year, every cached posting is re-parsed in the first sweeps after 1 January
 (about 47k postings at about 20 ms each, roughly 16 minutes of CPU once a year). The same version
 and the description length form `job_match_scores.posting_key`: a banked score is current only
@@ -1464,8 +1464,12 @@ engine (`fit_engine.score_document`). The original and the tailored document are
 same posting: the job row's cached posting (D-84), or pasted text parsed by the engine
 (`posting_from_text`, memoised per input and posting version). The document is read in the
 stored-profile shape (`resume_document.document_to_record`, the inverse of `db_record_to_document`),
-with the user's saved answers, through the same calibration, so the "before" of a stored résumé
-equals its feed score. Nothing is banked and no trace is written. Field mapping:
+with the user's saved answers, through the same calibration. On the job-id routes (`/ai/job-analysis`,
+`/ai/rewrite`) the "before" is the stored profile, unedited in the request, so it is scored as the
+feed scores it (`fit_engine.score_profile`, through `resume_for_profile`, with D-152's fallback
+allowed): the "before" of a stored résumé equals its feed score, legacy undated rows included
+(final review I-3). The rewritten document, and every document on the pasted-text routes, is scored
+as written, without the fallback. Nothing is banked and no trace is written. Field mapping:
 `overall_score` is the displayed (calibrated) score. `ats_score` is the SAME number: the engine has
 no separate ATS model, and the field stays for the clients that read it. `match_label` is the band,
 "We couldn't score this" (NEEDS_REVIEW) or "Not eligible" (GATE_FAIL, with the gate's reason
@@ -1574,7 +1578,9 @@ run by the build controller on 2026-10-13, found affected legacy rows (all creat
   document that outgrew its upload, keeps the document parse: an honest "we couldn't score this"
   beats a confident low score from a thin text (review probe P4: SCORED raw 0.154 with no reasons).
 - *Stored profiles only.* The fallback applies on `resume_for_profile` (the feed, the sweep, the
-  breakdown, the upload pre-score). `resume_for_document` (the tailoring flow) never takes it: an
+  breakdown, the upload pre-score, and the tailoring "before" on the job-id routes when it is the
+  stored, unedited profile, so it equals the card: D-123 as amended by final review I-3).
+  `resume_for_document` (a rewritten document, and the pasted-text routes) never takes it: an
   original and its rewrite are both undated legacy documents and would otherwise both be scored as
   the same upload-time text, hiding the rewrite.
 - *Whole parse, never a merge.* Dates are not copied between the two parses: matching document roles

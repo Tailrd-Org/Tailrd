@@ -15,11 +15,6 @@ vi.mock("../auth/api", () => ({
   },
 }));
 
-vi.mock("../lib/resumeCoverage", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/resumeCoverage")>();
-  return { ...actual, getPrimaryResumeText: () => Promise.resolve("") };
-});
-
 vi.mock("../components/JobFilterBar", () => ({
   default: () => <div data-testid="job-filter-bar" />,
   normalizeExperienceLevels: (v: unknown) => (Array.isArray(v) ? v : []),

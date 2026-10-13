@@ -49,6 +49,17 @@ Strong match. A NULL score is never sorted, averaged or thresholded as a number.
 Every banked score has an audit trace in `match_traces`, keyed by an opaque id derived from the
 user id and `FIT_TRACE_SALT` (the trace never holds the user id).
 
+## Privacy
+
+The trace ids are linkable by anyone with production DB read access. Each trace row is written in
+the same transaction as its score row in `job_match_scores` (which holds the user id), with the
+same job and the same timestamp, and a user's set of scored jobs is close to unique on its own, so
+`subject_id` can be mapped back to `user_id` without the salt. The salt-separation described in
+`match-engine/docs/compliance.md` section 4 is therefore procedural, not technical, while traces sit
+next to the score rows. No demographic data is collected today, so nothing sensitive can be joined.
+This must be revisited before any demographic data is collected (a separate schema or role for
+`match_traces` that serving code cannot read back, or a coarser `scored_at` on traces).
+
 ## Where scoring runs
 
 - **Cron sweep** (`match_notifier.sweep_match_alerts`, run by the cron-poll job): scores the
@@ -64,19 +75,21 @@ user id and `FIT_TRACE_SALT` (the trace never holds the user id).
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `FIT_TRACE_SALT` | none, **required** | Secret, at least 16 bytes. Only the two trace writers read it. Without it nothing is banked (no score without its trace) and every sweep reports `fit_trace_salt_missing: true`. Changing it orphans existing traces (they can no longer be found for deletion), so set it once |
+| `FIT_TRACE_SALT` | none, **required** | Secret, at least 16 bytes. Only the two trace writers read it. Without it nothing is banked (no score without its trace) and every sweep reports `fit_trace_salt_missing: true`. Changing it orphans existing traces (they can no longer be found for deletion), so set it once. Every environment that writes to the same database (Production and any Preview that shares the prod DB) must use the same value, or its traces land under another subject id |
 | `FIT_SHADOW_CONFIG` | unset | A directory with the layout of `match-engine/config` (the six YAML files and `engine_version.txt`). When set, the sweep scores every chunk again with that config and reports the difference in `summary.shadow`. Nothing of the shadow pass is persisted. See "Shadow scoring" below |
 | `MATCH_ALERTS_ENABLED` | on | `false` turns the sweep off |
 | `CRON_MATCH_JOBS_PER_USER` | `2000` | Newest visible jobs scored per user per run |
 | `CRON_MATCH_MAX_USERS` | `25` | Users per run, least recently scored first |
 | `CRON_MATCH_BUDGET_S` | `120` | Wall-clock box for the sweep's scoring (shadow pass included); `0` disables |
 | `FIT_ANALYSIS_PER_MINUTE` / `FIT_ANALYSIS_PER_DAY` | `20` / `1000` | Per-user limit on the tailoring analysis routes |
+| `MATCH_BREAKDOWN_PER_MINUTE` / `MATCH_BREAKDOWN_PER_DAY` | `60` / `2000` | Per-user limit on `/ai/match-breakdown` (opening a job), a bucket of its own |
 
 ## Owner actions before deploy
 
 1. **Set `FIT_TRACE_SALT`** on Vercel (Production and Preview), a random secret of at least
    16 bytes, for example `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Never
-   commit it. Without it the feed shows no scores.
+   commit it. Without it the feed shows no scores. Use the same value wherever the prod database
+   is shared (a Preview that writes to it included).
 2. **Smoke-test the Postgres migration on the Neon Development branch** (never main). The
    migration (`backend/migrations/add_fit_engine.py`) adds seven nullable columns to
    `job_match_scores`, drops NOT NULL on `score`, and the app's `create_all` creates
@@ -85,9 +98,14 @@ user id and `FIT_TRACE_SALT` (the trace never holds the user id).
    once against Development, then check the columns and tables exist. The 2026-10-13 dry run
    found Development still on the old schema (no `outcome` column, no `match_traces`), so this
    has not been done yet.
-3. **Rebuild the Chrome extension** (`chrome-extension`, `npm run build`) so the tailor card
-   shows the engine's before/after band and reasons (Task 9.3). The extension is a separate
-   local build and Store upload.
+3. **Ship extension 0.5.1 together with the backend.** Build `chrome-extension` (`npm run
+   build`) at version 0.5.1 and upload it to the Store; do not upload the 0.5.0 zip built
+   earlier (31a4371), which predates the fix. The backend deploy and the 0.5.1 Store upload must
+   go out together: the backend now returns a NULL score whenever a result is not `SCORED`, and
+   the Store extension (0.4.0) formats that NULL as a number, so its tailor card would read
+   "Match 0.0" and "ATS null · null% coverage", showing a withheld score as a zero and
+   suggesting tailoring made the résumé worse. 0.5.1 shows the band or the reasons instead.
+   Preferably let 0.5.1 go live before the backend push; otherwise accept that window.
 4. **Configure the holdout repository settings** in `match-engine/eval/HOLDOUT.md` ("Repository
    settings the owner must apply"): the `holdout` environment with `MATCH_HOLDOUT_KEY` and
    `MATCH_HOLDOUT_BUNDLE_URL` as environment secrets, release branches only and a required
@@ -98,6 +116,13 @@ user id and `FIT_TRACE_SALT` (the trace never holds the user id).
    Task 9.3 saw the same kind of drift in `chrome-extension/`. Run `npm install` once in each,
    check the diff and commit the lock files, so CI and fresh checkouts install cleanly. The drift
    predates the match-engine work.
+6. **Accept (or decline) shipping with `make eval-fast` red.** The engine's own gate
+   (`match-engine/eval`, layers 1-2) fails 4 guardrails: format invariance p99 (0.046 within a
+   template, 0.078 across templates, 0.046 functional vs its oracle, against a 0.02 threshold) and
+   an unbounded date error on 2 scanned-PDF renderings. Every other guardrail passes. The ledger
+   records it as the known red M6 gate. File parsing affects only the raw-text path; most users
+   are scored from the stored document (D-80). Any PR to main that touches `match-engine/**` will
+   show a red `match-engine eval` check. Record the decision here.
 
 ## Costs
 
@@ -111,6 +136,8 @@ user id and `FIT_TRACE_SALT` (the trace never holds the user id).
   that is about 4 MB per user, and it grows with the catalogue. **There is no pruning yet**:
   traces are overwritten in place when a job is rescored, but never deleted when a job is
   removed. A retention or pruning policy is an owner decision still to make.
+- **Memory:** the built engine adds about 175 MB of Python heap per instance (peak about 220 MB).
+  Fine on 1 to 2 GB functions; recheck before lowering the function memory.
 - **Monthly rescore:** scores are "as of" the first of the month, so every user is rescored once
   a month; every cached posting is re-parsed once a year (1 January).
 
@@ -173,6 +200,13 @@ and verified at every engine build. The MANIFEST records the config hash, graph 
 taxonomy MANIFEST hash it was built with. After a change to the config, the taxonomy or the
 parsers, rebuild it from `match-engine/` with `python scripts/build_reference_panel.py --corpus
 <postings.jsonl.gz>` (about 2.5 minutes; the corpus is not committed) and commit both files.
+
+The panel version is part of every résumé fingerprint, so a rebuilt panel makes every banked row
+stale and the sweeps rescore them. The live references are not: once a family has 30 or more
+people, its live reference (refreshed every sweep) calibrates new scores, while rows banked earlier
+keep the display score they were banked with until they are rescored (at the latest, the monthly
+rescore). In that window a freshly opened breakdown can show a slightly different number than the
+card for the same job.
 
 ## Rollback
 

@@ -1,4 +1,8 @@
-"""structure-description: mini-model routing + description_sections caching."""
+"""structure-description: mini-model routing + description_sections caching.
+
+No AI in job scoring or match signals (final review I-4): the structuring pass may lay out the
+posting's headings and bullets, but it never produces a skill list, and a ``skills`` key in a
+cached row (written while the old prompt asked for one) is never served."""
 
 import json
 
@@ -48,17 +52,20 @@ def test_structure_calls_mini_model_json_mode_and_caches(client, db_session, mon
     async def fake_generate(self, prompt, model=None, json_mode=False, **kwargs):
         seen["model"] = model
         seen["json_mode"] = json_mode
-        return json.dumps(STRUCT)
+        seen["prompt"] = prompt
+        return json.dumps(STRUCT)  # a model that still answers with skills
 
     monkeypatch.setattr(
         "backend.services.openai_service.OpenAIService._generate", fake_generate
     )
     res = client.post(f"/jobs/{job.id}/structure-description")
     assert res.status_code == 200, res.text
-    assert seen == {"model": "gpt-4o-mini", "json_mode": True}
-    assert res.json()["skills"] == ["Excel", "EPM"]
+    assert (seen["model"], seen["json_mode"]) == ("gpt-4o-mini", True)
+    assert '"skills"' not in seen["prompt"] and "skill tags" not in seen["prompt"]
+    assert "skills" not in res.json()
+    assert res.json()["sections"][0]["title"] == "Responsibilities"
     db_session.refresh(job)
-    assert job.description_sections["skills"] == ["Excel", "EPM"]
+    assert "skills" not in job.description_sections
 
 
 def test_structure_served_from_cache_without_llm(client, db_session, monkeypatch):
@@ -75,6 +82,7 @@ def test_structure_served_from_cache_without_llm(client, db_session, monkeypatch
     res = client.post(f"/jobs/{job.id}/structure-description")
     assert res.status_code == 200, res.text
     assert res.json()["sections"][0]["title"] == "Responsibilities"
+    assert "skills" not in res.json()  # a row cached with LLM skills never serves them
 
 
 def test_structure_migrates_legacy_company_description_cache(client, db_session, monkeypatch):
@@ -90,5 +98,15 @@ def test_structure_migrates_legacy_company_description_cache(client, db_session,
     )
     res = client.post(f"/jobs/{job.id}/structure-description")
     assert res.status_code == 200, res.text
+    assert "skills" not in res.json()
     db_session.refresh(job)
-    assert job.description_sections["skills"] == ["Excel", "EPM"]
+    assert job.description_sections["sections"][0]["title"] == "Responsibilities"
+    assert "skills" not in job.description_sections
+
+
+def test_structure_off_serves_no_skill_list(client, db_session, monkeypatch):
+    monkeypatch.delenv("JOB_STRUCTURE_AI")
+    job = _mk_job(db_session, url="https://x.test/sd-4")
+    res = client.post(f"/jobs/{job.id}/structure-description")
+    assert res.status_code == 200, res.text
+    assert res.json()["sections"] == [] and "skills" not in res.json()

@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.db.models import ScrapedJob, ResumeProfileDB, ResumeVersion, CoverLetter
 from backend.auth.dependencies import get_verified_user_id, verify_cron_secret
-from backend.services.usage_limiter import fit_analysis_guard, llm_guard
+from backend.services.usage_limiter import fit_analysis_guard, llm_guard, match_breakdown_guard
 from backend.services.match_notifier import sweep_match_alerts
 from backend.schemas.match import MatchBreakdown, MatchInterval, MatchItem
 from backend.services import fit_reads
@@ -181,12 +181,13 @@ def breakdown_from_result(detail: dict) -> MatchBreakdown:
 @router.post("/match-breakdown/{job_id}", response_model=MatchBreakdown)
 def match_breakdown(
     job_id: int,
-    user_id: int = Depends(get_verified_user_id),
+    user_id: int = Depends(match_breakdown_guard),
     db: Session = Depends(get_db),
 ):
     """The engine's explanation of how the user's résumé fits a job (DECISIONS D-83).
 
     Deterministic and free: no AI is called, so it never counts against the daily AI limit.
+    It has its own per-user rate limit (match_breakdown_guard, I-5).
     A plain (sync) route, so FastAPI runs it in a worker thread: the first breakdown in a
     process builds the engine (about ten seconds) without blocking the event loop. The result
     is also banked, so the job's card shows the same result as the panel."""
@@ -379,8 +380,9 @@ def job_analysis(
     engine (about ten seconds to build cold) runs in a worker thread."""
     job = _get_job(job_id, db)
     resume = _resolve_resume(db, user_id, body.resume_id if body else None)
+    # The "before" is the stored profile, unedited: scored as the feed scores it (I-3, D-123).
     return MatchEngine(db).analyze_job(
-        db_record_to_document(resume), user_id=user_id, job=job, raw_text=resume.raw_text,
+        db_record_to_document(resume), user_id=user_id, job=job, raw_text=resume.raw_text, profile=resume,
     )
 
 
@@ -414,6 +416,7 @@ async def rewrite_resume(
             db, original_document, job.title, job.company, job.description,
             opts.sections, opts.add_keywords,
             user_id=user_id, job=job, raw_text=resume.raw_text,
+            before_profile=resume,  # the stored, unedited profile: the "before" equals the card (I-3)
         )
     except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)

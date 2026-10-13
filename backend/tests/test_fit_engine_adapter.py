@@ -371,6 +371,16 @@ def test_the_fingerprint_changes_when_the_config_changes(db_session):
     assert fingerprint_for(parsed, engine=changed) != fingerprint_for(parsed, engine=engine)
 
 
+def test_the_fingerprint_changes_when_the_panel_changes(db_session):
+    """A panel rebuild (D-151) recalibrates every display score, so banked rows go stale and are
+    rescored, as for a config change (final review M-1)."""
+    profile = _profile(db_session)
+    parsed = resume_for_profile(profile, None)
+    engine = get_engine()
+    changed = dataclasses.replace(engine, panel_version=engine.panel_version + "-rebuilt")
+    assert fingerprint_for(parsed, engine=changed) != fingerprint_for(parsed, engine=engine)
+
+
 # ─── banking (scores + traces) ──────────────────────────────────────────────────────────────
 
 

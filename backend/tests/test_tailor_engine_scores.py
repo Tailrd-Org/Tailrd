@@ -287,3 +287,90 @@ def test_no_tailoring_path_asks_the_llm_for_a_score_label_or_keywords():
         text = (repo / "prompts" / prompt).read_text(encoding="utf-8").lower()
         for asked in ("overall_score", "ats_score", "match_label", "matched_keywords", "missing_keywords"):
             assert asked not in text, (prompt, asked)
+
+
+# ─── A legacy undated profile: the card and Suggest Edits agree (I-3, D-123 with D-152) ──────
+
+
+@pytest.fixture
+def ai_client(db_session, monkeypatch):
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+
+    from backend.auth.dependencies import get_current_user_id, get_verified_user_id
+    from backend.db.database import get_db
+    from backend.routers.ai import router as ai_router
+
+    monkeypatch.setenv("FIT_TRACE_SALT", "test-salt-0123456789abcdef")
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    app = FastAPI()
+    app.include_router(ai_router, prefix="/ai")
+
+    def _db():
+        yield db_session
+
+    async def _uid():
+        return USER
+
+    for dep in (get_current_user_id, get_verified_user_id):
+        app.dependency_overrides[dep] = _uid
+    app.dependency_overrides[get_db] = _db
+    with TestClient(app) as client:
+        yield client
+
+
+def _legacy_profile_and_job(db):
+    """A résumé extracted before 2026-07-09 (every role undated, never edited) whose raw text
+    holds the dates, and a job row it fits."""
+    from backend.db.models import User
+    from backend.tests.test_fit_resume_dates_fallback import POSTING_TEXT, RAW_DATED, _doc
+
+    db.add(User(id=USER, email="u1@example.com", email_verified=True))
+    db.commit()
+    profile = _profile(db, doc=_doc(), raw_text=RAW_DATED)
+    assert profile.content_updated_at is None
+    job = ScrapedJob(title="Software Engineer, New Grad", company="Acme", url="https://example.com/jobs/legacy",
+                     description=POSTING_TEXT, locations_json=[{"city": "Toronto", "region": "ON",
+                                                                "country": "Canada"}], country="CA")
+    db.add(job)
+    db.commit()
+    return profile, job
+
+
+def _card(db, profile, job):
+    from backend.db.models import JobMatchScore
+
+    fit_engine.bank_scores(db, USER, profile, [job.id])
+    row = db.query(JobMatchScore).filter_by(user_id=USER, job_id=job.id).one()
+    assert row.outcome == "SCORED"  # through the D-152 dated-text fallback
+    return row
+
+
+def test_a_legacy_profile_job_analysis_before_equals_its_card(db_session, ai_client, no_llm):
+    profile, job = _legacy_profile_and_job(db_session)
+    card = _card(db_session, profile, job)
+    body = ai_client.post(f"/ai/job-analysis/{job.id}").json()
+    assert body["outcome"] == card.outcome
+    assert body["overall_score"] == card.score
+    assert body["match_label"] == card.band
+
+
+def test_a_legacy_profile_suggest_edits_before_equals_its_card(db_session, ai_client, monkeypatch):
+    from backend.services.openai_service import TailorStructuredResult
+
+    profile, job = _legacy_profile_and_job(db_session)
+    card = _card(db_session, profile, job)
+    seen = []
+
+    async def fake_structured(self, doc, jd, sections=None, keywords=None):
+        seen.append(doc)
+        return TailorStructuredResult(document=doc, gaps=[])
+
+    monkeypatch.setattr("backend.services.openai_service.OpenAIService.tailor_resume_structured", fake_structured)
+    body = ai_client.post(f"/ai/rewrite/{job.id}").json()
+    assert seen
+    assert body["original_outcome"] == card.outcome
+    assert body["original_overall_score"] == card.score
+    assert body["original_match_label"] == card.band
+    # The rewritten side keeps the no-fallback rule: the same undated document, scored as written.
+    assert body["outcome"] != "SCORED"
