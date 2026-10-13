@@ -345,6 +345,13 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "but not in the US", "but not the", "except the US", "excluding", "other than", "outside of", "only in",
     "not in the US and the UK", "and authorized", "not a US citizen", "not requiring sponsorship", "NA", "n/a",
     "N.A.", "not applicable", "does not apply", "however", "whereas", "yet",
+    # Decide-b review round 1: dotted spellings, other negations, uncertainty, sponsorship clauses.
+    "U.S.", "U.S", "U.S.A.", "u.s.", "U. S.", "U.K.", "not in the U.S.", "except the U.S.", "not sure about",
+    "unsure", "not certain", "not yet", "not currently", "not only", "no US work authorization", "without",
+    "cannot", "can't", "can’t", "unable to work", "ineligible", "unauthorized", "don't have", "do not have",
+    "status", "work authorization: no", "US not authorized", "US no", ": no", "I would require sponsorship",
+    "would need", "requires sponsorship", "not Canadian", "Plan B. I am", "unknown", "TBD", "but will",
+    "in the future", "later", "pending", "in progress", "applied for", "US requires sponsorship",
 ]
 
 EXOTIC_WORDS = [
@@ -382,7 +389,8 @@ COUNTRY_NAMES = ["Canada", "CA", "US", "USA", "U.S.", "United States", "United S
 POSTAL_CODES = ["V6E 3P3", "V6E3P3", "v6e 3p3", "M5V 2T6", "K1A 0B1", "02139", "62701", "62701-1234", "SE1 3TQ",
                 "sw1a 1aa", "10119", "H2J 2L3", f"M5V{NBSP}2T6", "M5V-2T6", "D1A 0B1", "12345", "9021", "K1A  0B1"]
 SEPARATORS_IN_ADDRESS = [", "] * 8 + [",", " , ", ";", "\n", " ", ",,", "; ", ",\n", NBSP + "," + NBSP]
-YES_NO = ["Yes", "No", "", "", "", " ", "yes ", "n", "N/A", "NA", "n / a", "Not applicable", "Y", "maybe", "None", "Not sure", "TRUE", "false", "Oui",
+YES_NO = ["Yes", "No", "", "", "", " ", "yes ", "n", "N/A", "NA", "n / a", "Not applicable", "Not yet",
+          "Not currently, but I will in the future", "Not required now but will be after OPT", "TBD", "Y", "maybe", "None", "Not sure", "TRUE", "false", "Oui",
           "Non", "yes.", NBSP + "Yes", BOM + "No"]
 COUNTRY_QUERIES = [None, "", "US", "CA", "GB", "DE", "AT", "FR", "CH", "IN", "MX", "NO", "ES", "IE"]
 RESIDENCE_QUERIES = [None, "US", "CA", "DE", "GB", "IN"]

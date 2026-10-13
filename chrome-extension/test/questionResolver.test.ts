@@ -33,6 +33,14 @@ function ask(
 
 const value = (r: ReturnType<typeof ask>) => (r && r.status === "answer" ? r.value : r?.status ?? null);
 
+describe("M-3 (decide-b review): a condition word named like an Object.prototype key", () => {
+  it("does not crash the resolver", () => {
+    for (const w of ["constructor", "__proto__", "toString", "valueOf"]) {
+      expect(() => ask(`If you ${w} not in Canada, are you willing to relocate?`, { options: YES_NO })).not.toThrow();
+    }
+  });
+});
+
 describe("work authorization, country-aware", () => {
   it("Canadian citizen: Canada Yes, United States ABSTAIN (never Yes)", () => {
     expect(value(ask("Are you legally authorized to work in Canada?", { options: YES_NO }))).toBe("Yes");

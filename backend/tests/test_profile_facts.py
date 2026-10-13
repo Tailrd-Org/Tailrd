@@ -1135,7 +1135,7 @@ def test_negation_scope_clauses():
     weak = work_auth_facts(profile(workAuthorization="Canadian citizen, not a US citizen"))
     assert weak.by_country["CA"] == CountryAuth(True, False, "citizen")
     assert "US" not in weak.by_country
-    assert negated_country_scope("Canadian citizen, not a US citizen") == ({"US": False}, "Canadian citizen,")
+    assert negated_country_scope("Canadian citizen, not a US citizen") == ({"US": False}, [], "Canadian citizen,")
 
 
 def test_pin_one_status_is_applied_to_every_named_country():
@@ -1155,7 +1155,8 @@ def test_not_applicable_is_unanswered(text):
     assert polarity_of(text) is None
 
 
-@pytest.mark.parametrize("text", ["Not sure", "No", "n", "None required"])
+@pytest.mark.parametrize("text", ["No", "n", "None required", "Not required",
+                                  "No, I will not need sponsorship in the future"])
 def test_pin_other_n_words_still_read_as_no(text):
     """PINNED TS BEHAVIOUR: /^(no|n|false|non|none|not)\b/ still takes these for a No."""
     assert polarity_of(text) is False
@@ -1170,6 +1171,139 @@ def test_na_in_a_saved_answer_states_nothing():
     no_sponsorship = work_auth_facts(profile(workAuthorization="Yes", requiresSponsorship="N/A"))
     assert no_sponsorship.stated_sponsorship is None
     assert needs_sponsorship_in(no_sponsorship, "CA", "CA") is None
+
+
+# ---------------------------------------------------------------------------
+# Decide B review round 1: each reviewer probe is a test (mirrors
+# chrome-extension/test/workAuthReview.test.ts).
+# ---------------------------------------------------------------------------
+
+def _wa(text, **extra):
+    return work_auth_facts(profile(workAuthorization=text, **extra))
+
+
+def _auth(a, code):
+    c = a.by_country.get(code)
+    return None if c is None else c.authorized
+
+
+@pytest.mark.parametrize("us", ["U.S.", "U.S", "U.S.A.", "u.s.", "U. S.", "USA", "United States", "America", "US"])
+def test_review_c1_dotted_us_is_negated(us):
+    text = f"Authorized to work in Canada but not in the {us}"
+    assert authorized_in(_wa(text), "US", "CA") == Fact(False, "high", "work-auth:denied")
+    assert authorized_in(_wa(text), "CA", "CA").value is True
+    assert needs_sponsorship_in(_wa(text, requiresSponsorship="No"), "US", None).value is True
+
+
+def test_review_c1_dotted_collateral():
+    assert _auth(_wa("Authorized to work in Canada, except the U.S."), "US") is False
+    a = _wa("Canadian citizen, but not the U.S. (would need TN)")
+    assert _auth(a, "US") is not True
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    b = _wa("Not authorized in the U.S. but authorized in Canada")
+    assert _auth(b, "CA") is True and _auth(b, "US") is False
+    c = _wa("not authorized to work in the U.S., Canadian citizen")
+    assert c.by_country["CA"] == CountryAuth(True, False, "citizen") and _auth(c, "US") is False
+    d = _wa("Not authorized in the U.S. I am a Canadian citizen.")
+    assert d.by_country["CA"] == CountryAuth(True, False, "citizen") and _auth(d, "US") is False
+
+
+@pytest.mark.parametrize("text", ["Canadian citizen. Not sure about the US.", "Not sure about the US; Canadian citizen"])
+def test_review_i1_not_sure_is_unknown(text):
+    assert authorized_in(_wa(text), "US", "CA") is None
+    assert authorized_in(_wa(text), "CA", "CA").value is True
+
+
+@pytest.mark.parametrize("v", ["Not sure", "Unsure", "Not certain", "Unknown", "TBD", "Don't know",
+                               "Not currently, but I will in the future", "Not now, but will need H-1B later",
+                               "Not yet", "Not required now but will be after OPT"])
+def test_review_i2_uncertain_or_future_answers_are_unanswered(v):
+    assert polarity_of(v) is None
+    assert needs_sponsorship_in(_wa("", requiresSponsorship=v), None, None) is None
+
+
+@pytest.mark.parametrize("text", ["Not a US citizen but have a green card", "Green card holder (not a US citizen)",
+                                  "Not a US citizen; I hold a green card"])
+def test_review_i3_green_card_survives_not_a_citizen(text):
+    assert _wa(text).by_country["US"] == CountryAuth(True, False, "permanent_resident")
+
+
+@pytest.mark.parametrize("text", ["I am a US permanent resident, not a citizen", "Not a citizen, US green card holder"])
+def test_review_i3_permanent_resident_not_a_citizen(text):
+    assert _wa(text).by_country["US"] == CountryAuth(True, False, "permanent_resident")
+
+
+def test_review_i3_not_a_citizen_alone_is_never_authorized():
+    assert _auth(_wa("Not a citizen of the US"), "US") is not True
+
+
+def test_review_i4_not_yet():
+    assert _wa("Not yet authorized").unscoped_authorized is False
+    a = _wa("Canadian citizen; not yet authorized in the US")
+    assert _auth(a, "US") is False and a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _auth(_wa("Not yet authorized in the US; OPT pending"), "US") is False
+
+
+@pytest.mark.parametrize("text", [
+    "Canadian citizen, no US work authorization",
+    "Canadian citizen without US work authorization",
+    "Canadian citizen. Cannot work in the US.",
+    "Canadian citizen, can't work in the US",
+    "Canadian citizen, can’t work in the US",
+    "Canadian citizen, unable to work in the US",
+    "Canadian citizen, ineligible for US employment",
+    "Unauthorized in the US, Canadian citizen",
+    "Canadian citizen (I don't have US status)",
+    "Canadian citizen, US work authorization: no",
+    "Citizen of Canada, no authorization for the US",
+])
+def test_review_i5_other_negations(text):
+    assert authorized_in(_wa(text), "US", "CA") == Fact(False, "high", "work-auth:denied")
+    assert authorized_in(_wa(text), "CA", "CA").value is True
+
+
+def test_review_i5_sponsorship_clause():
+    a = _wa("Canadian citizen; I would require sponsorship to work in the US")
+    assert _auth(a, "US") is not True
+    assert needs_sponsorship_in(a, "US", "CA").value is True
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _wa("I am a Canadian citizen and do not require sponsorship").by_country["CA"] == CountryAuth(
+        True, False, "citizen")
+    assert _auth(_wa("Authorized to work in the US without sponsorship"), "US") is True
+    assert _auth(_wa("Canadian citizen, no sponsorship needed for the US"), "US") is not False
+
+
+def test_review_probe_sponsorship_before_the_country_and_pending():
+    a = _wa("Authorized in Canada; US requires sponsorship")
+    assert _auth(a, "US") is not True
+    assert needs_sponsorship_in(a, "US", "CA").value is True
+    assert _auth(a, "CA") is True
+    b = _wa("Canadian citizen, US authorization pending")
+    assert "US" not in b.by_country
+    assert b.by_country["CA"] == CountryAuth(True, False, "citizen")
+
+
+def test_review_i6_denial_after_the_country():
+    a = _wa("Canadian PR; US not authorized")
+    assert a.by_country["CA"] == CountryAuth(True, False, "permanent_resident")
+    assert _auth(a, "US") is False
+
+
+def test_review_m1_m2_demonym_and_not_only():
+    a = _wa("Yes - US citizen (not Canadian)")
+    assert _auth(a, "CA") is not False and a.by_country["US"] == CountryAuth(True, False, "citizen")
+    b = _wa("Not only Canada, also the US")
+    assert _auth(b, "CA") is not False and _auth(b, "US") is not False
+
+
+@pytest.mark.parametrize("unit", ["Not sure about the U.S. ", "Canadian PR; US not authorized; ", "no U.S. status, ",
+                                  "I would require sponsorship in the U. S.; ", "u.s.a.u.s.a."])
+def test_review_timing_is_linear(unit):
+    text = unit * (50000 // len(unit) + 1)
+    start = time.perf_counter()
+    _wa(text)
+    polarity_of(text)
+    assert time.perf_counter() - start < 2.0
 
 
 def test_pin_a_leading_yes_wins_over_a_later_negation():

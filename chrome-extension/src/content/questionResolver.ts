@@ -3118,13 +3118,13 @@ const MAIN_CLAUSE =
  *  position, will you require sponsorship?"). */
 const HYPOTHETICAL = /\b(hired|selected|offered|successful|chosen|an offer|invited|moved? forward|join(ing)? (us|our|the team))\b/;
 /** The auxiliary a condition opens with, and whether it negates. */
-const CONDITION_AUX: Record<string, [string, boolean]> = {
+const CONDITION_AUX: Record<string, [string, boolean]> = ownKeys({
   are: ["Are", false], were: ["Were", false], have: ["Have", false], had: ["Had", false],
   do: ["Do", false], did: ["Did", false], will: ["Will", false], would: ["Would", false],
   can: ["Can", false], could: ["Could", false],
   arent: ["Are", true], werent: ["Were", true], havent: ["Have", true], hadnt: ["Had", true],
   dont: ["Do", true], didnt: ["Did", true], wont: ["Will", true], cant: ["Can", true], cannot: ["Can", true],
-};
+});
 /** An option saying the question does not apply ("I am not a current or former
  *  government employee", "N/A"). */
 const NOT_APPLICABLE =

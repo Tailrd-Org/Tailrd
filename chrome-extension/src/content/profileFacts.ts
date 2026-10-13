@@ -282,6 +282,10 @@ export interface WorkAuthFacts {
 
 /** "N/A" and its spellings, read against a trimmed, lowercased answer. */
 const NOT_APPLICABLE = /^(n\s*[/.]?\s*a\b\.?|not applicable\b|does not apply\b|doesn'?t apply\b)/;
+/** An answer that says the applicant does not know. */
+const UNCERTAIN_ANSWER = /^(not sure|unsure|not certain|uncertain|unknown|tbd|don'?t know|do not know)\b/;
+/** Words that put an answer in the future ("but will need H-1B later"). */
+const FUTURE_WORDS = /\b(will|later|future|after|eventually)\b/;
 
 /** Yes/no reading of a short stored answer, or null. */
 export function polarityOf(text: string): boolean | null {
@@ -290,8 +294,18 @@ export function polarityOf(text: string): boolean | null {
   // "N/A", "NA", "N.A.", "not applicable": unanswered, never a No (owner
   // decisions 2026-10-13; "n" before "/" read as "No").
   if (NOT_APPLICABLE.test(t)) return null;
+  // "Not sure", "TBD": unanswered. Never a No (decide-b review I-2).
+  if (UNCERTAIN_ANSWER.test(t)) return null;
   if (/^(yes|y|true|oui|si)\b/.test(t)) return true;
-  if (/^(no|n|false|non|none|not)\b/.test(t)) return false;
+  if (/^(no|n|false|non|none|not)\b/.test(t)) {
+    // "Not yet", "Not currently, but I will", "Not required now but will be
+    // after OPT": a No today that turns into a Yes later, so neither.
+    if (/^not (yet|currently|presently|now|at the moment|right now)\b/.test(t) && FUTURE_WORDS.test(t)) return null;
+    if (/^not yet\b/.test(t)) return null;
+    const contrast = t.search(/\b(but|however|until|though)\b/);
+    if (contrast >= 0 && FUTURE_WORDS.test(t.slice(contrast))) return null;
+    return false;
+  }
   if (/\b(will not|won't|do not|don't|does not|doesn't|no longer|never)\s+(need|require)/.test(t)) return false;
   if (/\b(will|do|does|would)\s+(need|require)\b/.test(t)) return true;
   if (/\b(not required|not needed)\b/.test(t)) return false;
@@ -360,24 +374,33 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
   const scope = negatedCountryScope(fullText);
   const text = scope.positiveText;
   const lower = text.toLowerCase();
-  const countries = countriesIn(text).filter((c) => !scope.negated.has(c.code));
+  // An outright exclusion drops the country; "not a US citizen" keeps it when
+  // the rest still names it ("...but have a green card"), only not as a
+  // citizen there. A country that needs sponsorship is set apart below.
+  const countries = countriesIn(text).filter((c) => scope.negated.get(c.code) !== true && !scope.sponsored.has(c.code));
   // A statement that limits itself ("only in Canada", "but not the US") is an
-  // authorization statement for the countries it keeps.
-  const scoped = scope.negated.size > 0 || /\bonly\b/.test(lower);
+  // authorization statement for the countries it keeps, and so is one that
+  // sets a country apart for sponsorship ("Authorized in Canada; US requires
+  // sponsorship").
+  const scoped = scope.negated.size > 0 || scope.sponsored.size > 0 || /\bonly\b/.test(lower);
   const set = (code: string, a: CountryAuth): void => {
     byCountry.set(code, a);
   };
 
-  const denied = /\b(not|no|never)\s+(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b|\bnot a (citizen|resident)\b/.test(lower);
   const citizen = /\bcitizen(ship)?\b|\bnational\b/.test(lower);
   const pr = /\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b/.test(lower);
+  // "Not a citizen" denies nothing for a permanent resident, who is
+  // authorized without being one ("US permanent resident, not a citizen").
+  const denied =
+    /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b/.test(lower) ||
+    (!pr && /\bnot a (citizen|resident)\b/.test(lower));
   const student = /\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b/.test(lower);
   const sponsoredVisa = /\b(h-?1b|l-?1|e-?3|o-?1|tn)\b/.test(lower);
   const permit = /\b(work permit|open work permit|pgwp|post-graduation work permit|ead|employment authori[sz]ation|work visa|opt|cpt)\b/.test(lower);
   const affirmative = /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(lower);
   const bareYes = polarityOf(text);
 
-  if (countries.length === 0 && scope.negated.size === 0) {
+  if (countries.length === 0 && scope.negated.size === 0 && scope.sponsored.size === 0) {
     if (denied || bareYes === false) unscopedAuthorized = false;
     else if (affirmative || bareYes === true || citizen || pr) unscopedAuthorized = true;
     applyExplicitCountries(profile, byCountry);
@@ -385,8 +408,9 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
   }
 
   for (const c of countries) {
+    const citizenHere = citizen && !scope.negated.has(c.code);
     if (denied) set(c.code, { authorized: false, needsSponsorship: null, basis: "denied" });
-    else if (citizen && !pr && !student && !permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "citizen" });
+    else if (citizenHere && !pr && !student && !permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "citizen" });
     else if (pr && !student && !permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "permanent_resident" });
     else if (sponsoredVisa) set(c.code, { authorized: true, needsSponsorship: true, basis: "work_permit" });
     else if (student) set(c.code, { authorized: null, needsSponsorship: null, basis: "student" });
@@ -399,6 +423,11 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
   for (const [code, outright] of scope.negated) {
     if (outright) set(code, { authorized: false, needsSponsorship: null, basis: "denied" });
   }
+  // "I would require sponsorship to work in the US": not a citizen there, and
+  // sponsorship is needed; whether they are authorized today is not said.
+  for (const code of scope.sponsored) {
+    if (scope.negated.get(code) !== true) set(code, { authorized: null, needsSponsorship: true, basis: "statement" });
+  }
   applyExplicitCountries(profile, byCountry);
   return { byCountry, statedSponsorship, unscopedAuthorized };
 }
@@ -408,11 +437,52 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
  *  ("not in the US and the UK") it keeps both negated. */
 const CLAUSE_BREAK =
   /[,;.!?()]|\b(but|however|whereas|while|although|though|yet)\b|\band\s+(?=(i|am|is|authori[sz]ed|eligible|entitled|permitted|allowed|legally|can|have|hold|a|an)\b)/;
-/** Words that put the countries after them outside the statement. */
-const NEGATION = /\b(not|never|except|excluding|other than|outside( of)?)\b/g;
+/**
+ * Words that put the countries after them outside the statement, in four
+ * kinds (decide-b review I-1, I-5, M-2):
+ *   uncertain  "not sure about", "unsure": the country is unknown, never a No
+ *   noun       "no", "without", "don't have": only before a work-right noun
+ *              ("no US work authorization", not "no restrictions in the US")
+ *   verb       "cannot", "can't", "unable": only about working there
+ *   plain      "not", "never", "except", "excluding", "other than", "outside",
+ *              "ineligible", "unauthorized"; "not only" is no negation
+ */
+const NEGATION =
+  /\b(not\s+(?:sure|certain|clear|positive)|unsure|do(?:n['’]?t|\s+not)\s+have|no|without|cannot|can['’]?t|unable|ineligible|unauthori[sz]ed|not(?!\s+only\b)|never|except|excluding|other than|outside(?: of)?)\b/g;
+const UNCERTAIN_NEGATION = /^(not\s+(sure|certain|clear|positive)|unsure)$/;
+const NOUN_NEGATION = /^(no|without)$|^do/;
+const VERB_NEGATION = /^(cannot|unable|can['’]?t)$/;
+const WORK_RIGHT_NOUN = /\b(authori[sz]ation|authori[sz]ed|permit|status|right to work|visa|eligib\w*)\b/;
+const WORK_VERB = /\b(work|employ\w*|be hired|be employed)\b/;
+/** "not yet authorized", "not currently eligible": the adverb is part of the negation. */
+const NEGATION_ADVERB = /^\s*(yet|currently|presently)\b/;
 /** A negated clause about sponsorship ("not requiring sponsorship in the US")
  *  says nothing against the country's authorization. */
 const SPONSORSHIP_WORDS = /\b(sponsor\w*|requir\w*|need\w*)\b/;
+/** A clause that is about a status in the country, not the country itself:
+ *  "not a US citizen", "not Canadian". */
+const STATUS_IN_COUNTRY =
+  /\b(citizen\w*|national|resident|canadian|american|british|english|scottish|mexican|german|french|indian|chinese|irish|spanish|italian|swiss|austrian|iranian|polish|dutch|greek|turkish|israeli|pakistani|korean|japanese|australian|brazilian|nigerian|kenyan|egyptian|moroccan|ghanaian)\b/;
+/** A denial inside one clause, after the country ("US not authorized",
+ *  "US work authorization: no", "US: no"). */
+const CLAUSE_DENIAL =
+  /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|:\s*(no|none)\b|\b(no|not)\s*$/;
+/** A clause that says sponsorship is needed ("I would require sponsorship to work in the US"). */
+const SPONSORSHIP_NEEDED =
+  /\b(would|will|do|does|shall|i)\s+(need|require)\b|\b(needs?|requires?|requiring)\s+(an?\s+)?(visa\s+|work\s+)?sponsorship\b/;
+const NEGATED_WORDS = /\b(not|no|never|without)\b|n['’]t\b/;
+/** A status still being decided ("US authorization pending"). */
+const PENDING = /\b(pending|in progress|applied for|processing)\b/;
+
+/**
+ * The lowercase text with the periods inside an abbreviation ("u.s.", "u. s.",
+ * "u.s.a.", "u.k.") turned into "_", so a period ends a clause only where a
+ * sentence does (decide-b review C-1). Same length, so indices still match the
+ * original text.
+ */
+function maskAbbreviations(lower: string): string {
+  return lower.replace(/\b([a-z])\.(?=\s?[a-z]\.)|\bu\.(?=\s?s\b)/g, (m) => m.replace(".", "_"));
+}
 
 /**
  * Split a work-authorization statement into the countries it negates and the
@@ -425,28 +495,93 @@ const SPONSORSHIP_WORDS = /\b(sponsor\w*|requir\w*|need\w*)\b/;
  * "Outright" means the clause excludes the country itself, not a status in it
  * ("not a ... citizen / resident"), so the country is a No and not unknown.
  */
-export function negatedCountryScope(text: string): { negated: Map<string, boolean>; positiveText: string } {
+export function negatedCountryScope(text: string): { negated: Map<string, boolean>; sponsored: Set<string>; positiveText: string } {
   const negated = new Map<string, boolean>();
-  const lower = text.toLowerCase();
+  const sponsored = new Set<string>();
+  const mark = (named: Country[], outright: boolean): void => {
+    for (const c of named) negated.set(c.code, (negated.get(c.code) ?? false) || outright);
+  };
+
+  // Pass 1: a negation word reaches forward to the next clause break.
+  const lower = maskAbbreviations(text.toLowerCase());
   const cuts: Array<[number, number]> = [];
   const matches = [...lower.matchAll(NEGATION)];
   matches.forEach((m, i) => {
-    const from = (m.index ?? 0) + m[0].length;
+    const word = m[0];
+    let from = (m.index ?? 0) + word.length;
     // A clause also ends at the next negation, which starts its own: the
     // clauses never overlap, so a long run of negations stays linear.
     const limit = i + 1 < matches.length ? (matches[i + 1].index ?? lower.length) : lower.length;
+    const adverb = NEGATION_ADVERB.exec(lower.slice(from, limit));
+    if (adverb) from += adverb[0].length;
     const window = lower.slice(from, limit);
     const brk = window.search(CLAUSE_BREAK);
     const to = from + (brk >= 0 ? brk : window.length);
     const clause = lower.slice(from, to);
-    if (SPONSORSHIP_WORDS.test(clause)) return;
+    const uncertain = UNCERTAIN_NEGATION.test(word);
+    if (!uncertain && SPONSORSHIP_WORDS.test(clause)) return;
+    if (NOUN_NEGATION.test(word) && !WORK_RIGHT_NOUN.test(clause)) return;
+    if (VERB_NEGATION.test(word) && !WORK_VERB.test(clause)) return;
     // Same indices in the original text: countriesIn reads "US" by its capitals.
     const named = countriesIn(text.slice(from, to));
     if (named.length === 0) return;
-    const outright = !/^\s*(an?|the applicant an?)\s/.test(clause) && !/\b(citizen|national|resident)\b/.test(clause);
-    for (const c of named) negated.set(c.code, (negated.get(c.code) ?? false) || outright);
+    const outright = !uncertain && !/^\s*(an?|the applicant an?)\s/.test(clause) && !STATUS_IN_COUNTRY.test(clause);
+    mark(named, outright);
     cuts.push([m.index ?? 0, to]);
   });
+  const positive = joinKept(text, cuts);
+
+  // Pass 2: inside each remaining clause, a denial after the country ("US
+  // not authorized") or a need for sponsorship ("I would require sponsorship
+  // to work in the US") belongs to the countries of that clause only.
+  const plower = maskAbbreviations(positive.toLowerCase());
+  const cuts2: Array<[number, number]> = [];
+  const clauseAt = (a: number, b: number): void => {
+    const clause = plower.slice(a, b);
+    if (CLAUSE_DENIAL.test(clause)) {
+      const named = countriesIn(positive.slice(a, b));
+      if (named.length === 0) return;
+      mark(named, true);
+      cuts2.push([a, b]);
+      return;
+    }
+    // "US authorization pending": not known yet, so neither Yes nor No there.
+    if (PENDING.test(clause)) {
+      const named = countriesIn(positive.slice(a, b));
+      if (named.length === 0) return;
+      mark(named, false);
+      cuts2.push([a, b]);
+      return;
+    }
+    const need = SPONSORSHIP_NEEDED.exec(clause);
+    if (need && !NEGATED_WORDS.test(clause)) {
+      // The countries after the need ("...to work in the US"), else the
+      // clause's own ("US requires sponsorship").
+      let start = a + need.index;
+      let named = countriesIn(positive.slice(start, b));
+      if (named.length === 0) {
+        start = a;
+        named = countriesIn(positive.slice(a, b));
+      }
+      if (named.length === 0) return;
+      for (const c of named) sponsored.add(c.code);
+      cuts2.push([start, b]);
+    }
+  };
+  let at = 0;
+  for (const m of plower.matchAll(CLAUSE_BREAK_ALL)) {
+    clauseAt(at, m.index ?? 0);
+    at = (m.index ?? 0) + m[0].length;
+  }
+  clauseAt(at, plower.length);
+  return { negated, sponsored, positiveText: joinKept(positive, cuts2) };
+}
+
+const CLAUSE_BREAK_ALL = new RegExp(CLAUSE_BREAK.source, "g");
+
+/** `text` without the [start, end) spans in `cuts` (in order, not
+ *  overlapping), each replaced by one space, trimmed. */
+function joinKept(text: string, cuts: Array<[number, number]>): string {
   const kept: string[] = [];
   let at = 0;
   for (const [a, b] of cuts) {
@@ -454,7 +589,7 @@ export function negatedCountryScope(text: string): { negated: Map<string, boolea
     at = b;
   }
   kept.push(text.slice(at));
-  return { negated, positiveText: kept.join(" ").trim() };
+  return kept.join(" ").trim();
 }
 
 /**

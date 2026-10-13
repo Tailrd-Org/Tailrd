@@ -50,10 +50,11 @@ Behaviour kept on purpose (each one is pinned by a test named ``test_pin_*``)
     * An unrecognised nationality ("Iranian citizen", "French citizen": the table has no
       such demonym) names no country, so it reads as an unscoped yes: authorised in
       whatever country the applicant lives in.
-    * One reading is applied to every country a sentence names, so "Authorized to work in
-      Canada but not in the US" is authorised in the US, and "...Canada, not authorized in
-      the US" is not authorised in Canada.
-    * "N/A", "Not sure" and "Not applicable" start with the word "n/not" and read as No.
+    * One status reading is applied to every country a sentence names positively ("Canadian
+      citizen with H-1B in the US" is a US citizen too). Negated countries are taken out
+      first (owner decisions 2026-10-13 and the decide-b review): "...Canada but not in the
+      U.S." is not authorised in the US, and "not sure about the US" leaves the US unknown.
+    * "N/A", "Not applicable", "Not sure" and "Not yet" are unanswered, never No.
     * A location of just "United States" (the UserSettings.location column default) is a
       settled residence in the US, and it outranks a structured province.
     * An explicit Yes over a free-text denial keeps the basis ``denied``.
@@ -784,6 +785,13 @@ _NOT_REQUIRED = _js_regex(r"\b(not required|not needed)\b")
 _REQUIRED = _js_regex(r"\b(required|needed)\b")
 # "N/A" and its spellings (TS: ``NOT_APPLICABLE``): unanswered, never a No.
 _NOT_APPLICABLE = _js_regex(r"^(n\s*[/.]?\s*a\b\.?|not applicable\b|does not apply\b|doesn'?t apply\b)")
+# An answer that says the applicant does not know (TS: ``UNCERTAIN_ANSWER``).
+_UNCERTAIN_ANSWER = _js_regex(r"^(not sure|unsure|not certain|uncertain|unknown|tbd|don'?t know|do not know)\b")
+# Words that put an answer in the future (TS: ``FUTURE_WORDS``).
+_FUTURE_WORDS = _js_regex(r"\b(will|later|future|after|eventually)\b")
+_NOT_NOW = _js_regex(r"^not (yet|currently|presently|now|at the moment|right now)\b")
+_NOT_YET = _js_regex(r"^not yet\b")
+_CONTRAST = _js_regex(r"\b(but|however|until|though)\b")
 
 
 def polarity_of(text: Optional[str]) -> Optional[bool]:
@@ -797,9 +805,21 @@ def polarity_of(text: Optional[str]) -> Optional[bool]:
         return None
     if _NOT_APPLICABLE.search(t):
         return None
+    # "Not sure", "TBD": unanswered. Never a No (decide-b review I-2).
+    if _UNCERTAIN_ANSWER.search(t):
+        return None
     if _YES_PREFIX.search(t):
         return True
     if _NO_PREFIX.search(t):
+        # "Not yet", "Not currently, but I will", "Not required now but will be after OPT":
+        # a No today that turns into a Yes later, so neither.
+        if _NOT_NOW.search(t) and _FUTURE_WORDS.search(t):
+            return None
+        if _NOT_YET.search(t):
+            return None
+        contrast = _CONTRAST.search(t)
+        if contrast and _FUTURE_WORDS.search(t[contrast.start():]):
+            return None
         return False
     if _NEGATED_NEED.search(t):
         return False
@@ -864,10 +884,12 @@ def countries_in(text: Optional[str]) -> list[Country]:
 
 
 _DENIED = _js_regex(
-    r"\b(not|no|never)\s+(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b"
+    r"\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted"
+    r"|allowed)\b"
     r"|\bno work (authori[sz]ation|permit)\b"
-    r"|\bnot a (citizen|resident)\b"
 )
+# "Not a citizen" denies nothing for a permanent resident, who is authorized without being one.
+_NOT_A_CITIZEN = _js_regex(r"\bnot a (citizen|resident)\b")
 _CITIZEN = _js_regex(r"\bcitizen(ship)?\b|\bnational\b")
 _PERMANENT_RESIDENT = _js_regex(
     r"\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b"
@@ -890,58 +912,174 @@ _CLAUSE_BREAK = _js_regex(
     r"[,;.!?()]|\b(but|however|whereas|while|although|though|yet)\b"
     r"|\band\s+(?=(i|am|is|authori[sz]ed|eligible|entitled|permitted|allowed|legally|can|have|hold|a|an)\b)"
 )
-# Words that put the countries after them outside the statement.
-_NEGATION = _js_regex(r"\b(not|never|except|excluding|other than|outside( of)?)\b")
+# Words that put the countries after them outside the statement, in four kinds (TS:
+# ``NEGATION``; decide-b review I-1, I-5, M-2):
+#   uncertain  "not sure about", "unsure": the country is unknown, never a No
+#   noun       "no", "without", "don't have": only before a work-right noun
+#   verb       "cannot", "can't", "unable": only about working there
+#   plain      "not", "never", "except", "excluding", "other than", "outside", "ineligible",
+#              "unauthorized"; "not only" is no negation
+_NEGATION = _js_regex(
+    r"\b(not\s+(?:sure|certain|clear|positive)|unsure|do(?:n['’]?t|\s+not)\s+have|no|without|cannot"
+    r"|can['’]?t|unable|ineligible|unauthori[sz]ed|not(?!\s+only\b)|never|except|excluding|other than"
+    r"|outside(?: of)?)\b"
+)
+_UNCERTAIN_NEGATION = _js_regex(r"^(not\s+(sure|certain|clear|positive)|unsure)$")
+_NOUN_NEGATION = _js_regex(r"^(no|without)$|^do")
+_VERB_NEGATION = _js_regex(r"^(cannot|unable|can['’]?t)$")
+_WORK_RIGHT_NOUN = _js_regex(r"\b(authori[sz]ation|authori[sz]ed|permit|status|right to work|visa|eligib\w*)\b")
+_WORK_VERB = _js_regex(r"\b(work|employ\w*|be hired|be employed)\b")
+# "not yet authorized", "not currently eligible": the adverb is part of the negation.
+_NEGATION_ADVERB = _js_regex(r"^\s*(yet|currently|presently)\b")
 # A negated clause about sponsorship ("not requiring sponsorship in the US") says nothing
 # against the country's authorization.
 _SPONSORSHIP_WORDS = _js_regex(r"\b(sponsor\w*|requir\w*|need\w*)\b")
 _STATUS_ARTICLE = _js_regex(r"^\s*(an?|the applicant an?)\s")
-_STATUS_NOUN = _js_regex(r"\b(citizen|national|resident)\b")
+# A clause about a status in the country, not the country itself: "not a US citizen",
+# "not Canadian".
+_STATUS_IN_COUNTRY = _js_regex(
+    r"\b(citizen\w*|national|resident|canadian|american|british|english|scottish|mexican|german|french|indian"
+    r"|chinese|irish|spanish|italian|swiss|austrian|iranian|polish|dutch|greek|turkish|israeli|pakistani"
+    r"|korean|japanese|australian|brazilian|nigerian|kenyan|egyptian|moroccan|ghanaian)\b"
+)
+# A denial inside one clause, after the country ("US not authorized", "US work authorization:
+# no", "US: no").
+_CLAUSE_DENIAL = _js_regex(
+    r"\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted"
+    r"|allowed)\b|:\s*(no|none)\b|\b(no|not)\s*$"
+)
+# A clause that says sponsorship is needed ("I would require sponsorship to work in the US").
+_SPONSORSHIP_NEEDED = _js_regex(
+    r"\b(would|will|do|does|shall|i)\s+(need|require)\b"
+    r"|\b(needs?|requires?|requiring)\s+(an?\s+)?(visa\s+|work\s+)?sponsorship\b"
+)
+_NEGATED_WORDS = _js_regex(r"\b(not|no|never|without)\b|n['’]t\b")
+# A status still being decided ("US authorization pending").
+_PENDING = _js_regex(r"\b(pending|in progress|applied for|processing)\b")
+_ABBREVIATION_PERIOD =_js_regex(r"\b([a-z])\.(?=\s?[a-z]\.)|\bu\.(?=\s?s\b)")
 _ONLY = _js_regex(r"\bonly\b")
 
 
-def negated_country_scope(text: str) -> tuple[dict[str, bool], str]:
-    """Split a work-authorization statement into the countries it negates and the text left
-    (TS: ``negatedCountryScope``). Each negation word reaches to the next clause break:
+def _mask_abbreviations(lower: str) -> str:
+    """The lowercase text with the periods inside an abbreviation ("u.s.", "u. s.", "u.s.a.",
+    "u.k.") turned into "_", so a period ends a clause only where a sentence does (TS:
+    ``maskAbbreviations``; decide-b review C-1). Same length, so indices still match."""
+    return _ABBREVIATION_PERIOD.sub(lambda m: m.group(0).replace(".", "_", 1), lower)
 
-    "Authorized to work in Canada but not in the US"  negated US (outright)
-    "Not authorized to work in the US, but in Canada"  negated US (outright)
-    "Canadian citizen, not a US citizen"               negated US (not outright)
 
-    "Outright" means the clause excludes the country itself, not a status in it ("not a ...
-    citizen / resident"), so the country is a No and not unknown. Returns
-    ``(negated: code -> outright, positive_text)``.
-    """
-    negated: dict[str, bool] = {}
-    lower = text.lower()
-    cuts: list[tuple[int, int]] = []
-    matches = list(_NEGATION.finditer(lower))
-    for i, m in enumerate(matches):
-        start = m.end()
-        # A clause also ends at the next negation, which starts its own: the clauses never
-        # overlap, so a long run of negations stays linear.
-        limit = matches[i + 1].start() if i + 1 < len(matches) else len(lower)
-        window = lower[start:limit]
-        brk = _CLAUSE_BREAK.search(window)
-        end = start + (brk.start() if brk else len(window))
-        clause = lower[start:end]
-        if _SPONSORSHIP_WORDS.search(clause):
-            continue
-        # Same indices in the original text: countries_in reads "US" by its capitals.
-        named = countries_in(text[start:end])
-        if not named:
-            continue
-        outright = not _STATUS_ARTICLE.search(clause) and not _STATUS_NOUN.search(clause)
-        for c in named:
-            negated[c.code] = negated.get(c.code, False) or outright
-        cuts.append((m.start(), end))
+def _join_kept(text: str, cuts: list[tuple[int, int]]) -> str:
+    """``text`` without the [start, end) spans in ``cuts`` (in order, not overlapping), each
+    replaced by one space, trimmed (TS: ``joinKept``)."""
     kept: list[str] = []
     at = 0
     for a, b in cuts:
         kept.append(text[at:a])
         at = b
     kept.append(text[at:])
-    return negated, _trim(" ".join(kept))
+    return _trim(" ".join(kept))
+
+
+def negated_country_scope(text: str) -> tuple[dict[str, bool], list[str], str]:
+    """Split a work-authorization statement into the countries it negates, the countries it
+    says need sponsorship, and the text left (TS: ``negatedCountryScope``).
+
+    Pass 1: each negation word reaches forward to the next clause break (or the next
+    negation)::
+
+        "Authorized to work in Canada but not in the U.S."  negated US (outright)
+        "Not authorized to work in the US, but in Canada"   negated US (outright)
+        "Canadian citizen, not a US citizen"                negated US (not outright)
+        "Canadian citizen. Not sure about the US."          negated US (not outright)
+
+    Pass 2: inside each remaining clause, a denial after the country ("US not authorized")
+    negates that clause's countries outright, and a need for sponsorship ("I would require
+    sponsorship to work in the US") marks the countries after it as sponsored.
+
+    "Outright" means the clause excludes the country itself, not a status in it ("not a ...
+    citizen", "not Canadian") and not a doubt about it, so the country is a No and not
+    unknown. Returns ``(negated: code -> outright, sponsored, positive_text)``.
+    """
+    negated: dict[str, bool] = {}
+    sponsored: dict[str, None] = {}
+
+    def mark(named: list[Country], outright: bool) -> None:
+        for c in named:
+            negated[c.code] = negated.get(c.code, False) or outright
+
+    lower = _mask_abbreviations(text.lower())
+    cuts: list[tuple[int, int]] = []
+    matches = list(_NEGATION.finditer(lower))
+    for i, m in enumerate(matches):
+        word = m.group(0)
+        start = m.end()
+        # A clause also ends at the next negation, which starts its own: the clauses never
+        # overlap, so a long run of negations stays linear.
+        limit = matches[i + 1].start() if i + 1 < len(matches) else len(lower)
+        adverb = _NEGATION_ADVERB.search(lower[start:limit])
+        if adverb:
+            start += adverb.end()
+        window = lower[start:limit]
+        brk = _CLAUSE_BREAK.search(window)
+        end = start + (brk.start() if brk else len(window))
+        clause = lower[start:end]
+        uncertain = bool(_UNCERTAIN_NEGATION.search(word))
+        if not uncertain and _SPONSORSHIP_WORDS.search(clause):
+            continue
+        if _NOUN_NEGATION.search(word) and not _WORK_RIGHT_NOUN.search(clause):
+            continue
+        if _VERB_NEGATION.search(word) and not _WORK_VERB.search(clause):
+            continue
+        # Same indices in the original text: countries_in reads "US" by its capitals.
+        named = countries_in(text[start:end])
+        if not named:
+            continue
+        outright = not uncertain and not _STATUS_ARTICLE.search(clause) and not _STATUS_IN_COUNTRY.search(clause)
+        mark(named, outright)
+        cuts.append((m.start(), end))
+    positive = _join_kept(text, cuts)
+
+    plower = _mask_abbreviations(positive.lower())
+    cuts2: list[tuple[int, int]] = []
+
+    def clause_at(a: int, b: int) -> None:
+        clause = plower[a:b]
+        if _CLAUSE_DENIAL.search(clause):
+            named = countries_in(positive[a:b])
+            if not named:
+                return
+            mark(named, True)
+            cuts2.append((a, b))
+            return
+        # "US authorization pending": not known yet, so neither Yes nor No there.
+        if _PENDING.search(clause):
+            named = countries_in(positive[a:b])
+            if not named:
+                return
+            mark(named, False)
+            cuts2.append((a, b))
+            return
+        need = _SPONSORSHIP_NEEDED.search(clause)
+        if need and not _NEGATED_WORDS.search(clause):
+            # The countries after the need ("...to work in the US"), else the clause's own
+            # ("US requires sponsorship").
+            begin = a + need.start()
+            named = countries_in(positive[begin:b])
+            if not named:
+                begin = a
+                named = countries_in(positive[a:b])
+            if not named:
+                return
+            for c in named:
+                sponsored[c.code] = None
+            cuts2.append((begin, b))
+
+    at = 0
+    for m in _CLAUSE_BREAK.finditer(plower):
+        clause_at(at, m.start())
+        at = m.end()
+    clause_at(at, len(plower))
+    # A dict keeps insertion order, as the TypeScript Set does.
+    return negated, list(sponsored), _join_kept(positive, cuts2)
 
 
 def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
@@ -965,23 +1103,27 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
     # "Canada but not in the US": the negated clause names countries that are never
     # authorized, and the rest of the sentence is read without it, so the status it states
     # belongs only to the countries named positively.
-    negated, text = negated_country_scope(full_text)
+    negated, sponsored, text = negated_country_scope(full_text)
     lower = text.lower()
-    countries = [c for c in countries_in(text) if c.code not in negated]
+    # An outright exclusion drops the country; "not a US citizen" keeps it when the rest still
+    # names it ("...but have a green card"), only not as a citizen there. A country that needs
+    # sponsorship is set apart below.
+    countries = [c for c in countries_in(text) if negated.get(c.code) is not True and c.code not in sponsored]
     # A statement that limits itself ("only in Canada", "but not the US") is an authorization
-    # statement for the countries it keeps.
-    scoped = bool(negated) or bool(_ONLY.search(lower))
+    # statement for the countries it keeps, and so is one that sets a country apart for
+    # sponsorship ("Authorized in Canada; US requires sponsorship").
+    scoped = bool(negated) or bool(sponsored) or bool(_ONLY.search(lower))
 
-    denied = bool(_DENIED.search(lower))
     citizen = bool(_CITIZEN.search(lower))
     pr = bool(_PERMANENT_RESIDENT.search(lower))
+    denied = bool(_DENIED.search(lower)) or (not pr and bool(_NOT_A_CITIZEN.search(lower)))
     student = bool(_STUDENT.search(lower))
     sponsored_visa = bool(_SPONSORED_VISA.search(lower))
     permit = bool(_PERMIT.search(lower))
     affirmative = bool(_AFFIRMATIVE.search(lower))
     bare_yes = polarity_of(text)
 
-    if not countries and not negated:
+    if not countries and not negated and not sponsored:
         if denied or bare_yes is False:
             unscoped_authorized = False
         elif affirmative or bare_yes is True or citizen or pr:
@@ -990,9 +1132,10 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
         return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped_authorized)
 
     for c in countries:
+        citizen_here = citizen and c.code not in negated
         if denied:
             by_country[c.code] = CountryAuth(False, None, "denied")
-        elif citizen and not pr and not student and not permit:
+        elif citizen_here and not pr and not student and not permit:
             by_country[c.code] = CountryAuth(True, False, "citizen")
         elif pr and not student and not permit:
             by_country[c.code] = CountryAuth(True, False, "permanent_resident")
@@ -1010,6 +1153,11 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
     for code, outright in negated.items():
         if outright:
             by_country[code] = CountryAuth(False, None, "denied")
+    # "I would require sponsorship to work in the US": not a citizen there, and sponsorship is
+    # needed; whether they are authorized today is not said.
+    for code in sponsored:
+        if negated.get(code) is not True:
+            by_country[code] = CountryAuth(None, True, "statement")
     _apply_explicit_countries(profile, by_country)
     return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped_authorized)
 
