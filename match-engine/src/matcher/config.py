@@ -399,6 +399,7 @@ class TaxonomyConfig(Frozen):
     auto_promote_min_postings: int = Field(ge=1)
     auto_promote_window_days: int = Field(ge=1)
     review_queue_size: int = Field(ge=1)
+    parent_min_df: int = Field(ge=1)  # D-98: PMI rewards rarity; a parent needs this many postings
 
 
 class IngestConfig(Frozen):

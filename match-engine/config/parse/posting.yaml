@@ -666,6 +666,24 @@ unresolved:
                      PHD, MBA, BS, BA, MS, MA, BSC, MSC, BENG, MENG, DEI, LGBTQ, LGBTQIA, ADA, OFCCP, CV,
                      PTO, RRSP, TFSA, ESPP, OTE, USD, CAD, EUR, GBP, AM, PM, II, III, IV, ID, OK, FT, PT,
                      CO, OP, COOP, NOTE, NEW, ALL, THE, YOU, WE, IT, AI]
+  # Task 7.2B fix round 1. A two- or three-letter word in capitals is a token only when listed
+  # here or written in a technical form ("ZXQ/ZXW", "QA#", "XY+", "AB.js"): most short capitals in
+  # postings are places, offices and abbreviations (HQ, JD, LI, DR), not unresolved technology.
+  # Seeded from Tailrd's corpus: short acronyms of tools and methods that the taxonomy lacks.
+  acronym_allowlist: [RAG, IAM, MFA, SQS, JVM, JAX, MCP, SFT, GPU, TCP, SDK, IPC, PCB, SMT, DFM, NPI, NAS, SOC,
+                      SLA, APM, NDE, NDT, UT, RT, MT, HPO, RL, RF, CI, CPQ, SOX, AML, ISO, TIG, GTM, DSS, LOB]
+  # A token whose folded form is one of these is an English word (or an office, a place, an
+  # abbreviation), never a requirement token, whatever its casing. A word in capitals whose lower
+  # case is a common word of the posting corpus (common_words.json) is shouting, not an acronym, too.
+  stop_words: [local, must, live, team, remote, perks, skills, can, not, next, rapid, em, li, et, hq, jd,
+               two, three, one, technical, high, growth, high-growth, equivalent, developing, supporting,
+               receiving, plus, preferred, required, asset, nice, bonus]
+  # A trigger phrase ends before the first of these words ("rim repair to join" is "rim repair",
+  # "languages is considered a" is "languages", then generic and dropped); at most 4 words remain.
+  phrase_stop_words: [is, are, was, were, be, been, being, will, would, can, could, should, may, might, must,
+                      to, through, join, joining, considered, a, an, the, of, for, with, and, or, in, "on", at,
+                      as, by, from, into, that, which, who, while, including, such, preferred, required,
+                      helpful, plus, est, sont, pour, avec, et, ou, de, des, du]
 
 # ─── posting pathologies (SPEC §14.4) ────────────────────────────────────────────────────────
 truncation:

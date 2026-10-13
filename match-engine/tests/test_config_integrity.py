@@ -14,6 +14,7 @@ from matcher.config import (
     WEIGHT_MIN,
     ConfigError,
     combined_hash,
+    config_hash,
     default_config_dir,
     load_config,
     replace_weights,
@@ -200,6 +201,7 @@ def test_scoring_constants_match_spec(config) -> None:
     assert s.taxonomy.coverage_alert_threshold == 0.92
     assert (s.taxonomy.auto_promote_min_postings, s.taxonomy.auto_promote_window_days,
             s.taxonomy.review_queue_size) == (50, 30, 50)
+    assert s.taxonomy.parent_min_df == 20
     assert s.calibration.min_reference_n == 30
     assert (s.ingest.max_experience_tokens, s.ingest.ocr_min_confidence) == (40000, 0.60)
     assert (s.ingest.max_pages, s.ingest.resume_likelihood_threshold) == (100, 0.5)
@@ -215,6 +217,26 @@ def test_ingest_limits_are_validated(tmp_path: Path, key: str, value: float) -> 
     path.write_text(yaml.safe_dump(data), encoding="utf-8")
     with pytest.raises(ConfigError):
         load_config(root)
+
+
+@pytest.mark.parametrize("value", [0, -3, 2.5, None])
+def test_parent_min_df_is_validated(tmp_path: Path, value) -> None:
+    root = _copy_config(tmp_path)
+    path = root / "scoring.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["taxonomy"]["parent_min_df"] = value
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    with pytest.raises(ConfigError):
+        load_config(root)
+
+
+def test_parent_min_df_is_in_the_config_hash(tmp_path: Path, config) -> None:
+    root = _copy_config(tmp_path)
+    path = root / "scoring.yaml"
+    data = yaml.safe_load(path.read_text(encoding="utf-8"))
+    data["taxonomy"]["parent_min_df"] = 21
+    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    assert config_hash(load_config(root)) != config_hash(config)
 
 
 def test_gates_policy(config) -> None:

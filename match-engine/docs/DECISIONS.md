@@ -353,6 +353,51 @@ only to military-specific occupations (SOC 55) or to civilian "All Other" catch-
 publishes no skill data for (counts in `data/taxonomy/SOURCES.md`). SPEC §14.3 calls veterans a
 legally sensitive population: an empty list with its reason is honest, an inferred one is not.
 
+**D-98 Taxonomy freshness (SPEC §16). [Spec: growth rate, parent rule and write path unspecified]**
+`scripts/refresh_taxonomy.py` parses the corpus with the posting parser, each exact duplicate and
+each repeated blurb line counted once (D-21), over the postings first seen in the
+`auto_promote_window_days` days ending at `as_of` (default: the corpus's latest `first_seen_at`, so
+a rerun on the same file gives the same report). Coverage has two figures (fix round 1): raw,
+resolved requirement tokens over all of them (`requirement_token_count`,
+`unresolved_requirement_tokens`); and recurring, the same with the unresolved tokens found in fewer
+than 2 distinct postings left out (a one-off is more often a typo, a fragment or a name than a
+missing skill; resolved tokens all stay, since the parser exposes their count, not their set). The
+alert and the exit code (1 below 0.92 or with no token) follow the recurring figure; the report
+also gives the per-posting mean (what the `taxonomy_coverage` confidence input sees). A token's
+rank is `recent x (recent + 1) / (earlier + 1)`: distinct postings in the window times growth
+against the window before it. Promotion needs more than 50 distinct postings in the window
+(strictly, as §16 says), a skill-shaped token (a phrase, a word in lower case or in capitals, or a
+capitalised word with a technical suffix or form: SaaS, MLOps, GraphQL, GraphDB, Vue.js; "SpaceX",
+"OpenAI" or "LangChain" go to the queue noted "possible employer or product", since no frequency
+rule tells an employer from a skill) and a parent: the node with the highest NPMI (D-22) against
+the token over the window, among the ids required in at least `pmi_min_cooccurrence` of its
+postings and by at least `taxonomy.parent_min_df` (20) postings in all (PMI rewards rarity: the
+low-df tail Task 2.3 parked), never a SOFT node or one under a SOFT node (ESCO's "perform services
+in a flexible manner" sits under adaptability); no parent means the queue noted "no parent". The
+committed taxonomy changes only with `--apply --approve <file>`, and only for the promoted tokens
+the file lists (a person accepted each); `--apply` alone is refused. Then `compute_idf.py` and
+`compute_pmi.py` must run, as after a build. The queue (`data/taxonomy/review_queue.csv`, top 50
+not promoted) holds short tokens and counts only (D-04). On Tailrd's corpus (2026-05-14) after the
+parser fix below: recurring 86.80 %, raw 78.71 %, per-posting mean 79.61 % (before: 83.28 %,
+73.98 %, 73.28 %); the alert still fires, which is a real vocabulary gap, not noise; SaaS is the
+one promotion proposed.
+
+**D-98a Posting noise tokens (Task 7.2B fix round 1). [Tailrd]** The posting parser's unresolved
+requirement tokens (SPEC §16, §17.1) leave out: a token whose folded form is a configured stop word
+(`posting.unresolved.stop_words`: local, must, live, team, remote, perks, skills, hq, jd, li, et, ...)
+or a generic word; a word in capitals whose lower case is a common word of the posting corpus
+(`common_words.json`: "HIRING", "TODAY"), unless allow-listed; a two- or three-letter word in
+capitals unless it is in `acronym_allowlist` (RAG, IAM, GPU, SDK, PCB, NDT, ...) or written in a
+technical form ("/" before it; "#", "+", "/" or ".js" after it); every tech-shaped word of a
+statement in capitals (more than half, and more than two, of its words outside resolved mentions
+are capitals of two letters or more, judged per statement, not per clause). A trigger phrase ends
+before its first function word (`phrase_stop_words`: is, are, to, through, join, considered, a,
+the, of, for, with, ...), at most 4 words remain, and a phrase of generic, lead or stop words only
+is dropped: "rim repair to join our crew" gives "rim repair", "languages is considered a plus"
+nothing. Each unresolved token is an IDF 0.5 pseudo-requirement in the score interval and lowers
+`taxonomy_coverage`, so noise cost every posting confidence; the token count falls by the same
+amount as the unresolved list.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores
