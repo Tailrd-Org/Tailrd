@@ -1,8 +1,9 @@
 """§5.3 Relevant experience depth (Task 3.3).
 
 SPEC §5.3, §9, §14.2, §14.3, §14.5; DECISIONS D-12, D-35, D-36, D-37. Every expected value is
-closed-form arithmetic from the spec (EVAL §2.2): relevance is the cosine between the posting's
-IDF vector and the role's IDF × bare-credit vector over every requirement id; months are the
+closed-form arithmetic from the spec (EVAL §2.2): relevance is the norm ratio |v_role| / |v_job| =
+sqrt(Σ idf² c² / Σ idf²) over every requirement id (D-35 deviation, Task 3.6 fix round 1: equal to the
+cosine when every credit is 0 or 1, monotone in every credit); months are the
 weighted interval union in days / 30.4375 (365.25 / 12); the curve is 0.60 × r / 0.5 below the
 knee, 0.60 + 0.40 × (r − 0.5) / 0.5 up to 1, then 1.00. IDF values are read from graph_small.
 """
@@ -126,10 +127,10 @@ def test_relevance_closed_form_from_the_brief(config) -> None:
     post = wants(req("skill.r1"), req("skill.r2"))
     v_job = (0.8, 0.6)
     v_role = (0.8 * EXACT_CREDIT, 0.6 * PARENT_CREDIT)
-    expected = (v_job[0] * v_role[0] + v_job[1] * v_role[1]) / (math.hypot(*v_role) * math.hypot(*v_job))
-    # (0.64 + 0.144) / (sqrt(0.64 + 0.0576) × 1.0) = 0.784 / 0.8352245 = 0.9386698; the brief divides by
-    # the rounded 0.835225 and prints 0.938669, so it is checked at the brief's own precision.
-    assert _close(expected, 0.938669, tol=1e-6)
+    expected = math.hypot(*v_role) / math.hypot(*v_job)
+    # sqrt(0.64 + 0.0576) / sqrt(0.64 + 0.36) = 0.8352245 / 1.0 (the brief's cosine was 0.938669: a
+    # weak parent credit no longer scales up to look like full coverage).
+    assert _close(expected, 0.8352245, tol=1e-6)
     assert _close(role_relevance(role, post, graph, config), expected)
 
 
@@ -158,7 +159,7 @@ def test_relevance_does_not_penalise_breadth(small_graph, config) -> None:
                                                                        "skill.leadership", "skill.cpp"))))
     i_p, i_d = small_graph.idf["skill.python"], small_graph.idf["skill.django"]
     v_role = (i_p * EXACT_CREDIT, i_d * PARENT_CREDIT)  # python is django's parent
-    expected = (i_p * v_role[0] + i_d * v_role[1]) / (math.hypot(*v_role) * math.hypot(i_p, i_d))
+    expected = math.hypot(*v_role) / math.hypot(i_p, i_d)
     assert _close(role_relevance(focused, post, small_graph, config), expected)
     assert _close(role_relevance(broad, post, small_graph, config), expected)
 
@@ -187,8 +188,21 @@ def test_relevance_credits_children_siblings_and_unseen_ids(small_graph, config)
     # nextjs is a child of react (0.85); docker a 0.70 sibling of kubernetes; the unknown id takes
     # the unseen IDF (D-21) in the job vector and nothing in the role's.
     v_role = (i_r * CHILD_CREDIT, i_k * 0.70)
-    expected = (i_r * v_role[0] + i_k * v_role[1]) / (math.hypot(*v_role) * math.hypot(i_r, i_k, UNSEEN_IDF))
+    expected = math.hypot(*v_role) / math.hypot(i_r, i_k, UNSEEN_IDF)
     assert _close(role_relevance(role, post, small_graph, config), expected)
+
+
+def test_relevance_is_monotone_and_not_scale_invariant(small_graph, config) -> None:
+    # Uniform weak credits stay weak: three requirements each held only through a parent (0.40) give
+    # sqrt(Σ idf² 0.16 / Σ idf²) = 0.40 (the cosine called this 1.0); raising one credit to exact raises it.
+    post = wants(req("skill.react"), req("skill.vue"), req("skill.angular"))
+    assert _close(role_relevance(Role(skills=(bullet("skill.js_framework"),)), post, small_graph, config),
+                  PARENT_CREDIT)
+    i = [small_graph.idf[s] for s in ("skill.react", "skill.vue", "skill.angular")]
+    stronger = Role(skills=(bullet("skill.js_framework"), bullet("skill.react")))
+    # react exact 1.00; vue through react's 0.65 edge (beats the 0.40 parent); angular still 0.40.
+    expected = math.sqrt((i[0] ** 2 + (i[1] * 0.65) ** 2 + (i[2] * 0.4) ** 2) / (i[0] ** 2 + i[1] ** 2 + i[2] ** 2))
+    assert _close(role_relevance(stronger, post, small_graph, config), expected) and expected > PARENT_CREDIT
 
 
 def test_relevance_is_zero_when_either_vector_is_zero(small_graph, config) -> None:

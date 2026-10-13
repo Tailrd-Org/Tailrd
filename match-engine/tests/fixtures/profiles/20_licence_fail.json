@@ -1,0 +1,104 @@
+{
+ "name": "licence_fail",
+ "description": "A care aide applies to a registered-nurse posting; RN appears only inside a bullet.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Personal Support Worker",
+    "employer": "Maplewood Long-Term Care",
+    "industry_codes": [
+     "6231"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.communication",
+      "surface_form": "communication",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "PARTICIPATION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.teamwork",
+      "surface_form": "teamwork",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "cred.registered_nurse",
+      "surface_form": "RN supervision",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "ASSISTANCE",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.personal_support_worker",
+    "seniority": {
+     "track": "IC",
+     "level": 1
+    },
+    "start": {
+     "value": "2021-02-01",
+     "earliest": "2021-02-01",
+     "latest": "2021-02-01",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Registered Nurse, Medical/Surgical",
+  "title_canonical": "title.registered_nurse",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 1.0,
+  "industry_codes": [
+   "6221"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.communication",
+    "necessity": "REQUIRED",
+    "surface_form": "communication"
+   },
+   {
+    "skill_id": "skill.teamwork",
+    "necessity": "REQUIRED",
+    "surface_form": "teamwork"
+   },
+   {
+    "skill_id": "cred.registered_nurse",
+    "necessity": "REQUIRED",
+    "surface_form": "RN"
+   }
+  ],
+  "requirement_token_count": 3,
+  "gates": [
+   {
+    "kind": "LICENSE",
+    "credential_ids": [
+     "cred.registered_nurse"
+    ],
+    "surface_form": "Registered Nurse (RN)"
+   }
+  ]
+ },
+ "expected": {
+  "outcome": "GATE_FAIL",
+  "raw_score": null,
+  "dimensions": {},
+  "gate_status": "FAIL",
+  "reasons": [
+   "LICENSE_MISSING"
+  ],
+  "derivation": "The posting gates on cred.registered_nurse, a professional licence in config/gates.yaml. A held licence needs AFFIRMED CERTIFICATION or ROLE_TITLE evidence (D-62); 'assisted ... under RN supervision' is a ROLE_BULLET mention, so nothing is held -> FAIL LICENSE_MISSING, no score."
+ }
+}

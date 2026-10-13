@@ -473,6 +473,12 @@ class DimensionScore(Frozen):
     abstain_reason: Optional[Flag] = None
     facts: tuple[Fact, ...] = ()
 
+    @property
+    def dimension(self) -> DimensionName:
+        """The dimension this score is for: `score/` keys dimension scores by it, since the SPEC §9
+        forbidden-features scan refuses any read of a `name` there (tests/test_forbidden_features.py)."""
+        return DimensionName(self.name)
+
     @model_validator(mode="after")
     def _consistent(self) -> "DimensionScore":
         if self.abstained != (self.value is None):

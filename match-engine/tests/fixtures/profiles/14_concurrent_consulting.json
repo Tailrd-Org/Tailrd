@@ -1,0 +1,264 @@
+{
+ "name": "concurrent_consulting",
+ "description": "An independent consultant serving four clients in one two-year window.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Data Consultant",
+    "employer": "Client: Saltmarsh Foods",
+    "industry_codes": [
+     "5416"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.data_consultant",
+    "seniority": {
+     "track": "IC",
+     "level": 3
+    },
+    "start": {
+     "value": "2024-01-08",
+     "earliest": "2024-01-08",
+     "latest": "2024-01-08",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2025-12-19",
+     "earliest": "2025-12-19",
+     "latest": "2025-12-19",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Data Consultant",
+    "employer": "Client: Orchard Health",
+    "industry_codes": [
+     "5416"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.data_consultant",
+    "seniority": {
+     "track": "IC",
+     "level": 3
+    },
+    "start": {
+     "value": "2024-03-04",
+     "earliest": "2024-03-04",
+     "latest": "2024-03-04",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2025-06-27",
+     "earliest": "2025-06-27",
+     "latest": "2025-06-27",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Data Consultant",
+    "employer": "Client: Pinecone Outfitters",
+    "industry_codes": [
+     "5416"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.data_consultant",
+    "seniority": {
+     "track": "IC",
+     "level": 3
+    },
+    "start": {
+     "value": "2024-09-02",
+     "earliest": "2024-09-02",
+     "latest": "2024-09-02",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2025-12-19",
+     "earliest": "2025-12-19",
+     "latest": "2025-12-19",
+     "precision": "DAY"
+    }
+   },
+   {
+    "title_raw": "Data Consultant",
+    "employer": "Client: Quarry Lane Builders",
+    "industry_codes": [
+     "5416"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.docker",
+      "surface_form": "Docker",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": false,
+    "is_internship": false,
+    "title_canonical": "title.data_consultant",
+    "seniority": {
+     "track": "IC",
+     "level": 3
+    },
+    "start": {
+     "value": "2025-01-06",
+     "earliest": "2025-01-06",
+     "latest": "2025-01-06",
+     "precision": "DAY"
+    },
+    "end": {
+     "value": "2025-12-19",
+     "earliest": "2025-12-19",
+     "latest": "2025-12-19",
+     "precision": "DAY"
+    }
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Data Engineer (consulting)",
+  "title_canonical": "title.data_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 3
+  },
+  "min_years_total": 3.0,
+  "industry_codes": [
+   "5416"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "PREFERRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   }
+  ],
+  "requirement_token_count": 5
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.883062,
+  "dimensions": {
+   "required_skills": 0.886629,
+   "preferred_skills": 0.886629,
+   "experience": 0.677099,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.825144
+  },
+  "confidence": 0.973277,
+  "derivation": "Recency: the latest use of python, sql, aws and docker is in a client ended 2025-12-19 (293 days): R = 0.886629; git appears only in the client ended 2025-06-27 (468 days): R = 0.825144. Required = preferred = 0.886629 (every m = 1.00 x R), tools = 0.825144. Experience: relevance c1 (python, sql, aws) = 0.645773, c2 (all five) = 1, c3 (python) = 0.252251, c4 (aws, docker) = 0.784644. Interval union, not sum (§14.2, D-36): 2024-01-08..2024-03-04 c1 only, weight r1; 2024-03-04..2025-06-27 c2 covers it, weight 1; 2025-06-27..2025-12-19 c1, c3, c4, weight max = 0.784644. Months = (56 x 0.6458 + 480 x 1 + 175 x 0.7846) / 30.4375 = 21.4694, never more than the 711 calendar days (23.36 months) of the window; ratio vs 36 = 0.5964 -> curve 0.677099. Seniority: no current role, the roles with the latest end (c1, c3, c4) are IC3 = IC3; domain 5416 = 5416; no education requirement. Raw = 0.45 x 0.886629 + 0.15 x 0.677099 + 0.30 + 0.10 x 0.825144 = 0.883062. Confidence: requirement count 5 -> 0.85, rest 1: 0.973277."
+ }
+}

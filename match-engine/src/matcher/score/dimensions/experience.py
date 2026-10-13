@@ -2,13 +2,16 @@
 
 SPEC §5.3, §9, §14.2, §14.3, §14.5; DECISIONS D-12, D-35, D-36, D-37.
 
-* `role_relevance` (D-35): the cosine, in the posting's requirement space, between
-  `v_job[r] = idf(r)` and `v_role[r] = idf(r) × the bare relation credit the role's AFFIRMED skill
-  mentions earn for r` (`credits.RelationTargets`: exact 1.00, child 0.85, sibling clamp(edge),
-  parent 0.40; no evidence, no recency). The space holds every distinct requirement id of the
-  posting, each OR-group member on its own and whatever its necessity, with the IDF requirement
-  matching uses (D-21). A zero vector on either side gives 0. Skills unrelated to the posting add
-  nothing to either vector, so breadth never lowers a role's relevance.
+* `role_relevance` (D-35): the norm ratio `|v_role| / |v_job| = sqrt(Σ idf(r)² c(r)² / Σ idf(r)²)`
+  in the posting's requirement space, with `v_job[r] = idf(r)` and `v_role[r] = idf(r) × c(r)`, c the
+  bare relation credit the role's AFFIRMED skill mentions earn for r (`credits.RelationTargets`:
+  exact 1.00, child 0.85, sibling clamp(edge), parent 0.40; no evidence, no recency). It equals the
+  cosine of SPEC §5.3 whenever every credit is 0 or 1, and unlike the cosine it is monotone in every
+  credit (SPEC §10: a matching skill never lowers the score) and not scale-invariant (uniform 0.40
+  credits give 0.40, not 1.0). The space holds every distinct requirement id of the posting, each
+  OR-group member on its own and whatever its necessity, with the IDF requirement matching uses
+  (D-21). A zero posting vector gives 0. Skills unrelated to the posting add nothing to either
+  vector, so breadth never lowers a role's relevance.
 * `relevant_months` (D-36): a sweep over the dated roles, from start to end (`as_of` for a current
   role; a later end is clamped to `as_of`). Each elementary segment counts once, at the highest
   `relevance × (experience.internship_weight if internship else 1)` among the roles covering it, so
@@ -99,21 +102,20 @@ def _norm(components: Iterable[float]) -> float:
     return math.sqrt(finite(math.fsum(component * component for component in components)))
 
 
-def _cosine(space: _Space, job_norm: float, credits: Mapping[str, Credit]) -> float:
-    """cos(v_job, v_role); 0 when either vector is zero (never a division by zero, SPEC §13)."""
-    role_vector = [(idf, idf * credits[skill_id][0]) for skill_id, idf in space if skill_id in credits]
-    role_norm = _norm(component for _, component in role_vector)
-    if job_norm <= NO_WEIGHT or role_norm <= NO_WEIGHT:
+def _norm_ratio(space: _Space, job_norm: float, credits: Mapping[str, Credit]) -> float:
+    """|v_role| / |v_job| = sqrt(Σ idf² c² / Σ idf²) (D-35); 0 when the posting's vector is zero
+    (never a division by zero, SPEC §13). Monotone in every credit, bounded by 1 since c <= 1."""
+    if job_norm <= NO_WEIGHT:
         return 0.0
-    dot = finite(math.fsum(idf * component for idf, component in role_vector))
-    return clamp01(dot / (job_norm * role_norm))
+    role_norm = _norm(idf * credits[skill_id][0] for skill_id, idf in space if skill_id in credits)
+    return clamp01(role_norm / job_norm)
 
 
 def _relevance(role: Role, space: _Space, job_norm: float, targets: RelationTargets) -> float:
     held = {ref.canonical_id for ref in role.skills if Polarity(ref.polarity) is Polarity.AFFIRMED}
     if not held:
         return 0.0
-    return _cosine(space, job_norm, targets.credits(held))
+    return _norm_ratio(space, job_norm, targets.credits(held))
 
 
 def _targets(space: _Space, graph: SkillGraph, config: EngineConfig) -> RelationTargets:
