@@ -659,7 +659,7 @@ skills:
   - {id: skill.langchain, label: LangChain, kind: TECHNOLOGY, aliases: [Lang Chain], parents: [skill.llm, skill.python]}
   - {id: skill.rag, label: Retrieval-augmented generation, kind: METHODOLOGY, aliases: [RAG, retrieval augmented generation, RAG pipelines], parents: [skill.llm, skill.generative_ai]}
   - {id: skill.reinforcement_learning, label: Reinforcement learning, kind: DOMAIN, parents: [skill.machine_learning]}  # bare "RL" is also RL circuits
-  - {id: skill.hyperparameter_tuning, label: Hyperparameter tuning, kind: METHODOLOGY, aliases: [hyperparameter optimization, hyperparameter optimisation, hyper-parameter tuning, HPO], parents: [skill.machine_learning]}
+  - {id: skill.hyperparameter_tuning, label: Hyperparameter tuning, kind: METHODOLOGY, aliases: [hyperparameter optimization, hyperparameter optimisation, hyper-parameter tuning], parents: [skill.machine_learning]}
   - {id: skill.gpu_computing, label: GPU computing, kind: TECHNOLOGY, aliases: [GPU, GPUs, GPU programming, GPGPU, GPU acceleration], parents: [skill.programming]}
   - {id: skill.http, label: HTTP, kind: TECHNOLOGY, aliases: [HTTPS, HTTP/HTTPS, Hypertext Transfer Protocol, HTTP protocol], parents: [skill.web_development, skill.networking]}
   - {id: skill.iam, label: Identity and access management, kind: DOMAIN, aliases: [IAM, AWS IAM], parents: [skill.cybersecurity]}

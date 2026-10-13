@@ -514,7 +514,10 @@ class UserSettings(Base):
 
     # Bot preferences
     job_title = Column(String, default="Software Engineer")
-    location = Column(String, default="United States")
+    # Empty for a new row (owner decision, 2026-10-13): a default posing as the user's answer
+    # misstated their location to employers and to the engine. Rows created before keep
+    # "United States" (no data migration); fit_reads still drops that old default.
+    location = Column(String, default="")
     remote_only = Column(Integer, default=0)
     max_applications_per_run = Column(Integer, default=25)
 

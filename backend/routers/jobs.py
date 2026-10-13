@@ -597,8 +597,9 @@ async def cron_backfill(
     _cron: None = Depends(verify_cron_secret),
     db: Session = Depends(get_db),
 ):
-    """Bounded repair pass: fetch missing descriptions (<=3 attempts/job,
-    direct-URL rows before login-walled LinkedIn/Indeed ones), fill structured
+    """Bounded repair pass: fetch missing descriptions (<=3 attempts/job;
+    jobs the feed shows first, then direct-URL rows before login-walled
+    LinkedIn/Indeed ones, newest first), fill structured
     location + company_domain, and harvest self-hosted logos for employers
     that have none yet (services/logo_cache.py). The network phases are
     bounded, and the pass is planned to finish inside BACKFILL_BUDGET_S.
@@ -616,8 +617,12 @@ async def cron_backfill(
         ScrapedJob.description.is_(None),
         func.length(func.trim(ScrapedJob.description)) < 50,
     )
-    # LinkedIn/Indeed pages are login-walled og-snippets at best; spend the
-    # batch on direct URLs first. false < true in both SQLite and Postgres.
+    # Jobs the feed shows (active, stale, or no status) come first: one with
+    # no description reads "We couldn't score this" until it is filled, while
+    # a closed one can wait. Then LinkedIn/Indeed pages, login-walled
+    # og-snippets at best, after direct URLs; newest first within each.
+    # false < true in both SQLite and Postgres.
+    is_hidden = func.coalesce(ScrapedJob.listing_status, LISTING_ACTIVE).in_(HIDDEN_LISTING_STATUSES)
     is_aggregator = or_(
         ScrapedJob.url.ilike("%linkedin.com%"),
         ScrapedJob.url.ilike("%indeed.com%"),
@@ -629,7 +634,7 @@ async def cron_backfill(
             func.coalesce(ScrapedJob.desc_fetch_attempts, 0) < 3,
             ScrapedJob.duplicate_of.is_(None),  # hidden twins aren't worth fetches
         )
-        .order_by(is_aggregator.asc(), ScrapedJob.id.desc())
+        .order_by(is_hidden.asc(), is_aggregator.asc(), ScrapedJob.id.desc())
         .limit(batch_size)
         .all()
     )

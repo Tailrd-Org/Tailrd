@@ -1001,6 +1001,92 @@ def delete_user_traces(db, user_id: int) -> int:
     return count
 
 
+#: Trace retention (D-153): a closed job's trace and score row are kept this long after scoring.
+TRACE_RETENTION_DAYS = 90
+#: Traces deleted per call at most (one sweep), so the delete stays a short transaction.
+TRACE_PRUNE_LIMIT = 5000
+@dataclasses.dataclass(frozen=True)
+class PruneResult:
+    """What one ``prune_traces`` call did: traces deleted (each with its score row), and traces of
+    the batch it had to keep because their score row was not found (a changed FIT_TRACE_SALT, or a
+    score row already gone)."""
+
+    pruned: int
+    unmatched: int
+
+
+def prune_traces(db, *, limit: int = TRACE_PRUNE_LIMIT, now: Optional[dt.datetime] = None,
+                 retention_days: int = TRACE_RETENTION_DAYS) -> PruneResult:
+    """Delete at most ``limit`` traces, each with its score row, of closed jobs (a listing status in
+    ``HIDDEN_LISTING_STATUSES``: removed, expired, off_target; never active, stale, NULL or a status
+    this code does not know) scored more than ``retention_days`` ago (D-153).
+
+    * Bounded reads: one SELECT of at most ``limit`` traces, then user ids until every subject of
+      the batch is found (one HMAC per user, never one per score row). Score rows are never loaded:
+      they are deleted by their (user, job) pairs.
+    * Each DELETE repeats the whole predicate (closed status, older than the cutoff), so a job that
+      reopened and was rescored after the select keeps its fresh rows.
+    * No trace without its score row: the score rows are deleted first (RETURNING their pairs) and
+      only the traces of those pairs follow, in the same transaction. A trace whose score row is not
+      found is kept and counted in ``unmatched`` (FIT_TRACE_SALT changed: then nothing is pruned).
+
+    Needs FIT_TRACE_SALT (FitTraceSaltError before anything is read). Commits once."""
+    from sqlalchemy import delete, select, tuple_
+
+    from backend.db.models import JobMatchScore, MatchTrace, ScrapedJob, User
+    from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES
+
+    salt = _trace_salt()
+    if limit <= 0:
+        return PruneResult(0, 0)
+    cutoff = (now or dt.datetime.utcnow()) - dt.timedelta(days=retention_days)
+    closed = select(ScrapedJob.id).where(ScrapedJob.listing_status.in_(HIDDEN_LISTING_STATUSES))
+    traces = (
+        db.query(MatchTrace.id, MatchTrace.subject_id, MatchTrace.job_id)
+        .filter(MatchTrace.scored_at < cutoff, MatchTrace.job_id.in_(closed))
+        .order_by(MatchTrace.id.asc())
+        .limit(limit)
+        .all()
+    )
+    if not traces:
+        return PruneResult(0, 0)
+    wanted = {row.subject_id for row in traces}
+    users: dict[str, int] = {}
+    for (user_id,) in db.query(User.id).order_by(User.id.asc()).yield_per(1000):
+        subject = subject_id(user_id, salt)
+        if subject in wanted:
+            users[subject] = user_id
+            if len(users) == len(wanted):
+                break
+    pairs = sorted({(users[row.subject_id], row.job_id) for row in traces if row.subject_id in users})
+    pruned = 0
+    try:
+        if pairs:
+            deleted = db.execute(
+                delete(JobMatchScore)
+                .where(tuple_(JobMatchScore.user_id, JobMatchScore.job_id).in_(pairs),
+                       JobMatchScore.scored_at < cutoff, JobMatchScore.job_id.in_(closed))
+                .returning(JobMatchScore.user_id, JobMatchScore.job_id)
+                .execution_options(synchronize_session=False)
+            ).all()
+            subjects = {user_id: subject for subject, user_id in users.items()}
+            gone = {(subjects[user_id], job_id) for user_id, job_id in deleted}
+            trace_ids = [row.id for row in traces if (row.subject_id, row.job_id) in gone]
+            if trace_ids:
+                pruned = len(db.execute(
+                    delete(MatchTrace)
+                    .where(MatchTrace.id.in_(trace_ids), MatchTrace.scored_at < cutoff,
+                           MatchTrace.job_id.in_(closed))
+                    .returning(MatchTrace.id)
+                    .execution_options(synchronize_session=False)
+                ).all())
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return PruneResult(pruned=pruned, unmatched=len(traces) - pruned)
+
+
 # ─── The detail view ─────────────────────────────────────────────────────────────────────────
 
 

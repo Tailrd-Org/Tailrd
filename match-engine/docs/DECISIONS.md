@@ -474,6 +474,7 @@ aliases instead (ultrasonic testing, radiographic testing, NAS 410, FP&A); STEM 
 fields); a phrase whose skill already resolves ("building data processing pipelines"); PhD (D-142).
 SparkTM was withdrawn in fix round 1: it was "Spark™" spelled out by NFKC, and the ingest
 normaliser now drops the trademark, service-mark and registered signs before NFKC.
+*Amended by D-155:* the owner's audit withdrew HPO and kept ASNT.
 
 **D-144 List-only names (Task 7.3 fix round 1). [Tailrd]** A key listed under `list_only` (Miro) is
 also a given name. In prose it stands only inside a skill list in its sentence: ",", "/", "&",
@@ -617,6 +618,9 @@ qualified one (distinguished, technical, senior, engineering fellow) is IC6.
 posting's level, which §5.3 explicitly forbids as an age proxy. Default
 `seniority.penalize_overqualification: false`: being above level counts as gap 0 and raises an
 `OVERQUALIFIED` flag in the explanation; the cross-track penalty still applies.
+*Confirmed by the owner (2026-10-13):* over-qualification stays unpenalised, and the flag must not
+be turned on. Reason: penalising surplus experience proxies for age, a protected attribute.
+`tests/test_config_integrity.py` pins the setting to false.
 
 **D-40 Domain (§5.5).** Candidate credit = max over roles (any role, dated or not) of the NAICS
 partial credit against any posting code: exact 1.00 when one code is a prefix of the other or
@@ -1468,8 +1472,8 @@ with the user's saved answers, through the same calibration. On the job-id route
 `/ai/rewrite`) the "before" is the stored profile, unedited in the request, so it is scored as the
 feed scores it (`fit_engine.score_profile`, through `resume_for_profile`, with D-152's fallback
 allowed): the "before" of a stored résumé equals its feed score, legacy undated rows included
-(final review I-3). The rewritten document, and every document on the pasted-text routes, is scored
-as written, without the fallback. Nothing is banked and no trace is written. Field mapping:
+(final review I-3). *Amended by D-156:* the extension's pasted-text routes score their "before" the
+same way. The rewritten document is scored as written, without the fallback. Nothing is banked and no trace is written. Field mapping:
 `overall_score` is the displayed (calibrated) score. `ats_score` is the SAME number: the engine has
 no separate ATS model, and the field stays for the clients that read it. `match_label` is the band,
 "We couldn't score this" (NEEDS_REVIEW) or "Not eligible" (GATE_FAIL, with the gate's reason
@@ -1579,8 +1583,8 @@ run by the build controller on 2026-10-13, found affected legacy rows (all creat
   beats a confident low score from a thin text (review probe P4: SCORED raw 0.154 with no reasons).
 - *Stored profiles only.* The fallback applies on `resume_for_profile` (the feed, the sweep, the
   breakdown, the upload pre-score, and the tailoring "before" on the job-id routes when it is the
-  stored, unedited profile, so it equals the card: D-123 as amended by final review I-3).
-  `resume_for_document` (a rewritten document, and the pasted-text routes) never takes it: an
+  stored, unedited profile, so it equals the card: D-123 as amended by final review I-3, and on the
+  extension's routes too, D-156). `resume_for_document` (a rewritten document) never takes it: an
   original and its rewrite are both undated legacy documents and would otherwise both be scored as
   the same upload-time text, hiding the rewrite.
 - *Whole parse, never a merge.* Dates are not copied between the two parses: matching document roles
@@ -1601,3 +1605,71 @@ run by the build controller on 2026-10-13, found affected legacy rows (all creat
 - *Dry run, same Development sample (1 résumé x 400 jobs):* before SCORED 0, SCORED_LOW_CONFIDENCE 0,
   NEEDS_REVIEW 399, GATE_FAIL 1; after SCORED 213, SCORED_LOW_CONFIDENCE 147, NEEDS_REVIEW 39,
   GATE_FAIL 1.
+
+## Owner decisions, batch A (2026-10-13) [Tailrd]
+
+**D-153 Trace retention. [Tailrd]** Rule: once per run, after scoring and only while
+`CRON_MATCH_BUDGET_S` has time left (and also when `MATCH_ALERTS_ENABLED` is off: retention does not
+depend on alerts), the cron sweep deletes the `match_traces` rows, and their
+`job_match_scores` rows, of jobs that can no longer be applied to and were scored more than 90 days
+ago (`fit_engine.prune_traces`). At most 5,000 traces per run, in one transaction of their own; a
+failure is rolled back, reported (`traces_prune_error`) and retried next run. The count is
+`traces_pruned` in the sweep summary. Reason: a trace is about 2 KB per (user, job) pair and storage
+grew with every job ever shown, but a trace's audit value ends when the job closes.
+- *What counts as closed (fix round 1).* An allow-list: only a status in `HIDDEN_LISTING_STATUSES`
+  (`removed`, `expired`, `off_target`) prunes. `active`, `stale`, NULL and any status this code does
+  not know never prune, so a new status fails safe.
+- *No trace without its score row (fix round 1).* A trace's score row is the user's row for the same
+  job; the user is found by hashing each user id once with `FIT_TRACE_SALT` (skipped with
+  `traces_prune_skipped: fit_trace_salt_missing` without it). The score rows are deleted first,
+  returning their pairs, and only the traces of those pairs follow, in the same transaction. A trace
+  whose score row is not found is kept and counted (`traces_prune_unmatched`, logged as a warning):
+  after a changed salt nothing is pruned, and the count says so every run. Score rows with no trace
+  (pre-engine rows) are left alone.
+- *Bounded reads and a re-checked delete (fix round 1).* One SELECT of at most 5,000 traces, then user
+  ids until every subject of the batch is found; score rows are never loaded (deleted by their
+  `(user_id, job_id)` pairs). Both DELETEs repeat the whole predicate (closed status, older than the
+  cutoff), so a job that reopens and is rescored between the select and the delete keeps its fresh
+  rows. A job that reopens later is simply scored again by the next sweep.
+
+**D-154 Shipping with the M6 eval gate red: accepted. [Tailrd]** Rule: the owner ships with
+`make eval-fast` failing its 4 known guardrails (format invariance p99 0.046 within a template, 0.078
+across templates and 0.046 functional against its oracle, over a 0.02 threshold; and an unbounded
+date error on 2 scanned-PDF renderings). The gate stays red and honest and is never loosened. In
+`.github/workflows/match-engine-eval.yml` only the `make eval-fast` step has `continue-on-error`, so a
+pull request is not blocked; `make test` stays blocking, and on `release/**` a following step fails
+the job when the gate is red, so a failing release candidate still does not spend a holdout look.
+A red gate is never silent (fix round 1): a step then emits a `::warning title=eval-fast red (D-154)::`
+annotation and a step-summary line naming this decision, so the green check carries the warning.
+Reason: most users are scored from the stored document (D-80), not from file parsing; the remaining
+drift is OCR on scanned PDFs.
+
+**D-155 Taxonomy approvals audit: HPO withdrawn. [Tailrd]** Rule: HPO is removed from the controller
+approval file (`data/taxonomy/approvals/2026-10-13-controller.txt`) and from the curated aliases of
+`skill.hyperparameter_tuning`; its spelled-out forms (hyperparameter optimization, optimisation,
+hyper-parameter tuning) stay aliases, and bare "HPO" now resolves to nothing. Reason: it is ambiguous
+(the Human Phenotype Ontology in bioinformatics, hyperparameter optimisation in ML) and rare. ASNT
+stays: it is already an alias of the testing domain `skill.ndt` (fix round 1 of D-143), not a held
+certification. SparkTM is confirmed gone: the ingest normaliser drops the trademark sign, so
+"Spark™" reads Spark, and a test keeps "SparkTM" unresolved. GPU and RAG stay as approved.
+- *Rebuilt with the scripts, never edited:* `build_taxonomy.py`, `compute_idf.py` and
+  `compute_pmi.py` on the same raw sources and corpus (sha256 `bd943d2d...`), which reproduce the
+  previous artifacts byte for byte before the change. The only differences are the removed alias
+  (108,323 to 108,322 aliases) and `skill.hyperparameter_tuning` no longer seen in the corpus
+  (19,736 to 19,732 posting-skill pairs, 1,244 to 1,243 ids), which moves every normalised IDF value
+  slightly. `pmi_edges.json` is unchanged. The 1,000-line surface-form gate still holds exactly.
+- *Calibration panel rebuilt* (D-151's procedure, same corpus, seed and parameters) because the graph
+  version changed: `panel-bed969e57383` became `panel-66e8ae79ee29`; of the MANIFEST's mean raw scores by
+  fit level only one moved, by 0.0001. As with any panel rebuild, every banked row becomes stale and is rescored once.
+
+**D-156 The extension's tailoring "before" is the stored profile (amends D-123). [Tailrd]** Rule:
+`/api/custom-resume-analysis`, `/api/tailor-resume` and `/api/custom-resume` score the stored,
+unedited profile through `fit_engine.score_profile` (`MatchEngine.analyze_job(profile=...)`,
+`tailor_document(before_profile=...)`), exactly as the job-id routes do, so the D-152 dated-text
+fallback applies to a never-edited legacy profile. The rewritten side keeps the no-fallback rule
+(`score_document`). Reason: the extension must read the résumé exactly as the card does; scored as a
+document, a legacy undated profile read "We couldn't score this" in the extension while its card
+showed a score. The numbers match when the posting does: the extension parses the live page's text,
+the card the job row's cached posting, so a page whose text differs from the stored description can
+still give a different number. `/api/custom-resume` is included with the two named routes because it
+is the same flow's Step 3 and its "before" must match Step 1's.

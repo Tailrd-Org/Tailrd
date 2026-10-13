@@ -116,13 +116,60 @@ This must be revisited before any demographic data is collected (a separate sche
    Task 9.3 saw the same kind of drift in `chrome-extension/`. Run `npm install` once in each,
    check the diff and commit the lock files, so CI and fresh checkouts install cleanly. The drift
    predates the match-engine work.
-6. **Accept (or decline) shipping with `make eval-fast` red.** The engine's own gate
-   (`match-engine/eval`, layers 1-2) fails 4 guardrails: format invariance p99 (0.046 within a
-   template, 0.078 across templates, 0.046 functional vs its oracle, against a 0.02 threshold) and
-   an unbounded date error on 2 scanned-PDF renderings. Every other guardrail passes. The ledger
-   records it as the known red M6 gate. File parsing affects only the raw-text path; most users
-   are scored from the stored document (D-80). Any PR to main that touches `match-engine/**` will
-   show a red `match-engine eval` check. Record the decision here.
+
+## Decisions
+
+Owner decisions taken on 2026-10-13. Each is one rule and its reason; the engine-side ones are
+recorded in full in `match-engine/docs/DECISIONS.md`.
+
+- **Trace retention (D-153).** The sweep deletes the traces, each with its score row, of closed jobs
+  (removed, expired or off_target only) scored more than 90 days ago: at most 5,000 per run, in its
+  own transaction, inside the sweep deadline, also when alerts are disabled, reported as
+  `traces_pruned`. Active, stale, unset and unknown statuses keep their traces, and a trace whose
+  score row is not found (a changed salt) is kept and reported. Reason: storage grows with every job ever shown, but a trace's
+  audit value ends when the job closes.
+- **Shipping with the M6 eval gate red: accepted (D-154).** `make eval-fast` still fails 4
+  guardrails (format invariance p99 within and across templates and against the functional
+  oracle, and an unbounded date error on 2 scanned-PDF renderings). The gate stays red and honest
+  and is never loosened; in CI only its step continues on error, so a pull request is not blocked
+  (`make test` still is, and on `release/**` a red gate still stops the holdout look). A red gate
+  adds a `::warning::` annotation and a step-summary line naming D-154, so the green check is not
+  silent. Reason: most
+  users are scored from the stored document (D-80), not from file parsing; the remaining drift is
+  OCR on scanned PDFs.
+- **Taxonomy approvals audit (D-155).** HPO is withdrawn from the approved tokens and the curated
+  aliases (the spelled-out forms stay); ASNT stays the testing domain; SparkTM stays out. The
+  taxonomy and the calibration panel were rebuilt with the scripts (panel `panel-66e8ae79ee29`), so
+  every banked row is rescored once after deploy. Reason: HPO is ambiguous (Human Phenotype
+  Ontology or hyperparameter optimisation) and rare.
+- **Over-qualification stays unpenalised (D-39 confirmed).** Being above a posting's level costs
+  nothing (it raises an `OVERQUALIFIED` flag only). Reason: penalising surplus experience proxies
+  for age, a protected attribute.
+- **No default location.** A new `user_settings` row starts with an empty `location` instead of
+  "United States"; existing rows are untouched (no data migration), and the engine still ignores
+  that old default. Existing rows keep their value on purpose: a stored "United States" may be the
+  default or a real answer, and the two cannot be told apart, so autofill still sends it for a user
+  with no city, address city or résumé location. Every reader (autofill, the extension profile sync, the profile and settings
+  pages, the engine) falls through to the résumé or shows a blank. Reason: a default value posing
+  as a user answer misstates location to employers and to the engine.
+- **Extension tailoring "before" (D-156).** `/api/custom-resume-analysis`, `/api/tailor-resume` and
+  `/api/custom-resume` score the stored profile with `fit_engine.score_profile` (D-152 fallback
+  allowed), so they read the résumé exactly as the card does; the number matches the card when the
+  posting text does (the extension parses the live page, the card the stored description). The
+  rewritten side is scored as written, never with the fallback. Reason: one résumé, one "before",
+  wherever it is shown.
+- **Empty descriptions are fetched for open jobs first.** `cron-backfill` did not prioritise them
+  (it ordered direct URLs before LinkedIn/Indeed, then newest). It now takes the jobs the feed shows
+  (active, stale or no status) first, then direct before aggregator URLs, newest first, inside its
+  existing batch size and 75 s description budget. Reason: an open job with no description reads
+  "We couldn't score this" until it is filled, while a closed one can wait.
+- **Linkable trace ids are acceptable for now.** No code change. Reason: no demographic data is
+  collected, so nothing sensitive can be joined (see "Privacy"; revisit before collecting any).
+- **Bulk cards stay band-only.** No code change. Reason: a banked card carries no interval, so its
+  number would read as more precise than it is; the number (or range) belongs in the opened job's
+  breakdown, next to its explanation (D-54 addendum).
+- **No bulk re-import of legacy résumés.** No code change. Reason: D-152's dated-text fallback
+  already scores them; re-extracting is a data task with its own risks.
 
 ## Costs
 
@@ -133,9 +180,8 @@ This must be revisited before any demographic data is collected (a separate sche
 - **CPU:** about 2.5 ms per (résumé, job) pair (p95 about 3.5 ms) and 20 to 80 ms to parse a
   posting the first time.
 - **Storage:** about 2 KB of trace per (user, job) pair plus a score row. At 2,000 jobs per user
-  that is about 4 MB per user, and it grows with the catalogue. **There is no pruning yet**:
-  traces are overwritten in place when a job is rescored, but never deleted when a job is
-  removed. A retention or pruning policy is an owner decision still to make.
+  that is about 4 MB per user. Traces are overwritten in place when a job is rescored, and the
+  sweep prunes closed jobs' traces (D-153): see "Decisions" above.
 - **Memory:** the built engine adds about 175 MB of Python heap per instance (peak about 220 MB).
   Fine on 1 to 2 GB functions; recheck before lowering the function memory.
 - **Monthly rescore:** scores are "as of" the first of the month, so every user is rescored once
@@ -157,6 +203,9 @@ This must be revisited before any demographic data is collected (a separate sche
 | `chunks_skipped` | Chunks rolled back because a concurrent sweep banked them first |
 | `scoring_budget_spent` | True when `CRON_MATCH_BUDGET_S` stopped scoring early |
 | `fit_trace_salt_missing` | True when the salt is missing or short: nothing was banked |
+| `traces_pruned` | Traces deleted this run, with their score rows (D-153: closed jobs, scored more than 90 days ago, at most 5,000 per run) |
+| `traces_prune_unmatched` | Only when some closed-job traces were kept because their score row was not found (logged as a warning; a changed `FIT_TRACE_SALT` looks like this) |
+| `traces_prune_skipped` / `traces_prune_error` | Only when pruning did not run: `deadline` (the scoring budget was spent) or `fit_trace_salt_missing`; or the error class of a failed prune (rolled back, retried next run) |
 | `error` | The engine error class, with `status: engine_unavailable` |
 | `calibration` | The live reference refresh: `version`, and per family and globally `n_candidates`, `n_pairs`, `in_charge` (30+ people). `skipped: no scores` when nothing could be banked |
 | `drift` | The EVAL section 6 drift report: `alarms` (code, value, threshold, message), `skipped` (checks not evaluated and why, for example a PSI on fewer than 200 scores), `psi_reference_n`, `psi_current_n`, `abstention_rate`, `abstention_baseline`, `not_measured` (coverage, four-fifths and p95 latency are not measured by the sweep) |

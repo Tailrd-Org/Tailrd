@@ -322,3 +322,74 @@ class TestRenderResume:
                "theme": {"accent_color": "not-a-real-color"}}
         resp = client.post("/api/render-resume", json={"document": doc})
         assert resp.status_code == 422
+
+
+# ─── A legacy undated profile: the extension's "before" is the stored profile's (D-156) ──────
+
+
+def _legacy_resume(db):
+    """A résumé extracted before 2026-07-09 (every role undated, never edited) whose raw text
+    holds the dates: as a stored profile it scores through the D-152 fallback."""
+    from backend.tests.test_fit_resume_dates_fallback import RAW_DATED, _doc
+
+    doc = _doc()
+    profile = ResumeProfileDB(user_id=TEST_USER_ID, profile_name="Alex Sample", is_primary=1, raw_text=RAW_DATED,
+                              **{key: doc[key] for key in ("location", "summary", "experience", "education",
+                                                           "projects", "skills", "technologies",
+                                                           "custom_sections")})
+    db.add(profile)
+    db.commit()
+    assert profile.content_updated_at is None
+    return profile
+
+
+def _legacy_before(db, profile):
+    from backend.tests.test_fit_resume_dates_fallback import POSTING_TEXT
+
+    posting = fit_engine.posting_from_text("Software Engineer, New Grad", "Acme", POSTING_TEXT)
+    result = fit_engine.score_profile(db, TEST_USER_ID, profile, posting)
+    assert result.outcome.value == "SCORED"  # through the D-152 dated-text fallback
+    return result
+
+
+def _legacy_job():
+    from backend.tests.test_fit_resume_dates_fallback import POSTING_TEXT
+
+    return {"job_title": "Software Engineer, New Grad", "company": "Acme", "job_description": POSTING_TEXT}
+
+
+def _echo_rewrite(monkeypatch):
+    from backend.services.openai_service import TailorStructuredResult
+
+    async def fake_structured(self, doc, jd, sections=None, keywords=None):
+        return TailorStructuredResult(document=doc, gaps=[])
+
+    monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr("backend.services.openai_service.OpenAIService.tailor_resume_structured", fake_structured)
+
+
+class TestLegacyProfileBefore:
+    def test_analysis_scores_the_stored_profile(self, client, db_session):
+        before = _legacy_before(db_session, _legacy_resume(db_session))
+        body = client.post("/api/custom-resume-analysis", json=_legacy_job()).json()
+        assert body["outcome"] == "SCORED"
+        assert body["overall_score"] == fit_engine.stored_score(before)
+
+    def test_tailor_resume_before_is_the_stored_profile_and_the_rewrite_never_falls_back(
+        self, client, db_session, monkeypatch
+    ):
+        before = _legacy_before(db_session, _legacy_resume(db_session))
+        _echo_rewrite(monkeypatch)
+        body = client.post("/api/tailor-resume", json=_legacy_job()).json()
+        assert body["original_outcome"] == "SCORED"
+        assert body["original_overall_score"] == fit_engine.stored_score(before)
+        # The rewritten side keeps the no-fallback rule: the same undated document, scored as written.
+        assert body["outcome"] != "SCORED"
+
+    def test_custom_resume_before_is_the_stored_profile_too(self, client, db_session, monkeypatch):
+        before = _legacy_before(db_session, _legacy_resume(db_session))
+        _echo_rewrite(monkeypatch)
+        body = client.post("/api/custom-resume", json=_legacy_job()).json()
+        assert body["original_outcome"] == "SCORED"
+        assert body["original_overall_score"] == fit_engine.stored_score(before)
+        assert body["outcome"] != "SCORED"

@@ -240,10 +240,24 @@ def test_every_approved_token_resolves(resolver, token: str) -> None:
                                    "operations", "automation", "manufacturing", "CIO/CTO", "DoD", "HRBP",
                                    "full-cycle quota-carrying", "technical project delivery", "SDK", "DSS",
                                    "SOC", "IPC", "UT", "RT", "CI", "FP", "monitoring", "networking",
-                                   "scripting"])
+                                   "scripting", "HPO"])
 def test_a_rejected_token_stays_unresolved(resolver, token: str) -> None:
     assert token not in _approved()
     assert resolver.resolve(token).canonical_id is None, token
+
+
+# ─── owner audit (2026-10-13, DECISIONS D-155) ───────────────────────────────────────────────
+
+
+def test_hpo_is_withdrawn_but_its_long_forms_still_resolve(resolver) -> None:
+    # HPO is also the Human Phenotype Ontology, and rare: only the spelled-out forms name the skill.
+    assert resolver.resolve("HPO").canonical_id is None
+    for surface in ("hyperparameter optimization", "hyperparameter optimisation", "hyper-parameter tuning"):
+        assert resolver.resolve(surface).canonical_id == "skill.hyperparameter_tuning", surface
+
+
+def test_asnt_stays_the_testing_domain(resolver) -> None:
+    assert resolver.resolve("ASNT").canonical_id == "skill.ndt"
 
 
 # ─── fix round 1 ──────────────────────────────────────────────────────────────────────────

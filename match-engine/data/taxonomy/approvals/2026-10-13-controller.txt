@@ -8,8 +8,9 @@
 # Fix round 1 (review of Task 7.3): RL is withdrawn (bare "RL" is also RL circuits; "reinforcement
 # learning" stays), SparkTM is withdrawn (the ingest normaliser now drops the trademark sign, so
 # "Spark™" reads Spark), and bare ASNT names the testing domain, not a held certification.
-# For the owner's audit in particular: HPO (hyperparameter optimisation; also the Human Phenotype
-# Ontology in bioinformatics), ASNT, GPU, RAG.
+# Owner audit (2026-10-13, DECISIONS D-155): HPO is withdrawn (also the Human Phenotype Ontology,
+# and rare; the spelled-out forms stay aliases); ASNT stays (the testing domain); SparkTM stays out;
+# GPU and RAG stay as approved.
 SaaS
 B2B
 distributed systems
@@ -26,7 +27,6 @@ PCB
 DevSecOps
 FCAW
 GPU
-HPO
 IAM
 RAG
 SAST

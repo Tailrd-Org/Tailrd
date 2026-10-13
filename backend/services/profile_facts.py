@@ -54,7 +54,7 @@ Behaviour kept on purpose (each one is pinned by a test named ``test_pin_*``)
       Canada but not in the US" is authorised in the US, and "...Canada, not authorized in
       the US" is not authorised in Canada.
     * "N/A", "Not sure" and "Not applicable" start with the word "n/not" and read as No.
-    * A location of just "United States" (the UserSettings.location column default) is a
+    * A location of just "United States" (the old UserSettings.location column default) is a
       settled residence in the US, and it outranks a structured province.
     * An explicit Yes over a free-text denial keeps the basis ``denied``.
     * A state that is also a city ("New York") is consumed as the region; no city is left.
@@ -761,8 +761,8 @@ def residence_of(location: LocationFacts) -> Optional[str]:
     high confidence. A bare "Toronto" (medium) is not a residence.
 
     Warning: a location that is just the default "United States" yields ``"US"`` here, at high
-    confidence, exactly as it does in the extension. ``UserSettings.location`` is created with that
-    value and ``build_application_profile`` falls back to it, so it says nothing about where the
+    confidence, exactly as it does in the extension. ``UserSettings.location`` was created with that
+    value until 2026-10-13 (older rows keep it) and ``build_application_profile`` falls back to it, so it says nothing about where the
     applicant lives. This function keeps the extension's reading on purpose; the match-engine
     integration (Task 9.1) ignores that default when it maps these facts. Do not hide the default
     here, or the port and the extension stop agreeing.

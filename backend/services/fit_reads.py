@@ -53,8 +53,9 @@ FIT_PREFIX = "fit"
 #: Every profile text field is cut to this many characters before profile_facts reads it: the
 #: port is linear, but profile text has no upstream length limit and the sweep reads it per user.
 PROFILE_FIELD_LIMIT = 2000
-#: ``UserSettings.location`` is created with this value (the LinkedIn bot's search region), so it
-#: says nothing about where a person lives and is never read as a residence.
+#: ``UserSettings.location`` was created with this value (the LinkedIn bot's search region) until
+#: 2026-10-13, and older rows keep it, so it says nothing about where a person lives and is never
+#: read as a residence. New rows start empty.
 DEFAULT_SETTINGS_LOCATION = "united states"
 
 _DOCUMENT_FIELDS = ("location", "summary", "experience", "education", "projects", "skills", "technologies",
