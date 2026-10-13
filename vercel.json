@@ -24,7 +24,7 @@
   "framework": null,
   "functions": {
     "api/**/*.py": {
-      "excludeFiles": "{backend/tests/**,**/test_*.py,**/*.test.py,**/__pycache__/**,**/.pytest_cache/**}"
+      "excludeFiles": "{backend/tests/**,**/test_*.py,**/*.test.py,**/__pycache__/**,**/.pytest_cache/**,match-engine/tests/**,match-engine/eval/**,match-engine/scripts/**,match-engine/proposals/**,match-engine/reports/**,match-engine/docs/**,match-engine/data/raw/**}"
     }
   },
   "rewrites": [

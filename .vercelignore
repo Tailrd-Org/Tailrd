@@ -10,3 +10,7 @@ tmp
 reference
 backend/tests
 logos
+match-engine/.venv
+match-engine/data/raw
+match-engine/eval/corpora
+match-engine/reports
