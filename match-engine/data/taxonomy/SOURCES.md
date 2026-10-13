@@ -94,11 +94,11 @@ as downloaded.
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 766 | 3,595 |
+| curated | 766 | 3,594 |
 | esco | 14,285 | 102,745 |
 | onet | 29,736 | 1,983 |
 
-- Total: 44,787 nodes, 108,323 aliases; 183 curated related edges; 89 curated ambiguous keys and 2,640 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 106 blocked phrases.
+- Total: 44,787 nodes, 108,322 aliases; 183 curated related edges; 89 curated ambiguous keys and 2,640 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 106 blocked phrases.
 - Merged into curated nodes: 636 source concepts; dropped nodes: 30; keys dropped as ambiguous between nodes: 613; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
 
@@ -123,7 +123,7 @@ noisy-alias review.
   are left out, so 3,924 postings are counted; 891 description lines of 30+ characters recur in 5+
   postings (an employer's blurb, a benefits block) and count only in the first posting that has them
   (14,886 copies left out).
-- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,244 ids seen at least
+- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,243 ids seen at least
   once; an id never seen takes `idf.unseen_default`.
 - `pmi_edges.json`: 753 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
   where one id is an ancestor of the other left out; D-22) and 183 curated pairs laid over them.

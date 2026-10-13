@@ -866,7 +866,7 @@
    "mean_raw_by_fit_level": {
     "0": 0.4079,
     "1": 0.4932,
-    "2": 0.6525,
+    "2": 0.6526,
     "3": 0.8445
    },
    "meets_min_reference_n": true,
@@ -1021,7 +1021,7 @@
  },
  "format": 1,
  "inputs": {
-  "config_hash": "48335e3c488c5fe9",
+  "config_hash": "8fe21d734df97937",
   "corpus": {
    "distinct_descriptions": 3924,
    "file": "postings.jsonl.gz",
@@ -1029,13 +1029,13 @@
    "sha256": "bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac"
   },
   "engine_version": "1.0.0",
-  "graph_version": "e27a2eda90711e67",
-  "taxonomy_manifest_sha256": "f2cbc406d44874667d9e44c986b2e5e738d578786049445ddda6636a789db18a"
+  "graph_version": "6c8b542e55187b52",
+  "taxonomy_manifest_sha256": "d1246dfdbc16ba15bb0fc5bd8c3f8d002ca9839c05567f304e49bd2250302b8a"
  },
  "panel": {
   "file": "panel.json",
-  "sha256": "8a647c691ce095225ad210e1dcc900fb2086ab2ba21db3f3db263ffc70daee39",
-  "version": "panel-bed969e57383"
+  "sha256": "3ac4eeaf6d5810e107d27bfb44152670d502f0293dc9272b377b44a3db9eb467",
+  "version": "panel-66e8ae79ee29"
  },
  "parameters": {
   "as_of": "2026-10-01",

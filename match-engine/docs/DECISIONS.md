@@ -474,6 +474,7 @@ aliases instead (ultrasonic testing, radiographic testing, NAS 410, FP&A); STEM 
 fields); a phrase whose skill already resolves ("building data processing pipelines"); PhD (D-142).
 SparkTM was withdrawn in fix round 1: it was "Spark™" spelled out by NFKC, and the ingest
 normaliser now drops the trademark, service-mark and registered signs before NFKC.
+*Amended by D-155:* the owner's audit withdrew HPO and kept ASNT.
 
 **D-144 List-only names (Task 7.3 fix round 1). [Tailrd]** A key listed under `list_only` (Miro) is
 also a given name. In prose it stands only inside a skill list in its sentence: ",", "/", "&",
@@ -1628,3 +1629,21 @@ pull request is not blocked; `make test` stays blocking, and on `release/**` a f
 the job when the gate is red, so a failing release candidate still does not spend a holdout look.
 Reason: most users are scored from the stored document (D-80), not from file parsing; the remaining
 drift is OCR on scanned PDFs.
+
+**D-155 Taxonomy approvals audit: HPO withdrawn. [Tailrd]** Rule: HPO is removed from the controller
+approval file (`data/taxonomy/approvals/2026-10-13-controller.txt`) and from the curated aliases of
+`skill.hyperparameter_tuning`; its spelled-out forms (hyperparameter optimization, optimisation,
+hyper-parameter tuning) stay aliases, and bare "HPO" now resolves to nothing. Reason: it is ambiguous
+(the Human Phenotype Ontology in bioinformatics, hyperparameter optimisation in ML) and rare. ASNT
+stays: it is already an alias of the testing domain `skill.ndt` (fix round 1 of D-143), not a held
+certification. SparkTM is confirmed gone: the ingest normaliser drops the trademark sign, so
+"Spark™" reads Spark, and a test keeps "SparkTM" unresolved. GPU and RAG stay as approved.
+- *Rebuilt with the scripts, never edited:* `build_taxonomy.py`, `compute_idf.py` and
+  `compute_pmi.py` on the same raw sources and corpus (sha256 `bd943d2d...`), which reproduce the
+  previous artifacts byte for byte before the change. The only differences are the removed alias
+  (108,323 to 108,322 aliases) and `skill.hyperparameter_tuning` no longer seen in the corpus
+  (19,736 to 19,732 posting-skill pairs, 1,244 to 1,243 ids), which moves every normalised IDF value
+  slightly. `pmi_edges.json` is unchanged. The 1,000-line surface-form gate still holds exactly.
+- *Calibration panel rebuilt* (D-151's procedure, same corpus, seed and parameters) because the graph
+  version changed: `panel-bed969e57383` became `panel-66e8ae79ee29`; of the MANIFEST's mean raw scores by
+  fit level only one moved, by 0.0001. As with any panel rebuild, every banked row becomes stale and is rescored once.

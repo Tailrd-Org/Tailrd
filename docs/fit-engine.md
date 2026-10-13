@@ -134,6 +134,11 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   (`make test` still is, and on `release/**` a red gate still stops the holdout look). Reason: most
   users are scored from the stored document (D-80), not from file parsing; the remaining drift is
   OCR on scanned PDFs.
+- **Taxonomy approvals audit (D-155).** HPO is withdrawn from the approved tokens and the curated
+  aliases (the spelled-out forms stay); ASNT stays the testing domain; SparkTM stays out. The
+  taxonomy and the calibration panel were rebuilt with the scripts (panel `panel-66e8ae79ee29`), so
+  every banked row is rescored once after deploy. Reason: HPO is ambiguous (Human Phenotype
+  Ontology or hyperparameter optimisation) and rare.
 
 ## Costs
 
