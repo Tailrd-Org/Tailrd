@@ -19,3 +19,6 @@ eval/corpora/dev/*
 
 # Review logs written by the resolver and the title normaliser (SPEC §3.3, §5.4).
 logs/
+
+# Evaluation caches (parsed renderings keyed by render identity and parser fingerprint).
+.cache/
