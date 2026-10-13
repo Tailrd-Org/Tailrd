@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Tailrd: Job Application Assistant",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "Fills job application forms from the profile in your Tailrd account. You always review every answer and submit the form yourself.",
   "minimum_chrome_version": "110",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA6sY+hbPT1GwLGgXZNDSn0WgOmOd4i43k0DJWVdWOkNRioRmU9Mqi+4gwJUUN4V69PtBBNBjwiL6VIGD0RTzSCnvRBI7QiFb68flKZuq9gemYE2u90rspfseu//HytM/73oGWaGxFmTBDcsx+XW3v0EVkJeZsmOPhJHcaPbgxL9yymR/rqCELQJIDYNCfmTej8c5VUkFmfDNDz46GzxLpNSsBg44NvxTb1VLPyhK6q+GBJ205d083tnN98+6aBj1SQlnl0W4MqFToCZ6NUm+RRMsTpRqwmDENdhzfpG4zK8UnkGfVyzHIUVJgMwJkDGz7N54HnSgm1Z0VCjurRYKr9QIDAQAB",
