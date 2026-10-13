@@ -193,6 +193,9 @@ _ELISION_RE = re.compile(rf"(?:qu|[ldjnscmt])[{APOSTROPHES}](?=\w)", re.IGNORECA
 _NAME_INNER = frozenset("-" + APOSTROPHES)  # "Smith-Jones", "O'Neil"
 _TITLES = frozenset({"dr", "mr", "mrs", "ms", "mx", "prof"})
 _FIELD_PREFIX = "field."  # fields of study: extract reports them only with include_fields=True
+# A skill list after a sentence-initial key (D-141): "Go, Python", "Go/Rust", "Go & SQL", "Go and SQL".
+_LIST_SEPARATORS = frozenset(",/&")
+_LIST_LINKS = frozenset({"and", "or", "&"})
 
 
 class Resolution(Frozen):
@@ -260,6 +263,8 @@ class Resolver:
         currency_skill_nouns: Iterable[str] = (),
         common_words: Iterable[str] = (),
         fuzzy_log: Optional[FuzzyLog] = None,
+        fuzzy_exclusions: Iterable[str] = (),
+        sentence_initial: Optional[Mapping[str, Iterable[str]]] = None,
     ) -> None:
         """`ambiguous` maps a key to its required casing, e.g. {"go": "Go", "r": "R"}; skills
         lists waive it. `cased` keys (automatic, D-26) need their casing in lists too.
@@ -270,7 +275,14 @@ class Resolver:
         is also a skill, make the code the skill ("1,200 CAD drawings"); otherwise it is money
         ("85,000 CAD plus benefits", D-27). `common_words` are words frequent in the posting corpus
         (`common_words.json`, Task 2.3): `resolve` never reads one as a typo, so it never
-        fuzzy-matches ("patients" is no "patents"). Exact matches and `extract` are unaffected."""
+        fuzzy-matches ("patients" is no "patents"). Exact matches and `extract` are unaffected.
+        `fuzzy_exclusions` (curated, Task 7.3) are ordinary words treated the same way where the
+        posting corpus is too small to list them ("patients", "parents", "supervisors").
+        `sentence_initial` (curated, Task 7.3, DECISIONS D-141) names the ambiguous or cased keys
+        (`keys`) that may open a prose sentence when the sentence is a skill list (another skill
+        follows the key after ",", "/", "&", "and" or "or"), and among them the languages
+        (`languages`) that may also open one that speaks of languages (a `cues` word or another
+        language stands in it): "Go, Python and Rust.", "English and French required." """
         taxonomy = config.scoring.taxonomy
         self._max_distance = taxonomy.fuzzy_max_distance
         self._min_length = taxonomy.fuzzy_min_token_length
@@ -285,6 +297,13 @@ class Resolver:
         self._formal = frozenset(in_progress.values())
         self._currency_nouns = frozenset(normalize_surface(noun) for noun in currency_skill_nouns) - {""}
         self._common_words = frozenset(normalize_surface(word) for word in common_words) - {""}
+        self._never_fuzzy = self._common_words | (frozenset(normalize_surface(w) for w in fuzzy_exclusions) - {""})
+        initial = sentence_initial or {}
+        self._initial_keys = frozenset(normalize_surface(k) for k in initial.get("keys", ())) - {""}
+        self._initial_languages = (
+            frozenset(normalize_surface(k) for k in initial.get("languages", ())) & self._initial_keys
+        )
+        self._language_cues = frozenset(normalize_surface(w) for w in initial.get("cues", ())) - {""}
 
         self._ambiguous: dict[str, str] = {}
         for key, casing in (*ambiguous.items(), *cased.items()):
@@ -354,12 +373,13 @@ class Resolver:
 
     def _fuzzy(self, normalized: str) -> Optional[tuple[str, int]]:
         """Closest key within the edit bound: smaller distance first, then the smaller key. A
-        common word of the posting corpus is a word, not a typo: it has none."""
+        common word of the posting corpus, or a curated fuzzy exclusion, is a word, not a typo: it
+        has none."""
         if (
             self._max_distance < 1
             or " " in normalized
             or len(normalized) < self._min_length
-            or normalized in self._common_words
+            or normalized in self._never_fuzzy
         ):
             return None
         best: Optional[tuple[int, str]] = None  # (edits, key)
@@ -439,6 +459,13 @@ class Resolver:
             last += 1
         first = tokens[i]
         start = first.lead_start
+        # A configured key may open a prose sentence that lists skills or speaks of languages (D-141).
+        initial_ok = (
+            context == "prose"
+            and first.sentence_start
+            and first.lead_forms[0][1] in self._initial_keys
+            and self._initial_context(text, tokens, i)
+        )
         for j in range(last, i - 1, -1):
             if j == i:
                 head, forms = [], first.lead_forms
@@ -451,7 +478,12 @@ class Resolver:
                     return j - i + 1, None
                 original = text[start:end]
                 hit = self._lookup(
-                    variants, original, context, sentence_start=first.sentence_start, include_fields=include_fields
+                    variants,
+                    original,
+                    context,
+                    sentence_start=first.sentence_start,
+                    include_fields=include_fields,
+                    initial_ok=initial_ok,
                 )
                 if hit is None:
                     continue
@@ -468,6 +500,56 @@ class Resolver:
                     continue
                 return j - i + 1, self._mention(text, start, end, node_id, key)
         return None
+
+    def _initial_context(self, text: str, tokens: list[_Token], i: int) -> bool:
+        """Whether the sentence that token i opens lets a `sentence_initial` key stand there (D-141):
+        a skill list (right after the key comes ",", "/" or "&", or the word "and" or "or", and then a
+        skill: "Go, Python and Rust", "Go and SQL"), or, for a language, a sentence about languages
+        (a cue word or another configured language in it: "English and French required", "French is
+        an asset"). "Go above and beyond" and "English Bay is close" stay words."""
+        end = i + 1
+        while end < len(tokens) and not tokens[end].sentence_start:
+            end += 1
+        if self._lists_a_skill(text, tokens, i, end):
+            return True
+        if tokens[i].lead_forms[0][1] not in self._initial_languages:
+            return False
+        return any(
+            tokens[k].norm in self._language_cues or tokens[k].norm in self._initial_languages
+            for k in range(i + 1, end)
+        )
+
+    def _lists_a_skill(self, text: str, tokens: list[_Token], i: int, end: int) -> bool:
+        """Whether a list separator follows token i and a skill starts right after it, before
+        `end` (the end of the sentence)."""
+        k = i + 1
+        if k >= end:
+            return False
+        gap = text[tokens[i].end : tokens[k].start].strip()
+        if gap:
+            if not all(ch in _LIST_SEPARATORS for ch in gap):
+                return False
+        elif tokens[k].norm in _LIST_LINKS:
+            k += 1
+            if k >= end or text[tokens[k - 1].end : tokens[k].start].strip():
+                return False
+        else:
+            return False
+        last = k
+        while last + 1 < end and last + 1 - k < _MAX_WINDOW and tokens[last + 1].joined:
+            last += 1
+        for j in range(last, k - 1, -1):
+            words = [token.norm for token in tokens[k : j + 1]]
+            hit = self._lookup(
+                surface_variants(" ".join(words)),
+                text[tokens[k].start : tokens[j].end],
+                "prose",
+                sentence_start=False,
+                include_fields=False,
+            )
+            if hit is not None and not hit[0].startswith(_FIELD_PREFIX):
+                return True
+        return False
 
     def _is_initial(self, text: str, tokens: list[_Token], i: int, start: int, end: int) -> bool:
         """Whether text[start:end], a one-letter match on token i, is a person's initial (D-27): a
@@ -545,6 +627,7 @@ class Resolver:
                 sentence_start=token.sentence_start and k == 0,
                 ambiguous_allowed=ambiguous_allowed,
                 acronym_allowed=not hyphen,
+                initial_ok=not hyphen and ambiguous_allowed,  # "Go/Python" lists a skill (D-141)
             )
             if mention is not None:
                 found.append(mention)
@@ -561,6 +644,7 @@ class Resolver:
         sentence_start: bool,
         ambiguous_allowed: bool,
         acronym_allowed: bool = False,
+        initial_ok: bool = False,
     ) -> Optional[Mention]:
         """The part as written, then without a possessive "'s", through the same lookup. A blocked
         part, a field of study the caller left out, or a currency code in a money context yields
@@ -578,6 +662,7 @@ class Resolver:
                 include_fields=include_fields,
                 ambiguous_allowed=ambiguous_allowed,
                 acronym_allowed=acronym_allowed,
+                initial_ok=initial_ok,
             )
             if hit is not None:
                 node_id, key = hit
@@ -598,11 +683,13 @@ class Resolver:
         include_fields: bool,
         ambiguous_allowed: bool = True,
         acronym_allowed: bool = False,
+        initial_ok: bool = False,
     ) -> Optional[tuple[str, str]]:
         """(node id, matched key) for the first of a form's `surface_variants` that is a key and
         may stand at this position, else None: skills first, or fields first when
         `include_fields`. `ambiguous_allowed=False` rules out every ambiguous key except, with
-        `acronym_allowed`, the all-capital acronyms (still under their casing rule)."""
+        `acronym_allowed`, the all-capital acronyms (still under their casing rule). `initial_ok`:
+        a `sentence_initial` key may stand at this sentence start (D-141)."""
         indexes = (self._field_index, self._index) if include_fields else (self._index, self._field_index)
         for index in indexes:
             for key in variants:
@@ -611,7 +698,12 @@ class Resolver:
                     continue
                 if key in self._ambiguous and not (
                     (ambiguous_allowed or (acronym_allowed and key in self._acronyms))
-                    and self._ambiguity_ok(key, original, context=context, sentence_start=sentence_start)
+                    and self._ambiguity_ok(
+                        key,
+                        original,
+                        context=context,
+                        sentence_start=sentence_start and not (initial_ok and key in self._initial_keys),
+                    )
                 ):
                     continue
                 return node_id, key

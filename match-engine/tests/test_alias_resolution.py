@@ -1022,3 +1022,98 @@ def test_new_settings_are_deterministic_across_input_order(config) -> None:
     text = "Vitamin C, American Express, Express and C."
     assert a.extract(text) == b.extract(text)
     assert _ids(a, text) == ["skill.express", "skill.c"]
+
+
+# ─── Task 7.3: fuzzy exclusions and sentence-initial names (DECISIONS D-140) ───────────────
+
+
+def test_a_fuzzy_exclusion_is_never_a_fuzzy_query(config) -> None:
+    # "patients" is a word, not a typo of "patents": a curated exclusion keeps it out of the fuzzy
+    # fallback even where the posting corpus is too small for it to be a common word. A typo of a
+    # skill still fuzzes, an excluded word that is a key still resolves exactly, and extraction (never
+    # fuzzy) is unchanged.
+    graph = _graph(_node("esco.patents", "patents"), _node("skill.python", "Python"),
+                   _node("skill.patient_care", "Patient care"))
+    plain = Resolver(graph, config)
+    assert plain.resolve("patients").canonical_id == "esco.patents"
+    log = FuzzyLog()
+    guarded = Resolver(graph, config, fuzzy_exclusions=["Patients", "patient", "python", ""], fuzzy_log=log)
+    for surface in ("patients", "Patients", "PATIENTS", " patient "):
+        assert guarded.resolve(surface) == Resolution(surface=surface, canonical_id=None, method="NONE"), surface
+    assert guarded.resolve("Pythonn").canonical_id == "skill.python"
+    assert guarded.resolve("python").method == "EXACT"
+    assert guarded.resolve("patient care").canonical_id == "skill.patient_care"
+    assert log.lines() == ["Pythonn\tskill.python\t1"]
+    text = "Cared for patients with Python dashboards."
+    assert guarded.extract(text) == plain.extract(text)
+
+
+SENTENCE_INITIAL = {"keys": ["go", "french", "english"], "languages": ["french", "english"],
+                    "cues": ["fluent", "fluency", "bilingual", "proficiency", "language", "languages", "spoken",
+                             "written", "asset", "required"]}
+
+
+@pytest.fixture(scope="module")
+def initial_resolver(config) -> Resolver:
+    graph = _graph(_node("skill.go", "Go", "Golang"), _node("skill.python", "Python"), _node("skill.rust", "Rust"),
+                   _node("esco.french", "French"), _node("esco.english", "English"), _node("skill.sql", "SQL"),
+                   _node("skill.machine_learning", "Machine learning"))
+    return Resolver(graph, config, ambiguous={"go": "Go", "rust": "Rust"},
+                    cased={"french": "French", "english": "English"}, sentence_initial=SENTENCE_INITIAL)
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # a skill list may open a sentence: another skill follows after "," "/" "&" "and" or "or"
+        ("Go, Python and Rust.", ["skill.go", "skill.python", "skill.rust"]),
+        ("Go and SQL are required.", ["skill.go", "skill.sql"]),
+        ("Go or Rust experience.", ["skill.go", "skill.rust"]),
+        ("Go & machine learning.", ["skill.go", "skill.machine_learning"]),
+        ("Go/Python services.", ["skill.go", "skill.python"]),  # a slash part with a skill companion
+        ("We ship daily. Go, Rust and SQL run our backend.", ["skill.go", "skill.rust", "skill.sql"]),
+        # a word that opens an ordinary sentence stays a word
+        ("Go above and beyond for customers.", []),
+        ("Go to the office and Python.", ["skill.python"]),  # no separator right after Go
+        ("Go, team!", []),  # a separator, but no skill after it
+        ("Go and see the team.", []),
+        ("Go is required.", []),  # a language cue lets only a language open the sentence
+        ("Go Python developers wanted.", ["skill.python"]),  # no separator between them
+        # a language opens a sentence in a language context: a cue word or another language
+        ("English and French required.", ["esco.english", "esco.french"]),
+        ("French is an asset.", ["esco.french"]),
+        ("English proficiency is required.", ["esco.english"]),
+        ("French fluency, written and spoken.", ["esco.french"]),
+        # ... and stays a word in any other sentence
+        ("English Bay is close to the office.", []),
+        ("French doors open onto the patio.", []),
+        ("English with French.", ["esco.english", "esco.french"]),  # another language is a cue
+        ("French doors open onto the patio. Fluency in Python helps.", ["skill.python"]),  # cue in the next sentence
+        # the list rule is for the configured keys only; a language needs its own context
+        ("Rust, Go and Python.", ["skill.go", "skill.python"]),
+        ("English, Python and SQL.", ["esco.english", "skill.python", "skill.sql"]),
+        # mid-sentence the old rule holds: the casing alone decides
+        ("We use Go and speak French.", ["skill.go", "esco.french"]),
+        ("We go to French class.", ["esco.french"]),
+    ],
+)
+def test_a_sentence_initial_name_stands_in_a_skill_list_or_a_language_context(
+        initial_resolver: Resolver, text: str, expected: list) -> None:
+    assert _ids(initial_resolver, text) == expected
+
+
+def test_sentence_initial_names_without_the_setting_keep_the_old_rule(config) -> None:
+    graph = _graph(_node("skill.go", "Go"), _node("skill.python", "Python"), _node("esco.english", "English"),
+                   _node("esco.french", "French"))
+    r = Resolver(graph, config, ambiguous={"go": "Go"}, cased={"english": "English", "french": "French"})
+    assert _ids(r, "Go, Python and Rust.") == ["skill.python"]
+    assert _ids(r, "English and French required.") == ["esco.french"]
+
+
+def test_the_sentence_initial_rule_needs_the_casing_and_leaves_lists_and_resolve_alone(
+        initial_resolver: Resolver) -> None:
+    assert _ids(initial_resolver, "go, Python and Rust.") == ["skill.python", "skill.rust"]
+    assert _ids(initial_resolver, "english and French required.") == ["esco.french"]
+    assert _ids(initial_resolver, "go, python", context="list") == ["skill.go", "skill.python"]
+    assert initial_resolver.resolve("Go").canonical_id == "skill.go"
+    assert initial_resolver.resolve("go").method == "NONE"
