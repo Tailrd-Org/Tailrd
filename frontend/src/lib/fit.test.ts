@@ -29,12 +29,18 @@ describe("fit bands (engine bands.yaml: 85 / 70 / 55)", () => {
 });
 
 describe("cardFit", () => {
-  it("SCORED shows the number with the band the API sent", () => {
+  it("SCORED shows the band the API sent, never the number (the list has no interval, D-54)", () => {
     // 82 would have been "STRONG" under the old 80 cut; the API's band wins.
     expect(cardFit({ match_score: 82, match_band: "Good match", match_outcome: "SCORED" })).toEqual({
-      kind: "scored",
-      score: 82,
+      kind: "band",
       band: "Good match",
+    });
+  });
+
+  it("SCORED without a band falls back to the engine's bands", () => {
+    expect(cardFit({ match_score: 86, match_band: null, match_outcome: "SCORED" })).toEqual({
+      kind: "band",
+      band: "Strong match",
     });
   });
 
@@ -62,10 +68,7 @@ describe("cardFit", () => {
     expect(cardFit({ match_score: 0 })).toBeNull();
   });
 
-  it("never shows a number for a SCORED row without one", () => {
-    expect(cardFit({ match_score: 0, match_band: "Good match", match_outcome: "SCORED" })).toEqual({
-      kind: "band",
-      band: "Good match",
-    });
+  it("a SCORED row with neither a number nor a band shows nothing", () => {
+    expect(cardFit({ match_score: 0, match_band: null, match_outcome: "SCORED" })).toBeNull();
   });
 });

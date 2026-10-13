@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import JobFilterBar, { JobFilters, normalizeExperienceLevels } from "../components/JobFilterBar";
-import JobDetailView from "../components/JobDetailView";
+import JobDetailView, { type FitChange } from "../components/JobDetailView";
 import CustomResumeModal, { type AIJob } from "../components/CustomResumeModal";
 import CoverLetterModal from "../components/CoverLetterModal";
 import JobsSidebar, { type SidebarData } from "../components/JobsSidebar";
@@ -350,6 +350,14 @@ export default function Jobs() {
   // listing's status changed. Verdicts can land after the user has moved on to
   // another job or tab, so this reads the current ones through refs, never
   // from the render that started the check.
+  // The detail view's breakdown is the engine's current result (and is banked), so the
+  // card and the open panel take it at once instead of waiting for a feed reload.
+  function handleFitChange(jobId: number, fit: FitChange) {
+    const patch = (j: Job): Job => (j.id === jobId ? { ...j, ...fit } : j);
+    setJobs((prev) => prev.map(patch));
+    setSelectedJob((s) => (s ? patch(s) : s));
+  }
+
   function handleListingStatusChange(
     jobId: number,
     listingStatus: string,
@@ -705,6 +713,7 @@ export default function Jobs() {
               job={selectedJob}
               onClose={() => setSelectedJob(null)}
               onListingStatusChange={handleListingStatusChange}
+              onFitChange={handleFitChange}
             />
           </div>
         )}

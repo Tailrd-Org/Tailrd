@@ -3,13 +3,12 @@ import { render, screen } from "@testing-library/react";
 import FitBadge from "./FitBadge";
 
 describe("FitBadge (job card)", () => {
-  it("SCORED: 'Fit 76' with the band from the API, never a percent sign", () => {
+  it("SCORED: the band from the API, never the number (D-54: the list carries no interval)", () => {
     const { container } = render(
       <FitBadge job={{ match_score: 76, match_band: "Good match", match_outcome: "SCORED" }} />,
     );
-    expect(screen.getByText("Fit 76")).toBeTruthy();
     expect(screen.getByText("Good match")).toBeTruthy();
-    expect(container.textContent).not.toContain("%");
+    expect(container.textContent).not.toMatch(/\d|%/);
     expect(container.textContent).not.toMatch(/STRONG|GOOD|FAIR/);
   });
 
@@ -28,11 +27,12 @@ describe("FitBadge (job card)", () => {
     expect(container.textContent).not.toContain("Fit");
   });
 
-  it("GATE_FAIL: Not eligible, pointing at the reason in the job", () => {
+  it("GATE_FAIL: Not eligible with a visible 'See why' caption pointing at the reason", () => {
     const { container } = render(
       <FitBadge job={{ match_score: 0, match_band: null, match_outcome: "GATE_FAIL" }} />,
     );
     expect(screen.getByText("Not eligible")).toBeTruthy();
+    expect(screen.getByText("See why")).toBeTruthy();
     expect(container.querySelector("[title]")?.getAttribute("title")).toMatch(/reason/i);
     expect(container.textContent).not.toMatch(/\d/);
   });

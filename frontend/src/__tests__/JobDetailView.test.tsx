@@ -84,9 +84,9 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Senior Software Engineer")).toBeInTheDocument();
     expect(screen.getByText("TechCorp")).toBeInTheDocument();
     expect(screen.getByText("San Francisco, CA")).toBeInTheDocument();
-    // The card's engine result shows until the breakdown answers; never "85%".
-    expect(screen.getByText("Fit score 85 · Strong match")).toBeInTheDocument();
-    expect(screen.queryByText(/85%/)).toBeNull();
+    // The card's band shows until the breakdown answers; never its number (D-54) or "85%".
+    expect(screen.getByText("Strong match")).toBeInTheDocument();
+    expect(screen.queryByText(/85/)).toBeNull();
   });
 
   it("upgrades to the server-side structured sections", async () => {

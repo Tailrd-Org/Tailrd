@@ -1,10 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { ApplyTrackingProvider } from "../context/ApplyTracking";
 import JobDetailView from "../components/JobDetailView";
 import { resetLiveChecks } from "../lib/jobListing";
+// Real engine output (backend breakdown_from_result), captured; see its _source.
+import REAL from "./fixtures/match-breakdowns.json";
 
 const apiPost = vi.fn();
 const apiGet = vi.fn();
@@ -43,10 +45,10 @@ const job = {
   location: "Toronto, ON",
   url: "https://example.com/job/41",
   description: DESCRIPTION,
-  match_score: 76,
-  match_band: "Good match",
+  match_score: 64,
+  match_band: "Partial match",
   match_outcome: "SCORED",
-  match_label: "Good match",
+  match_label: "Partial match",
   experience_score: 0,
   skill_score: 0,
   industry_score: 0,
@@ -58,37 +60,14 @@ const job = {
   listing_status: "active",
 };
 
-const LEGACY = {
-  overall_score: 0,
-  experience_score: 0,
-  skill_score: 0,
-  industry_score: 0,
-  match_label: "",
-  strengths: [],
-  weaknesses: [],
-};
-
-const SCORED = {
-  ...LEGACY,
-  overall_score: 76,
-  experience_score: 80,
-  skill_score: 70,
-  industry_score: 60,
-  match_label: "Good match",
-  outcome: "SCORED",
-  band: "Good match",
-  display_score: 76,
-  headline: "Fit score 76 · Good match",
-  basis: "Better fit than 64% of candidates scored for similar roles",
-  strength_items: [
-    { label: "4 of 5 required skills", impact: "+0.31", note: "Python, SQL, Docker, Git", code: "REQ" },
-  ],
-  gaps: [
-    { label: "Missing: Terraform (required)", impact: "-0.12", note: "Your AWS work partly covers it", code: "GAP" },
-  ],
-  to_improve: ["Add a project that uses Terraform"],
-  notes: ["Some skills appear only in your skills section."],
-  interval: { low: 71, high: 79, display: true },
+const SCORED = REAL.SCORED;
+// The engine never produced a displayed interval on the test calibration, so this variant
+// applies the engine's own format to the real SCORED result (matcher/explain/breakdown.py
+// headline(): "{label} {low}–{high} · {band}" when interval.display).
+const SCORED_RANGE = {
+  ...SCORED,
+  headline: "Fit score 60–68 · Partial match",
+  interval: { low: 60, high: 68, display: true },
 };
 
 function mockApi(breakdown: unknown, opts: { details?: string } = {}) {
@@ -115,7 +94,7 @@ describe("JobDetailView: the engine's result", () => {
     resetLiveChecks();
   });
 
-  it("always requests the breakdown, even when the card already carries a score", async () => {
+  it("always requests the breakdown, even when the card already carries a result", async () => {
     mockApi(SCORED);
     renderWithProviders(<JobDetailView job={job} />);
     await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/41"));
@@ -127,127 +106,160 @@ describe("JobDetailView: the engine's result", () => {
     await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/42"));
     const urls = apiPost.mock.calls.map((c) => String(c[0]));
     const details = urls.indexOf("/jobs/42/fetch-details");
-    const breakdown = urls.indexOf("/ai/match-breakdown/42");
     expect(details).toBeGreaterThanOrEqual(0);
-    expect(details).toBeLessThan(breakdown);
+    expect(details).toBeLessThan(urls.indexOf("/ai/match-breakdown/42"));
   });
 
-  it("shows the card's result while the breakdown is on its way", async () => {
+  it("asks for the details first even when the local description is long (it may be a placeholder)", async () => {
+    mockApi(SCORED);
+    const long = "This button displays the currently selected search type. ".repeat(5);
+    renderWithProviders(<JobDetailView job={{ ...job, id: 43, description: long }} />);
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/43"));
+    const urls = apiPost.mock.calls.map((c) => String(c[0]));
+    const details = urls.indexOf("/jobs/43/fetch-details");
+    expect(details).toBeGreaterThanOrEqual(0);
+    expect(details).toBeLessThan(urls.indexOf("/ai/match-breakdown/43"));
+  });
+
+  it("shows the card's band, never its number, while the breakdown is on its way", async () => {
     apiPost.mockImplementation(() => new Promise(() => {}));
     const { container } = renderWithProviders(<JobDetailView job={job} />);
-    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/41"));
-    await screen.findByText("Scoring your fit...");
-    expect(fitText(container)).toContain("Fit score 76 · Good match");
-    expect(fitText(container)).not.toContain("%");
+    await waitFor(() => expect(apiPost).toHaveBeenCalled());
+    // The card's number may hide a displayed interval (D-54), so only the band is shown.
+    expect(fitText(container)).toContain("Partial match");
+    expect(fitText(container)).not.toMatch(/\d/);
   });
 
-  it("SCORED: headline, basis, strengths and gaps with impacts, to improve, notes and the interval", async () => {
+  it("SCORED (real engine output): headline, ring, basis, strengths and gaps, no raw impacts", async () => {
     mockApi(SCORED);
     const { container } = renderWithProviders(<JobDetailView job={job} />);
-    expect(await screen.findByText("Fit score 76 · Good match")).toBeTruthy();
-    expect(screen.getByText("Better fit than 64% of candidates scored for similar roles")).toBeTruthy();
-    expect(screen.getByText("4 of 5 required skills")).toBeTruthy();
-    expect(screen.getByText("+0.31")).toBeTruthy();
-    expect(screen.getByText("Python, SQL, Docker, Git")).toBeTruthy();
-    expect(screen.getByText("Missing: Terraform (required)")).toBeTruthy();
-    expect(screen.getByText("-0.12")).toBeTruthy();
-    expect(screen.getByText("Your AWS work partly covers it")).toBeTruthy();
-    expect(screen.getByText("Add a project that uses Terraform")).toBeTruthy();
-    expect(screen.getByText("Some skills appear only in your skills section.")).toBeTruthy();
-    expect(screen.getByText("Likely range 71 to 79")).toBeTruthy();
-    // The only "%" is the basis sentence's percentile; never "76%" or "% match".
+    expect(await screen.findByText("Fit score 64 · Partial match")).toBeTruthy();
+    expect(container.querySelector(".match-number-large")?.textContent).toBe("64");
+    expect(screen.getByText(SCORED.basis)).toBeTruthy();
+    expect(screen.getByText("2 of 2 required skills")).toBeTruthy();
+    expect(screen.getByText("Python and SQL (through your PostgreSQL experience)")).toBeTruthy();
+    expect(screen.getByText("0.1 yrs relevant vs a typical 1.0")).toBeTruthy();
     const text = fitText(container);
-    expect(text).not.toMatch(/\d+%\s*match|% match|76%/i);
-    // The old 0..100 sub-score bars are gone.
-    expect(text).not.toContain("Match Breakdown");
+    expect(text).not.toMatch(/% match|64%\s*match/i);
+    expect(text).not.toContain("Likely range");
     expect(container.querySelector(".breakdown-bar")).toBeNull();
   });
 
-  it("hides the interval when the engine says not to display it", async () => {
-    mockApi({ ...SCORED, interval: { low: 71, high: 79, display: false } });
-    renderWithProviders(<JobDetailView job={job} />);
-    await screen.findByText("Fit score 76 · Good match");
-    expect(screen.queryByText(/Likely range/)).toBeNull();
+  it("impacts read as words with a bar sized against the largest one; the raw value stays in title and aria-label", async () => {
+    mockApi(SCORED); // +0.39, -0.18, -0.04: max 0.39
+    const { container } = renderWithProviders(<JobDetailView job={job} />);
+    await screen.findByText("Fit score 64 · Partial match");
+    const impacts = Array.from(container.querySelectorAll(".fit-impact"));
+    expect(impacts.map((el) => el.textContent)).toEqual(["Big plus", "Gap", "Small gap"]);
+    expect(impacts.map((el) => el.getAttribute("title"))).toEqual(["+0.39", "-0.18", "-0.04"]);
+    expect(impacts[0].getAttribute("aria-label")).toBe("Big plus (+0.39)");
+    const bars = impacts.map((el) => (el.querySelector(".fit-impact-fill") as HTMLElement).style.width);
+    expect(bars).toEqual(["100%", "46%", "10%"]);
+    expect(fitText(container)).not.toMatch(/[+-]0\.\d\d/);
   });
 
-  it("SCORED_LOW_CONFIDENCE: the band only, never a number", async () => {
-    mockApi({
-      ...LEGACY,
-      match_label: "Partial match",
-      outcome: "SCORED_LOW_CONFIDENCE",
-      band: "Partial match",
-      display_score: null,
-      headline: "Partial match",
-      strength_items: [{ label: "Python", impact: "", note: "", code: "" }],
-      gaps: [],
-      to_improve: [],
-      notes: ["There isn't enough reliable information to show a score."],
-      interval: null,
-    });
+  it("a displayed interval replaces the number everywhere (D-54)", async () => {
+    mockApi(SCORED_RANGE);
+    const { container } = renderWithProviders(<JobDetailView job={job} />);
+    expect(await screen.findByText("Fit score 60–68 · Partial match")).toBeTruthy();
+    expect(container.querySelector(".match-number-large")?.textContent).toBe("60–68");
+    const text = fitText(container);
+    expect(text).not.toContain("64");
+    expect(text).not.toContain("Likely range");
+  });
+
+  it("SCORED_LOW_CONFIDENCE (real engine output): the band only, never a number", async () => {
+    mockApi(REAL.SCORED_LOW_CONFIDENCE);
     const { container } = renderWithProviders(
-      <JobDetailView job={{ ...job, match_score: 0, match_band: "Partial match", match_outcome: "SCORED_LOW_CONFIDENCE" }} />,
+      <JobDetailView job={{ ...job, match_score: 0, match_band: "Limited match", match_outcome: "SCORED_LOW_CONFIDENCE" }} />,
     );
-    expect(await screen.findByText("There isn't enough reliable information to show a score.")).toBeTruthy();
-    expect(screen.getAllByText("Partial match").length).toBeGreaterThan(0);
-    expect(fitText(container)).not.toMatch(/\d/);
+    expect(await screen.findByText(REAL.SCORED_LOW_CONFIDENCE.notes[0])).toBeTruthy();
+    expect(screen.getAllByText("Limited match").length).toBeGreaterThan(0);
     expect(container.querySelector(".match-circle-large")).toBeNull();
+    expect(container.querySelector(".fit-impact")).toBeNull();
   });
 
-  it("NEEDS_REVIEW: We couldn't score this, then the plain sentence for each reason", async () => {
-    mockApi({
-      ...LEGACY,
-      match_label: "We couldn't score this",
-      outcome: "NEEDS_REVIEW",
-      band: null,
-      display_score: null,
-      headline: "We couldn't score this",
-      strength_items: [],
-      gaps: [],
-      to_improve: [],
-      notes: [
-        "We couldn't find any requirements in this job posting.",
-        "None of this posting's requirements are skills we recognise yet.",
-      ],
-      interval: null,
-    });
+  it("hides impacts on a non-SCORED result even if the API sent them", async () => {
+    const withImpacts = {
+      ...REAL.SCORED_LOW_CONFIDENCE,
+      strength_items: [{ label: "2 of 2 required skills", impact: "+0.39", note: "", code: "REQUIRED_SKILLS" }],
+    };
+    mockApi(withImpacts);
+    const { container } = renderWithProviders(
+      <JobDetailView job={{ ...job, match_score: 0, match_band: "Limited match", match_outcome: "SCORED_LOW_CONFIDENCE" }} />,
+    );
+    await screen.findByText("2 of 2 required skills");
+    expect(container.querySelector(".fit-impact")).toBeNull();
+    expect(fitText(container)).not.toContain("0.39");
+  });
+
+  it("NEEDS_REVIEW (real engine output): We couldn't score this, then the reason sentence", async () => {
+    mockApi(REAL.NEEDS_REVIEW);
     const { container } = renderWithProviders(
       <JobDetailView job={{ ...job, match_score: 0, match_band: null, match_outcome: "NEEDS_REVIEW" }} />,
     );
     expect(await screen.findByText("We couldn't find any requirements in this job posting.")).toBeTruthy();
-    expect(screen.getByText("None of this posting's requirements are skills we recognise yet.")).toBeTruthy();
     expect(screen.getAllByText("We couldn't score this").length).toBeGreaterThan(0);
     const text = fitText(container);
     expect(text).not.toMatch(/\d/);
     expect(text).not.toMatch(/error|fail|warning|!/i);
   });
 
-  it("GATE_FAIL: Not eligible with the reason, and no number", async () => {
-    mockApi({
-      ...LEGACY,
-      match_label: "Not eligible",
-      outcome: "GATE_FAIL",
-      band: null,
-      display_score: null,
-      headline: "Not eligible: this role doesn't offer visa sponsorship.",
-      strength_items: [],
-      gaps: [],
-      to_improve: [],
-      notes: ["This is based on the details in your profile. If they've changed, update them and we'll check again."],
-      interval: null,
-    });
+  it("GATE_FAIL (real engine output): Not eligible with the reason, and a way to correct the facts", async () => {
+    mockApi(REAL.GATE_FAIL);
     const { container } = renderWithProviders(
       <JobDetailView job={{ ...job, match_score: 0, match_band: null, match_outcome: "GATE_FAIL" }} />,
     );
-    expect(await screen.findByText("Not eligible: this role doesn't offer visa sponsorship.")).toBeTruthy();
+    expect(await screen.findByText(REAL.GATE_FAIL.headline)).toBeTruthy();
     expect(screen.getByText(/If they've changed, update them/)).toBeTruthy();
+    const link = screen.getByRole("link", { name: "Update your application answers" });
+    expect(link.getAttribute("href")).toBe("/app/profile");
     expect(fitText(container)).not.toMatch(/\d/);
+  });
+
+  it("offers the profile link only for GATE_FAIL", async () => {
+    mockApi(SCORED);
+    renderWithProviders(<JobDetailView job={job} />);
+    await screen.findByText("Fit score 64 · Partial match");
+    expect(screen.queryByRole("link", { name: "Update your application answers" })).toBeNull();
   });
 
   it("ignores a breakdown without an outcome", async () => {
     mockApi({});
     const { container } = renderWithProviders(<JobDetailView job={job} />);
     await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/41"));
-    expect(fitText(container)).toContain("Fit score 76 · Good match");
+    expect(fitText(container)).toContain("Partial match");
+  });
+
+  it("says to upload a résumé on a 400 and that scoring is unavailable on a 503", async () => {
+    for (const [status, copy] of [
+      [400, "Upload a résumé to see how you fit this job."],
+      [503, "Match scoring is temporarily unavailable. Please try again later."],
+    ] as const) {
+      apiPost.mockImplementation((url: string) => {
+        if (url.includes("/ai/match-breakdown/")) return Promise.reject({ response: { status } });
+        if (url.endsWith("/check-live")) return new Promise(() => {});
+        return Promise.resolve({ data: { sections: [], skills: [] } });
+      });
+      const { unmount } = renderWithProviders(<JobDetailView job={{ ...job, id: 60 + status }} />);
+      expect(await screen.findByText(copy)).toBeTruthy();
+      unmount();
+    }
+  });
+
+  it("reports the new result to the page (onFitChange), even after the user moved on", async () => {
+    mockApi(SCORED);
+    const onFitChange = vi.fn();
+    renderWithProviders(
+      <JobDetailView job={{ ...job, match_score: 0, match_band: null, match_outcome: "NEEDS_REVIEW" }} onFitChange={onFitChange} />,
+    );
+    await waitFor(() =>
+      expect(onFitChange).toHaveBeenCalledWith(41, {
+        match_outcome: "SCORED",
+        match_band: "Partial match",
+        match_score: 64,
+      }),
+    );
   });
 });
 
@@ -259,37 +271,61 @@ describe("Jobs page card", () => {
     window.history.replaceState({}, "", "/app");
   });
 
+  const base = { ...job, saved: false, match_label: "" };
+
+  function mockFeed(jobs: unknown[]) {
+    apiGet.mockImplementation((url: string) => {
+      if (url === "/jobs") return Promise.resolve({ data: jobs });
+      if (url === "/jobs/stats") {
+        return Promise.resolve({ data: { total: jobs.length, applied: 0, new: 0, avg_match_score: null, saved_count: 0 } });
+      }
+      return Promise.resolve({ data: [] });
+    });
+  }
+
   it(
-    "shows the engine's result on each card and a null average is fine",
+    "shows the engine's result on each card, never a number, and a null average is fine",
     async () => {
       apiPost.mockImplementation(() => new Promise(() => {}));
-      const base = { ...job, saved: false, match_label: "" };
-      const jobs = [
+      mockFeed([
         { ...base, id: 51, title: "Role Scored", match_score: 82, match_band: "Good match", match_outcome: "SCORED" },
         { ...base, id: 52, title: "Role Low", match_score: 0, match_band: "Partial match", match_outcome: "SCORED_LOW_CONFIDENCE" },
         { ...base, id: 53, title: "Role Gate", match_score: 0, match_band: null, match_outcome: "GATE_FAIL" },
         { ...base, id: 54, title: "Role Review", match_score: 0, match_band: null, match_outcome: "NEEDS_REVIEW" },
         { ...base, id: 55, title: "Role New", match_score: 0, match_band: null, match_outcome: null },
-      ];
-      apiGet.mockImplementation((url: string) => {
-        if (url === "/jobs") return Promise.resolve({ data: jobs });
-        if (url === "/jobs/stats") {
-          return Promise.resolve({ data: { total: 5, applied: 0, new: 0, avg_match_score: null, saved_count: 0 } });
-        }
-        return Promise.resolve({ data: [] });
-      });
+      ]);
       const { default: Jobs } = await import("../pages/Jobs");
       const { container } = renderWithProviders(<Jobs />);
       await waitFor(() => expect(container.querySelectorAll(".jobs-feed .job-card")).toHaveLength(5));
       const cards = Array.from(container.querySelectorAll(".jobs-feed .job-card"));
       const badge = (i: number) => cards[i].querySelector(".fit-badge")?.textContent ?? "";
-      expect(badge(0)).toContain("Fit 82");
-      expect(badge(0)).toContain("Good match");
+      // The list payload carries no interval, so a SCORED card shows its band only (D-54).
+      expect(badge(0)).toBe("Good match");
       expect(badge(1)).toBe("Partial match");
-      expect(badge(2)).toBe("Not eligible");
+      expect(badge(2)).toBe("Not eligibleSee why");
       expect(badge(3)).toBe("We couldn't score this");
       expect(cards[4].querySelector(".fit-badge")).toBeNull();
-      for (const card of cards) expect(card.textContent).not.toMatch(/\d%|STRONG MATCH|GOOD MATCH|FAIR MATCH/);
+      for (const card of cards) {
+        expect(card.querySelector(".fit-badge")?.textContent ?? "").not.toMatch(/\d/);
+        expect(card.textContent).not.toMatch(/\d%|STRONG MATCH|GOOD MATCH|FAIR MATCH/);
+      }
+    },
+    20_000,
+  );
+
+  it(
+    "updates the card when the open job's breakdown comes back",
+    async () => {
+      mockApi(SCORED);
+      mockFeed([{ ...base, id: 71, title: "Was Unscorable", match_score: 0, match_band: null, match_outcome: "NEEDS_REVIEW" }]);
+      const { default: Jobs } = await import("../pages/Jobs");
+      const { container } = renderWithProviders(<Jobs />);
+      const title = await screen.findByText("Was Unscorable", { selector: ".job-title" });
+      const card = () => container.querySelector(".jobs-feed .job-card") as HTMLElement;
+      expect(card().querySelector(".fit-badge")?.textContent).toBe("We couldn't score this");
+      fireEvent.click(title);
+      await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/71"));
+      await waitFor(() => expect(card().querySelector(".fit-badge")?.textContent).toBe("Partial match"));
     },
     20_000,
   );

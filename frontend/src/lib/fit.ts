@@ -2,7 +2,9 @@
  * The deterministic fit engine's result, as the web app shows it.
  *
  * Display rules (match-engine/docs/compliance.md section 2, DECISIONS D-52 / D-85 / D-86):
- * - SCORED: "Fit 76" with the band the API sent. Never a percent sign after the score.
+ * - SCORED: the number only where the full result is known. A displayed interval replaces the
+ *   number (D-54) and the jobs list carries no interval (it is not banked), so a card shows the
+ *   band the API sent and only the detail view's breakdown shows a number or a range.
  * - SCORED_LOW_CONFIDENCE: the band only, no number.
  * - GATE_FAIL: "Not eligible"; the reason is in the detail view's headline.
  * - NEEDS_REVIEW: "We couldn't score this"; the detail view lists the plain sentence per reason.
@@ -47,27 +49,52 @@ export interface FitFields {
 }
 
 export type CardFit =
-  | { kind: "scored"; score: number; band: string }
   | { kind: "band"; band: string }
   | { kind: "not-eligible"; label: string }
   | { kind: "unscored"; label: string };
 
-/** What a job card shows, or null when the job has not been scored for this user yet. */
+/** What a job card shows, or null when the job has not been scored for this user yet.
+ *  Never a number: the list cannot tell whether the engine would display an interval. */
 export function cardFit(job: FitFields): CardFit | null {
   const outcome = job.match_outcome;
   if (outcome === "GATE_FAIL") return { kind: "not-eligible", label: NOT_ELIGIBLE };
   if (outcome === "NEEDS_REVIEW") return { kind: "unscored", label: UNSCORED_TEXT };
   if (outcome === "SCORED" || outcome === "SCORED_LOW_CONFIDENCE") {
-    const band = job.match_band || (job.match_score > 0 ? bandFor(job.match_score) : "");
-    if (outcome === "SCORED" && job.match_score > 0) return { kind: "scored", score: job.match_score, band };
+    const band = job.match_band || (outcome === "SCORED" && job.match_score > 0 ? bandFor(job.match_score) : "");
     return band ? { kind: "band", band } : null;
   }
   return null;
 }
 
-/** The one-line summary of a card result ("Fit score 76 · Good match"). */
+/** The one-line summary of a card result: its band or its outcome words. */
 export function fitSummary(fit: CardFit): string {
-  if (fit.kind === "scored") return `Fit score ${fit.score} · ${fit.band}`;
-  if (fit.kind === "band") return fit.band;
-  return fit.label;
+  return fit.kind === "band" ? fit.band : fit.label;
+}
+
+export interface ImpactView {
+  word: string;
+  /** Bar width, percent of the largest |impact| shown. */
+  width: number;
+  raw: string;
+}
+
+/**
+ * Qualitative words for the engine's signed impacts ("+0.31", raw scale), sized against the
+ * largest |impact| shown (DECISIONS D-54 addendum): at least 2/3 of it is "Big", at least 1/3
+ * plain, below that "Small"; "plus" for a positive impact, "gap" for a negative one. The raw
+ * value is kept for the title and aria-label. Null for an empty or unparseable impact.
+ */
+export function impactViews(raws: ReadonlyArray<string | undefined>): Array<ImpactView | null> {
+  const values = raws.map((raw) => {
+    const n = raw ? Number.parseFloat(raw) : Number.NaN;
+    return Number.isFinite(n) && n !== 0 ? n : null;
+  });
+  const max = Math.max(0, ...values.map((v) => (v === null ? 0 : Math.abs(v))));
+  return values.map((v, i) => {
+    if (v === null || max === 0) return null;
+    const ratio = Math.abs(v) / max;
+    const noun = v > 0 ? "plus" : "gap";
+    const word = ratio >= 2 / 3 ? `Big ${noun}` : ratio >= 1 / 3 ? noun[0].toUpperCase() + noun.slice(1) : `Small ${noun}`;
+    return { word, width: Math.round(ratio * 100), raw: String(raws[i]) };
+  });
 }

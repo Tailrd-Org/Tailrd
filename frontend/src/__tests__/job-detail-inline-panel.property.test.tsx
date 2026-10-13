@@ -280,8 +280,8 @@ describe("Feature: job-detail-inline-panel, Property 1: Inline rendering without
  * For any job with populated fields (title, company, location, work_type,
  * description, match_score > 0, applicant_count > 0), the rendered detail panel
  * SHALL contain: the job title, company name, location tag, work type badge,
- * job description text under an "Overview" heading, the fit score circle with
- * its "Fit score N · band" headline (Task 9.4; no "%"), and the applicant count.
+ * job description text under an "Overview" heading, the card's fit band (Task 9.4:
+ * no number before the breakdown answers, D-54), and the applicant count.
  */
 describe("Feature: job-detail-inline-panel, Property 2: Detail panel content completeness", () => {
   let RealJobDetailView: typeof import("../components/JobDetailView").default;
@@ -384,18 +384,12 @@ describe("Feature: job-detail-inline-panel, Property 2: Detail panel content com
         const descContent = container.querySelector(".description-content");
         expect(descContent).not.toBeNull();
 
-        // Match score circle should be present (score > 0)
-        const matchCircle = container.querySelector(".match-circle-large");
-        expect(matchCircle).not.toBeNull();
-        const matchNumber = container.querySelector(".match-number-large");
-        expect(matchNumber).not.toBeNull();
-        expect(matchNumber!.textContent).toContain(String(job.match_score));
-
-        // The card's engine result heads the fit card until the breakdown answers.
+        // Before the breakdown answers, the panel shows the card's band only: the card's
+        // number may hide a displayed interval (D-54), so no ring and no number yet.
         const headline = container.querySelector(".fit-headline");
         expect(headline).not.toBeNull();
-        expect(headline!.textContent).toBe(`Fit score ${job.match_score} · ${job.match_band}`);
-        expect(matchNumber!.textContent).not.toContain("%");
+        expect(headline!.textContent).toBe(job.match_band);
+        expect(container.querySelector(".match-circle-large")).toBeNull();
 
         // Applicant count should be present
         const metaRow = container.querySelector(".job-detail-meta-row");

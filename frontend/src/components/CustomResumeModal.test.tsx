@@ -195,4 +195,63 @@ describe("CustomResumeModal", () => {
     expect(await screen.findByText(/Suggestions ready/)).toBeTruthy();
     expect(container.textContent).not.toMatch(/null|NaN/);
   });
+
+  it("labels the review gauge with the rewrite's own match_label (low confidence: band, no number)", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: null, new_ats_score: null, new_keyword_coverage: 80,
+      original_outcome: "SCORED", outcome: "SCORED_LOW_CONFIDENCE",
+      original_match_label: "Partial match", match_label: "Good match",
+      version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    await screen.findByText(/Suggestions ready/);
+    const gauge = container.querySelector(".ai-side-gauge");
+    expect(gauge?.textContent).toBe("Good match");
+  });
+
+  it("prefers the rewrite's band over the local fallback", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: 86, new_ats_score: 86, new_keyword_coverage: 80,
+      outcome: "SCORED", match_label: "Good match", version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    await screen.findByText(/your fit score goes from 60 to 86/);
+    expect(container.querySelector(".ai-side-gauge")?.textContent).toContain("Good match");
+  });
+
+  it("never shows an 'ATS' figure (it equals the fit score, D-123) or a null coverage", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue({ ...analysis, keyword_coverage: null });
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: 75, new_ats_score: 75, new_keyword_coverage: null,
+      outcome: "SCORED", match_label: "Good match", version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    await screen.findByText(/Your Resume is a Good Match/);
+    expect(container.textContent).not.toMatch(/ATS \d|null/);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    await screen.findByText(/your fit score goes from 60 to 75/);
+    expect(container.querySelector(".ai-side-stats")?.textContent ?? "").not.toMatch(/ATS|null/);
+  });
 });

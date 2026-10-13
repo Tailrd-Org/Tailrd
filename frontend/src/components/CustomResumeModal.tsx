@@ -68,7 +68,7 @@ interface Analysis {
   ats_score: number | null;
   match_label: string;
   outcome?: string;
-  keyword_coverage: number;
+  keyword_coverage: number | null;
   matched_keywords: string[];
   missing_keywords: string[];
   strengths: string[];
@@ -85,7 +85,12 @@ interface RewriteResult {
   original_overall_score: number | null;
   new_overall_score: number | null;
   new_ats_score: number | null;
-  new_keyword_coverage: number;
+  new_keyword_coverage: number | null;
+  // Task 9.3: the tailored document's own outcome and label (band or outcome words).
+  original_outcome?: string | null;
+  outcome?: string | null;
+  original_match_label?: string;
+  match_label?: string;
   version_id?: number | null;
   changes?: string[];
   gaps?: string[];
@@ -450,7 +455,8 @@ export default function CustomResumeModal({
           <div className={`ai-cmp-label${fullCoverage ? "" : " warn"}`}>
             <span>Job Keywords <strong>({analysis.matched_keywords.length}/{total})</strong></span>
             <span className="ai-cmp-sub">
-              {analysis.keyword_coverage}% coverage{analysis.ats_score != null ? ` · ATS ${analysis.ats_score}` : ""}
+              {/* No "ATS" figure: it equals the fit score (D-123), the same number twice. */}
+              {analysis.keyword_coverage != null && `${analysis.keyword_coverage}% coverage`}
             </span>
             {!fullCoverage && <span className="ai-warn-badge" aria-hidden>!</span>}
           </div>
@@ -642,15 +648,18 @@ export default function CustomResumeModal({
           {/* Right: score jump + what changed */}
           <aside className="ai-side">
             <div className="ai-side-gauge">
-              <Gauge score={next} label={typeof next === "number" ? bandFor(next) : ""} size="sm" />
+              <Gauge
+                score={next}
+                label={rewrite.match_label || (typeof next === "number" ? bandFor(next) : "")}
+                size="sm"
+              />
             </div>
             <div className="ai-side-jump">
               <Spark />
               <p>{jumpHeadline}</p>
             </div>
             <div className="ai-side-stats">
-              {rewrite.new_ats_score != null && `ATS ${rewrite.new_ats_score} · `}
-              {rewrite.new_keyword_coverage}% keyword coverage
+              {rewrite.new_keyword_coverage != null && `${rewrite.new_keyword_coverage}% keyword coverage`}
             </div>
             <button className="ai-btn ai-btn-soft" style={{ width: "100%", justifyContent: "center" }} onClick={() => setEditing(true)}>
               Edit resume
