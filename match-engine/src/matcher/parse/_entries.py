@@ -20,7 +20,9 @@ below it ("Employer / Title / dates", "Title  dates / Employer  Location"); plac
 types right below always join ("Ottawa, ON", "Full-time"). A dated line whose only piece names no
 job, directly followed by another anchor, is an employer heading its promotions (`group`). Without
 an anchor, a run of head lines naming a job or an organisation and followed by bullets is an
-undated entry (role parsing only). The body is the lines up to the next entry; in strict mode
+undated entry (role parsing only). In a section with no dated line and no bullet at all (a
+functional résumé), an undated entry needs no bullets: a line naming a title and an employer is a
+whole entry, with the place lines below it (Task 5.4). The body is the lines up to the next entry; in strict mode
 (the fallback) it ends at the first line that is neither a bullet, a bullet's continuation nor a
 sentence. Standard library only (plus the date parser), total on any input.
 """
@@ -400,7 +402,11 @@ def is_head(text: str) -> bool:
     return any(ch.isalpha() for ch in text)
 
 
-def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en") -> list[Line]:
+def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en",
+             verbs: frozenset[str] = frozenset()) -> list[Line]:
+    """Every line classified (see the module docstring). A line opening with one of `verbs` (the
+    past-tense action verbs of the verb lexicon) is bullet text and never a head line: a scan can
+    lose the glyph of "- Optimized audience segments ..." (Task 5.4)."""
     out: list[Line] = []
     for index, raw_line in enumerate(raw_lines):
         raw = str(raw_line).replace("\r", "").replace("\n", " ").rstrip()
@@ -419,12 +425,20 @@ def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en") -> l
         ranges = () if bullet else anchor_ranges(text, as_of=as_of, lang=lang)
         out.append(Line(
             index=index, raw=raw, text=text, blank=False, bullet=bullet, indented=indented, label=label,
-            head=not bullet and not label and is_head(text), sentence=is_sentence(text),
+            head=not bullet and not label and is_head(text) and not _opens_with(text, verbs),
+            sentence=is_sentence(text),
             place=not bullet and bool(place_of(text)), ranges=ranges,
         ))
     if not any(line.ranges for line in out):  # one bulleted line per role
         out = [_bullet_anchor(line, as_of, lang) for line in out]
     return out
+
+
+def _opens_with(text: str, verbs: frozenset[str]) -> bool:
+    if not verbs:
+        return False
+    first = words(text)[:1]
+    return bool(first) and first[0] in verbs
 
 
 def _bullet_anchor(line: Line, as_of: dt.date, lang: str) -> Line:
@@ -529,7 +543,8 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
                            after=tuple(after), body=(), group=group))
 
     if not strict:
-        specs.extend(_undated(lines, claimed, parts_of))
+        bare = not anchors and not any(line.bullet for line in lines)
+        specs.extend(_undated(lines, claimed, parts_of, bare=bare))
     specs.sort(key=lambda entry: entry.start)
 
     out: list[Entry] = []
@@ -558,25 +573,34 @@ def _heads_promotions(lines: Sequence[Line], anchors: list[int], position: int, 
     return any(title_score(piece) for piece in parts_of(j).pieces)
 
 
-def _undated(lines: Sequence[Line], claimed: set[int], parts_of) -> list[Entry]:
+def _undated(lines: Sequence[Line], claimed: set[int], parts_of, *, bare: bool) -> list[Entry]:
+    """Undated entries. `bare` (a section with no dated line at all, such as a functional
+    résumé's "Title, Employer / City" list): an entry needs no bullets, a line naming both a title
+    and an employer is a whole entry, and the place lines right below it join it."""
     out: list[Entry] = []
     i = 0
     while i < len(lines):
         run: list[int] = []
+        need = 2
         j = i
-        while j < len(lines) and len(run) < 2:
+        while j < len(lines) and len(run) < 2 and (not bare or need > 0):
             line = lines[j]
             if j in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head or line.place:
                 break
             run.append(j)
+            need -= max(1, len(parts_of(j).pieces))
             j += 1
         follows = j < len(lines) and lines[j].bullet
         previous = lines[i - 1] if i > 0 else None
         wrapped = previous is not None and previous.bullet and run and continues(previous.text, lines[run[0]])
-        if run and follows and not wrapped and any(names_a_role(lines[r].text) for r in run):
-            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=(), body=()))
-            for r in run:
-                parts_of(r)
+        if run and (follows or bare) and not wrapped and any(names_a_role(lines[r].text) for r in run):
+            after: list[int] = []
+            while bare and j < len(lines) and j not in claimed and lines[j].place:
+                after.append(j)
+                parts_of(j)
+                j += 1
+            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=tuple(after), body=()))
+            claimed.update(after)
             i = j
             continue
         i += 1

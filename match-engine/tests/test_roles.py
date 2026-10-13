@@ -23,7 +23,7 @@ from matcher.graph.loader import load_resolver
 from matcher.models import Evidence, Polarity, SkillSource, VerbClass
 from matcher.parse.config import load_parse_config
 from matcher.parse.dates import DateRange, parse_range
-from matcher.parse.roles import RoleDraft, build_role, split_roles
+from matcher.parse.roles import RoleDraft, build_role, past_verbs, split_roles
 from matcher.parse.sections import Section, SectionKind
 from matcher.parse.taxonomy_extras import load_mos_index, load_title_index
 from tests.fixtures.build_parse_taxonomy import FIXTURE_DIR, MOS
@@ -118,6 +118,17 @@ SPLIT_CASES = [
         ["Volunteer Tutor, Ottawa Public Library", "- Tutored 6 high-school students in math"],
         [_draft("Volunteer Tutor", "Ottawa Public Library", "", None, "Tutored 6 high-school students in math")],
     ),
+    (  # functional: undated entries with no bullets are roles, the place line below joins its entry
+        ["Junior Data Engineer, Clearwater Research", "Chicago, IL", "Retail Associate, Northwind Foods",
+         "Toronto, ON", "Barista | Second Cup | Ottawa, ON"],
+        [_draft("Junior Data Engineer", "Clearwater Research", "Chicago, IL", None),
+         _draft("Retail Associate", "Northwind Foods", "Toronto, ON", None),
+         _draft("Barista", "Second Cup", "Ottawa, ON", None)],
+    ),
+    (  # a dated section: an undated line with no bullets stays text of the role above it
+        ["Software Developer, Shopify | 2022 – 2024", "- Built the admin portal", "Mentor, Code Club"],
+        [_draft("Software Developer", "Shopify", "", "2022 – 2024", "Built the admin portal", "Mentor, Code Club")],
+    ),
     (  # a year inside a bullet is never a role's date
         ["IT Support Assistant, Carleton University | Sep 2021 – Apr 2022",
          "- Rolled out Microsoft Office 2019 to 120 staff laptops"],
@@ -172,6 +183,26 @@ def test_back_to_back_terms_of_one_role_merge() -> None:
     assert (draft.date_range.start, draft.date_range.end) == (fall.start, winter.end)
     assert draft.date_range.raw == "Fall 2022; Winter 2023"
     assert draft.bullets == ("Ran tutorials for 40 students",)  # one line's bullets, once
+
+
+def test_a_bullet_that_lost_its_glyph_is_never_a_role(config) -> None:
+    """Task 5.4 (M6): a scan can drop a bullet glyph. A line opening with a past-tense action verb
+    of the verb lexicon ("Optimized ...") is bullet text, never a role's head line."""
+    lines = ["Data Analyst, Acme Corp | 2022 – 2024", "- Built dashboards in Tableau",
+             "Optimized audience segments for Social Media", "- Cut reporting time by 10%"]
+    (draft,) = split_roles(_section(lines), as_of=AS_OF, verbs=past_verbs(config))
+    assert draft.bullets == ("Built dashboards in Tableau", "Optimized audience segments for Social Media",
+                             "Cut reporting time by 10%")
+    assert past_verbs(config) >= {"optimized", "worked", "built", "led"}
+    assert not past_verbs(config) & {"lead", "engineer", "design", "registered"}
+
+
+def test_undated_lines_among_bullets_are_no_functional_entries() -> None:
+    """A section with bullets is no functional list: a line there that names a job but has no
+    bullets under it (a bullet whose glyph a scan lost) is no role."""
+    lines = ["- Lab demonstrator, Practical Methods Studio", "- Tutor, Introductory Statistics",
+             "Workshop facilitator, Research Skills Series"]
+    assert split_roles(_section(lines), as_of=AS_OF) == ()
 
 
 def test_a_future_range_keeps_the_role_without_dates() -> None:

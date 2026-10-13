@@ -53,7 +53,8 @@ names, else of the one country the contact places name), "open work permit" / PG
 Flags: those given (ingest), NO_SECTIONS, the role and project date flags (IMPRECISE_DATE, ...),
 TRUNCATED, and FUNCTIONAL_RESUME when the résumé has skills or summary content and experience
 entries but no dated role, or when its "Summary of Qualifications" / "Areas of Expertise" style
-sections hold at least half its lines and no role is dated (SPEC §14.3). An unsupported language is
+sections hold at least half its words (words, not lines, so wrapping changes nothing; Task 5.4)
+and no role is dated (SPEC §14.3). An unsupported language is
 the reason UNSUPPORTED_LANGUAGE and no résumé: the given language (ingest's), else the majority
 language of the lines, an unsupported one deciding only with three lines or more (`_text_language`). `total_experience_months` is the union of the dated
 roles' intervals (None when no role is dated).
@@ -110,7 +111,7 @@ from matcher.parse._text import fold
 from matcher.parse.config import ParseConfig, SectionKind, header_key
 from matcher.parse.dates import DateRange, find_date_ranges, months_between, parse_range
 from matcher.parse.education import degree_matches, parse_education
-from matcher.parse.roles import RoleDraft, build_role, split_roles
+from matcher.parse.roles import RoleDraft, build_role, past_verbs, split_roles
 from matcher.parse.scope import ScopeFeatures, extract_scope
 from matcher.parse.sections import Section, classify_header, segment
 from matcher.parse.taxonomy_extras import MosIndex, TitleIndex, load_mos_index, load_title_index
@@ -653,6 +654,13 @@ def _nonblank(lines: Iterable[str]) -> int:
     return sum(1 for line in lines if any(ch.isalnum() for ch in line))
 
 
+def _word_count(lines: Iterable[str]) -> int:
+    """Words with a letter or digit: what the functional reading weighs. Words, never lines, so a
+    paragraph wrapped over four lines in a PDF weighs what it weighs on one line of a text file
+    (Task 5.4); a rule of dashes under a header has no word."""
+    return sum(1 for line in lines for token in line.split() if any(ch.isalnum() for ch in token))
+
+
 # ─── reference building ─────────────────────────────────────────────────────────────────────
 
 
@@ -682,6 +690,7 @@ class _Reader:
         self.raw_resolver = resolver
         self.resources = resources
         self.config = config
+        self.past_verbs = past_verbs(config)
 
     def _analysed(self, text: str, mentions: Sequence[Mention]):
         bullets = [BulletMention(canonical_id=m.canonical_id, start=m.start, end=m.end) for m in mentions]
@@ -903,17 +912,17 @@ class _Assembly:
             flags=_ordered(flags),
         )
 
-    def functional(self, *, qualification_lines: int, body_lines: int) -> bool:
+    def functional(self, *, qualification_words: int, body_words: int) -> bool:
         if any(role.dated for role in self.roles):
             return False
         if self.roles and self.listed:
             return True
-        return qualification_lines > 0 and 2 * qualification_lines >= body_lines
+        return qualification_words > 0 and 2 * qualification_words >= body_words
 
     def parsed(self, *, tier: ParseTier, flags: Iterable[Flag], sections: Sequence[SectionKind],
-               qualification_lines: int, body_lines: int) -> ParsedResume:
+               qualification_words: int, body_words: int) -> ParsedResume:
         all_flags = set(flags) | self.flags
-        functional = self.functional(qualification_lines=qualification_lines, body_lines=body_lines)
+        functional = self.functional(qualification_words=qualification_words, body_words=body_words)
         resume = self.resume(tier=tier, flags=all_flags, functional=functional)
         return ParsedResume(
             resume=resume,
@@ -1081,29 +1090,30 @@ def _parse_text(text: Any, *, as_of: dt.date, resolver: Resolver, config: Engine
     name = first if _name_shaped(first) and not resolver.extract(first) else ""
     no_sections = Flag.NO_SECTIONS in segment_flags
 
-    qualification_lines = body_lines = 0
+    qualification_words = body_words = 0
     for position, section in enumerate(sections):
         kind = section.kind
-        count = _nonblank(section.lines)
+        count = _word_count(section.lines)
         if kind is not SectionKind.CONTACT:
-            body_lines += count
+            body_words += count
         if kind in (SectionKind.SUMMARY, SectionKind.SKILLS) and any(
                 word in header_key(section.header) for word in _QUALIFICATION_WORDS):
-            qualification_lines += count
+            qualification_words += count
         if kind not in _NO_WORK_AUTH:
             assembly.auth_lines.extend(section.lines)
         _read_section(assembly, section, name=name if position == 0 else "",
                       contact=kind is SectionKind.CONTACT or (no_sections and position == 0))
     return assembly.parsed(tier=tier if isinstance(tier, ParseTier) else ParseTier.A,
                            flags=[*given, *segment_flags], sections=kinds,
-                           qualification_lines=qualification_lines, body_lines=body_lines)
+                           qualification_words=qualification_words, body_words=body_words)
 
 
 def _read_section(assembly: _Assembly, section: Section, *, name: str, contact: bool) -> None:
     kind = section.kind
     as_of = assembly.as_of
     if kind in _EXPERIENCE_LIKE:
-        drafts = split_roles(section, as_of=as_of, lang=_section_language(section, assembly.lang))
+        drafts = split_roles(section, as_of=as_of, lang=_section_language(section, assembly.lang),
+                             verbs=assembly.reader.past_verbs)
         for draft in drafts:
             assembly.add_role(draft)
         if not drafts:  # no entry structure: its text is skills-blob evidence, never a role
@@ -1340,7 +1350,7 @@ def _from_document(doc: Mapping[str, Any], *, as_of: dt.date, resolver: Resolver
     for section in _items(doc.get("custom_sections")):
         _read_custom_section(assembly, section, kinds)
 
-    return assembly.parsed(tier=ParseTier.A, flags=(), sections=kinds, qualification_lines=0, body_lines=1)
+    return assembly.parsed(tier=ParseTier.A, flags=(), sections=kinds, qualification_words=0, body_words=1)
 
 
 _CERTIFICATION_KINDS = ("certifications",)

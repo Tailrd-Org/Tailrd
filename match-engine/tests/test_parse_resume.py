@@ -348,6 +348,37 @@ def test_underlines_do_not_count_as_lines_for_the_functional_reading(deps) -> No
     assert Flag.FUNCTIONAL_RESUME in parse(UNDERLINED_FUNCTIONAL, deps).flags
 
 
+def test_undated_entries_without_bullets_are_roles(deps) -> None:
+    """Task 5.4 (M6): a functional résumé lists "Title, Employer / City" with no dates and no
+    bullets. Each entry is a role with unknown dates (its title is evidence, it adds no months)."""
+    parsed = parse(UNDERLINED_FUNCTIONAL, deps)
+    roles = parsed.resume.roles
+    assert [(r.title_raw, r.employer) for r in roles] == [
+        ("Product Designer III", "Silverline Studio"), ("Product Designer", "Juniper Design")]
+    assert not any(r.dated for r in roles)
+    assert roles[0].seniority is not None and roles[0].seniority.level == 3
+    assert parsed.resume.total_experience_months is None
+    assert Flag.FUNCTIONAL_RESUME in parsed.flags
+
+
+_QUALIFICATIONS = ("Dependable office coordinator with eight years of experience keeping calendars, budgets, "
+                   "vendors and travel running smoothly for busy teams, trusted to handle confidential records, "
+                   "train new staff and keep every project moving")
+_NO_ROLES = "Taylor Sample\nSummary of Qualifications\n{summary}\nEducation\nB.A. History, Fairmont College\n" \
+            "Interests\nHiking\nChess\nCooking\n"
+
+
+def test_the_functional_reading_does_not_depend_on_line_wrapping(deps) -> None:
+    """Task 5.4 (M6): the same qualifications on one line (a text file) or wrapped over four lines
+    (a PDF) are the same résumé: the functional reading counts words, never lines."""
+    words = _QUALIFICATIONS.split()
+    wrapped = "\n".join(" ".join(words[k:k + 10]) for k in range(0, len(words), 10))
+    one_line = parse(_NO_ROLES.format(summary=_QUALIFICATIONS), deps)
+    four_lines = parse(_NO_ROLES.format(summary=wrapped), deps)
+    assert Flag.FUNCTIONAL_RESUME in four_lines.flags
+    assert Flag.FUNCTIONAL_RESUME in one_line.flags
+
+
 def test_a_dated_resume_is_not_functional(student: ParsedResume) -> None:
     assert Flag.FUNCTIONAL_RESUME not in student.flags
 
