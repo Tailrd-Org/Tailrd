@@ -380,8 +380,9 @@ def job_analysis(
     engine (about ten seconds to build cold) runs in a worker thread."""
     job = _get_job(job_id, db)
     resume = _resolve_resume(db, user_id, body.resume_id if body else None)
+    # The "before" is the stored profile, unedited: scored as the feed scores it (I-3, D-123).
     return MatchEngine(db).analyze_job(
-        db_record_to_document(resume), user_id=user_id, job=job, raw_text=resume.raw_text,
+        db_record_to_document(resume), user_id=user_id, job=job, raw_text=resume.raw_text, profile=resume,
     )
 
 
@@ -415,6 +416,7 @@ async def rewrite_resume(
             db, original_document, job.title, job.company, job.description,
             opts.sections, opts.add_keywords,
             user_id=user_id, job=job, raw_text=resume.raw_text,
+            before_profile=resume,  # the stored, unedited profile: the "before" equals the card (I-3)
         )
     except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)

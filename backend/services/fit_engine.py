@@ -1107,6 +1107,25 @@ def score_document(db, user_id: Optional[int], document: Mapping[str, Any], post
     return _score_pair(parsed, posting, calibrator, engine, day, options, "tailor")
 
 
+def score_profile(db, user_id: Optional[int], profile: Any, posting: JobPosting, *,
+                  with_suggestions: bool = False, engine: Optional[FitEngine] = None,
+                  as_of: Optional[dt.date] = None) -> MatchResult:
+    """A stored ``ResumeProfileDB`` against one posting, with its explanation; never banked.
+
+    The tailoring "before" when it is the stored profile itself, with no edits in the request
+    (I-3): the résumé is read by ``resume_for_profile``, exactly as the feed reads it, so the
+    D-152 dated-text fallback applies to a never-edited legacy profile and the "before" equals
+    the job card. A rewritten document is never scored here (``score_document``)."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    settings = _settings_for(db, user_id) if db is not None and user_id is not None else None
+    parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
+    calibrator = (_calibrator(db, engine) if db is not None
+                  else PercentileCalibrator(list(engine.panel), min_reference_n=engine.min_reference_n))
+    options = _TAILOR_SUGGEST_OPTIONS if with_suggestions else _TAILOR_OPTIONS
+    return _score_pair(parsed, posting, calibrator, engine, day, options, "tailor")
+
+
 @dataclasses.dataclass(frozen=True)
 class RequirementCoverage:
     """The skill requirements of a result: display labels, and the engine's coverage as 0-100."""
@@ -1238,6 +1257,7 @@ __all__ = [
     "resume_for_document",
     "resume_for_profile",
     "score_document",
+    "score_profile",
     "score_order",
     "shadow_config_dir",
     "shadow_scores",

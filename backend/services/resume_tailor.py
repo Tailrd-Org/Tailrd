@@ -167,6 +167,7 @@ async def tailor_document(
     user_id: int | None = None,
     job: ScrapedJob | None = None,
     raw_text: str | None = None,
+    before_profile: ResumeProfileDB | None = None,
 ) -> TailorResult:
     """Tailor a structured résumé to a job and score it before/after.
 
@@ -179,8 +180,11 @@ async def tailor_document(
     rewrite text, and is fed the engine's missing requirements; it is never asked for a score,
     a label or a keyword list. ``user_id`` brings in the user's saved answers (work
     authorisation, location), as the feed reads them; ``raw_text`` is read only when a document
-    has no content (D-80). The D-152 dated-text fallback of stored profiles never applies here, so
-    the original and the rewrite are each scored as written.
+    has no content (D-80). The D-152 dated-text fallback of stored profiles never applies to the
+    rewrite, so it is scored as written. ``before_profile`` is the stored ``ResumeProfileDB`` that
+    ``original_document`` was read from, unedited in this request (the job-id route, I-3): the
+    "before" is then scored as the feed scores that profile (fallback allowed), so it equals the
+    job card; without it the original document is scored as written too.
 
     Keyword semantics: when ``add_keywords`` is None, the engine's suggested terms are woven in
     (``suggested_keywords``: the REQUIRED skills the résumé does not show at all, at most 10;
@@ -196,8 +200,9 @@ async def tailor_document(
     posting = await run_in_threadpool(
         engine.posting, job=job, job_title=job_title, company=company, job_description=job_description,
     )
+    before_kwargs = {"profile": before_profile} if before_profile is not None else {}
     before = await run_in_threadpool(engine.analyze, original_document, posting, user_id=user_id,
-                                     raw_text=raw_text)
+                                     raw_text=raw_text, **before_kwargs)
     keywords = add_keywords if add_keywords is not None else list(before.suggested_keywords)
     structured = await tailor.llm.tailor_resume_structured(
         original_document, job_description, sections, keywords
