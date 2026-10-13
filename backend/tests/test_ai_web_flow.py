@@ -156,6 +156,38 @@ class TestJobAnalysis:
         job = _seed(db_session)
         assert client.post(f"/ai/job-analysis/{job.id}", json={}).status_code == 200
 
+    def test_a_failed_gate_returns_null_scores_and_the_reason(self, client, db_session):
+        """Fix round 1, Minor 5: the route, not only the mapping, says "Not eligible" and why."""
+        from backend.db.models import UserSettings
+
+        _seed(db_session)
+        db_session.add(UserSettings(user_id=TEST_USER_ID, prefilled_answers={"Authorized to work in the US": "No"},
+                                    address_city="Toronto", address_state="ON", country="Canada"))
+        gated = ScrapedJob(title="Software Engineer", company="GateCo", url="https://example.com/job/gate",
+                           description=("Requirements\n- 2+ years of Python\n- SQL and Docker\n\n"
+                                        "We are unable to sponsor work visas for this role."),
+                           locations_json=[{"city": "Seattle", "region": "WA", "region_name": "Washington",
+                                            "country": "United States"}],
+                           country="US", work_type="onsite")
+        db_session.add(gated)
+        db_session.commit()
+        resp = client.post(f"/ai/job-analysis/{gated.id}", json={})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["outcome"] == "GATE_FAIL"
+        assert data["overall_score"] is None and data["ats_score"] is None
+        assert data["keyword_coverage"] is None
+        assert data["match_label"] == "Not eligible"
+        assert data["reasons"] and data["weaknesses"][0] == data["reasons"][0]
+
+    def test_the_job_route_shares_the_analysis_rate_limit(self, client, db_session, monkeypatch):
+        from backend.services import usage_limiter
+        monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+        monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_MINUTE", 1)
+        job = _seed(db_session)
+        assert client.post(f"/ai/job-analysis/{job.id}", json={}).status_code == 200
+        assert client.post(f"/ai/custom-resume-analysis/{job.id}", json={}).status_code == 429
+
     def test_404_for_missing_job(self, client):
         resp = client.post("/ai/job-analysis/9999", json={})
         assert resp.status_code == 404
@@ -220,6 +252,24 @@ class TestRewrite:
         assert data["outcome"] == "SCORED_LOW_CONFIDENCE"
         assert data["new_overall_score"] is None and data["new_ats_score"] is None
         assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
+        # Fix round 1, Important 3: the response says why the number went away.
+        from backend.services.resume_tailor import LISTED_ONLY_SENTENCE
+        assert data["reasons"][0] == LISTED_ONLY_SENTENCE
+        assert len(data["reasons"]) >= 2  # then the engine's own sentence(s) for what limited it
+
+    def test_a_timeout_is_a_503_and_saves_no_version(self, client, db_session):
+        """Fix round 1, Important 1: a stalled LLM is an error, never a 200 'rewrite' that is
+        the original, and nothing is saved."""
+        import httpx
+        from backend.db.models import ResumeVersion
+
+        job = _seed(db_session)
+        request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+        gen = AsyncMock(side_effect=httpx.ReadTimeout("stalled", request=request))
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
+            resp = client.post(f"/ai/rewrite/{job.id}", json={})
+        assert resp.status_code == 503
+        assert db_session.query(ResumeVersion).count() == 0
 
 
 class TestCoverLetterTone:

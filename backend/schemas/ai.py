@@ -45,6 +45,8 @@ class JobAnalysisOut(BaseModel):
     keyword_coverage: int | None = None  # 0-100, required + preferred requirement coverage
     matched_keywords: list[str] = []
     missing_keywords: list[str] = []
+    # What a one-click rewrite weaves in: missing REQUIRED skills only, at most 10 (D-123).
+    suggested_keywords: list[str] = []
     strengths: list[str] = []
     weaknesses: list[str] = []
     suggestions: list[str] = []
@@ -81,6 +83,9 @@ class RewriteOut(BaseModel):
     outcome: str | None = None
     original_match_label: str = ""
     match_label: str = ""
+    # Why the tailored side shows no number (compliance.md section 2 sentences), led by a
+    # fixed sentence when a SCORED before became SCORED_LOW_CONFIDENCE (D-123). Empty if SCORED.
+    reasons: list[str] = []
     version_id: int | None = None
     changes: list[str] = []
     gaps: list[str] = []

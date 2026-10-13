@@ -22,6 +22,13 @@ from backend.services.resume_document import document_to_text, describe_changes
 
 logger = logging.getLogger(__name__)
 
+#: Leads ``reasons`` when the original was SCORED and the rewrite is SCORED_LOW_CONFIDENCE: the
+#: usual cause is a skill the rewrite only listed, with no example of its use (D-123).
+LISTED_ONLY_SENTENCE = (
+    "Skills listed without an example where you used them make us less sure, so we show the band "
+    "instead of a number. Add a bullet that shows the skill to get a score."
+)
+
 
 class ResumeTailor:
     """Generates tailored resume versions for specific job postings."""
@@ -144,7 +151,17 @@ class TailorResult:
             "outcome": self.after.outcome,
             "original_match_label": self.before.match_label,
             "match_label": self.after.match_label,
+            "reasons": self.reasons(),
         }
+
+    def reasons(self) -> list[str]:
+        """Why the tailored side shows no number: the engine's plain sentences (compliance.md
+        section 2), led by ``LISTED_ONLY_SENTENCE`` when a SCORED original became
+        SCORED_LOW_CONFIDENCE. Empty when the tailored side is SCORED."""
+        reasons = list(self.after.reasons)
+        if self.before.outcome == "SCORED" and self.after.outcome == "SCORED_LOW_CONFIDENCE":
+            reasons = [LISTED_ONLY_SENTENCE, *(text for text in reasons if text != LISTED_ONLY_SENTENCE)]
+        return reasons
 
 
 async def tailor_document(
@@ -173,9 +190,10 @@ async def tailor_document(
     authorisation, location), as the feed reads them; ``raw_text`` is read only when a document
     has no content (D-80).
 
-    Keyword semantics: when ``add_keywords`` is None, all of the engine's missing
-    requirements are woven in (best one-click result); when a list is given (even
-    empty), exactly that set is used.
+    Keyword semantics: when ``add_keywords`` is None, the engine's suggested terms are woven in
+    (``suggested_keywords``: the REQUIRED skills the résumé does not show at all, at most 10;
+    partial matches and preferred skills stay chips the user can pick); when a list is given
+    (even empty), exactly that set is used.
     """
     from backend.services.match_engine import MatchEngine  # local: avoid import cycle
 
@@ -188,7 +206,7 @@ async def tailor_document(
     )
     before = await run_in_threadpool(engine.analyze, original_document, posting, user_id=user_id,
                                      raw_text=raw_text)
-    keywords = add_keywords if add_keywords is not None else list(before.missing_keywords)
+    keywords = add_keywords if add_keywords is not None else list(before.suggested_keywords)
     structured = await tailor.llm.tailor_resume_structured(
         original_document, job_description, sections, keywords
     )

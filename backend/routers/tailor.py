@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from backend.auth.dependencies import get_verified_user_id
-from backend.services.usage_limiter import llm_guard
+from backend.services.usage_limiter import fit_analysis_guard, llm_guard
 from backend.db.database import get_db
 from backend.db.models import ResumeVersion
 from backend.routers.ai import LLM_503_DETAIL, _resolve_resume
@@ -60,7 +60,7 @@ async def tailor_resume_endpoint(
             body.job_description, body.sections, body.add_keywords,
             user_id=user_id, raw_text=resume.raw_text,
         )
-    except (ConnectionError, httpx.ConnectError):
+    except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
 
     return TailorResumeOut(
@@ -99,7 +99,7 @@ def render_resume_endpoint(
 @router.post("/custom-resume-analysis", response_model=JobAnalysisOut)
 def custom_resume_analysis_endpoint(
     body: CustomResumeAnalysisIn,
-    user_id: int = Depends(get_verified_user_id),
+    user_id: int = Depends(fit_analysis_guard),
     db: Session = Depends(get_db),
 ):
     """Step 1 'See Your Difference' for a scraped job (no job_id).
@@ -107,7 +107,8 @@ def custom_resume_analysis_endpoint(
     Extension analog of the web ``/ai/custom-resume-analysis/{job_id}``, accepts
     raw job context since there is no ScrapedJob row on a live application page.
     The deterministic match engine's analysis (Task 9.3, D-83): no AI is called, so it
-    does not count against the daily AI limit. A plain (sync) route, so the engine
+    does not count against the daily AI limit; it has its own per-user rate limit
+    (fit_analysis_guard). A plain (sync) route, so the engine
     (about ten seconds to build cold) runs in a worker thread.
     """
     resume = _resolve_resume(db, user_id, body.resume_id)  # 400 if none on file
@@ -137,7 +138,7 @@ async def custom_resume_endpoint(
             body.job_description, body.sections, body.add_keywords,
             user_id=user_id, raw_text=resume.raw_text,
         )
-    except (ConnectionError, httpx.ConnectError):
+    except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
 
     version = ResumeVersion(

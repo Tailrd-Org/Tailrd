@@ -171,6 +171,15 @@ def _extract_json(response: str) -> str:
     return text
 
 
+class RewriteFailedError(ConnectionError):
+    """The structured rewrite produced nothing usable: the LLM call failed (connection, timeout,
+    HTTP error, an unexpected response) or its reply was not a résumé document.
+
+    A ConnectionError on purpose: the tailoring routes already answer ConnectionError with a 503
+    (LLM_503_DETAIL), and a failed rewrite must never be a 200 that returns, or saves, the
+    original as if it were the rewrite (Task 9.3 fix round 1)."""
+
+
 @dataclass
 class TailorStructuredResult:
     """Output of a structure-aware rewrite: merged document + honest gaps."""
@@ -604,16 +613,21 @@ class OpenAIService:
             .replace("{{RESUME_JSON}}", document.model_dump_json())
         )
 
+        # Every failure is a RewriteFailedError (a ConnectionError, so the routes' 503 handler
+        # answers it): never a 200 "rewrite" that is the original, and never a saved version
+        # (Task 9.3 fix round 1). Before Task 9.3 the LLM analysis ran first and raised instead.
         try:
             response = await self._generate(prompt, op="resume.tailor_structured")
-            data = json.loads(_extract_json(response))
-        except (ConnectionError, httpx.ConnectError):
-            # An unreachable LLM is the route's 503, never a silent "rewrite" that is the
-            # original. (Before Task 9.3 the LLM analysis ran first and raised this.)
+        except RewriteFailedError:
             raise
-        except Exception as e:  # noqa: BLE001
-            logger.warning("Structured tailor failed to parse (%s); returning original", e)
-            return TailorStructuredResult(document=document, gaps=[])
+        except (ConnectionError, httpx.HTTPError, ValueError) as e:
+            logger.warning("Structured tailor: the LLM call failed (%s)", type(e).__name__)
+            raise RewriteFailedError("the rewrite call failed") from e
+        try:
+            data = json.loads(_extract_json(response))
+        except (ValueError, TypeError) as e:  # json.JSONDecodeError is a ValueError
+            logger.warning("Structured tailor: unparseable reply (%s)", type(e).__name__)
+            raise RewriteFailedError("the rewrite reply was not JSON") from e
 
         if isinstance(data, dict) and "resume" in data:
             resume_data = data.get("resume")
@@ -637,8 +651,8 @@ class OpenAIService:
         try:
             edited = ResumeDocument(**resume_data)
         except Exception as e:  # noqa: BLE001
-            logger.warning("Structured tailor bad resume shape (%s); returning original", e)
-            return TailorStructuredResult(document=document, gaps=gaps)
+            logger.warning("Structured tailor: bad resume shape (%s)", type(e).__name__)
+            raise RewriteFailedError("the rewrite reply was not a resume document") from e
 
         merged = merge_rewrite(document, edited, section_order=section_order, new_summary=new_summary)
         return TailorStructuredResult(document=merged, gaps=gaps)

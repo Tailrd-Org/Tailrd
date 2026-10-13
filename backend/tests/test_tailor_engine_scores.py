@@ -193,6 +193,65 @@ def test_a_job_row_posting_is_the_cached_feed_posting(db_session):
     assert posting == fit_engine.posting_for_job(job)
 
 
+# ─── What the rewrite is asked to weave in (fix round 1, Minor 1) ───────────────────────────
+
+
+def _with_required_facts(result, facts):
+    from matcher.models import Fact
+
+    built = tuple(Fact(code=code, subject=subject, value=value,
+                       detail={"relation": "NONE", "via": "", "idf": 1.0, "weight_multiplier": 1.0,
+                               "necessity": "REQUIRED", "members": members})
+                  for code, subject, value, members in facts)
+    required = result.dimensions["required_skills"].model_copy(update={"facts": built})
+    return result.model_copy(update={"dimensions": {**result.dimensions, "required_skills": required}})
+
+
+def test_only_missing_required_skills_are_suggested(db_session):
+    _, _, result = _scored(db_session)
+    analysis = analysis_from_result(result)
+    codes = {fact.subject: fact.code for fact in result.dimensions["required_skills"].facts}
+    # This résumé partly shows Docker and Kubernetes (REQ_PARTIAL); Go and Terraform are
+    # preferred: all stay chips, none is a term the rewrite is told to add.
+    assert codes["skill.docker"] == codes["skill.kubernetes"] == "REQ_PARTIAL"
+    assert {"Docker", "Kubernetes", "Go", "Terraform"} <= set(analysis.missing_keywords)
+    assert analysis.suggested_keywords == []
+    # A REQUIRED skill at REQ_MISS is suggested (test_tailor_api pins Kubernetes for a résumé
+    # with no related experience).
+    missing = _with_required_facts(result, [("REQ_MISS", "skill.kubernetes", 0.0, "skill.kubernetes"),
+                                            ("REQ_PARTIAL", "skill.docker", 0.3, "skill.docker")])
+    assert analysis_from_result(missing).suggested_keywords == ["Kubernetes"]
+
+
+def test_an_or_group_suggests_its_best_member_not_the_a_or_b_string(db_session):
+    _, _, result = _scored(db_session)
+    grouped = _with_required_facts(result, [("REQ_MISS", "skill.rust", 0.0, "skill.haskell,skill.rust")])
+    analysis = analysis_from_result(grouped)
+    assert analysis.missing_keywords[0] == "Haskell or Rust"  # the chip keeps the group
+    assert analysis.suggested_keywords == ["Rust"]
+
+
+def test_suggestions_are_capped_at_ten(db_session):
+    _, _, result = _scored(db_session)
+    names = ["azure", "gcp", "kubernetes", "redis", "elasticsearch", "kafka", "spark", "hadoop", "terraform",
+             "rust", "haskell", "scala"]
+    many = _with_required_facts(result, [("REQ_MISS", f"skill.{n}", 0.0, f"skill.{n}") for n in names])
+    analysis = analysis_from_result(many)
+    assert len(analysis.missing_keywords) >= 12  # the 12 required, then the preferred chips
+    assert len(analysis.suggested_keywords) == 10
+    assert analysis.suggested_keywords == analysis.missing_keywords[:10]
+
+
+def test_match_engine_uses_only_public_fit_engine_names():
+    """Fix round 1, Minor 3: a rename inside fit_engine must not break tailoring silently."""
+    import re
+
+    source = (Path(__file__).resolve().parents[1] / "services" / "match_engine.py").read_text(encoding="utf-8")
+    used = set(re.findall(r"(?<![\w.])fit_engine\.(\w+)\(", source))
+    assert used and all(not name.startswith("_") for name in used), used
+    assert used <= set(fit_engine.__all__), used - set(fit_engine.__all__)
+
+
 # ─── No LLM in the analysis ────────────────────────────────────────────────────────────────
 
 

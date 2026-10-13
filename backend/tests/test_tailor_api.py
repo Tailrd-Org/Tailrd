@@ -69,9 +69,12 @@ class TestTailorResume:
         assert data["matched_keywords"] == ["Python", "SQL"]
         assert {"Docker", "Kubernetes"} <= set(data["missing_keywords"])
         assert data["document"]["sections"][-1]["skills"] == ["Python", "SQL", "Docker", "Kubernetes"]
-        # omitted add_keywords -> all of the engine's missing requirements fed to the rewrite
+        # omitted add_keywords -> the engine's MISSING required skills are fed to the rewrite
+        # (fix round 1, Minor 1): Kubernetes, not Docker (partly shown through Python) and not
+        # the preferred Go / Terraform.
         prompt = _tailor_prompt(gen)
-        assert "use the job's own words for these terms: " + ", ".join(data["missing_keywords"]) + "." in prompt
+        assert "use the job's own words for these terms: Kubernetes." in prompt
+        assert data["reasons"] == []  # SCORED after: nothing to explain
 
     def test_explicit_keywords_used_exactly(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -115,6 +118,7 @@ class TestTailorResume:
             assert data[key] is None, key
         assert data["match_label"] == "We couldn't score this"
         assert data["missing_keywords"] == []
+        assert data["reasons"] == ["We couldn't find any requirements in this job posting."]
 
     def test_wrapped_contract_surfaces_gaps_changes_and_figures(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -154,6 +158,76 @@ class TestTailorResume:
         assert resp.status_code == 400
 
 
+def _request():
+    import httpx
+    return httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+
+
+def _llm_failures():
+    import httpx
+    return [
+        httpx.ReadTimeout("stalled", request=_request()),
+        httpx.HTTPStatusError("400", request=_request(), response=httpx.Response(400, request=_request())),
+        ValueError("unexpected response format"),
+    ]
+
+
+class TestLlmFailureIsAnError:
+    """Fix round 1, Important 1: any LLM failure on a rewrite route is a 503 and saves nothing."""
+
+    @pytest.mark.parametrize("route", ["/api/tailor-resume", "/api/custom-resume"])
+    @pytest.mark.parametrize("failure", _llm_failures() + ["not json"], ids=["timeout", "http", "value", "json"])
+    def test_a_failed_rewrite_is_a_503_and_saves_no_version(self, client, db_session, monkeypatch, route, failure):
+        from backend.db.models import ResumeVersion
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        _seed_resume(db_session)
+        gen = AsyncMock(side_effect=failure if isinstance(failure, BaseException) else [failure])
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
+            resp = client.post(route, json={"job_title": "Engineer", "company": "Acme", "job_description": JD})
+        assert resp.status_code == 503
+        assert resp.json()["detail"] == "AI suggestions are unavailable right now. Please try again in a moment."
+        assert db_session.query(ResumeVersion).count() == 0
+
+
+class TestAnalysisLimits:
+    """Fix round 1, Important 2: a pasted description is capped, and the free analysis has its
+    own cheap per-user rate limit (never the daily AI quota)."""
+
+    @pytest.mark.parametrize("route", ["/api/custom-resume-analysis", "/api/tailor-resume", "/api/custom-resume"])
+    def test_a_description_over_20000_characters_is_refused(self, client, db_session, monkeypatch, route):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        _seed_resume(db_session)
+        gen = AsyncMock(side_effect=AssertionError("must be refused before any work"))
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
+            resp = client.post(route, json={"job_title": "Engineer", "company": "Acme",
+                                             "job_description": "x" * 20001})
+        assert resp.status_code == 422
+        assert gen.await_count == 0
+
+    def test_a_description_of_exactly_20000_characters_is_accepted(self, client, db_session):
+        _seed_resume(db_session)
+        resp = client.post("/api/custom-resume-analysis", json={
+            "job_title": "Engineer", "company": "Acme", "job_description": JD + " " * (20000 - len(JD))})
+        assert resp.status_code == 200
+
+    def test_the_analysis_has_a_per_user_rate_limit(self, client, db_session, monkeypatch):
+        from backend.services import usage_limiter
+        monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+        monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_MINUTE", 2)
+
+        def no_ai_quota(*args, **kwargs):
+            raise AssertionError("the free analysis must not touch the AI quota")
+
+        monkeypatch.setattr(usage_limiter, "enforce_llm_limits", no_ai_quota)
+        _seed_resume(db_session)
+        body = {"job_title": "Engineer", "company": "Acme", "job_description": JD}
+        assert client.post("/api/custom-resume-analysis", json=body).status_code == 200
+        assert client.post("/api/custom-resume-analysis", json=body).status_code == 200
+        third = client.post("/api/custom-resume-analysis", json=body)
+        assert third.status_code == 429
+        assert third.headers.get("Retry-After")
+
+
 class TestCustomResumeAnalysis:
     def test_returns_the_engine_analysis_without_the_llm(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -172,6 +246,7 @@ class TestCustomResumeAnalysis:
         assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
         assert data["matched_keywords"] == ["Python", "SQL"]
         assert "Kubernetes" in data["missing_keywords"]
+        assert data["suggested_keywords"] == ["Kubernetes"]  # missing required skills only
         assert data["suggestions"]  # the engine's counterfactual
 
     def test_400_when_no_resume(self, client, monkeypatch):

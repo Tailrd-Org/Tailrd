@@ -1,9 +1,10 @@
 import json
 
+import httpx
 import pytest
 
 from backend.schemas.resume_document import ResumeDocument, Section, SectionItem
-from backend.services.openai_service import OpenAIService, TailorStructuredResult
+from backend.services.openai_service import OpenAIService, RewriteFailedError, TailorStructuredResult
 
 
 def _doc():
@@ -69,14 +70,31 @@ async def test_accepts_bare_document_for_back_compat(monkeypatch):
     assert out.gaps == []
 
 
+def _request():
+    return httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+
+
 @pytest.mark.asyncio
-async def test_parse_failure_falls_back_to_original(monkeypatch):
+@pytest.mark.parametrize("failure", [
+    "not json",                                             # bad JSON
+    '{"resume": {"sections": "not a list"}}',               # a document the schema refuses
+    httpx.ReadTimeout("stalled", request=_request()),       # timeout
+    httpx.HTTPStatusError("400", request=_request(), response=httpx.Response(400, request=_request())),
+    httpx.ConnectError("down", request=_request()),         # connection
+    ValueError("unexpected response format"),               # _generate's own refusal
+])
+async def test_any_llm_failure_raises_instead_of_returning_the_original(monkeypatch, failure):
+    """Task 9.3 fix round 1 (Important 1): a failed rewrite is never a 200 "rewrite" that is the
+    original. Every failure is a RewriteFailedError, a ConnectionError, so the routes' existing
+    503 handler answers it and no version is saved."""
     svc = OpenAIService.__new__(OpenAIService)
 
     async def fake_generate(prompt, system=None, **kwargs):
-        return "not json"
+        if isinstance(failure, BaseException):
+            raise failure
+        return failure
     monkeypatch.setattr(svc, "_generate", fake_generate)
 
-    doc = _doc()
-    out = await svc.tailor_resume_structured(doc, "jd")
-    assert out.document == doc and out.gaps == []
+    with pytest.raises(RewriteFailedError) as caught:
+        await svc.tailor_resume_structured(_doc(), "jd")
+    assert isinstance(caught.value, ConnectionError)

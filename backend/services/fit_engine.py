@@ -864,6 +864,10 @@ _TAILOR_OPTIONS = ScoreOptions(with_explanation=True)
 _TAILOR_SUGGEST_OPTIONS = ScoreOptions(with_explanation=True, with_counterfactual=True)
 _COVERAGE_DIMENSIONS = ("required_skills", "preferred_skills")
 
+#: The longest pasted description parsed (D-123): parse cost grows with length.
+MAX_PASTED_DESCRIPTION = 20_000
+#: At most this many missing requirements are suggested for a one-click rewrite (D-123).
+MAX_SUGGESTED = 10
 _TEXT_POSTINGS: "OrderedDict[str, JobPosting]" = OrderedDict()
 _TEXT_POSTING_CACHE_SIZE = 64
 _TEXT_POSTINGS_LOCK = threading.Lock()
@@ -885,7 +889,9 @@ def posting_from_text(title: str, company: str, description: str, *, engine: Opt
     never cached."""
     engine = engine or get_engine()
     day = as_of or fit_as_of()
-    title, company, description = _text(title, 2000), _text(company, 2000), description or ""
+    # The routes refuse longer input (schemas/tailor.py); this cut only bounds any other caller.
+    title, company = _text(title, 2000), _text(company, 2000)
+    description = (description or "")[:MAX_PASTED_DESCRIPTION]
     key = _digest([engine.posting_version(day), title, company, description])
     with _TEXT_POSTINGS_LOCK:
         hit = _TEXT_POSTINGS.get(key)
@@ -957,6 +963,7 @@ class RequirementCoverage:
     matched: tuple[str, ...]
     missing: tuple[str, ...]
     percent: Optional[int]
+    suggested: tuple[str, ...] = ()
 
 
 def _requirement_label(graph: SkillGraph, fact: Any) -> str:
@@ -973,10 +980,14 @@ def requirement_coverage(result: MatchResult, *, engine: Optional[FitEngine] = N
     engine's group order). A requirement the résumé meets (match quality at least 0.5, the
     engine's REQ_MATCH) is matched; a partial or absent one is missing. ``percent`` is the
     engine's own coverage over both: sum(idf x weight x m) / sum(idf x weight), as 0-100; None
-    when no requirement carries weight (a review or a failed gate has no dimensions)."""
+    when no requirement carries weight (a review or a failed gate has no dimensions).
+    ``suggested`` is what a one-click rewrite weaves in by default: the REQUIRED groups at
+    REQ_MISS, by best member, at most ``MAX_SUGGESTED`` (partial matches and preferred skills
+    stay chips only)."""
     engine = engine or get_engine()
     matched: list[str] = []
     missing: list[str] = []
+    suggested: list[str] = []
     numerator = denominator = 0.0
     for name in _COVERAGE_DIMENSIONS:
         dimension = result.dimensions.get(name)
@@ -987,11 +998,18 @@ def requirement_coverage(result: MatchResult, *, engine: Optional[FitEngine] = N
             target = matched if fact.code == REQ_MATCH else missing
             if label not in matched and label not in missing:
                 target.append(label)
+            # What a one-click rewrite is asked to weave in: a REQUIRED skill the résumé does not
+            # show at all, by its best member (an OR-group's "A or B" is not a term to write).
+            best = skill_label(engine.graph, fact.subject)
+            if (name == "required_skills" and fact.code == REQ_MISS and best not in suggested
+                    and len(suggested) < MAX_SUGGESTED):
+                suggested.append(best)
             weight = float(fact.detail.get("idf") or 0.0) * float(fact.detail.get("weight_multiplier") or 0.0)
             numerator += weight * float(fact.value or 0.0)
             denominator += weight
     percent = max(0, min(100, round(100 * numerator / denominator))) if denominator > 0 else None
-    return RequirementCoverage(matched=tuple(matched), missing=tuple(missing), percent=percent)
+    return RequirementCoverage(matched=tuple(matched), missing=tuple(missing), percent=percent,
+                               suggested=tuple(suggested))
 
 
 def reason_sentences(result: MatchResult) -> list[str]:
@@ -999,7 +1017,7 @@ def reason_sentences(result: MatchResult) -> list[str]:
     return list(dict.fromkeys(flag_sentence(flag) for flag in result.reasons))
 
 
-def _commit_if_cached(db, job: Any) -> None:
+def commit_posting_cache(db, job: Any) -> None:
     """Persist a posting cache entry ``posting_for_job`` just wrote to an ORM job."""
     try:
         dirty = job in db and db.is_modified(job)
@@ -1029,7 +1047,7 @@ def explain_job(db, user: Any, job: Any, *, engine: Optional[FitEngine] = None,
     settings = _settings_for(db, user_id)
     parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
     posting = posting_for_job(job, engine=engine, as_of=day)
-    _commit_if_cached(db, job)
+    commit_posting_cache(db, job)
     result = _score_pair(parsed, posting, _calibrator(db, engine), engine, day, _DETAIL_OPTIONS,
                          getattr(job, "id", "?"))
     detail = json.loads(result.model_dump_json())
@@ -1044,6 +1062,7 @@ __all__ = [
     "FitTraceSaltError",
     "bank_scores",
     "build_engine",
+    "commit_posting_cache",
     "current_fingerprints",
     "delete_user_traces",
     "engine_ready",

@@ -17,6 +17,8 @@ Field mapping (``JobAnalysisOut``, D-123):
                       (idf-weighted, 0-100); None when no requirement carries weight.
     matched_keywords  requirements the résumé meets (REQ_MATCH), as display labels.
     missing_keywords  requirements partly covered or absent (REQ_PARTIAL, REQ_MISS).
+    suggested_keywords  what a one-click rewrite weaves in by default: the REQUIRED skills at
+                      REQ_MISS, by best member, at most 10 (additive; fix round 1).
     strengths /
     weaknesses        the engine explanation's strengths and gaps (labels); a failed gate's
                       reason leads ``weaknesses``.
@@ -77,6 +79,7 @@ def analysis_from_result(result: Any, *, engine: Any = None) -> JobAnalysisOut:
         keyword_coverage=coverage.percent,
         matched_keywords=list(coverage.matched),
         missing_keywords=list(coverage.missing),
+        suggested_keywords=list(coverage.suggested),
         strengths=strengths,
         weaknesses=weaknesses,
         suggestions=suggestions,
@@ -100,7 +103,7 @@ class MatchEngine:
         if job is not None:
             posting = fit_engine.posting_for_job(job)
             if self.db is not None:
-                fit_engine._commit_if_cached(self.db, job)
+                fit_engine.commit_posting_cache(self.db, job)
             return posting
         return fit_engine.posting_from_text(job_title or "", company or "", job_description or "")
 

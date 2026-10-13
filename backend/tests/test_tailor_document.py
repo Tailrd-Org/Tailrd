@@ -8,8 +8,8 @@ import backend.services.resume_tailor as rt
 
 def _analysis(score, missing):
     return JobAnalysisOut(overall_score=score, ats_score=score, match_label="Good match",
-                          keyword_coverage=50, matched_keywords=["Python"], missing_keywords=missing,
-                          outcome="SCORED")
+                          keyword_coverage=50, matched_keywords=["Python"], missing_keywords=[*missing, "Docker"],
+                          suggested_keywords=missing, outcome="SCORED")
 
 
 @pytest.mark.asyncio
@@ -47,8 +47,27 @@ async def test_tailor_document_threads_changes_gaps_figures(monkeypatch):
     result = await rt.tailor_document(db=None, original_document=original, job_title="Eng",
                                       company="X", job_description="AWS role")
     assert scored == [original, result.document]          # the original, then the rewrite
-    assert seen_keywords == [["AWS"]]                     # the rewrite is fed the engine's gaps
+    assert seen_keywords == [["AWS"]]  # the rewrite is fed the engine's suggested gaps, not every chip
     assert (result.before.overall_score, result.after.overall_score) == (40, 55)
     assert result.gaps == ["Role wants AWS; not shown"]
     assert result.figures_to_verify == ["30%"]           # 30% not in source → flagged
     assert any("entr" in c.lower() or "bullet" in c.lower() for c in result.changes)
+
+
+def test_score_fields_explain_a_number_that_went_away():
+    """Fix round 1, Important 3: SCORED before, SCORED_LOW_CONFIDENCE after: the reasons open with
+    the listed-only sentence, then the engine's own sentences."""
+    before = _analysis(48, ["AWS"])
+    after = JobAnalysisOut(overall_score=None, ats_score=None, match_label="Partial match", keyword_coverage=60,
+                           outcome="SCORED_LOW_CONFIDENCE",
+                           reasons=["Several parts of the match couldn't be assessed."])
+    doc = ResumeDocument()
+    result = rt.TailorResult(document=doc, original_text="", tailored_text="", before=before, after=after,
+                             diff_summary="", changes=[], gaps=[], figures_to_verify=[])
+    fields = result.score_fields()
+    assert fields["reasons"] == [rt.LISTED_ONLY_SENTENCE, "Several parts of the match couldn't be assessed."]
+    assert chr(0x2014) not in rt.LISTED_ONLY_SENTENCE
+
+    scored = rt.TailorResult(document=doc, original_text="", tailored_text="", before=before,
+                             after=_analysis(55, []), diff_summary="", changes=[], gaps=[], figures_to_verify=[])
+    assert scored.score_fields()["reasons"] == []
