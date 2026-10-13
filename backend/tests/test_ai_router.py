@@ -4,12 +4,11 @@ Unit tests for the AI router endpoints.
 Tests cover:
 - 404 for non-existent jobs on all endpoints
 - 400 when no resume profile exists
-- 503 when AI is unreachable
+- the match breakdown is the fit engine's and never touches the AI service (Task 9.2)
+- /ai/analyze-fit and /ai/batch-score are gone
 
 Requirements: 3.7
 """
-
-from unittest.mock import patch, AsyncMock
 
 import httpx
 import pytest
@@ -25,10 +24,9 @@ from backend.routers import ai
 
 
 @pytest.fixture(autouse=True)
-def _legacy_llm_scoring(monkeypatch):
-    # These tests pin the per-job LLM scoring path, which is now opt-in
-    # (MATCH_SCORING=ai); the free local path has its own tests.
-    monkeypatch.setenv("MATCH_SCORING", "ai")
+def _trace_salt(monkeypatch):
+    # The breakdown also banks the engine's score, which needs a trace salt (never a real one).
+    monkeypatch.setenv("FIT_TRACE_SALT", "a-test-salt-of-at-least-16-bytes")
 
 # Create a test-specific app with only the AI router (avoids production lifespan issues)
 TEST_DATABASE_URL = "sqlite:///./test_ai_router.db"
@@ -103,66 +101,37 @@ class TestMatchBreakdown:
 
         response = client.post(f"/ai/match-breakdown/{job.id}")
         assert response.status_code == 400
-        assert "No resume profile found" in response.json()["detail"]
+        assert "No resume found" in response.json()["detail"]
 
-    def test_returns_503_when_ai_unreachable(self, client, db_session):
-        """Should return 503 when AI service is unreachable."""
-        # Create job and resume profile
+    def test_the_breakdown_never_calls_the_ai_service(self, client, db_session, monkeypatch):
+        """The breakdown is the deterministic engine's: an unreachable AI service changes
+        nothing (no 503 any more), and nothing charges the daily AI limit."""
+        def unreachable(*_a, **_k):
+            raise httpx.ConnectError("Connection refused")
+
+        monkeypatch.setattr("backend.services.llm.get_llm_service", unreachable)
+        monkeypatch.setattr("backend.services.usage_limiter.enforce_llm_limits", unreachable)
         job = ScrapedJob(
             title="Software Engineer",
             company="TestCo",
             url="https://example.com/job/2",
-            description="Build things with Python, distributed systems, and modern cloud infrastructure.",
+            description="Requirements\n- Python\n- Distributed systems\n- Cloud infrastructure",
         )
         db_session.add(job)
-
-        profile = ResumeProfileDB(
+        db_session.add(ResumeProfileDB(
             user_id=TEST_USER_ID,
             profile_name="Test User",
             email="test@example.com",
-            raw_text="Experienced software engineer with 5 years...",
-        )
-        db_session.add(profile)
+            raw_text="Experienced software engineer with 5 years of Python...",
+        ))
         db_session.commit()
         db_session.refresh(job)
 
-        with patch(
-            "backend.routers.ai.MatchEngine.compute_breakdown",
-            new_callable=AsyncMock,
-            side_effect=httpx.ConnectError("Connection refused"),
-        ):
-            response = client.post(f"/ai/match-breakdown/{job.id}")
-            assert response.status_code == 503
-            assert "AI suggestions are unavailable" in response.json()["detail"]
-
-    def test_returns_503_when_score_is_unparseable(self, client, db_session):
-        """An LLM answer with no parsable score is a retryable 503, not a fake
-        all-zero breakdown presented as real."""
-        job = ScrapedJob(
-            title="Software Engineer",
-            company="TestCo",
-            url="https://example.com/job/3",
-            description="Build things with Python, distributed systems, and modern cloud infrastructure.",
-        )
-        db_session.add(job)
-
-        profile = ResumeProfileDB(
-            user_id=TEST_USER_ID,
-            profile_name="Test User",
-            email="test@example.com",
-            raw_text="Experienced software engineer with 5 years...",
-        )
-        db_session.add(profile)
-        db_session.commit()
-        db_session.refresh(job)
-
-        with patch(
-            "backend.routers.ai.MatchEngine.compute_breakdown",
-            new_callable=AsyncMock,
-            side_effect=ValueError("match response missing overall_score"),
-        ):
-            response = client.post(f"/ai/match-breakdown/{job.id}")
-            assert response.status_code == 503
+        response = client.post(f"/ai/match-breakdown/{job.id}")
+        assert response.status_code == 200, response.text
+        body = response.json()
+        assert body["outcome"] in {"SCORED", "SCORED_LOW_CONFIDENCE", "NEEDS_REVIEW", "GATE_FAIL"}
+        assert "% match" not in str(body)
 
 
 class TestCoverLetter:
@@ -185,11 +154,16 @@ class TestTailorResume:
         assert "Job not found" in response.json()["detail"]
 
 
-class TestAnalyzeFit:
-    """Tests for POST /ai/analyze-fit/{job_id}."""
+class TestRemovedScoringEndpoints:
+    """POST /ai/analyze-fit and /ai/batch-score were AI scoring paths (removed, D-83)."""
 
-    def test_returns_404_for_nonexistent_job(self, client):
-        """Non-existent job_id should return 404."""
-        response = client.post("/ai/analyze-fit/9999")
-        assert response.status_code == 404
-        assert "Job not found" in response.json()["detail"]
+    def test_analyze_fit_is_gone(self, client, db_session):
+        job = ScrapedJob(title="Engineer", company="TestCo", url="https://example.com/job/9",
+                         description="Build things")
+        db_session.add(job)
+        db_session.commit()
+        db_session.refresh(job)
+        assert client.post(f"/ai/analyze-fit/{job.id}").status_code == 404
+
+    def test_batch_score_is_gone(self, client):
+        assert client.post("/ai/batch-score").status_code == 404

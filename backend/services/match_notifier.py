@@ -1,19 +1,23 @@
-"""High-match job alert notifier.
+"""Strong-match job alert notifier and the cron scoring sweep.
 
-Decides when to email a user about jobs that strongly match their resume, and
-dedupes so a user is never alerted twice about the same job. Used both by the
-resume-upload background task (immediate alerts for the jobs scored at upload)
-and by the recurring cron sweep.
+Every score comes from the deterministic fit engine (services/fit_engine.py, DECISIONS D-83):
+the sweep calls no LLM of any kind. An alert goes out only for a confident Strong match, an
+outcome SCORED in the Strong band (D-85); a result with no number (low confidence, gate fail,
+needs review) is never a match (D-86). Dedupes so a user is never alerted twice about the same
+job. Used by the recurring cron sweep (``sweep_match_alerts``) and callable directly
+(``notify_high_matches``).
 """
 
+import asyncio
 import datetime
-import hashlib
 import logging
 import os
 import time
-from typing import Optional
+from collections import Counter
+from typing import Any, Optional
 
 from sqlalchemy import exists, func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from backend.db.models import (
@@ -25,21 +29,27 @@ from backend.db.models import (
 )
 from backend.services.alert_unsubscribe import unsubscribe_url
 from backend.services.email_service import clean_company_name, email_service
+from backend.services import fit_reads
 from backend.services.listing_freshness import LISTING_ACTIVE, LISTING_STALE
-from backend.services.local_match import scoring_mode
 from backend.services.logo_cache import LOGO_PATH_PREFIX, logo_quality
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_THRESHOLD = 80
 # Free-tier guard rails (Resend free plan = 100 emails/day, 3,000/month).
 # A user gets at most one digest per cooldown window, and we never send more
 # than the daily budget across all users, leaving headroom for verification
 # emails. Both are env-overridable.
 DEFAULT_COOLDOWN_HOURS = 24
 DEFAULT_DAILY_BUDGET = 80
-# Wall-clock box (seconds) for the sweep's LLM scoring; see sweep_match_alerts.
+# Wall-clock box (seconds) for the sweep's scoring; see sweep_match_alerts.
 DEFAULT_SCORING_BUDGET_S = 120
+# Jobs per bank_scores call. Each chunk commits on its own, so a run cut short
+# keeps what it scored, and a conflict with a concurrent sweep costs one chunk.
+SWEEP_CHUNK = 500
+# The drift report's reference window (EVAL section 6: the 30-day baseline) and
+# how many of its raw scores it reads at most.
+DRIFT_WINDOW_DAYS = 30
+DRIFT_REFERENCE_LIMIT = 5000
 
 # Every value scraped_jobs.country takes: services/country_filter.py files each
 # ingested row under US or CA, or drops it.
@@ -62,11 +72,6 @@ def _env_flag(name: str, default: bool) -> bool:
     return raw.strip().lower() in ("1", "true", "yes", "on")
 
 
-def get_threshold() -> int:
-    """Minimum match score (0-100) that triggers an alert. Env-overridable."""
-    return _env_int("MATCH_NOTIFY_THRESHOLD", DEFAULT_THRESHOLD)
-
-
 def get_cooldown_hours() -> int:
     """Min hours between alert emails to the same user (0 disables)."""
     return _env_int("MATCH_NOTIFY_COOLDOWN_HOURS", DEFAULT_COOLDOWN_HOURS)
@@ -80,9 +85,9 @@ def get_daily_budget() -> int:
 def alerts_enabled() -> bool:
     """Master switch for the recurring sweep.
 
-    The sweep runs on the scrape cron and spends LLM budget whether or not a
-    single person opens the app, so it needs an off-switch that costs nothing
-    but an env var.
+    The sweep runs on the scrape cron and spends CPU and database writes
+    whether or not a single person opens the app, so it needs an off-switch
+    that costs nothing but an env var.
     """
     return _env_flag("MATCH_ALERTS_ENABLED", True)
 
@@ -169,46 +174,6 @@ def _emails_sent_today(db: Session) -> int:
     )
 
 
-def _resume_fingerprint(raw_text: str) -> str:
-    """Identify which resume a score was computed from.
-
-    A cached score is only reusable while the resume it was computed from is
-    unchanged; fingerprinting the text means an edit invalidates the score
-    instead of serving a stale match forever.
-    """
-    return hashlib.sha256(raw_text.encode("utf-8", "replace")).hexdigest()
-
-
-def _remember_score(
-    db: Session, user_id: int, job_id: int, score: int, fingerprint: str
-) -> None:
-    """Bank a score the moment it is bought, so no later run pays for it again.
-
-    Committed per score rather than once at the end of the sweep: the cron runs
-    under a wall-clock limit, and a run that dies halfway through must not throw
-    away the calls it already paid for.
-    """
-    row = (
-        db.query(JobMatchScore)
-        .filter(JobMatchScore.user_id == user_id, JobMatchScore.job_id == job_id)
-        .first()
-    )
-    if row is None:
-        db.add(
-            JobMatchScore(
-                user_id=user_id,
-                job_id=job_id,
-                score=score,
-                resume_fingerprint=fingerprint,
-            )
-        )
-    else:
-        row.score = score
-        row.resume_fingerprint = fingerprint
-        row.scored_at = datetime.datetime.utcnow()
-    db.commit()
-
-
 def _frontend_base() -> str:
     return (os.getenv("FRONTEND_URL") or "").rstrip("/")
 
@@ -286,21 +251,24 @@ def _job_to_alert_dict(job: ScrapedJob, score: int) -> dict:
 
 
 def notify_high_matches(
-    db: Session, user_id: int, scored: list[tuple[ScrapedJob, int]]
+    db: Session,
+    user_id: int,
+    scored: list[tuple[ScrapedJob, Optional[int], Optional[str], Optional[str]]],
 ) -> int:
-    """Email a user about their high-scoring matches, deduping prior alerts.
+    """Email a user about their confident Strong matches, deduping prior alerts.
 
     Args:
         db: Active DB session.
         user_id: Recipient user id.
-        scored: List of (ScrapedJob, score) pairs the caller just computed for
-            this user's resume.
+        scored: (ScrapedJob, score, band, outcome) for this user's current résumé, as banked
+            by the fit engine. Only SCORED rows in the Strong band are ever sent (D-85); a
+            row with no score is never a match (D-86).
 
     Returns:
         Number of jobs included in the sent alert (0 if nothing was sent).
     """
-    threshold = get_threshold()
-    candidates = [(job, int(score or 0)) for job, score in scored if int(score or 0) >= threshold]
+    candidates = [(job, int(score)) for job, score, band, outcome in scored
+                  if fit_reads.is_strong_match(outcome, band, score)]
     if not candidates:
         return 0
 
@@ -313,7 +281,7 @@ def notify_high_matches(
         return 0
 
     # The recipient's own choices. Checked here as well as in the sweep's user
-    # query because the resume-upload path calls this directly, and a user can
+    # query because a caller may call this directly, and a user can
     # unsubscribe while a sweep is running.
     enabled, regions = _alert_prefs(db, user_id)
     if not enabled:
@@ -339,7 +307,7 @@ def notify_high_matches(
         )
         return 0
 
-    # Only rows the feed still shows (the upload path hands over whatever it
+    # Only rows the feed still shows (a caller may hand over whatever it
     # scored, hidden or closed rows included), in the user's region if they
     # picked one. Ids only, never whole rows.
     job_ids = [job.id for job, _ in candidates]
@@ -399,115 +367,104 @@ def notify_high_matches(
     return len(fresh)
 
 
-def ai_confirmations_per_day() -> int:
-    """LLM confirmations per user per UTC day in local mode (0 = never call
-    the LLM: matching is then entirely free). Default 3 = at most ~$0.0015 per
-    user per day at gpt-4o-mini prices."""
-    return max(0, _env_int("MATCH_AI_DAILY_PER_USER", 3))
+def _engine_hash() -> str:
+    """The combined config hash of the engine scores are banked with (builds it if needed)."""
+    from backend.services import fit_engine
+
+    return fit_engine.get_engine().combined_hash
 
 
-def ai_confirm_min_score() -> int:
-    """Local score a job needs before it is worth an LLM confirmation."""
-    return _env_int("MATCH_AI_CONFIRM_MIN", 70)
-
-
-async def _score_user_local(
-    db: Session,
-    engine,
-    user_id: int,
-    profile,
-    window,
-    threshold: int,
-    started: float,
-    scoring_budget_s: int,
-    llm_blocked: bool,
+def _drift_report(
+    db: Session, started_at: datetime.datetime, current_raws: list[float], current_outcomes: dict[str, int]
 ) -> dict:
-    """Local-mode sweep for one user.
+    """The EVAL section 6 drift report for this sweep (``matcher.audit.evaluate_drift``).
 
-    1. Score every window job locally (free; already-current scores skipped).
-    2. Spend at most ai_confirmations_per_day() LLM calls today confirming the
-       best local candidates, best first. A confirmed score overwrites the
-       local one for that (user, job).
-    3. Return what may be emailed: LLM-confirmed scores at or above the
-       threshold, or, when confirmation is off or the LLM is unreachable,
-       local scores at or above it.
+    Reference: the 30-day baseline, rows banked under the current config before this sweep
+    started (at most DRIFT_REFERENCE_LIMIT raw scores, newest first). Current: what this sweep
+    scored. Both PSI sample sizes are passed, so below 200 scores on either side the PSI is not
+    evaluated and appears in ``skipped`` ("insufficient sample"), never silently dropped. The
+    checks the sweep cannot measure (taxonomy coverage, four-fifths, latency) are listed in
+    ``not_measured``. Abstention is NEEDS_REVIEW plus SCORED_LOW_CONFIDENCE over all pairs (D-95).
     """
-    from backend.services.local_match import ai_fingerprint, bank_local_scores, local_fingerprint
-    from backend.services.openai_service import LLMAccountError
+    from backend.services import fit_engine  # noqa: F401  (puts matcher on sys.path, D-01)
+    from matcher.audit import evaluate_drift, psi
 
-    out = {"local_scored": 0, "ai_confirmed": 0, "errors": 0,
-           "llm_unavailable": None, "budget_spent": False, "sendable": []}
-    window_ids = [row[0] for row in db.query(window.c.id).all()]
-    if not window_ids:
-        return out
-    out["local_scored"] = len(bank_local_scores(db, user_id, profile, window_ids))
+    config_hash = _engine_hash()
+    since = started_at - datetime.timedelta(days=DRIFT_WINDOW_DAYS)
+    in_window = (
+        JobMatchScore.config_hash == config_hash,
+        JobMatchScore.resume_fingerprint.like(fit_reads.FIT_PREFIX + "%"),
+        JobMatchScore.scored_at >= since,
+        JobMatchScore.scored_at < started_at,
+    )
+    reference = [
+        float(row[0])
+        for row in db.query(JobMatchScore.raw_score)
+        .filter(*in_window, JobMatchScore.raw_score.isnot(None))
+        .order_by(JobMatchScore.scored_at.desc(), JobMatchScore.id.desc())
+        .limit(DRIFT_REFERENCE_LIMIT)
+        .all()
+    ]
+    baseline_counts = dict(
+        db.query(JobMatchScore.outcome, func.count(JobMatchScore.id))
+        .filter(*in_window)
+        .group_by(JobMatchScore.outcome)
+        .all()
+    )
+    abstaining = (fit_reads.OUTCOME_NEEDS_REVIEW, fit_reads.OUTCOME_LOW_CONFIDENCE)
 
-    ai_fp = ai_fingerprint(profile.raw_text)
-    local_fp = local_fingerprint(profile.raw_text)
-    per_day = ai_confirmations_per_day()
-    day_start = datetime.datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    used_today = (
-        db.query(func.count(JobMatchScore.id))
-        .filter(
-            JobMatchScore.user_id == user_id,
-            JobMatchScore.resume_fingerprint == ai_fp,
-            JobMatchScore.scored_at >= day_start,
-        )
-        .scalar()
-    ) or 0
-    allowance = max(0, per_day - used_today)
+    def rate(counts: dict) -> Optional[float]:
+        total = sum(int(n) for n in counts.values())
+        return sum(int(counts.get(o, 0)) for o in abstaining) / total if total else None
 
-    if allowance and not llm_blocked:
-        candidates = (
-            db.query(JobMatchScore.job_id)
-            .filter(
-                JobMatchScore.user_id == user_id,
-                JobMatchScore.job_id.in_(window_ids),
-                JobMatchScore.resume_fingerprint == local_fp,
-                JobMatchScore.score >= ai_confirm_min_score(),
-            )
-            .order_by(JobMatchScore.score.desc(), JobMatchScore.job_id.desc())
-            .limit(allowance)
-            .all()
-        )
-        ids = [row[0] for row in candidates]
-        descriptions = dict(
-            db.query(ScrapedJob.id, ScrapedJob.description).filter(ScrapedJob.id.in_(ids)).all()
-        ) if ids else {}
-        for job_id in ids:
-            if scoring_budget_s > 0 and _now() - started >= scoring_budget_s:
-                out["budget_spent"] = True
-                break
-            try:
-                breakdown = await engine.compute_breakdown(profile.raw_text, descriptions.get(job_id) or "")
-            except LLMAccountError as exc:
-                out["llm_unavailable"] = str(exc)[:200]
-                logger.error("match-alert sweep: OpenAI refused the account, local scores only: %s", exc)
-                break
-            except Exception as exc:
-                out["errors"] += 1
-                logger.warning("match-alert sweep: confirming job %s for user %s failed: %s: %s",
-                               job_id, user_id, type(exc).__name__, exc)
-                continue
-            _remember_score(db, user_id, job_id, breakdown.overall_score, ai_fp)
-            out["ai_confirmed"] += 1
+    current = [float(raw) for raw in current_raws]
+    # psi() refuses an empty sample; an empty side is below the minimum anyway, so the
+    # placeholder 0.0 is never evaluated, only reported as skipped.
+    psi_value = psi(reference, current) if reference and current else 0.0
+    abstention_rate, abstention_baseline = rate(current_outcomes), rate(baseline_counts)
+    report = evaluate_drift(
+        coverage=None,
+        abstention_rate=abstention_rate,
+        abstention_baseline=abstention_baseline,
+        psi_value=psi_value,
+        min_fairness_ratio=None,
+        p95_latency_ms=None,
+        psi_reference_n=len(reference),
+        psi_current_n=len(current),
+    )
+    not_measured = ["coverage", "four_fifths", "p95_latency"]
+    if abstention_rate is None:
+        not_measured.append("abstention")
+    return {
+        "alarms": [alarm.model_dump() for alarm in report.alarms],
+        "skipped": [check.model_dump() for check in report.skipped],
+        "psi_reference_n": len(reference),
+        "psi_current_n": len(current),
+        "abstention_rate": abstention_rate,
+        "abstention_baseline": abstention_baseline,
+        "not_measured": not_measured,
+    }
 
-    # Local scores may be emailed only when nothing will confirm them.
-    trust_local = per_day == 0 or llm_blocked or out["llm_unavailable"] is not None
-    fps = [ai_fp, local_fp] if trust_local else [ai_fp]
+
+def _strong_matches(
+    db: Session, user_id: int, profile, window_ids: list[int]
+) -> list[tuple[ScrapedJob, Optional[int], Optional[str], Optional[str]]]:
+    """This user's confident Strong matches in the window, current for their résumé."""
+    fingerprints = fit_reads.serving_fingerprints(db, user_id, profile)
+    if not fingerprints or not window_ids:
+        return []
     rows = (
-        db.query(ScrapedJob, JobMatchScore.score)
+        db.query(ScrapedJob, JobMatchScore.score, JobMatchScore.band, JobMatchScore.outcome)
         .join(JobMatchScore, JobMatchScore.job_id == ScrapedJob.id)
         .filter(
             JobMatchScore.user_id == user_id,
             JobMatchScore.job_id.in_(window_ids),
-            JobMatchScore.resume_fingerprint.in_(fps),
-            JobMatchScore.score >= threshold,
+            JobMatchScore.resume_fingerprint.in_(fingerprints),
+            fit_reads.strong_match(),
         )
         .all()
     )
-    out["sendable"] = [(job, sc) for job, sc in rows]
-    return out
+    return [(job, score, band, outcome) for job, score, band, outcome in rows]
 
 
 async def sweep_match_alerts(
@@ -515,21 +472,25 @@ async def sweep_match_alerts(
     max_users: Optional[int] = None,
     jobs_per_user: Optional[int] = None,
 ) -> dict:
-    """Scan recent jobs for each verified user and email their new strong matches.
+    """Score recent jobs for each verified user with the fit engine and email new Strong matches.
 
-    Shared by the standalone cron endpoint and the github-sources cron-poll run
-    (so the whole product fits inside Vercel's 2-cron Hobby limit). Skips users
-    in cooldown or opted out *before* scoring to save LLM cost, and stops the
-    whole sweep once the daily email budget is spent.
+    Shared by the standalone cron endpoint and the github-sources cron-poll run (so the whole
+    product fits inside Vercel's 2-cron Hobby limit). No LLM is called, waited on or paid for.
 
-    Work is capped per run (env CRON_MATCH_MAX_USERS / CRON_MATCH_JOBS_PER_USER);
-    any truncation is logged. Returns a summary dict whose status is
-    "llm_unavailable" (plus "error") when OpenAI refused the account, so a run
-    that scored nothing no longer looks like one that found no strong matches.
+    Per user, the window's jobs (the newest CRON_MATCH_JOBS_PER_USER the feed shows) go to
+    ``fit_engine.bank_scores`` in chunks of at most SWEEP_CHUNK; each chunk commits on its own.
+    A chunk that collides with a concurrent sweep for the same user (IntegrityError) is rolled
+    back, logged and skipped; the next run scores it. A missing or short FIT_TRACE_SALT stops
+    scoring for the rest of the sweep (``fit_trace_salt_missing``: no score is banked without
+    its trace, and there is no fallback scorer). CRON_MATCH_BUDGET_S boxes the scoring; between
+    chunks the sweep yields to the event loop, so the cron-poll wall clock can cut it there.
+    Alerts are read from the banked rows: SCORED Strong matches only. Then, once per sweep,
+    the calibration references are refreshed and the drift report is computed.
+
+    Users are capped per run (CRON_MATCH_MAX_USERS); any truncation is logged.
     """
     from backend.db.models import ResumeProfileDB
-    from backend.services.match_engine import MatchEngine
-    from backend.services.openai_service import LLMAccountError
+    from backend.services import fit_engine
 
     if not alerts_enabled():
         logger.info("Match-alert sweep disabled (MATCH_ALERTS_ENABLED); skipping.")
@@ -544,27 +505,20 @@ async def sweep_match_alerts(
 
     if max_users is None:
         max_users = _env_int("CRON_MATCH_MAX_USERS", 25)
-    local_mode = scoring_mode() == "local"
     if jobs_per_user is None:
-        # Local scoring is free, so its window can be wide; the LLM window
-        # stays small because every job in it is a paid call.
-        # 2,000 covers the whole live catalogue (~5k visible, newest first) in
-        # a few runs; steady state is only the new arrivals, since current
-        # scores are skipped and each job's terms are computed once, ever.
-        jobs_per_user = _env_int("CRON_MATCH_JOBS_PER_USER", 2000 if local_mode else 15)
-    # Wall-clock box for LLM scoring. cron-poll runs this sweep last, after
-    # polling and enrichment, under Vercel's 300 s ceiling, and one call during
-    # a transient OpenAI incident can sit through 45 s of 429 backoff (5xx:
-    # 75 s): that is how the 2026-08-12 22:07Z to 00:02Z runs all hit 300 s.
-    # Checked before each call, so the sweep overruns it by at most one call.
-    # Unscored jobs are simply scored next run. 0 disables the box.
+        # 2,000 covers the whole live catalogue (~5k visible, newest first) in a few runs;
+        # steady state is only the new arrivals, since current scores are skipped and each
+        # posting is parsed once per parser version (D-84).
+        jobs_per_user = _env_int("CRON_MATCH_JOBS_PER_USER", 2000)
+    # Wall-clock box for scoring. cron-poll runs this sweep last, after polling and
+    # enrichment, under Vercel's 300 s ceiling. Checked before each chunk, so the sweep
+    # overruns it by at most one chunk. Unscored jobs are simply scored next run. 0 disables.
     scoring_budget_s = _env_int("CRON_MATCH_BUDGET_S", DEFAULT_SCORING_BUDGET_S)
     started = _now()
+    started_at = datetime.datetime.utcnow()
 
-    threshold = get_threshold()
     budget = get_daily_budget()
     cooldown = get_cooldown_hours()
-    engine = MatchEngine(db)
 
     # Everyone the sweep can do anything for, filtered in SQL BEFORE the cap:
     # verified, holding a resume, not opted out, not in cooldown. The cap used
@@ -595,10 +549,8 @@ async def sweep_match_alerts(
         *cooldown_filter,
     )
     # Fair rotation under the cap: least recently scored first (never-scored
-    # accounts ahead of everyone), id as the tiebreak. A run that buys a user a
-    # score sends them to the back of the next run's queue. One whose window
-    # held nothing new keeps its place, at no LLM cost, until a job lands in
-    # it. (Prod on 2026-09-29: 5 eligible users, cap 25.)
+    # accounts ahead of everyone), id as the tiebreak. A run that banks a user a
+    # score sends them to the back of the next run's queue.
     last_scored = (
         db.query(func.max(JobMatchScore.scored_at))
         .filter(JobMatchScore.user_id == User.id)
@@ -627,24 +579,18 @@ async def sweep_match_alerts(
                 max_users, total_eligible,
             )
 
-    users_scanned = 0
-    ai_confirmed = 0
-    users_notified = 0
-    jobs_notified = 0
-    jobs_scored = 0
-    scoring_errors = 0
-    # Set when OpenAI refuses the ACCOUNT (billing, quota, key). From then on
-    # the sweep makes no more LLM calls this run, but cached strong matches are
-    # still emailed: sending needs no model.
-    llm_unavailable: Optional[str] = None
+    users_scanned = users_notified = jobs_notified = jobs_scored = 0
+    scoring_errors = chunks_skipped = 0
     budget_spent = False
+    salt_missing = False
+    engine_failed: Optional[str] = None
+    current_raws: list[float] = []
+    current_outcomes: Counter = Counter()
 
     for user, regions_raw in users:
-        # Stop spending LLM calls once the day's email budget is gone.
+        # Stop once the day's email budget is gone.
         if _emails_sent_today(db) >= budget:
-            logger.info(
-                "Daily match-alert budget (%d) reached; ending sweep early.", budget
-            )
+            logger.info("Daily match-alert budget (%d) reached; ending sweep early.", budget)
             break
 
         profile = (
@@ -660,26 +606,22 @@ async def sweep_match_alerts(
         if not profile or not profile.raw_text:
             continue
 
-        # Cooldown and opt-out were applied in the users query, before any
-        # LLM scoring.
+        # Cooldown and opt-out were applied in the users query, before any scoring.
         users_scanned += 1
         regions = _alert_regions(regions_raw)
-
         notified_subq = (
             db.query(JobMatchNotification.job_id)
             .filter(JobMatchNotification.user_id == user.id)
             .subquery()
         )
-        # The scoring window: the newest N jobs the feed shows that this user
-        # hasn't been alerted about, in their region if they picked one.
-        # Selected as ids first so the window stays anchored to "newest N":
-        # filtering by cache state before the LIMIT would make each run dig
-        # further into the backlog, growing the bill instead of capping it. The
-        # region is a content filter like _alertable(), not a cache-state one,
-        # and it only ever narrows what gets paid for.
+        # The scoring window: the newest N jobs the feed shows that this user hasn't been
+        # alerted about, in their region if they picked one. Ids only, and anchored to
+        # "newest N": filtering by score state before the LIMIT would make each run dig
+        # further into the backlog.
         region_filter = [ScrapedJob.country.in_(regions)] if regions else []
-        window = (
-            db.query(ScrapedJob.id)
+        window_ids = [
+            row[0]
+            for row in db.query(ScrapedJob.id)
             .filter(
                 *_alertable(),
                 *region_filter,
@@ -690,129 +632,102 @@ async def sweep_match_alerts(
             )
             .order_by(ScrapedJob.id.desc())
             .limit(jobs_per_user)
-            .subquery()
-        )
-        if local_mode:
-            outcome = await _score_user_local(
-                db, engine, user.id, profile, window, threshold,
-                started, scoring_budget_s, llm_unavailable or budget_spent,
-            )
-            jobs_scored += outcome["local_scored"]
-            ai_confirmed += outcome["ai_confirmed"]
-            scoring_errors += outcome["errors"]
-            if outcome["llm_unavailable"]:
-                llm_unavailable = outcome["llm_unavailable"]
-            if outcome["budget_spent"]:
-                budget_spent = True
-            sent = notify_high_matches(db, user.id, outcome["sendable"])
-            if sent:
-                users_notified += 1
-                jobs_notified += sent
-            continue
-
-        # Fetch full rows only for window jobs this run can actually use:
-        # unscored ones (they go to the LLM) and cached strong matches (they
-        # may be emailed). A job already scored below threshold for this same
-        # resume can be neither scored nor sent, so its row, description and
-        # all, stays in the database instead of crossing the wire every run.
-        fingerprint = _resume_fingerprint(profile.raw_text)
-        jobs = (
-            db.query(ScrapedJob)
-            .outerjoin(
-                JobMatchScore,
-                (JobMatchScore.job_id == ScrapedJob.id)
-                & (JobMatchScore.user_id == user.id),
-            )
-            .filter(ScrapedJob.id.in_(db.query(window.c.id)))
-            .filter(
-                (JobMatchScore.id == None)  # noqa: E711
-                | (JobMatchScore.resume_fingerprint != fingerprint)
-                | (JobMatchScore.score >= threshold)
-            )
-            .order_by(ScrapedJob.id.desc())
             .all()
-        )
+        ]
 
-        # Reuse anything we already paid to learn. Columns only, never whole
-        # rows, so the lookup stays cheap on the wire.
-        cached: dict[int, int] = {}
-        if jobs:
-            cached = dict(
-                db.query(JobMatchScore.job_id, JobMatchScore.score)
-                .filter(
-                    JobMatchScore.user_id == user.id,
-                    JobMatchScore.job_id.in_([j.id for j in jobs]),
-                    JobMatchScore.resume_fingerprint == fingerprint,
-                )
-                .all()
-            )
-
-        # Snapshot what we score on while these rows are still loaded. Banking a
-        # score commits, and a commit expires every ORM object in the session,
-        # so reading job.description later in the loop would drag each whole row
-        # back over the wire, which is the very cost this table exists to avoid.
-        candidates = [(job, job.id, job.description) for job in jobs]
-
-        scored: list[tuple[ScrapedJob, int]] = []
-        for job, job_id, description in candidates:
-            if job_id in cached:
-                scored.append((job, cached[job_id]))
-                continue
-            # Nothing unscored is banked, so whatever is skipped here is simply
-            # scored on a later run.
-            if llm_unavailable or budget_spent:
-                continue
+        for start in range(0, len(window_ids), SWEEP_CHUNK):
+            if salt_missing or engine_failed or budget_spent:
+                break
             if scoring_budget_s > 0 and _now() - started >= scoring_budget_s:
                 budget_spent = True
-                logger.warning(
-                    "match-alert sweep: %ds scoring budget spent; no more LLM "
-                    "calls this run.", scoring_budget_s,
-                )
-                continue
+                logger.warning("match-alert sweep: %ds scoring budget spent; no more scoring this run.",
+                               scoring_budget_s)
+                break
+            chunk = window_ids[start:start + SWEEP_CHUNK]
             try:
-                breakdown = await engine.compute_breakdown(profile.raw_text, description)
-            except LLMAccountError as exc:
-                # Billing, quota or key: every further call would be refused
-                # the same way (75 refused calls a run from 2026-08-12 on).
-                llm_unavailable = str(exc)[:200]
-                logger.error(
-                    "match-alert sweep: OpenAI refused the account, no more "
-                    "scoring this run: %s", exc,
-                )
+                results = fit_engine.bank_scores(db, user.id, profile, chunk)
+            except fit_engine.FitTraceSaltError:
+                db.rollback()
+                salt_missing = True
+                logger.error("match-alert sweep: FIT_TRACE_SALT is missing or shorter than 16 bytes; "
+                             "no score can be banked without its trace, so scoring stops for this sweep.")
+                break
+            except IntegrityError as exc:
+                # A concurrent sweep (or upload) banked the same (user, job) first.
+                db.rollback()
+                chunks_skipped += 1
+                logger.warning("match-alert sweep: %s on a chunk of %d jobs for user %s; skipped, "
+                               "the next run scores it.", type(exc).__name__, len(chunk), user.id)
                 continue
+            except fit_engine.FitEngineError as exc:
+                db.rollback()
+                engine_failed = type(exc).__name__
+                logger.error("match-alert sweep: the fit engine could not be built: %s", exc)
+                break
             except Exception as exc:
-                # Transient (timeout, 5xx after retries, an unparsable reply).
-                # Not banked, so the pair is retried next run; counted and
-                # logged so a sweep that scores nothing is visibly different
-                # from one that found no strong matches.
+                db.rollback()
                 scoring_errors += 1
-                logger.warning(
-                    "match-alert sweep: scoring job %s for user %s failed: %s: %s",
-                    job_id, user.id, type(exc).__name__, exc,
-                )
+                logger.error("match-alert sweep: scoring a chunk for user %s failed: %s",
+                             user.id, type(exc).__name__)
                 continue
-            _remember_score(db, user.id, job_id, breakdown.overall_score, fingerprint)
-            jobs_scored += 1
-            scored.append((job, breakdown.overall_score))
+            jobs_scored += len(results)
+            for result in results.values():
+                current_outcomes[result.outcome.value] += 1
+                if result.raw_score is not None:
+                    current_raws.append(float(result.raw_score))
+            # Yield between chunks: the cron-poll wall clock can only cut the sweep at an await.
+            await asyncio.sleep(0)
 
-        sent = notify_high_matches(db, user.id, scored)
+        sent = notify_high_matches(db, user.id, _strong_matches(db, user.id, profile, window_ids))
         if sent:
             users_notified += 1
             jobs_notified += sent
 
-    summary = {
-        "status": "llm_unavailable" if llm_unavailable else "completed",
-        "threshold": threshold,
+    if salt_missing:
+        status = "fit_trace_salt_missing"
+    elif engine_failed:
+        status = "engine_unavailable"
+    else:
+        status = "completed"
+    summary: dict[str, Any] = {
+        "status": status,
+        "scoring": "fit-engine",
+        "alert_band": fit_reads.BAND_STRONG,
         "users_scanned": users_scanned,
         "users_notified": users_notified,
         "jobs_notified": jobs_notified,
         "jobs_scored": jobs_scored,
         "scoring_errors": scoring_errors,
+        "chunks_skipped": chunks_skipped,
         "scoring_budget_spent": budget_spent,
-        "scoring_mode": "local" if local_mode else "ai",
-        "ai_confirmed": ai_confirmed,
+        "fit_trace_salt_missing": salt_missing,
     }
-    if llm_unavailable:
-        summary["error"] = llm_unavailable
+    if engine_failed:
+        summary["error"] = engine_failed
+
+    # Once per sweep: the live calibration references, then the drift report. A sweep
+    # that could not score anything (no salt) skips both rather than build the engine
+    # (about 10 s of the cron's 300) for nothing, and says so.
+    if salt_missing and jobs_scored == 0:
+        summary["calibration"] = summary["drift"] = "skipped: no scores"
+    elif users_scanned and not engine_failed:
+        try:
+            summary["calibration"] = fit_engine.refresh_calibration(db)
+        except Exception as exc:
+            db.rollback()
+            logger.error("match-alert sweep: calibration refresh failed: %s", type(exc).__name__)
+            summary["calibration"] = {"error": type(exc).__name__}
+        try:
+            summary["drift"] = _drift_report(db, started_at, current_raws, dict(current_outcomes))
+        except Exception as exc:
+            db.rollback()
+            logger.error("match-alert sweep: drift report failed: %s", type(exc).__name__)
+            summary["drift"] = {"error": type(exc).__name__}
+        drift = summary["drift"] if isinstance(summary.get("drift"), dict) else {}
+        for alarm in drift.get("alarms", []):
+            logger.warning("match-alert sweep drift alarm %s: %s", alarm["code"], alarm["message"])
+        for check in drift.get("skipped", []):
+            logger.info("match-alert sweep drift check skipped %s: %s", check["code"], check["message"])
+
     logger.info("match-alert sweep: %s", summary)
     return summary

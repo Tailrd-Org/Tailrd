@@ -1,8 +1,10 @@
 """
-MatchEngine, computes detailed match score breakdowns via the LLM service.
+MatchEngine: the LLM résumé/job analysis the tailoring flow still uses (``analyze_job``).
 
-Extends the existing OpenAIService.match_job with breakdown scores
-for experience, skills, and industry.
+No job score comes from here any more. Every match score Tailrd shows is the deterministic fit
+engine's (services/fit_engine.py, DECISIONS D-83); the old LLM breakdown, fit analysis and
+background analysis (``compute_breakdown``, ``analyze_fit``, ``queue_analysis``) were removed.
+Task 9.3 moves the tailoring flow's own scores onto the engine as well.
 """
 
 import hashlib
@@ -15,8 +17,6 @@ from typing import Optional
 
 from sqlalchemy.orm import Session
 
-from backend.db.models import ScrapedJob, ResumeProfileDB
-from backend.schemas.match import MatchBreakdown, FitAnalysis
 from backend.schemas.ai import JobAnalysisOut
 from backend.services.llm import get_llm_service
 
@@ -27,13 +27,10 @@ DEFAULT_MATCH_MODEL = "gpt-4o-mini"
 
 
 def _match_model() -> str:
-    """Model used for match scoring, the highest-volume LLM call in the app.
+    """Model used for the tailoring flow's résumé/job analysis (``analyze_job``).
 
-    The cron sweep buys a score for every (user, new job) pair whether or not
-    anyone opens the app, so this call runs orders of magnitude more often than
-    any user-triggered generation. Scoring fit 0-100 does not need the flagship
-    model: default to the cheap sibling and leave the quality-sensitive rewrite
-    flows on OPENAI_MODEL.
+    The analysis does not need the flagship model: default to the cheap sibling
+    and leave the quality-sensitive rewrite flows on OPENAI_MODEL.
     """
     return os.getenv("OPENAI_MATCH_MODEL", DEFAULT_MATCH_MODEL).strip().strip("﻿") or DEFAULT_MATCH_MODEL
 
@@ -102,26 +99,6 @@ def score_to_label(score: int) -> str:
         return "FAIR MATCH"
 
 
-MATCH_BREAKDOWN_PROMPT = """
-Analyze how well this resume matches the job posting.
-Return a JSON object with these exact fields:
-
-{{
-  "overall_score": <0-100>,
-  "experience_score": <0-100 based on years and relevance of experience>,
-  "skill_score": <0-100 based on technical skill overlap>,
-  "industry_score": <0-100 based on industry/domain experience>,
-  "strengths": ["strength 1", "strength 2", ...],
-  "weaknesses": ["weakness 1", "weakness 2", ...]
-}}
-
-Resume:
-{resume_text}
-
-Job Posting:
-{job_description}
-"""
-
 JOB_ANALYSIS_PROMPT = """
 Analyze how well this resume matches the job posting, like an applicant tracking
 system (ATS) would. Return ONLY a JSON object with these exact fields:
@@ -146,31 +123,8 @@ Job Posting:
 {job_description}
 """
 
-FIT_ANALYSIS_PROMPT = """
-Provide a detailed analysis of how well this candidate fits the job.
-Return a JSON object with these exact fields:
-
-{{
-  "overall_score": <0-100>,
-  "experience_score": <0-100>,
-  "skill_score": <0-100>,
-  "industry_score": <0-100>,
-  "strengths": ["strength 1", ...],
-  "weaknesses": ["weakness 1", ...],
-  "narrative": "<2-3 paragraph detailed analysis>",
-  "recommendations": ["recommendation 1", ...]
-}}
-
-Resume:
-{resume_text}
-
-Job Posting:
-{job_description}
-"""
-
-
 class MatchEngine:
-    """Computes detailed match score breakdowns via Claude."""
+    """The tailoring flow's LLM résumé/job analysis (no job scoring)."""
 
     def __init__(self, db: Session):
         self.db = db
@@ -186,39 +140,6 @@ class MatchEngine:
         if self._llm is None:
             self._llm = get_llm_service()
         return self._llm
-
-    async def compute_breakdown(
-        self, resume_text: str, job_description: str
-    ) -> MatchBreakdown:
-        """Compute match breakdown with individual category scores.
-
-        Returns:
-            MatchBreakdown with overall_score, experience_score,
-            skill_score, industry_score, strengths, weaknesses
-        """
-        prompt = MATCH_BREAKDOWN_PROMPT.format(
-            resume_text=resume_text[:3000],
-            job_description=job_description[:3000],
-        )
-
-        response = await self.llm._generate(prompt, model=_match_model(), json_mode=True, op="match.score")
-        data = self._parse_json_response(response)
-        if not isinstance(data, dict) or "overall_score" not in data:
-            # Raising (instead of returning zeros) matters to callers that
-            # persist the result: a zero born from a parse hiccup would be
-            # banked as this pair's score forever, silencing a real match.
-            raise ValueError("match response missing overall_score")
-
-        overall = data.get("overall_score", 0)
-        return MatchBreakdown(
-            overall_score=overall,
-            experience_score=data.get("experience_score", 0),
-            skill_score=data.get("skill_score", 0),
-            industry_score=data.get("industry_score", 0),
-            match_label=score_to_label(overall),
-            strengths=data.get("strengths", []),
-            weaknesses=data.get("weaknesses", []),
-        )
 
     async def analyze_job(
         self,
@@ -292,70 +213,6 @@ class MatchEngine:
         if overall or matched or missing:
             _memo_put(key, result)
         return result
-
-    async def analyze_fit(
-        self, resume_text: str, job_description: str
-    ) -> FitAnalysis:
-        """Detailed fit analysis with strengths/weaknesses narrative."""
-        prompt = FIT_ANALYSIS_PROMPT.format(
-            resume_text=resume_text[:3000],
-            job_description=job_description[:3000],
-        )
-
-        response = await self.llm._generate(prompt, model=_match_model(), op="match.fit")
-        data = self._parse_json_response(response)
-
-        overall = data.get("overall_score", 0)
-        breakdown = MatchBreakdown(
-            overall_score=overall,
-            experience_score=data.get("experience_score", 0),
-            skill_score=data.get("skill_score", 0),
-            industry_score=data.get("industry_score", 0),
-            match_label=score_to_label(overall),
-            strengths=data.get("strengths", []),
-            weaknesses=data.get("weaknesses", []),
-        )
-
-        return FitAnalysis(
-            overall_score=overall,
-            breakdown=breakdown,
-            narrative=data.get("narrative", ""),
-            recommendations=data.get("recommendations", []),
-        )
-
-    async def queue_analysis(self, job_id: int) -> None:
-        """Queue a job for background match analysis.
-
-        Fetches the job, computes the breakdown, and stores scores on the job record.
-        """
-        job = self.db.query(ScrapedJob).filter(ScrapedJob.id == job_id).first()
-        if not job:
-            logger.warning(f"Job {job_id} not found for analysis")
-            return
-
-        # Get user's resume text (from the most recent resume profile)
-        profile = self.db.query(ResumeProfileDB).order_by(
-            ResumeProfileDB.created_at.desc()
-        ).first()
-
-        if not profile or not profile.raw_text:
-            logger.warning("No resume profile found for match analysis")
-            return
-
-        try:
-            breakdown = await self.compute_breakdown(
-                profile.raw_text, job.description
-            )
-
-            # Store scores on the job record
-            job.match_score = breakdown.overall_score
-            job.experience_score = breakdown.experience_score
-            job.skill_score = breakdown.skill_score
-            job.industry_score = breakdown.industry_score
-            job.match_label = breakdown.match_label
-            self.db.commit()
-        except Exception as e:
-            logger.error(f"Failed to analyze job {job_id}: {e}")
 
     def _parse_json_response(self, response: str) -> dict:
         """Parse JSON from LLM response, handling code fences."""

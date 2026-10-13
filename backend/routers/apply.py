@@ -120,8 +120,17 @@ def initiate_apply(
         job_id=request.job_id,
         resume_version=resume_version,
         cover_letter_ready=False,
-        match_score=job.match_score or 0,
+        match_score=_user_fit_score(db, user_id, job.id),
     )
+
+
+def _user_fit_score(db: Session, user_id: int, job_id: int) -> int:
+    """The user's own displayed fit score for this job: SCORED only, else 0 (D-86). Never the
+    AI-era scraped_jobs.match_score (D-109)."""
+    from backend.services.jobs_sidebar import user_match_scores
+
+    value, _band, outcome = user_match_scores(db, user_id, [job_id]).get(job_id, (None, None, None))
+    return value if outcome == "SCORED" and value is not None else 0
 
 
 @router.get("/{session_id}/profile", response_model=FillProfile)

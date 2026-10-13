@@ -1,10 +1,11 @@
 """
-AI-powered endpoints for match analysis, resume tailoring, and cover letter generation.
+Endpoints for the job match breakdown, resume tailoring, and cover letter generation.
 
-POST /ai/match-breakdown/{job_id}  → MatchBreakdown
+POST /ai/match-breakdown/{job_id}  → MatchBreakdown (the deterministic fit engine; no AI, free)
 POST /ai/tailor-resume/{job_id}    → TailoredResumeOut
 POST /ai/cover-letter/{job_id}     → CoverLetterOut
-POST /ai/analyze-fit/{job_id}      → FitAnalysis
+
+/ai/analyze-fit and /ai/batch-score were removed with every AI scoring path (DECISIONS D-83).
 """
 
 import datetime
@@ -17,11 +18,10 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.db.models import ScrapedJob, ResumeProfileDB, ResumeVersion, CoverLetter
 from backend.auth.dependencies import get_verified_user_id, verify_cron_secret
-from backend.services.usage_limiter import enforce_llm_limits, llm_guard
-from backend.services.llm_cost import set_cost_user
-from backend.services.local_match import scoring_mode
+from backend.services.usage_limiter import llm_guard
 from backend.services.match_notifier import sweep_match_alerts
-from backend.schemas.match import MatchBreakdown, FitAnalysis
+from backend.schemas.match import MatchBreakdown, MatchInterval, MatchItem
+from backend.services import fit_reads
 from backend.schemas.ai import (
     TailoredResumeOut,
     CoverLetterOut,
@@ -38,7 +38,7 @@ from backend.schemas.ai import (
 )
 from backend.services.profile_version import bump_profile_version
 from backend.schemas.resume_document import ResumeDocument
-from backend.services.match_engine import MatchEngine, score_to_label
+from backend.services.match_engine import MatchEngine
 from backend.services.resume_tailor import ResumeTailor
 from backend.services.cover_letter import CoverLetterGenerator
 from backend.services.resume_document import db_record_to_document, document_to_text
@@ -123,102 +123,88 @@ def _persist_active_cover_letter(
     bump_profile_version(db, user_id)
 
 
-async def _breakdown_user(
-    request: Request,
-    user_id: int = Depends(get_verified_user_id),
-    db: Session = Depends(get_db),
-) -> int:
-    """llm_guard only when the breakdown actually calls the LLM. The local
-    scorer is free, so opening jobs must not use up the user's daily AI limit."""
-    if scoring_mode() == "ai":
-        enforce_llm_limits(db, request, user_id)
-        set_cost_user(user_id)
-    return user_id
+def _items(raw) -> list[MatchItem]:
+    out = []
+    for item in raw or ():
+        if isinstance(item, dict) and item.get("label"):
+            out.append(MatchItem(label=str(item["label"]), impact=str(item.get("impact") or ""),
+                                 note=str(item.get("note") or ""), code=str(item.get("code") or "")))
+    return out
 
 
-def _local_breakdown(db: Session, user_id: int, job: ScrapedJob) -> MatchBreakdown:
-    """The free breakdown: local sub-scores, plus the banked overall score when
-    one exists (an LLM-confirmed score wins), so the panel matches the card."""
-    from backend.db.models import JobMatchScore
-    from backend.services import jobs_sidebar, local_match
+def breakdown_from_result(detail: dict) -> MatchBreakdown:
+    """The breakdown for one engine result (``fit_engine.explain_job`` JSON).
 
-    profile = jobs_sidebar.scoring_resume(db, user_id)
-    if profile is None:
-        raise HTTPException(status_code=400, detail="No resume found. Upload one first.")
-    match = local_match.score(local_match.resume_signals(profile), local_match.job_signals_for(job))
-    banked = (
-        db.query(JobMatchScore.score)
-        .filter(
-            JobMatchScore.user_id == user_id,
-            JobMatchScore.job_id == job.id,
-            JobMatchScore.resume_fingerprint.in_(local_match.current_fingerprints(profile.raw_text)),
-        )
-        .scalar()
-    )
-    if banked is None:
-        local_match.bank_local_scores(db, user_id, profile, [job.id])
-    overall = banked if banked is not None else match.overall
+    Only a SCORED result carries numbers (compliance.md section 2, D-86): every other outcome
+    gets 0 in the legacy number fields and no ``display_score``. ``match_label`` is the band; a
+    gate failure reads "Not eligible" and a review "We couldn't score this"."""
+    outcome = str(detail.get("outcome") or fit_reads.OUTCOME_NEEDS_REVIEW)
+    scored = outcome == fit_reads.OUTCOME_SCORED
+    explanation = detail.get("explanation") or {}
+    band = detail.get("band")
+    display = detail.get("display_score") if scored else None
+    dimensions = detail.get("dimensions") or {}
 
-    strengths, weaknesses = [], []
-    if match.matched_skills:
-        shown = ", ".join(local_match.display_skill(t) for t in match.matched_skills[:6])
-        strengths.append(f"Your resume shows {shown}, which this posting asks for.")
-    if match.missing_skills:
-        shown = ", ".join(local_match.display_skill(t) for t in match.missing_skills[:6])
-        weaknesses.append(f"The posting also mentions {shown}, which your resume doesn't show.")
+    def dimension(name: str) -> int:
+        value = (dimensions.get(name) or {}).get("value")
+        return max(0, min(100, round(100 * value))) if scored and isinstance(value, (int, float)) else 0
+
+    if band:
+        label = band
+    elif outcome == fit_reads.OUTCOME_GATE_FAIL:
+        label = "Not eligible"
+    else:
+        label = fit_reads.UNSCORED_TEXT
+    strengths, gaps = _items(explanation.get("strengths")), _items(explanation.get("gaps"))
+    interval = detail.get("interval")
     return MatchBreakdown(
-        overall_score=overall,
-        experience_score=match.experience_score,
-        skill_score=match.skill_score,
-        industry_score=match.role_score,
-        match_label=score_to_label(overall),
-        strengths=strengths,
-        weaknesses=weaknesses,
+        overall_score=display if isinstance(display, int) else 0,
+        experience_score=dimension("experience"),
+        skill_score=dimension("required_skills"),
+        industry_score=dimension("domain"),
+        match_label=label,
+        strengths=[item.label for item in strengths],
+        weaknesses=[item.label for item in gaps],
+        outcome=outcome,
+        band=band,
+        display_score=display if isinstance(display, int) else None,
+        headline=str(explanation.get("headline") or ""),
+        basis=str(explanation.get("basis") or ""),
+        strength_items=strengths,
+        gaps=gaps,
+        to_improve=[str(text) for text in explanation.get("to_improve") or ()],
+        notes=[str(text) for text in explanation.get("notes") or ()],
+        interval=MatchInterval(**interval) if isinstance(interval, dict) else None,
     )
 
 
 @router.post("/match-breakdown/{job_id}", response_model=MatchBreakdown)
-async def match_breakdown(
+def match_breakdown(
     job_id: int,
-    user_id: int = Depends(_breakdown_user),
+    user_id: int = Depends(get_verified_user_id),
     db: Session = Depends(get_db),
 ):
-    """Compute match score breakdown for a job.
+    """The engine's explanation of how the user's résumé fits a job (DECISIONS D-83).
 
-    Free by default (services/local_match.py). MATCH_SCORING=ai restores the
-    per-open LLM breakdown."""
+    Deterministic and free: no AI is called, so it never counts against the daily AI limit.
+    A plain (sync) route, so FastAPI runs it in a worker thread: the first breakdown in a
+    process builds the engine (about ten seconds) without blocking the event loop. The result
+    is also banked, so the job's card shows the same result as the panel."""
+    from backend.services import fit_engine
+    from backend.services.jobs_sidebar import scoring_resume
+
     job = _get_job(job_id, db)
-    if scoring_mode() == "local":
-        return _local_breakdown(db, user_id, job)
-    resume_text = _get_resume_text(db, user_id)
-
-    description = job.description or ""
-    if len(description.strip()) < 50 and job.url:
-        from backend.services.description_extractor import (
-            BROWSER_HEADERS,
-            extract_description_from_url,
-            sanitize_description,
-        )
+    detail = fit_engine.explain_job(db, user_id, job)
+    if detail is None:
+        raise HTTPException(status_code=400, detail="No resume found. Upload one first.")
+    profile = scoring_resume(db, user_id)
+    if profile is not None:
         try:
-            async with httpx.AsyncClient(follow_redirects=True, timeout=15, headers=BROWSER_HEADERS) as client:
-                fetched = await extract_description_from_url(client, job.url)
-            if fetched:
-                job.description = sanitize_description(fetched)
-                db.commit()
-                description = job.description
-        except Exception:
-            pass
-
-    if len(description.strip()) < 50:
-        raise HTTPException(status_code=422, detail="No job description available to analyze.")
-
-    try:
-        engine = MatchEngine(db)
-        return await engine.compute_breakdown(resume_text, description)
-    except (ConnectionError, httpx.ConnectError, ValueError):
-        # ValueError = the model's answer had no parsable score. Retryable, and
-        # 503 is more honest than presenting an all-zero breakdown as real.
-        raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
+            fit_engine.bank_scores(db, user_id, profile, [job.id])
+        except Exception as exc:  # banking is a nicety here; the breakdown stands on its own
+            db.rollback()
+            logger.error("match-breakdown: banking job %s failed: %s", job_id, type(exc).__name__)
+    return breakdown_from_result(detail)
 
 
 @router.post("/tailor-resume/{job_id}", response_model=TailoredResumeOut)
@@ -370,23 +356,6 @@ def delete_cover_letter(
     bump_profile_version(db, user_id)
 
 
-@router.post("/analyze-fit/{job_id}", response_model=FitAnalysis)
-async def analyze_fit(
-    job_id: int,
-    user_id: int = Depends(llm_guard),
-    db: Session = Depends(get_db),
-):
-    """Get detailed fit analysis for a job."""
-    job = _get_job(job_id, db)
-    resume_text = _get_resume_text(db, user_id)
-
-    try:
-        engine = MatchEngine(db)
-        return await engine.analyze_fit(resume_text, job.description)
-    except (ConnectionError, httpx.ConnectError):
-        raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
-
-
 # ---------------------------------------------------------------------------
 # Web "Generate Custom Resume" flow (See Difference → Align → Review)
 #
@@ -478,63 +447,6 @@ async def rewrite_resume(
         gaps=result.gaps,
         figures_to_verify=result.figures_to_verify,
     )
-
-
-@router.post("/batch-score")
-async def batch_score_jobs(
-    batch_size: int = 10,
-    user_id: str = Depends(llm_guard),
-    db: Session = Depends(get_db),
-):
-    """Score the newest unscored jobs against the user's resume.
-
-    Call this after uploading a resume to populate match scores for the job list.
-    Processes up to batch_size jobs that have descriptions but no match score.
-    """
-    resume_text = _get_resume_text(db, user_id)
-
-    # Find jobs with descriptions but no match score (newest first)
-    from sqlalchemy import or_, func
-    jobs_to_score = (
-        db.query(ScrapedJob)
-        .filter(
-            ScrapedJob.match_score == 0,
-            ScrapedJob.description != "",
-            ScrapedJob.description != None,
-            func.length(ScrapedJob.description) > 50,
-        )
-        .order_by(ScrapedJob.id.desc())
-        .limit(batch_size)
-        .all()
-    )
-
-    scored = 0
-    errors = 0
-    engine = MatchEngine(db)
-
-    for job in jobs_to_score:
-        try:
-            result = await engine.compute_breakdown(resume_text, job.description)
-            job.match_score = result.overall_score
-            job.experience_score = result.experience_score
-            job.skill_score = result.skill_score
-            job.industry_score = result.industry_score
-            job.match_label = result.match_label
-            db.commit()
-            scored += 1
-        except Exception:
-            errors += 1
-            continue
-
-    return {
-        "scored": scored,
-        "errors": errors,
-        "remaining": db.query(ScrapedJob).filter(
-            ScrapedJob.match_score == 0,
-            ScrapedJob.description != "",
-            ScrapedJob.description != None,
-        ).count(),
-    }
 
 
 # ---------------------------------------------------------------------------
@@ -667,8 +579,8 @@ async def cron_match_alerts(
     """Manually trigger the match-alert sweep (also runs inside cron-poll).
 
     For every verified user with a resume, score the newest jobs they haven't
-    been alerted about yet, then send a single deduped digest of the strong
-    (>=80%) matches. Kept as a standalone endpoint for manual runs / testing;
+    been alerted about yet with the fit engine, then send a single deduped
+    digest of their confident Strong matches. Kept as a standalone endpoint for manual runs / testing;
     the scheduled trigger is folded into /github-sources/cron-poll so the app
     stays within Vercel's 2-cron Hobby limit. Authenticated via the cron secret.
     """

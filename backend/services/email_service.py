@@ -213,12 +213,12 @@ class EmailService:
         recipient_name: Optional[str] = None,
         unsubscribe_url: Optional[str] = None,
     ) -> bool:
-        """Send a digest of high-scoring job matches.
+        """Send a digest of confident Strong matches (fit engine, SCORED, band Strong).
 
         Args:
             to_email: Recipient email address.
             jobs: List of match dicts, each with keys:
-                title, company, match_score (int 0-100), apply_url,
+                title, company, match_score (the engine's displayed fit score, 0-100), apply_url,
                 and optionally location, salary, posted.
                 Should be pre-sorted by match_score descending.
             recipient_name: Optional first name for a personal greeting.
@@ -245,10 +245,8 @@ class EmailService:
             return False
 
         top = jobs[0]
-        subject = (
-            f"{clean_company_name(top['company'])} just posted a "
-            f"{top['match_score']}% match {top['title']} role"
-        )
+        # The engine naming (SPEC section 7): the band, then "fit score <n>", never a percent match.
+        subject = f"Strong match: {top['title']} · fit score {top['match_score']}"
         html_content = self._build_job_alert_html(jobs, recipient_name, unsubscribe_url)
 
         params = {
@@ -483,7 +481,7 @@ class EmailService:
                                 </td>
                                 <td align="right" style="white-space: nowrap;">
                                     <span style="display: inline-block; padding: 4px 10px; border-radius: 9999px; background-color: #b9b9f9; color: #4434d4; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums;">
-                                        {score}% match
+                                        Fit score {score}
                                     </span>
                                 </td>
                             </tr>

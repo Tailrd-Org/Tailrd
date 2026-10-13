@@ -97,7 +97,8 @@ def test_aggregate_stats_computation(jobs_data, db_session, client):
     - total == len(jobs)
     - applied == count(status=="applied")
     - new == count(status=="new")
-    - average_match_score == mean(match_score) for all jobs (rounded to nearest integer)
+    - avg_match_score is the requesting user's own SCORED fit-engine average; with no
+      resume it is None, whatever AI-era value scraped_jobs.match_score holds (Task 9.2, D-109)
 
     **Validates: Requirements 9.4**
     """
@@ -126,10 +127,8 @@ def test_aggregate_stats_computation(jobs_data, db_session, client):
     expected_applied = sum(1 for j in jobs_data if j["status"] == JobStatus.APPLIED)
     expected_new = sum(1 for j in jobs_data if j["status"] == JobStatus.NEW)
 
-    if jobs_data:
-        expected_avg = round(sum(j["match_score"] for j in jobs_data) / len(jobs_data))
-    else:
-        expected_avg = 0
+    # The test user has no resume, so no engine score: the AI-era column is never averaged.
+    expected_avg = None
 
     # Assert properties
     assert stats["total"] == expected_total
@@ -197,8 +196,10 @@ def test_multi_filter_intersection(
     # Compute expected filtered set
     expected = []
     for jd in inserted_jobs:
-        # min_score filter: match_score >= min_score
-        if jd["match_score"] < filter_min_score:
+        # min_score filters on the user's own SCORED engine score (Task 9.2, D-109). The
+        # test user has no resume, so any min_score > 0 keeps nothing; the AI-era
+        # scraped_jobs.match_score is never read.
+        if filter_min_score > 0:
             continue
         # source filter
         if filter_source is not None and jd["source_platform"] != filter_source:

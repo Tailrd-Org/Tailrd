@@ -287,7 +287,7 @@ def test_final_step_turns_the_run_red_on_an_inactivity_failure(bash):
     assert "inactivity=failure" in result.stdout
 
 
-# --- cron-poll: an AI account outage is a warning, not a red run ---------
+# --- cron-poll: a sweep that cannot score is a warning, not a red run -----
 
 # Stub curl: writes $STUB_BODY to the -o file and prints "$STUB_CODE <time>"
 # for -w, the two things the endpoint steps read.
@@ -303,17 +303,25 @@ done
 printf '%s 1.23s' "${STUB_CODE:-200}"
 """
 
-OUTAGE_BODY = (
+# The match-alert sweep's summary since Task 9.2 (fit engine, no AI): the keys the
+# workflow greps for are pinned by test_sweep_summary_carries_the_keys_the_workflow_greps_for.
+SALT_MISSING_BODY = (
     '{"status":"completed","sources_polled":5,"new_jobs":3,'
-    '"match_alerts":{"status":"llm_unavailable","threshold":80,"users_scanned":5,'
-    '"users_notified":0,"jobs_notified":0,"jobs_scored":0,"scoring_errors":0,'
-    '"scoring_budget_spent":false,'
-    '"error":"OpenAI rejected the request (billing_not_active). This is an account '
-    'billing/quota problem, not a transient rate limit."}}'
+    '"match_alerts":{"status":"fit_trace_salt_missing","scoring":"fit-engine",'
+    '"alert_band":"Strong match","users_scanned":5,"users_notified":0,"jobs_notified":0,'
+    '"jobs_scored":0,"scoring_errors":0,"chunks_skipped":0,"scoring_budget_spent":false,'
+    '"fit_trace_salt_missing":true,"calibration":"skipped: no scores",'
+    '"drift":"skipped: no scores"}}'
+)
+ENGINE_DOWN_BODY = (
+    '{"status":"completed","match_alerts":{"status":"engine_unavailable","scoring":"fit-engine",'
+    '"alert_band":"Strong match","users_scanned":1,"jobs_scored":0,"scoring_errors":0,'
+    '"chunks_skipped":0,"fit_trace_salt_missing":false,"error":"FitEngineError"}}'
 )
 HEALTHY_BODY = (
-    '{"status":"completed","match_alerts":{"status":"completed","threshold":80,'
-    '"users_scanned":5,"jobs_scored":12,"scoring_errors":0}}'
+    '{"status":"completed","match_alerts":{"status":"completed","scoring":"fit-engine",'
+    '"alert_band":"Strong match","users_scanned":5,"jobs_scored":12,"scoring_errors":0,'
+    '"chunks_skipped":0,"fit_trace_salt_missing":false}}'
 )
 
 
@@ -336,16 +344,43 @@ def _run_cron_poll(bash, tmp_path, body, code="200"):
     return bash(f'cd "{tmp_path.as_posix()}"\n' + step["run"], env)
 
 
-def test_cron_poll_warns_but_stays_green_when_openai_refuses_the_account(bash, tmp_path):
-    result = _run_cron_poll(bash, tmp_path, OUTAGE_BODY)
+def _warnings(result):
+    return [line for line in result.stdout.splitlines() if line.startswith("::warning")]
+
+
+def test_cron_poll_warns_but_stays_green_when_the_trace_salt_is_missing(bash, tmp_path):
+    result = _run_cron_poll(bash, tmp_path, SALT_MISSING_BODY)
 
     assert result.returncode == 0, result.stdout + result.stderr
-    warnings = [l for l in result.stdout.splitlines() if l.startswith("::warning")]
+    warnings = _warnings(result)
     assert len(warnings) == 1, result.stdout
-    assert warnings[0].startswith("::warning title=Match alerts paused::")
-    # The annotation names the cause itself, not just the body dump above it.
-    assert "billing_not_active" in warnings[0]
+    assert warnings[0].startswith("::warning title=Match scoring stopped::")
+    assert "FIT_TRACE_SALT" in warnings[0]
     assert "::error" not in result.stdout
+
+
+def test_cron_poll_warns_but_stays_green_when_the_engine_cannot_be_built(bash, tmp_path):
+    result = _run_cron_poll(bash, tmp_path, ENGINE_DOWN_BODY)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    warnings = _warnings(result)
+    assert len(warnings) == 1, result.stdout
+    assert warnings[0].startswith("::warning title=Match scoring stopped::")
+    assert "FitEngineError" in warnings[0]
+
+
+def test_the_retired_llm_outage_check_is_gone():
+    assert "llm_unavailable" not in _step("cron_poll")["run"]
+
+
+def test_sweep_summary_carries_the_keys_the_workflow_greps_for():
+    """The strings the workflow greps for are exactly what the sweep's summary serialises to."""
+    import json
+
+    run = _step("cron_poll")["run"]
+    for status in ("engine_unavailable",):
+        assert json.dumps({"status": status}, separators=(",", ":"))[1:-1] in run
+    assert json.dumps({"fit_trace_salt_missing": True}, separators=(",", ":"))[1:-1] in run
 
 
 def test_cron_poll_says_nothing_extra_when_scoring_works(bash, tmp_path):

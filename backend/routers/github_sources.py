@@ -780,10 +780,14 @@ async def scrape_linkedin_jobs(
 #     probe batch; it is due again next run, the rows it stored are kept);
 #   - no description fetch starts after CRON_POLL_ENRICH_UNTIL_SECONDS (each
 #     can take its whole 15 s timeout; cron-backfill picks up the rest);
-#   - the match-alert sweep is cut off at CRON_POLL_WALL_SECONDS. It banks
-#     every score as it buys it, so a cut sweep loses no LLM spend, and it
-#     can only be cut at an LLM await, never between an email send and the
-#     record of it.
+#   - the match-alert sweep is cut off at CRON_POLL_WALL_SECONDS. It scores
+#     with the deterministic fit engine (no LLM, Task 9.2) in chunks of at
+#     most 500 jobs, each committed on its own, so a cut sweep loses nothing
+#     it scored. It yields to the event loop only between chunks, so it can
+#     only be cut there, never between an email send and the record of it.
+#     Its summary ("match_alerts" below) carries jobs_scored, chunks_skipped,
+#     scoring_budget_spent, fit_trace_salt_missing (true: FIT_TRACE_SALT is
+#     unset and nothing could be scored), calibration and drift.
 # A cut lands only at an await, so synchronous work runs past it:
 #   - a source's insert loop (poll_source stores rows with no await once
 #     its probes are done). A source whose probes end just before the hard
@@ -794,13 +798,17 @@ async def scrape_linkedin_jobs(
 #   - the list dedup passes below (column-only: one read of the visible list
 #     rows, a few thousand, plus an UPDATE per hidden group; 0.2 s over
 #     1,824 rows locally, a few Neon round trips in prod).
-#   - the rest of the sweep once it has stopped scoring (llm_unavailable,
-#     as while OpenAI billing is off, or its scoring budget spent): no await
-#     is left, so every remaining user's queries and cached-match email
-#     sends run to completion, each send up to the Resend SDK's 30 s
-#     timeout.
+#   - one scoring chunk: the first in a cold process builds the engine
+#     (about 10 s), and a chunk of 500 never-parsed postings parses them
+#     (about 20 ms each) before scoring them (about 3 ms each), so one chunk
+#     can run about 20 s past the cut; later chunks take a second or two.
+#   - the rest of the sweep once it has stopped scoring (fit_trace_salt_missing,
+#     or its scoring budget spent): no await is left, so every remaining
+#     user's queries and banked-match email sends run to completion, each
+#     send up to the Resend SDK's 30 s timeout, followed by the calibration
+#     refresh and the drift report (a few queries).
 # At today's scale (5 eligible users, a 25-user cap) the worst run ends
-# around 225-265 s, under the 300 s ceiling. Only sends that hang to their
+# around 245-285 s, under the 300 s ceiling. Only sends that hang to their
 # timeout, or many more alert users while scoring is off, could pass it:
 # the wall clock cannot cut either.
 CRON_POLL_MAX_SOURCES = int(os.getenv("CRON_POLL_MAX_SOURCES", "12"))

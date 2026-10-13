@@ -201,7 +201,7 @@ def test_notify_hands_each_recipient_their_own_unsubscribe_link(db_session, sent
     monkeypatch.setenv("FRONTEND_URL", "https://www.tailrd.ca")
     user = _user(db_session)
 
-    assert match_notifier.notify_high_matches(db_session, user.id, [(_job(db_session), 95)]) == 1
+    assert match_notifier.notify_high_matches(db_session, user.id, [(_job(db_session), 95, "Strong match", "SCORED")]) == 1
     assert verify_token(_token_from(sent[0]["unsubscribe_url"])) == user.id
 
 
@@ -210,7 +210,7 @@ def test_notify_sends_nothing_to_an_opted_out_user(db_session, sent):
     db_session.add(UserSettings(user_id=user.id, match_alerts_enabled=False))
     db_session.commit()
 
-    assert match_notifier.notify_high_matches(db_session, user.id, [(_job(db_session), 99)]) == 0
+    assert match_notifier.notify_high_matches(db_session, user.id, [(_job(db_session), 99, "Strong match", "SCORED")]) == 0
     assert sent == []
     assert db_session.query(JobMatchNotification).count() == 0
 
@@ -225,7 +225,7 @@ def test_notify_drops_jobs_outside_the_users_region(db_session, sent):
     austin = _job(db_session, "Austin Role", country="US")
 
     count = match_notifier.notify_high_matches(
-        db_session, user.id, [(toronto, 95), (austin, 97)]
+        db_session, user.id, [(toronto, 95, "Strong match", "SCORED"), (austin, 97, "Strong match", "SCORED")]
     )
 
     assert count == 1

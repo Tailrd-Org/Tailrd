@@ -14,7 +14,7 @@ Models:
 import enum
 import datetime
 from sqlalchemy import (
-    Boolean, Column, Integer, String, Text, DateTime, Enum, JSON, Float,
+    Boolean, Column, Date, Integer, String, Text, DateTime, Enum, JSON, Float,
     ForeignKey, LargeBinary, UniqueConstraint, func, true,
 )
 from sqlalchemy.orm import deferred
@@ -195,8 +195,9 @@ class ScrapedJob(Base):
     employment_type = Column(String, default="")  # full_time | part_time | contract | internship
     visa_sponsorship = Column(String, default="unknown")  # yes | no | unknown
     skills = Column(JSON, nullable=True)  # extracted skill tags, capped list
-    # Local match scorer input, computed once per job: {"v": 1, "top": [...],
-    # "tags": [...]}. NULL = not computed yet. migrations/add_job_match_terms.py
+    # The fit engine's posting cache (fit_engine.postings_for, D-84):
+    # {"v": <version>, "dl": <description length>, "posting": {...}}. NULL or a
+    # legacy local-scorer entry = parse on next read. migrations/add_job_match_terms.py
     match_terms = Column(JSON, nullable=True)
 
 
@@ -394,6 +395,29 @@ class MatchCalibration(Base):
     __table_args__ = (
         UniqueConstraint("scope", "key", name="uq_match_calibration_scope_key"),
     )
+
+
+class MatchFingerprint(Base):
+    """The fit fingerprint a user's newest banked scores carry, keyed by the inputs it came from.
+
+    A fit fingerprint (fit_engine.fingerprint_for) needs the built engine (about ten seconds
+    cold), which the feed, the sidebar and the job list never build. They read this row instead
+    (fit_reads.serving_fingerprints): when ``input_key`` (a sha256 of the stored résumé and the
+    saved answers, computed without the engine) still matches the user's current inputs, the
+    rows banked under ``fingerprint`` are current for them. An edited résumé or answer changes
+    the key, so its old scores stop being served at once. ``as_of`` is the scoring month the
+    fingerprint was banked for (fit_engine.fit_as_of, D-87): a fingerprint from another month is
+    not served, since the résumé is re-parsed, and so re-fingerprinted, every month. NULL (a row
+    from before the column) is served. Written by fit_engine.bank_scores. One row per user
+    (DECISIONS D-107).
+    """
+    __tablename__ = "match_fingerprints"
+
+    user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    input_key = Column(String(64), nullable=False)
+    fingerprint = Column(String(64), nullable=False)
+    as_of = Column(Date, nullable=True)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 
 class ApplicationRecord(Base):

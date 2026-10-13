@@ -1,7 +1,7 @@
 """
 The Tailrd adapter for the deterministic match engine (match-engine/, package ``matcher``).
 
-Every job score Tailrd shows comes from here once Task 9.2 switches the producers over: no AI is
+Every job score Tailrd shows comes from here (Task 9.2 switched every producer and reader): no AI is
 called, waited on or paid for (DECISIONS D-80..D-85, match-engine/docs/DECISIONS.md). This module
 is the only place the backend touches the engine (D-01: it puts ``match-engine/src`` on
 ``sys.path``).
@@ -23,6 +23,9 @@ What it does
     ``refresh_calibration``     per-family / global references from banked raw scores (D-50).
     ``explain_job``             one full result (explanation, interval, counterfactual).
     ``score_order``             the dialect-portable "NULL scores last" ordering (D-86).
+    ``engine_ready``            True once this process has built the engine. Request paths read
+                                banked rows through ``fit_reads`` (no engine import, D-107) and
+                                call ``bank_scores`` only when this is True.
 
 The date a score is "as of" is the first day of the current UTC month (``fit_as_of``, D-87): the
 parsed résumé depends on it ("Present" and the months of experience), and a daily date would
@@ -49,7 +52,7 @@ from collections.abc import Mapping, Sequence
 from pathlib import Path
 from typing import Any, Optional
 
-from sqlalchemy import case, func
+from sqlalchemy import func
 
 MATCH_ENGINE_ROOT = Path(__file__).resolve().parents[2] / "match-engine"
 _ENGINE_SRC = str(MATCH_ENGINE_ROOT / "src")
@@ -88,18 +91,25 @@ from matcher.parse.taxonomy_extras import MosIndex, TitleIndex, load_mos_index, 
 from matcher.score.engine import review_result, score  # noqa: E402
 
 from backend.services import profile_facts  # noqa: E402
+from backend.services.fit_reads import (  # noqa: E402  (the engine-free half: D-107)
+    DEFAULT_SETTINGS_LOCATION,
+    PROFILE_FIELD_LIMIT,
+    clearance_answer as _clearance_answer,
+    digest as _digest,
+    document_of as _document,
+    engine_ready,
+    input_key,
+    profile_fields,
+    remember_fingerprint,
+    score_order,
+    settings_for as _settings_for,
+)
 
 logger = logging.getLogger(__name__)
 
 TAXONOMY_DIR = MATCH_ENGINE_ROOT / "data" / "taxonomy"
 CALIBRATION_DIR = MATCH_ENGINE_ROOT / "data" / "calibration"
 
-#: Every profile text field is cut to this many characters before profile_facts reads it: the
-#: port is linear, but profile text has no upstream length limit and the sweep reads it per user.
-PROFILE_FIELD_LIMIT = 2000
-#: ``UserSettings.location`` is created with this value (the LinkedIn bot's search region), so it
-#: says nothing about where a person lives and is never read as a residence.
-DEFAULT_SETTINGS_LOCATION = "united states"
 #: The "Security clearance" answer that means an active clearance of unknown country and level.
 ACTIVE_CLEARANCE_ANSWER = "active clearance"
 #: Countries whose authorisation Tailrd asks about explicitly (plus the residence).
@@ -232,67 +242,6 @@ def fit_as_of(today: Optional[dt.date] = None) -> dt.date:
 
 # ─── Résumé (D-80, D-81) ─────────────────────────────────────────────────────────────────────
 
-_DOCUMENT_FIELDS = ("location", "summary", "experience", "education", "projects", "skills", "technologies",
-                    "custom_sections")
-
-
-def _document(profile: Any) -> dict[str, Any]:
-    return {name: getattr(profile, name, None) for name in _DOCUMENT_FIELDS}
-
-
-def _first_non_empty(*values: object) -> str:
-    for value in values:
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
-def _column(settings: Any, name: str) -> str:
-    value = getattr(settings, name, "") if settings is not None else ""
-    return value if isinstance(value, str) else ""
-
-
-def _screening(settings: Any) -> tuple[str, str, dict[str, str]]:
-    """(work authorisation, sponsorship, the exact-key screening answers), read the way the
-    application profile reads them (routers/profile.py), so the extension and the engine agree."""
-    from backend.routers.profile import _mine_screening, _stored_screening
-
-    prefilled = getattr(settings, "prefilled_answers", None) if settings is not None else None
-    prefilled = prefilled if isinstance(prefilled, dict) else None
-    work_authorization, requires_sponsorship, _ = _mine_screening(prefilled)
-    return work_authorization, requires_sponsorship, _stored_screening(prefilled)
-
-
-def profile_fields(profile: Any, settings: Any) -> dict[str, str]:
-    """The ten profile_facts fields for this résumé and settings row, each cut to 2,000 characters.
-
-    Mirrors ``build_application_profile`` except that a ``settings.location`` equal to the column
-    default "United States" is dropped: it is a search region nobody chose, not a residence.
-    """
-    work_authorization, requires_sponsorship, screening = _screening(settings)
-    search_region = _column(settings, "location")
-    if search_region.strip().lower() == DEFAULT_SETTINGS_LOCATION:
-        search_region = ""
-    fields = {
-        "location": _first_non_empty(_column(settings, "city"), _column(settings, "address_city"), search_region,
-                                     getattr(profile, "location", None)),
-        "addressStreet": _first_non_empty(_column(settings, "street_address")),
-        "addressCity": _first_non_empty(_column(settings, "address_city"), _column(settings, "city")),
-        "addressState": _first_non_empty(_column(settings, "address_state")),
-        "postalCode": _first_non_empty(_column(settings, "postal_code")),
-        "country": _first_non_empty(_column(settings, "country")),
-        "workAuthorization": work_authorization or "",
-        "requiresSponsorship": requires_sponsorship or "",
-        "authorizedUS": screening.get("authorizedUS", ""),
-        "authorizedCanada": screening.get("authorizedCanada", ""),
-    }
-    return {name: value[:PROFILE_FIELD_LIMIT] for name, value in fields.items()}
-
-
-def _clearance_answer(settings: Any) -> str:
-    return _screening(settings)[2].get("securityClearance", "")[:PROFILE_FIELD_LIMIT]
-
-
 def _profile_location(fields: Mapping[str, str]) -> Optional[Location]:
     """The candidate's place from the profile facts: a country only when the profile settles it
     (high confidence), the region and city when stated. None when nothing is known (D-64: unknown
@@ -368,11 +317,6 @@ def _merged_work_auth(from_profile: Optional[WorkAuth], from_resume: Optional[Wo
 _PARSE_CACHE: "OrderedDict[str, ParsedResume]" = OrderedDict()
 _PARSE_CACHE_SIZE = 64
 _PARSE_CACHE_LOCK = threading.Lock()
-
-
-def _digest(value: Any) -> str:
-    text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
 def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngine] = None,
@@ -452,8 +396,7 @@ def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
 
 
 def _input_material(profile: Any, settings: Any) -> str:
-    return _digest([_document(profile), getattr(profile, "raw_text", None) or "", profile_fields(profile, settings),
-                    _clearance_answer(settings)])
+    return input_key(profile, settings)
 
 
 def _fingerprint(profile: Any, settings: Any, parsed: ParsedResume, engine: FitEngine) -> str:
@@ -801,12 +744,6 @@ def subject_id(user_id: int, salt: bytes) -> str:
     return opaque_id(str(user_id), salt)
 
 
-def _settings_for(db, user_id: int):
-    from backend.db.models import UserSettings
-
-    return db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
-
-
 def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
                 engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> dict[int, MatchResult]:
     """Score every job in ``job_ids`` that has no current row for this résumé and store it.
@@ -818,7 +755,10 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     (``posting_keys``: the posting cache version and the description length) match, so a
     description backfill or edit, a parse-table change and an engine fault (stored with a NULL
     key) all rescore. A stale row (an older résumé, config, posting, or an AI / local score) is
-    overwritten in place. Commits the session (the posting cache first, then the scores). Returns {job_id: MatchResult} for the jobs scored now.
+    overwritten in place. The fingerprint is remembered for these inputs (match_fingerprints,
+    D-107), so a request path that never builds the engine can still tell current rows apart.
+    Commits the session (the posting cache first, then the scores). Returns {job_id: MatchResult}
+    for the jobs scored now.
     Raises FitTraceSaltError before writing anything when FIT_TRACE_SALT is unusable.
     """
     from backend.db.models import JobMatchScore, MatchTrace
@@ -841,7 +781,11 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
         and existing[job_id].resume_fingerprint == fingerprint
         and existing[job_id].posting_key == keys[job_id]
     )]
+    key = input_key(profile, settings)
     if not todo:
+        remember_fingerprint(db, user_id, key, fingerprint, day)
+        if db.new or db.dirty:
+            db.commit()
         return {}
     postings = postings_for(db, todo, engine=engine, as_of=day)
     calibrator = _calibrator(db, engine)
@@ -885,6 +829,7 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
         else:
             for name, value in trace_values.items():
                 setattr(trace_row, name, value)
+    remember_fingerprint(db, user_id, key, fingerprint, day)
     db.commit()
     return results
 
@@ -898,13 +843,6 @@ def delete_user_traces(db, user_id: int) -> int:
     count = db.query(MatchTrace).filter(MatchTrace.subject_id == subject).delete(synchronize_session=False)
     db.commit()
     return count
-
-
-def score_order(column) -> tuple:
-    """ORDER BY clauses for a match sort: scored rows by score, highest first, then every NULL
-    score (not scored, D-86). ``CASE`` rather than NULLS LAST, which SQLite and Postgres spell
-    differently and order by default in opposite directions."""
-    return (case((column.is_(None), 1), else_=0), column.desc())
 
 
 # ─── The detail view ─────────────────────────────────────────────────────────────────────────
@@ -957,6 +895,7 @@ __all__ = [
     "build_engine",
     "current_fingerprints",
     "delete_user_traces",
+    "engine_ready",
     "explain_job",
     "fingerprint_for",
     "fit_as_of",
