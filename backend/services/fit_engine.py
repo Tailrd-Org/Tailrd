@@ -1,0 +1,932 @@
+"""
+The Tailrd adapter for the deterministic match engine (match-engine/, package ``matcher``).
+
+Every job score Tailrd shows comes from here once Task 9.2 switches the producers over: no AI is
+called, waited on or paid for (DECISIONS D-80..D-85, match-engine/docs/DECISIONS.md). This module
+is the only place the backend touches the engine (D-01: it puts ``match-engine/src`` on
+``sys.path``).
+
+What it does
+    ``get_engine()``            the process-wide engine, built lazily once: config, skill graph,
+                                resolver, parse config, title and MOS indexes, the verified
+                                calibration panel and the combined config hash.
+    ``resume_for_profile``      a stored résumé (the document, else its raw text; D-80) plus the
+                                saved work authorisation / location answers -> ``ParsedResume``.
+    ``postings_for``            jobs -> ``JobPosting``, cached in ``scraped_jobs.match_terms`` and
+                                recomputed when the parser version or the description length
+                                changes (D-84). ``posting_for_job`` does one ORM row.
+    ``fingerprint_for`` /
+    ``current_fingerprints``    "fit<major>:" + sha256(canonical Resume JSON + combined hash)
+                                (D-82). Old AI and "local1:" rows are never current.
+    ``bank_scores``             scores every job without a current row, stores the score columns
+                                and the audit trace (match_traces, keyed by an opaque id).
+    ``refresh_calibration``     per-family / global references from banked raw scores (D-50).
+    ``explain_job``             one full result (explanation, interval, counterfactual).
+    ``score_order``             the dialect-portable "NULL scores last" ordering (D-86).
+
+The date a score is "as of" is the first day of the current UTC month (``fit_as_of``, D-87): the
+parsed résumé depends on it ("Present" and the months of experience), and a daily date would
+re-fingerprint, and so re-score, every user every day.
+
+Secrets: ``FIT_TRACE_SALT`` (at least 16 bytes) is read only by the two trace writers,
+``bank_scores`` and ``delete_user_traces``. Banking refuses to run without it: a score is never
+persisted without its trace (compliance.md section 3).
+"""
+
+from __future__ import annotations
+
+import dataclasses
+import datetime as dt
+import hashlib
+import json
+import logging
+import os
+import sys
+import threading
+import time
+from collections import OrderedDict, defaultdict
+from collections.abc import Mapping, Sequence
+from pathlib import Path
+from typing import Any, Optional
+
+from sqlalchemy import case, func
+
+MATCH_ENGINE_ROOT = Path(__file__).resolve().parents[2] / "match-engine"
+_ENGINE_SRC = str(MATCH_ENGINE_ROOT / "src")
+if _ENGINE_SRC not in sys.path:  # D-01: the hyphenated directory can never shadow `matcher`
+    sys.path.insert(0, _ENGINE_SRC)
+
+from matcher.audit import build_trace, opaque_id, trace_digest  # noqa: E402
+from matcher.calibrate.percentile import PercentileCalibrator  # noqa: E402
+from matcher.calibrate.reference import (  # noqa: E402
+    GLOBAL_KEY,
+    PanelError,
+    ReferenceDistribution,
+    build_reference,
+    load_panel,
+)
+from matcher.config import EngineConfig, combined_hash, load_config  # noqa: E402
+from matcher.errors import Flag  # noqa: E402
+from matcher.graph.loader import load_graph, load_resolver, load_resolver_settings  # noqa: E402
+from matcher.graph.model import SkillGraph  # noqa: E402
+from matcher.models import (  # noqa: E402
+    JobPosting,
+    Location,
+    MatchResult,
+    Outcome,
+    Resume,
+    ScoreOptions,
+    SkillKind,
+    WorkAuth,
+    canonical_json,
+)
+from matcher.normalize.resolver import Resolver  # noqa: E402
+from matcher.parse.config import ParseConfig, load_parse_config  # noqa: E402
+from matcher.parse.posting import PostingMeta, parse_posting  # noqa: E402
+from matcher.parse.resume import ParsedResume, ResumeResources, resume_from_document  # noqa: E402
+from matcher.parse.taxonomy_extras import MosIndex, TitleIndex, load_mos_index, load_title_index  # noqa: E402
+from matcher.score.engine import review_result, score  # noqa: E402
+
+from backend.services import profile_facts  # noqa: E402
+
+logger = logging.getLogger(__name__)
+
+TAXONOMY_DIR = MATCH_ENGINE_ROOT / "data" / "taxonomy"
+CALIBRATION_DIR = MATCH_ENGINE_ROOT / "data" / "calibration"
+
+#: Every profile text field is cut to this many characters before profile_facts reads it: the
+#: port is linear, but profile text has no upstream length limit and the sweep reads it per user.
+PROFILE_FIELD_LIMIT = 2000
+#: ``UserSettings.location`` is created with this value (the LinkedIn bot's search region), so it
+#: says nothing about where a person lives and is never read as a residence.
+DEFAULT_SETTINGS_LOCATION = "united states"
+#: The "Security clearance" answer that means an active clearance of unknown country and level.
+ACTIVE_CLEARANCE_ANSWER = "active clearance"
+#: Countries whose authorisation Tailrd asks about explicitly (plus the residence).
+_COUNTRIES_OF_INTEREST = ("US", "CA")
+
+_TRACE_SALT_ENV = "FIT_TRACE_SALT"
+_MIN_SALT_BYTES = 16
+_FINGERPRINT_LEN = 64  # job_match_scores.resume_fingerprint is VARCHAR(64)
+_BULK_OPTIONS = ScoreOptions(with_explanation=False)
+_STRICT_OPTIONS = ScoreOptions(strict=True, with_explanation=False)
+_DETAIL_OPTIONS = ScoreOptions(with_explanation=True, with_interval=True, with_counterfactual=True)
+_POSTING_BATCH = 200
+_LIVE_PREFIX = "live-"
+
+
+class FitEngineError(RuntimeError):
+    """The engine's committed data is missing or does not match what it pins (fails loudly)."""
+
+
+class FitTraceSaltError(RuntimeError):
+    """FIT_TRACE_SALT is missing or shorter than 16 bytes: no score may be banked without a trace."""
+
+
+# ─── The engine ──────────────────────────────────────────────────────────────────────────────
+
+
+@dataclasses.dataclass(frozen=True)
+class FitEngine:
+    """Everything the engine needs, built once per process (``get_engine``)."""
+
+    config: EngineConfig
+    graph: SkillGraph
+    resolver: Resolver
+    parse_config: ParseConfig
+    titles: TitleIndex
+    mos: MosIndex
+    resume_resources: ResumeResources
+    panel: tuple[ReferenceDistribution, ...]
+    panel_version: str
+    combined_hash: str
+    build_seconds: float
+
+    @property
+    def major(self) -> str:
+        return self.config.engine_version.split(".")[0]
+
+    @property
+    def min_reference_n(self) -> int:
+        return self.config.scoring.calibration.min_reference_n
+
+    def posting_version(self, as_of: dt.date) -> str:
+        """The posting cache version (D-84): the engine code, the parse tables, the config and
+        graph, and the year (a requirement's "years since release" clamp reads it)."""
+        material = "|".join((self.config.engine_version, self.parse_config.version, self.combined_hash,
+                             str(as_of.year)))
+        return "pv1-" + hashlib.sha256(material.encode("utf-8")).hexdigest()[:16]
+
+
+_ENGINE: Optional[FitEngine] = None
+_ENGINE_LOCK = threading.Lock()
+
+
+def get_engine() -> FitEngine:
+    """The process-wide engine, built on first use (thread-safe). Cold build: see build_engine."""
+    global _ENGINE
+    engine = _ENGINE
+    if engine is not None:
+        return engine
+    with _ENGINE_LOCK:
+        if _ENGINE is None:
+            _ENGINE = build_engine()
+        return _ENGINE
+
+
+def build_engine(root: Path = MATCH_ENGINE_ROOT) -> FitEngine:
+    """Load and verify every engine artifact. Raises (never degrades) when one is missing or
+    does not match its MANIFEST: a half-built engine would score with the wrong data."""
+    started = time.perf_counter()
+    taxonomy = root / "data" / "taxonomy"
+    config = load_config(root / "config")
+    parse_config = load_parse_config(root / "config" / "parse")
+    graph = load_graph(taxonomy)
+    resolver = load_resolver(taxonomy, config)
+    titles = load_title_index(taxonomy, parse_config=parse_config)
+    mos = load_mos_index(taxonomy)
+    settings = load_resolver_settings(taxonomy)
+    resources = ResumeResources(
+        titles=titles,
+        mos=mos,
+        in_progress=dict(settings.get("in_progress", {})),
+        credentials=frozenset(node_id for node_id, node in graph.nodes.items() if node.kind is SkillKind.CREDENTIAL),
+        parse_config=parse_config,
+    )
+    panel, panel_version = load_verified_panel(root / "data" / "calibration")
+    elapsed = time.perf_counter() - started
+    logger.info("fit_engine: engine %s built in %.2fs", config.engine_version, elapsed)
+    return FitEngine(config=config, graph=graph, resolver=resolver, parse_config=parse_config, titles=titles,
+                     mos=mos, resume_resources=resources, panel=panel, panel_version=panel_version,
+                     combined_hash=combined_hash(config, graph.version), build_seconds=elapsed)
+
+
+def load_verified_panel(calibration_dir: Path) -> tuple[tuple[ReferenceDistribution, ...], str]:
+    """The committed reference panel, after checking its bytes and version against MANIFEST.json."""
+    try:
+        manifest = json.loads((calibration_dir / "MANIFEST.json").read_text(encoding="utf-8"))
+        pinned = manifest["panel"]
+        path = calibration_dir / pinned["file"]
+        expected_sha, expected_version = pinned["sha256"], pinned["version"]
+        data = path.read_bytes()
+    except (OSError, ValueError, KeyError, TypeError) as exc:
+        raise FitEngineError(f"calibration MANIFEST in {calibration_dir} is unreadable: {exc!r}") from exc
+    actual = hashlib.sha256(data).hexdigest()
+    if actual != expected_sha:
+        raise FitEngineError(f"panel sha256 {actual} does not match MANIFEST {expected_sha}")
+    try:
+        panel = load_panel(path)
+    except PanelError as exc:
+        raise FitEngineError(str(exc)) from exc
+    versions = {ref.version for ref in panel}
+    if versions != {expected_version}:
+        raise FitEngineError(f"panel version {sorted(versions)} does not match MANIFEST {expected_version!r}")
+    return panel, expected_version
+
+
+def fit_as_of(today: Optional[dt.date] = None) -> dt.date:
+    """The date every score is as of: the first day of the current UTC month (D-87)."""
+    day = today or dt.datetime.now(dt.timezone.utc).date()
+    return day.replace(day=1)
+
+
+# ─── Résumé (D-80, D-81) ─────────────────────────────────────────────────────────────────────
+
+_DOCUMENT_FIELDS = ("location", "summary", "experience", "education", "projects", "skills", "technologies",
+                    "custom_sections")
+
+
+def _document(profile: Any) -> dict[str, Any]:
+    return {name: getattr(profile, name, None) for name in _DOCUMENT_FIELDS}
+
+
+def _first_non_empty(*values: object) -> str:
+    for value in values:
+        if isinstance(value, str) and value.strip():
+            return value.strip()
+    return ""
+
+
+def _column(settings: Any, name: str) -> str:
+    value = getattr(settings, name, "") if settings is not None else ""
+    return value if isinstance(value, str) else ""
+
+
+def _screening(settings: Any) -> tuple[str, str, dict[str, str]]:
+    """(work authorisation, sponsorship, the exact-key screening answers), read the way the
+    application profile reads them (routers/profile.py), so the extension and the engine agree."""
+    from backend.routers.profile import _mine_screening, _stored_screening
+
+    prefilled = getattr(settings, "prefilled_answers", None) if settings is not None else None
+    prefilled = prefilled if isinstance(prefilled, dict) else None
+    work_authorization, requires_sponsorship, _ = _mine_screening(prefilled)
+    return work_authorization, requires_sponsorship, _stored_screening(prefilled)
+
+
+def profile_fields(profile: Any, settings: Any) -> dict[str, str]:
+    """The ten profile_facts fields for this résumé and settings row, each cut to 2,000 characters.
+
+    Mirrors ``build_application_profile`` except that a ``settings.location`` equal to the column
+    default "United States" is dropped: it is a search region nobody chose, not a residence.
+    """
+    work_authorization, requires_sponsorship, screening = _screening(settings)
+    search_region = _column(settings, "location")
+    if search_region.strip().lower() == DEFAULT_SETTINGS_LOCATION:
+        search_region = ""
+    fields = {
+        "location": _first_non_empty(_column(settings, "city"), _column(settings, "address_city"), search_region,
+                                     getattr(profile, "location", None)),
+        "addressStreet": _first_non_empty(_column(settings, "street_address")),
+        "addressCity": _first_non_empty(_column(settings, "address_city"), _column(settings, "city")),
+        "addressState": _first_non_empty(_column(settings, "address_state")),
+        "postalCode": _first_non_empty(_column(settings, "postal_code")),
+        "country": _first_non_empty(_column(settings, "country")),
+        "workAuthorization": work_authorization or "",
+        "requiresSponsorship": requires_sponsorship or "",
+        "authorizedUS": screening.get("authorizedUS", ""),
+        "authorizedCanada": screening.get("authorizedCanada", ""),
+    }
+    return {name: value[:PROFILE_FIELD_LIMIT] for name, value in fields.items()}
+
+
+def _clearance_answer(settings: Any) -> str:
+    return _screening(settings)[2].get("securityClearance", "")[:PROFILE_FIELD_LIMIT]
+
+
+def _profile_location(fields: Mapping[str, str]) -> Optional[Location]:
+    """The candidate's place from the profile facts: a country only when the profile settles it
+    (high confidence), the region and city when stated. None when nothing is known (D-64: unknown
+    is never a mismatch)."""
+    facts = profile_facts.location_facts(fields)
+    country = facts.country.value.code if facts.country is not None and facts.country.confidence == "high" else None
+    region = facts.region.value.code if facts.region is not None else None
+    if region is not None and country is None:
+        country = facts.region.value.country
+    city = facts.city.value if facts.city is not None else None
+    if not (country or region or city):
+        return None
+    try:
+        return Location(country=country, region=region, city=city[:64] if city else None)
+    except ValueError:  # an unusual spelling the model refuses: drop the city, keep the rest
+        try:
+            return Location(country=country, region=region)
+        except ValueError:
+            return None
+
+
+def _profile_work_auth(fields: Mapping[str, str], clearance: str, residence: Optional[str],
+                       config: EngineConfig) -> Optional[WorkAuth]:
+    """The work-authorisation facts (DECISIONS D-61 inputs) from the saved answers.
+
+    authorised countries: those where ``authorized_in`` says True (US, CA, the residence and any
+    country the answer names). needs_sponsorship: from ``needs_sponsorship_in`` over the countries
+    of interest the person is not known to be authorised in; True when any says True, False when
+    all say False, else None. Citizenships are never inferred here (a stated citizenship that
+    misses a posting's country could fail a gate, and the profile cannot say "only"). An answer
+    of "Active clearance" is the configured unknown-level token (D-63). Nothing stated: None.
+    """
+    auth = profile_facts.work_auth_facts(fields)
+    candidates = list(dict.fromkeys([*_COUNTRIES_OF_INTEREST, *([residence] if residence else []),
+                                     *auth.by_country.keys()]))
+    authorized = []
+    for code in candidates:
+        fact = profile_facts.authorized_in(auth, code, residence)
+        if fact is not None and fact.value is True:
+            authorized.append(code)
+    interest = [code for code in dict.fromkeys([*_COUNTRIES_OF_INTEREST, *([residence] if residence else [])])
+                if code not in authorized]
+    needs: Optional[bool] = None
+    answers = [profile_facts.needs_sponsorship_in(auth, code, residence) for code in interest]
+    known = [fact.value for fact in answers if fact is not None]
+    if any(value is True for value in known):
+        needs = True
+    elif known and len(known) == len(answers):
+        needs = False
+    clearances: tuple[str, ...] = ()
+    if clearance.strip().lower() == ACTIVE_CLEARANCE_ANSWER:
+        clearances = (config.gates.security_clearance.unknown_level_token,)
+    if not authorized and needs is None and not clearances:
+        return None
+    return WorkAuth(authorized_countries=tuple(sorted(authorized)), needs_sponsorship=needs, clearances=clearances)
+
+
+def _merged_work_auth(from_profile: Optional[WorkAuth], from_resume: Optional[WorkAuth]) -> Optional[WorkAuth]:
+    """The profile's answers first; the résumé's own statements fill what the profile leaves out."""
+    if from_profile is None:
+        return from_resume
+    if from_resume is None:
+        return from_profile
+    return WorkAuth(
+        authorized_countries=tuple(sorted({*from_profile.authorized_countries, *from_resume.authorized_countries})),
+        needs_sponsorship=(from_profile.needs_sponsorship if from_profile.needs_sponsorship is not None
+                           else from_resume.needs_sponsorship),
+        citizenships=from_resume.citizenships,
+        clearances=tuple(dict.fromkeys([*from_profile.clearances, *from_resume.clearances])),
+    )
+
+
+_PARSE_CACHE: "OrderedDict[str, ParsedResume]" = OrderedDict()
+_PARSE_CACHE_SIZE = 64
+_PARSE_CACHE_LOCK = threading.Lock()
+
+
+def _digest(value: Any) -> str:
+    text = json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, default=str)
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+
+def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngine] = None,
+                       as_of: Optional[dt.date] = None) -> ParsedResume:
+    """The engine résumé for a stored ``ResumeProfileDB`` and the user's ``UserSettings`` (or None).
+
+    D-80: the stored document when it has experience / education / projects / skills content,
+    else ``raw_text`` through the engine's own parser. Work authorisation and location come from
+    the saved answers (profile_facts, the extension's reading); the résumé's own statements fill
+    what the answers leave unknown. Never raises: an empty profile is a ParsedResume with
+    reasons (NOT_A_RESUME) and no résumé. Results are memoised per input (a feed request reads
+    the fingerprint on every page).
+    """
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    document = _document(profile)
+    raw_text = getattr(profile, "raw_text", None)
+    fields = profile_fields(profile, settings)
+    clearance = _clearance_answer(settings)
+    key = _digest([engine.combined_hash, engine.parse_config.version, day.isoformat(), document, raw_text or "",
+                   fields, clearance])
+    with _PARSE_CACHE_LOCK:
+        cached = _PARSE_CACHE.get(key)
+        if cached is not None:
+            _PARSE_CACHE.move_to_end(key)
+            return cached
+    parsed = _parse_resume(document, raw_text, fields, clearance, engine, day)
+    with _PARSE_CACHE_LOCK:
+        _PARSE_CACHE[key] = parsed
+        while len(_PARSE_CACHE) > _PARSE_CACHE_SIZE:
+            _PARSE_CACHE.popitem(last=False)
+    return parsed
+
+
+def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Mapping[str, str], clearance: str,
+                  engine: FitEngine, as_of: dt.date) -> ParsedResume:
+    parsed = resume_from_document(document, as_of=as_of, resolver=engine.resolver, config=engine.config,
+                                  parse_config=engine.parse_config,
+                                  raw_text=raw_text if isinstance(raw_text, str) else None,
+                                  resources=engine.resume_resources)
+    if parsed.resume is None:
+        return parsed
+    place = _profile_location(fields)
+    residence = profile_facts.residence_of(profile_facts.location_facts(fields))
+    work_auth = _merged_work_auth(_profile_work_auth(fields, clearance, residence, engine.config),
+                                  parsed.resume.work_auth)
+    locations = (place,) if place is not None else parsed.resume.locations
+    data = parsed.resume.model_dump()
+    data["work_auth"] = None if work_auth is None else work_auth.model_dump()
+    data["locations"] = [loc.model_dump() for loc in locations]
+    try:
+        resume = Resume.model_validate(data)
+    except ValueError:
+        logger.warning("fit_engine: profile facts refused by the Resume model; keeping the parsed facts")
+        return parsed
+    return parsed.model_copy(update={"resume": resume})
+
+
+# ─── Fingerprints (D-82) ─────────────────────────────────────────────────────────────────────
+
+
+def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
+                    material: Optional[str] = None) -> str:
+    """"fit<major>:" + sha256(canonical Resume JSON + combined hash), cut to 64 characters.
+
+    A résumé that could not be parsed has no canonical JSON: its fingerprint hashes its reasons
+    and ``material`` (a digest of the stored input), so a NEEDS_REVIEW row is current until the
+    input or the config changes, and is not rescored on every sweep."""
+    engine = engine or get_engine()
+    if parsed.resume is not None:
+        body = canonical_json(parsed.resume)
+    else:
+        body = "review|" + ",".join(flag.value for flag in parsed.reasons) + "|" + (material or "")
+    prefix = f"fit{engine.major}:"
+    digest = hashlib.sha256((body + engine.combined_hash).encode("utf-8")).hexdigest()
+    return (prefix + digest)[:_FINGERPRINT_LEN]
+
+
+def _input_material(profile: Any, settings: Any) -> str:
+    return _digest([_document(profile), getattr(profile, "raw_text", None) or "", profile_fields(profile, settings),
+                    _clearance_answer(settings)])
+
+
+def _fingerprint(profile: Any, settings: Any, parsed: ParsedResume, engine: FitEngine) -> str:
+    material = None if parsed.resume is not None else _input_material(profile, settings)
+    return fingerprint_for(parsed, engine=engine, material=material)
+
+
+def current_fingerprints(profile: Any, settings: Any = None, *, engine: Optional[FitEngine] = None) -> list[str]:
+    """The ONE fingerprint whose stored score is current for this résumé and settings. Old AI
+    (sha256) and "local1:" rows are never in it, so they are stale everywhere (D-82)."""
+    engine = engine or get_engine()
+    parsed = resume_for_profile(profile, settings, engine=engine)
+    return [_fingerprint(profile, settings, parsed, engine)]
+
+
+# ─── Postings (D-84) ─────────────────────────────────────────────────────────────────────────
+
+
+def _text(value: Any, limit: int) -> str:
+    return value[:limit] if isinstance(value, str) else ""
+
+
+def _country_code(name: Any, fallback: str) -> Optional[str]:
+    if isinstance(name, str) and name.strip():
+        found = profile_facts.countries_in(name)
+        if len(found) == 1:
+            return found[0].code
+        if len(name.strip()) == 2 and name.strip().isalpha():
+            return name.strip().upper()
+    return fallback or None
+
+
+def _job_locations(locations_json: Any, country: Any) -> tuple[Location, ...]:
+    """``locations_json`` items ({city, region, region_name, country (full name)}) as engine places.
+    "Remote" is no city. A row without items falls back to its country column (US / CA)."""
+    fallback = country.strip().upper() if isinstance(country, str) and len(country.strip()) == 2 else ""
+    places: list[Location] = []
+    for item in locations_json if isinstance(locations_json, list) else ():
+        if not isinstance(item, dict):
+            continue
+        city = item.get("city") if isinstance(item.get("city"), str) else ""
+        if city.strip().lower() == "remote":
+            city = ""
+        region = item.get("region") if isinstance(item.get("region"), str) else ""
+        try:
+            place = Location(country=_country_code(item.get("country"), fallback),
+                             region=region.strip().upper()[:20] or None, city=city.strip()[:64] or None)
+        except ValueError:
+            continue
+        if (place.country or place.region or place.city) and place not in places:
+            places.append(place)
+        if len(places) >= 50:
+            break
+    if not places and fallback:
+        places.append(Location(country=fallback))
+    return tuple(places)
+
+
+def posting_meta(job: Any) -> PostingMeta:
+    """``PostingMeta`` from a job's columns (any object or row with these attribute names)."""
+    company_description = _text(getattr(job, "company_description", ""), 20000)
+    if company_description.lstrip().startswith("{"):  # a JSON blob some sources stored here
+        company_description = ""
+    family = getattr(job, "role_category", None)
+    return PostingMeta(
+        company=_text(getattr(job, "company", ""), 2000),
+        company_description=company_description,
+        locations=_job_locations(getattr(job, "locations_json", None), getattr(job, "country", None)),
+        work_type=_text(getattr(job, "work_type", ""), 50),
+        employment_type=_text(getattr(job, "employment_type", ""), 200),
+        experience_level=_text(getattr(job, "experience_level", ""), 200),
+        job_family=str(family)[:200] if isinstance(family, str) and family.strip() else None,
+    )
+
+
+def _parse_job(job: Any, engine: FitEngine, as_of: dt.date) -> tuple[JobPosting, bool]:
+    """(posting, cacheable). A parser fault is an INTERNAL_ERROR review, never cached."""
+    try:
+        posting = parse_posting(getattr(job, "title", "") or "", getattr(job, "description", "") or "",
+                                meta=posting_meta(job), as_of=as_of, resolver=engine.resolver, graph=engine.graph,
+                                config=engine.config, parse_config=engine.parse_config, titles=engine.titles)
+        return posting, True
+    except Exception as exc:  # the parser is meant to be total; a fault must not stop a sweep
+        logger.error("fit_engine: posting parse failed for job %s: %s", getattr(job, "id", "?"),
+                     type(exc).__name__)
+        return JobPosting(flags=(Flag.INTERNAL_ERROR,)), False
+
+
+def _cache_entry(posting: JobPosting, version: str, description_length: int) -> dict[str, Any]:
+    return {"v": version, "dl": description_length, "posting": json.loads(canonical_json(posting))}
+
+
+def _cached(terms: Any, version: str, description_length: int) -> Optional[JobPosting]:
+    if not (isinstance(terms, dict) and terms.get("v") == version and terms.get("dl") == description_length):
+        return None
+    try:
+        return JobPosting.model_validate(terms.get("posting"))
+    except ValueError:
+        return None
+
+
+def posting_for_job(job: Any, *, engine: Optional[FitEngine] = None,
+                    as_of: Optional[dt.date] = None) -> JobPosting:
+    """One ORM ``ScrapedJob``'s posting: its cache when current, else parsed and written back to
+    ``job.match_terms`` (the caller commits)."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    version = engine.posting_version(day)
+    description = getattr(job, "description", "") or ""
+    hit = _cached(getattr(job, "match_terms", None), version, len(description))
+    if hit is not None:
+        return hit
+    posting, cacheable = _parse_job(job, engine, day)
+    if cacheable:
+        job.match_terms = _cache_entry(posting, version, len(description))
+    return posting
+
+
+def postings_for(db, job_ids: Sequence[int], *, engine: Optional[FitEngine] = None,
+                 as_of: Optional[dt.date] = None) -> dict[int, JobPosting]:
+    """Postings for these jobs. The cache check reads ``match_terms`` and ``length(description)``
+    in SQL; a description is transferred only for a job that must be parsed again. Recomputed
+    entries are written to ``match_terms`` and committed. Unknown ids are left out."""
+    from backend.db.models import ScrapedJob
+
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    version = engine.posting_version(day)
+    ids = list(dict.fromkeys(int(job_id) for job_id in job_ids))
+    out: dict[int, JobPosting] = {}
+    stale: list[int] = []
+    for start in range(0, len(ids), _POSTING_BATCH):
+        chunk = ids[start:start + _POSTING_BATCH]
+        rows = (
+            db.query(ScrapedJob.id, ScrapedJob.match_terms, func.coalesce(func.length(ScrapedJob.description), 0))
+            .filter(ScrapedJob.id.in_(chunk))
+            .all()
+        )
+        for job_id, terms, length in rows:
+            hit = _cached(terms, version, int(length or 0))
+            if hit is not None:
+                out[job_id] = hit
+            else:
+                stale.append(job_id)
+    columns = (ScrapedJob.id, ScrapedJob.title, ScrapedJob.description, ScrapedJob.company,
+               ScrapedJob.company_description, ScrapedJob.locations_json, ScrapedJob.country, ScrapedJob.work_type,
+               ScrapedJob.employment_type, ScrapedJob.experience_level, ScrapedJob.role_category)
+    for start in range(0, len(stale), _POSTING_BATCH):
+        chunk = stale[start:start + _POSTING_BATCH]
+        for row in db.query(*columns).filter(ScrapedJob.id.in_(chunk)).all():
+            posting, cacheable = _parse_job(row, engine, day)
+            out[row.id] = posting
+            if cacheable:
+                entry = _cache_entry(posting, version, len(row.description or ""))
+                db.query(ScrapedJob).filter(ScrapedJob.id == row.id).update(
+                    {ScrapedJob.match_terms: entry}, synchronize_session=False
+                )
+        db.commit()
+    return out
+
+
+# ─── Calibration references (D-50) ───────────────────────────────────────────────────────────
+
+
+def _live_version(engine: FitEngine, when: dt.datetime, groups: Mapping[tuple[str, str], Any]) -> str:
+    """"live-<config hash>-<UTC timestamp>-<content digest>": the config the scores came from, a
+    sortable time, and a digest that tells two refreshes with different scores apart."""
+    content = _digest([[scope, key, sorted(raws), sorted(set(fps))] for (scope, key), (raws, fps) in
+                       sorted(groups.items())])
+    return f"{_LIVE_PREFIX}{engine.combined_hash}-{when.strftime('%Y%m%d%H%M%S')}-{content[:8]}"
+
+
+_LIVE_CACHE: dict[str, Any] = {"version": None, "refs": []}
+_LIVE_CACHE_LOCK = threading.Lock()
+
+
+def live_references(db, *, engine: Optional[FitEngine] = None) -> list[ReferenceDistribution]:
+    """The stored live references built under the current config hash (others are ignored).
+
+    Egress: the samples (up to 5,000 floats per group) are read only when the stored version
+    differs from the one this process holds; otherwise one short version query answers."""
+    from backend.db.models import MatchCalibration
+
+    engine = engine or get_engine()
+    prefix = f"{_LIVE_PREFIX}{engine.combined_hash}-"
+    newest = (
+        db.query(MatchCalibration.version)
+        .filter(MatchCalibration.version.like(prefix + "%"))
+        .order_by(MatchCalibration.version.desc())
+        .first()
+    )
+    version = newest[0] if newest else None
+    with _LIVE_CACHE_LOCK:
+        if version == _LIVE_CACHE["version"]:
+            return list(_LIVE_CACHE["refs"])
+    refs = _load_live(db, version) if version is not None else []
+    with _LIVE_CACHE_LOCK:
+        _LIVE_CACHE["version"], _LIVE_CACHE["refs"] = version, refs
+    return list(refs)
+
+
+def _load_live(db, version: str) -> list[ReferenceDistribution]:
+    from backend.db.models import MatchCalibration
+
+    out: list[ReferenceDistribution] = []
+    for row in db.query(MatchCalibration).filter(MatchCalibration.version == version).all():
+        try:
+            out.append(ReferenceDistribution(scope=row.scope, key=row.key, n_candidates=row.n_candidates,
+                                             n_pairs=row.n_pairs, samples=tuple(row.samples or ()),
+                                             version=row.version))
+        except ValueError:
+            logger.warning("fit_engine: unusable calibration row %s/%s skipped", row.scope, row.key)
+    return out
+
+
+def refresh_calibration(db, *, engine: Optional[FitEngine] = None,
+                        now: Optional[dt.datetime] = None) -> dict[str, Any]:
+    """Rebuild the per-family and global references from banked raw scores (D-50).
+
+    Reads every current-engine row with a raw score (the panel builder's rule: every outcome that
+    produced one). A candidate is a DISTINCT résumé fingerprint, never a (candidate, posting)
+    pair. Every group is stored; the calibrator uses one only from 30 candidates up, so until
+    then the shipped panel stays in charge. Returns {key: {n_candidates, n_pairs}} per scope.
+    """
+    from backend.db.models import JobMatchScore, MatchCalibration, ScrapedJob
+
+    engine = engine or get_engine()
+    when = now or dt.datetime.utcnow()
+    rows = (
+        db.query(JobMatchScore.raw_score, JobMatchScore.resume_fingerprint, ScrapedJob.role_category)
+        .join(ScrapedJob, ScrapedJob.id == JobMatchScore.job_id)
+        .filter(
+            JobMatchScore.raw_score.isnot(None),
+            JobMatchScore.config_hash == engine.combined_hash,
+            JobMatchScore.resume_fingerprint.like(f"fit{engine.major}:%"),
+        )
+        .all()
+    )
+    groups: dict[tuple[str, str], tuple[list[float], list[str]]] = defaultdict(lambda: ([], []))
+    for raw, fingerprint, family in rows:
+        keys = [("global", GLOBAL_KEY)]
+        if isinstance(family, str) and family.strip():
+            keys.append(("family", family.strip()[:200]))
+        for key in keys:
+            groups[key][0].append(float(raw))
+            groups[key][1].append(fingerprint)
+    version = _live_version(engine, when, groups)
+    references = [build_reference(scope, key, raws, fps, version)
+                  for (scope, key), (raws, fps) in sorted(groups.items())]
+
+    db.query(MatchCalibration).filter(MatchCalibration.scope.in_(("family", "global"))).delete(
+        synchronize_session=False
+    )
+    for ref in references:
+        db.add(MatchCalibration(scope=ref.scope, key=ref.key, n_candidates=ref.n_candidates, n_pairs=ref.n_pairs,
+                                samples=list(ref.samples), version=ref.version, created_at=when))
+    db.commit()
+    summary: dict[str, Any] = {"version": version, "family": {}, "global": None}
+    for ref in references:
+        entry = {"n_candidates": ref.n_candidates, "n_pairs": ref.n_pairs,
+                 "in_charge": ref.n_candidates >= engine.min_reference_n}
+        if ref.scope == "global":
+            summary["global"] = entry
+        else:
+            summary["family"][ref.key] = entry
+    return summary
+
+
+def _calibrator(db, engine: FitEngine) -> PercentileCalibrator:
+    return PercentileCalibrator([*live_references(db, engine=engine), *engine.panel],
+                                min_reference_n=engine.min_reference_n)
+
+
+# ─── Scoring and banking ─────────────────────────────────────────────────────────────────────
+
+
+def _score_pair(parsed: ParsedResume, posting: JobPosting, calibrator: PercentileCalibrator, engine: FitEngine,
+                as_of: dt.date, options: ScoreOptions, job_id: Any) -> MatchResult:
+    if parsed.resume is None:
+        return review_result(parsed.reasons, config=engine.config, graph=engine.graph, as_of=as_of,
+                             flags=parsed.flags)
+    family = posting.job_family
+    bound = calibrator.bind(posting_key=None, family=str(family) if family else None)
+    result = score(parsed.resume, posting, as_of=as_of, config=engine.config, graph=engine.graph,
+                   calibration=bound, options=options)
+    if result.outcome is Outcome.NEEDS_REVIEW and Flag.INTERNAL_ERROR in result.reasons:
+        # The engine is deterministic: replay once in strict mode to learn the exception class.
+        try:
+            score(parsed.resume, posting, as_of=as_of, config=engine.config, graph=engine.graph,
+                  calibration=bound, options=_STRICT_OPTIONS)
+        except Exception as exc:
+            logger.error("fit_engine: INTERNAL_ERROR on job %s: %s", job_id, type(exc).__name__)
+    return result
+
+
+def stored_score(result: MatchResult) -> Optional[int]:
+    """The integer stored in ``job_match_scores.score``: the displayed score of a SCORED result,
+    else NULL. Every other outcome shows no number, so it must never be sorted, averaged or
+    thresholded as one (D-86)."""
+    return result.display_score if result.outcome is Outcome.SCORED else None
+
+
+def _trace_salt() -> bytes:
+    """FIT_TRACE_SALT as bytes. Read ONLY by the trace writers (bank_scores, delete_user_traces)."""
+    salt = os.environ.get(_TRACE_SALT_ENV, "").encode("utf-8")
+    if len(salt) < _MIN_SALT_BYTES:
+        raise FitTraceSaltError(f"{_TRACE_SALT_ENV} must be set to at least {_MIN_SALT_BYTES} bytes")
+    return salt
+
+
+def subject_id(user_id: int, salt: bytes) -> str:
+    return opaque_id(str(user_id), salt)
+
+
+def _settings_for(db, user_id: int):
+    from backend.db.models import UserSettings
+
+    return db.query(UserSettings).filter(UserSettings.user_id == user_id).first()
+
+
+def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
+                engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> dict[int, MatchResult]:
+    """Score every job in ``job_ids`` that has no current row for this résumé and store it.
+
+    One parsed résumé, many postings (``ScoreOptions(with_explanation=False)``). Each stored row
+    carries the score (``stored_score``: NULL unless SCORED), the raw score, band, outcome,
+    confidence, engine version and config hash; its trace goes to ``match_traces`` under the
+    user's opaque id. A stale row (an older résumé, config, or an AI / local score) is
+    overwritten in place. Returns {job_id: MatchResult} for the jobs scored now.
+    Raises FitTraceSaltError before writing anything when FIT_TRACE_SALT is unusable.
+    """
+    from backend.db.models import JobMatchScore, MatchTrace
+
+    salt = _trace_salt()
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    ids = list(dict.fromkeys(int(job_id) for job_id in job_ids))
+    if not ids:
+        return {}
+    settings = _settings_for(db, user_id)
+    parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
+    fingerprint = _fingerprint(profile, settings, parsed, engine)
+
+    existing = {row.job_id: row for row in
+                db.query(JobMatchScore).filter(JobMatchScore.user_id == user_id, JobMatchScore.job_id.in_(ids)).all()}
+    todo = [job_id for job_id in ids
+            if job_id not in existing or existing[job_id].resume_fingerprint != fingerprint]
+    if not todo:
+        return {}
+    postings = postings_for(db, todo, engine=engine, as_of=day)
+    calibrator = _calibrator(db, engine)
+    subject = subject_id(user_id, salt)
+    traces = {row.job_id: row for row in
+              db.query(MatchTrace).filter(MatchTrace.subject_id == subject, MatchTrace.job_id.in_(todo)).all()}
+    now = dt.datetime.utcnow()
+    results: dict[int, MatchResult] = {}
+    for job_id in todo:
+        posting = postings.get(job_id)
+        if posting is None:  # the job no longer exists
+            continue
+        result = _score_pair(parsed, posting, calibrator, engine, day, _BULK_OPTIONS, job_id)
+        results[job_id] = result
+        values = {
+            "score": stored_score(result),
+            "raw_score": result.raw_score,
+            "band": result.band.value if result.band is not None else None,
+            "outcome": result.outcome.value,
+            "confidence": result.confidence.value if result.confidence is not None else None,
+            "engine_version": result.engine_version[:20],
+            "config_hash": result.config_hash[:20],
+            "resume_fingerprint": fingerprint,
+            "scored_at": now,
+        }
+        row = existing.get(job_id)
+        if row is None:
+            db.add(JobMatchScore(user_id=user_id, job_id=job_id, **values))
+        else:
+            for name, value in values.items():
+                setattr(row, name, value)
+        trace = build_trace(result)
+        trace_values = {"trace": trace, "trace_digest": trace_digest(trace),
+                        "engine_version": result.engine_version[:20], "config_hash": result.config_hash[:20],
+                        "scored_at": now}
+        trace_row = traces.get(job_id)
+        if trace_row is None:
+            db.add(MatchTrace(subject_id=subject, job_id=job_id, **trace_values))
+        else:
+            for name, value in trace_values.items():
+                setattr(trace_row, name, value)
+    db.commit()
+    return results
+
+
+def delete_user_traces(db, user_id: int) -> int:
+    """Delete a user's traces (account deletion): the subject id is recomputed from the salt,
+    since traces never hold the user id. Returns how many rows were deleted."""
+    from backend.db.models import MatchTrace
+
+    subject = subject_id(user_id, _trace_salt())
+    count = db.query(MatchTrace).filter(MatchTrace.subject_id == subject).delete(synchronize_session=False)
+    db.commit()
+    return count
+
+
+def score_order(column) -> tuple:
+    """ORDER BY clauses for a match sort: scored rows by score, highest first, then every NULL
+    score (not scored, D-86). ``CASE`` rather than NULLS LAST, which SQLite and Postgres spell
+    differently and order by default in opposite directions."""
+    return (case((column.is_(None), 1), else_=0), column.desc())
+
+
+# ─── The detail view ─────────────────────────────────────────────────────────────────────────
+
+
+def _commit_if_cached(db, job: Any) -> None:
+    """Persist a posting cache entry ``posting_for_job`` just wrote to an ORM job."""
+    try:
+        dirty = job in db and db.is_modified(job)
+    except Exception:  # not an ORM instance: nothing was written
+        return
+    if dirty:
+        db.commit()
+
+
+def explain_job(db, user: Any, job: Any, *, engine: Optional[FitEngine] = None,
+                as_of: Optional[dt.date] = None) -> Optional[dict[str, Any]]:
+    """One full result for the job detail view: explanation, interval and counterfactual, as JSON.
+
+    ``user`` is a User or a user id; the résumé is the one the sweep scores (D-81, the newest with
+    text). None when the user has no such résumé. Nothing is stored. The keys are
+    ``MatchResult``'s plus ``fingerprint``; consumers key on ``outcome`` (compliance.md section 2:
+    only SCORED shows a number)."""
+    from backend.services.jobs_sidebar import scoring_resume
+
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    user_id = int(getattr(user, "id", user))
+    profile = scoring_resume(db, user_id)
+    if profile is None:
+        return None
+    settings = _settings_for(db, user_id)
+    parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
+    posting = posting_for_job(job, engine=engine, as_of=day)
+    _commit_if_cached(db, job)
+    result = _score_pair(parsed, posting, _calibrator(db, engine), engine, day, _DETAIL_OPTIONS,
+                         getattr(job, "id", "?"))
+    detail = json.loads(result.model_dump_json())
+    detail["fingerprint"] = _fingerprint(profile, settings, parsed, engine)
+    return detail
+
+
+__all__ = [
+    "ACTIVE_CLEARANCE_ANSWER",
+    "FitEngine",
+    "FitEngineError",
+    "FitTraceSaltError",
+    "bank_scores",
+    "build_engine",
+    "current_fingerprints",
+    "delete_user_traces",
+    "explain_job",
+    "fingerprint_for",
+    "fit_as_of",
+    "get_engine",
+    "live_references",
+    "load_verified_panel",
+    "posting_for_job",
+    "posting_meta",
+    "postings_for",
+    "profile_fields",
+    "refresh_calibration",
+    "resume_for_profile",
+    "score_order",
+    "stored_score",
+    "subject_id",
+]

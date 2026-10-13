@@ -656,6 +656,21 @@ and five users × 2,000 jobs would otherwise pass the threshold while really com
 mostly with themselves. With Tailrd's current handful of résumés, every score therefore uses the
 panel until 30 people have scored résumés.
 
+**D-50 addendum (Task 9.1). [Tailrd]** Live references are per job family (key = the posting's
+`role_category`, always passed as a `str`: a non-str key would silently skip the family tiers) and
+global (key `*`), rebuilt by `fit_engine.refresh_calibration` from the banked raw scores of the
+current config hash (every outcome that produced a raw score, the panel builder's rule) and stored
+in `match_calibration`; a candidate is a distinct résumé fingerprint. The committed panel is checked
+against its MANIFEST (sha256 and version) when the engine is built, and a mismatch stops the build.
+Known limits, accepted for now: small families ride on synthetic counts (Product Management has 24
+panel candidates and falls through to the pooled panel; Business Analyst has 56); live pairs (every
+user against every job, most of them unrelated) will skew lower than the panel's median raw score
+of about 0.57, where each synthetic profile was scored only against its own target posting, so a
+live family reference, once in charge, reads the same raw score as a higher percentile than the
+panel did. Recheck the panel against the live distribution when any family reaches 30 real
+candidates. A stored score is calibrated when it is banked and is not re-read when the references
+change; a refresh moves scores only as rows are re-banked.
+
 **D-51 Phase 2** (isotonic, pure-Python PAVA at runtime, fitted offline) is built and versioned
 but stays off until `calibration.isotonic.min_labels` (500) outcome labels exist. Today there are
 two tracked applications.
@@ -815,6 +830,48 @@ transferred) differs, which fixes today's never-invalidated terms.
 
 **D-85 Thresholds.** Every hard-coded 80/60 in the backend and web app is replaced by the band
 from the engine (85/70/55). Alerts go out for confident (`SCORED`) Strong matches only.
+
+**D-86 A missing score is not a low score. [Tailrd]** `job_match_scores.score` holds the displayed
+integer of a `SCORED` result and is NULL for every other outcome: `GATE_FAIL` and `NEEDS_REVIEW` show
+no number, and `SCORED_LOW_CONFIDENCE` shows only its band (D-54; its calibrated integer is audit-only
+and is never sorted). Never a numeric sentinel (0, -1), which could leak into a display, an average
+or a threshold. The row keeps the raw score, band, outcome, confidence, engine version and config
+hash for audit. Match-sorted queries put NULL after every scored row with an explicit, portable
+ordering (`fit_engine.score_order`: a `CASE` on NULL, then the score descending; NULLS LAST is spelt
+and defaulted differently in SQLite and Postgres). The UI labels them ("We couldn't score this" /
+"Not eligible", compliance.md section 2), and no count, alert or "strong" filter treats them as
+low or as matches. The migration makes the column nullable (catalog-only on Postgres).
+
+**D-87 The scoring date. [Tailrd]** Every score is as of the first day of the current UTC month
+(`fit_engine.fit_as_of`), for parsing the résumé, parsing postings and scoring. The parsed résumé
+depends on the date ("Present", months of experience), so a daily date would change every
+fingerprint (D-82), and so re-score every user against every job, every day. Months are the
+precision résumé dates have. A résumé whose only dates start later in the month than the first is
+NEEDS_REVIEW INVALID_AS_OF until the next month; accepted as rare.
+
+**D-88 Profile facts to the engine. [Tailrd]** Work authorisation and location are read from the
+saved answers through `backend/services/profile_facts.py` (the port of the extension's reading),
+each of its ten text fields cut to 2,000 characters first. A `settings.location` equal to the
+column default "United States" is dropped before the facts are read: it is the bot's search region,
+never a residence. `authorized_countries`: US, CA, the residence and any country the answer names,
+where `authorized_in` says True. `needs_sponsorship`: `needs_sponsorship_in` over US, CA and the
+residence minus the authorised ones; True when any says True, False when all say False, else None
+(so a general "I need sponsorship" beside a Canada-scoped status stays unknown for the US: a
+warning, never a fail, exactly as the extension reads it). Citizenships are never inferred from
+the profile (a stated citizenship that misses a posting's country fails a citizenship gate, D-61,
+and the profile cannot say "only"). "Active clearance" is
+`gates.security_clearance.unknown_level_token`, never a literal. The candidate's place is the
+profile's country only at high confidence, with its region and city. The résumé's own statements
+fill what the profile leaves unknown (authorised countries are united, the profile's sponsorship
+answer wins, the résumé's citizenships are kept); with no profile place the résumé's contact place
+stands. Unknown stays None.
+
+**D-89 Posting cache version. [Tailrd]** The `v` of D-84 is `"pv1-"` + 16 hex of sha256 over the
+engine version, the parse-config version, the combined config hash and the year of the scoring
+date (a requirement's years-since-release clamp reads the year). Any of them changing re-parses a
+posting the next time it is read; a parser fault is an INTERNAL_ERROR review and is never cached.
+Until Task 9.2 removes `local_match`, its `{"v": 1, "top", "tags"}` entries and these share the
+column and would overwrite each other, so 9.2 must switch every reader at once.
 
 ## Posting parser (Task 6.5) [Tailrd]
 

@@ -307,18 +307,88 @@ class JobMatchScore(Base):
     ``resume_fingerprint`` hashes the resume text the score was computed from,
     so a user who uploads a new resume gets re-scored instead of served a stale
     answer. One row per (user, job): a new fingerprint overwrites in place.
+
+    Fit engine rows (services/fit_engine.py, fingerprint "fit<major>:..."):
+    ``score`` is the calibrated integer used for sorting, and it is NULL when
+    the engine showed no number (GATE_FAIL, NEEDS_REVIEW, and a low-confidence
+    band). A NULL score is "not scored", never a low score: match-sorted
+    queries put it after every scored row (fit_engine.score_order) and no
+    count, alert or "strong" filter treats it as low or as a match
+    (DECISIONS D-86). The other engine columns are the audit record's
+    headline; the full trace lives in match_traces, keyed by an opaque id.
+    Added by migrations/add_fit_engine.py.
     """
     __tablename__ = "job_match_scores"
 
     id = Column(Integer, primary_key=True, index=True)
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     job_id = Column(Integer, ForeignKey("scraped_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
-    score = Column(Integer, nullable=False)
+    score = Column(Integer, nullable=True)
     resume_fingerprint = Column(String(64), nullable=False)
     scored_at = Column(DateTime, default=datetime.datetime.utcnow)
+    raw_score = Column(Float, nullable=True)
+    band = Column(String(20), nullable=True)
+    outcome = Column(String(30), nullable=True)
+    confidence = Column(Float, nullable=True)
+    engine_version = Column(String(20), nullable=True)
+    config_hash = Column(String(20), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("user_id", "job_id", name="uq_job_match_score_user_job"),
+    )
+
+
+class MatchTrace(Base):
+    """The audit trace of one fit-engine score (match-engine/docs/compliance.md section 3).
+
+    Keyed by ``subject_id`` = ``matcher.audit.opaque_id(str(user_id), FIT_TRACE_SALT)``,
+    NEVER by user_id: demographic data may only ever be joined on the opaque id
+    (SPEC section 9, DECISIONS D-91). Written beside every banked score; never
+    selected by feed queries (it is the heavy column, and nothing a person sees
+    reads it). One row per (subject, job), overwritten when the score is.
+    Account deletion recomputes the subject id to delete a user's traces
+    (fit_engine.delete_user_traces). The trace holds no free text (D-14).
+    """
+    __tablename__ = "match_traces"
+
+    id = Column(Integer, primary_key=True, index=True)
+    subject_id = Column(String(24), nullable=False, index=True)
+    job_id = Column(Integer, ForeignKey("scraped_jobs.id", ondelete="CASCADE"), nullable=False, index=True)
+    trace = Column(JSON, nullable=False)
+    trace_digest = Column(String(16), nullable=False)
+    engine_version = Column(String(20), nullable=True)
+    config_hash = Column(String(20), nullable=True)
+    scored_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("subject_id", "job_id", name="uq_match_trace_subject_job"),
+    )
+
+
+class MatchCalibration(Base):
+    """Live calibration references built from banked raw scores (DECISIONS D-50).
+
+    One row per (scope, key): scope "family" (key = the job's role_category)
+    or "global" (key "*"). ``n_candidates`` counts DISTINCT résumé
+    fingerprints, never (candidate, posting) pairs; a group under
+    ``calibration.min_reference_n`` (30) is stored but ignored by the
+    calibrator, so the shipped panel stays in charge. ``version`` names the
+    engine config hash the scores came from; rows of another hash are ignored.
+    Rebuilt by fit_engine.refresh_calibration.
+    """
+    __tablename__ = "match_calibration"
+
+    id = Column(Integer, primary_key=True, index=True)
+    scope = Column(String(20), nullable=False)
+    key = Column(String(200), nullable=False)
+    n_candidates = Column(Integer, nullable=False, default=0)
+    n_pairs = Column(Integer, nullable=False, default=0)
+    samples = Column(JSON, nullable=False, default=list)
+    version = Column(String(200), nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("scope", "key", name="uq_match_calibration_scope_key"),
     )
 
 
