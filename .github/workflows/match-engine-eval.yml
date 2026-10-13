@@ -5,9 +5,11 @@
 # make eval-fast  tests/eval + EVAL layers 1-2. Exits 1 when any guardrail fails; that failure is the
 #                 true state of the engine and is never skipped or loosened here.
 # make eval-holdout
-#                 release/** only, with MATCH_HOLDOUT_KEY from secrets. Without the key it prints
-#                 "HOLDOUT: skipped (no key)" and exits 0. Every look is logged in
-#                 docs/evaluation_budget.ledger.csv (10 per quarter, docs/evaluation_budget.md).
+#                 release/** only. Without MATCH_HOLDOUT_KEY it prints "HOLDOUT: skipped (no key)" and
+#                 exits 0. With it, the look is claimed on the shared `holdout-ledger` branch (pushed
+#                 before anything is decrypted; 10 per quarter, once per commit), eval/HOLDOUT.md.
+#
+# Actions are pinned by full commit SHA (the tag each SHA resolved to on 2026-10-13 is in the comment).
 name: match-engine eval
 
 on:
@@ -27,33 +29,46 @@ permissions:
 
 concurrency:
   group: match-engine-eval-${{ github.ref }}
-  cancel-in-progress: true
+  # A release run is never cancelled: its holdout look may already be recorded.
+  cancel-in-progress: ${{ !startsWith(github.ref, 'refs/heads/release/') }}
 
 defaults:
   run:
+    shell: bash  # bash -eo pipefail: a failing stage of a pipe fails the step
     working-directory: match-engine
 
 jobs:
   holdout-guard:
-    # EVAL 0: nothing under eval/corpora/holdout/ is ever committed (scripts/guard_holdout.py).
+    # EVAL 0: nothing under eval/corpora/holdout/ is ever committed (scripts/guard_holdout.py). Every
+    # path touched by ANY commit in the range is checked, so adding a file and deleting it in a later
+    # commit is still caught. Make this a required status check on main and release/** (eval/HOLDOUT.md).
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
         with:
           fetch-depth: 0
-      - name: Reject changes under eval/corpora/holdout/
+      - name: Reject any commit that touches eval/corpora/holdout/
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
         run: |
-          if [ "${{ github.event_name }}" = "pull_request" ]; then
-            base="origin/${{ github.base_ref }}"
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$(git merge-base "origin/$BASE_REF" HEAD)"
           else
-            base="${{ github.event.before }}"
+            base="$BEFORE"
           fi
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
-            base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            range="HEAD"  # a new branch: every commit it holds
+          else
+            range="$base..HEAD"
           fi
-          git -C .. diff --name-only "$base"...HEAD > "$RUNNER_TEMP/changed.txt"
-          if [ -s "$RUNNER_TEMP/changed.txt" ]; then
-            xargs -d '\n' python3 scripts/guard_holdout.py < "$RUNNER_TEMP/changed.txt"
+          git -C .. log --format= --name-only --no-renames -m "$range" | sed '/^$/d' | sort -u \
+            > "$RUNNER_TEMP/touched.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/touched.txt") paths touched in $range"
+          if [ -s "$RUNNER_TEMP/touched.txt" ]; then
+            xargs -d '\n' python3 scripts/guard_holdout.py < "$RUNNER_TEMP/touched.txt"
           fi
 
   test:
@@ -64,21 +79,21 @@ jobs:
       matrix:
         python: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
             match-engine/pyproject.toml
-            match-engine/constraints-ci.txt
+            match-engine/constraints-ci-${{ matrix.python }}.txt
       - name: System packages (OpenCV runtime for the OCR used by ingest)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
       - name: Install pinned dependencies
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip==25.2
-          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+          .venv/bin/python -m pip install -c "constraints-ci-${{ matrix.python }}.txt" -e ".[ingest,eval,dev]"
       - name: make test
         run: make test
 
@@ -92,38 +107,46 @@ jobs:
       matrix:
         python: ["3.11", "3.12"]
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: ${{ matrix.python }}
           cache: pip
           cache-dependency-path: |
             match-engine/pyproject.toml
-            match-engine/constraints-ci.txt
+            match-engine/constraints-ci-${{ matrix.python }}.txt
       - name: System packages (OpenCV runtime for the OCR used by ingest)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
       - name: Install pinned dependencies
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip==25.2
-          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+          .venv/bin/python -m pip install -c "constraints-ci-${{ matrix.python }}.txt" -e ".[ingest,eval,dev]"
       - name: Parse-cache key (what the parser reads, synthetic.parser_inputs, and the generator)
         id: parse-key
         run: |
           key="$(.venv/bin/python -c 'import sys; sys.path.insert(0, "src"); from eval.suites.synthetic import generator_fingerprint, parser_fingerprint; print(generator_fingerprint()[:16] + "-" + parser_fingerprint())')"
-          echo "key=$key" >> "$GITHUB_OUTPUT"
+          echo "key=match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-$key" >> "$GITHUB_OUTPUT"
       - name: Restore the parse cache
-        uses: actions/cache@v4
+        id: parse-restore
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
         with:
           path: match-engine/.cache/eval/parse
-          key: match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-${{ steps.parse-key.outputs.key }}
+          key: ${{ steps.parse-key.outputs.key }}
           restore-keys: |
             match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-
       - name: make eval-fast
+        id: eval
         run: make eval-fast
+      - name: Save the parse cache (also when a guardrail fails, so the next run is warm)
+        if: always() && steps.parse-restore.outputs.cache-hit != 'true'
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4
+        with:
+          path: match-engine/.cache/eval/parse
+          key: ${{ steps.parse-key.outputs.key }}
       - name: Upload the report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4
         with:
           name: eval-fast-report-py${{ matrix.python }}
           path: match-engine/reports/
@@ -132,32 +155,32 @@ jobs:
 
   holdout:
     # Layer 4: release branches only, after the unit tests and the fast evaluation pass (a release
-    # candidate with a failing guardrail does not spend a holdout look).
+    # candidate with a failing guardrail does not spend a holdout look). The `holdout` environment
+    # holds both secrets, allows only release/** deployments and needs a reviewer (eval/HOLDOUT.md).
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')
     needs: [holdout-guard, test, eval-fast]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: holdout
-    env:
-      MATCH_HOLDOUT_KEY: ${{ secrets.MATCH_HOLDOUT_KEY }}
+    permissions:
+      contents: write  # to push the look's row to the holdout-ledger branch before decrypting
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
           cache: pip
           cache-dependency-path: |
             match-engine/pyproject.toml
-            match-engine/constraints-ci.txt
+            match-engine/constraints-ci-3.12.txt
       - name: System packages (OpenCV runtime for the OCR used by ingest)
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
       - name: Install pinned dependencies
         run: |
           python -m venv .venv
           .venv/bin/python -m pip install --upgrade pip==25.2
-          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+          .venv/bin/python -m pip install -c constraints-ci-3.12.txt -e ".[ingest,eval,dev]"
       - name: Fetch the holdout bundle into the runner (never committed, eval/HOLDOUT.md)
-        if: env.MATCH_HOLDOUT_KEY != ''
         env:
           BUNDLE_URL: ${{ secrets.MATCH_HOLDOUT_BUNDLE_URL }}
         run: |
@@ -166,13 +189,8 @@ jobs:
             curl -fsSL "$BUNDLE_URL" | tar -xz -C eval/corpora/holdout
           fi
       - name: make eval-holdout
-        run: make eval-holdout
+        # The key is visible to this step only, never to installs, downloads or other actions.
         env:
+          MATCH_HOLDOUT_KEY: ${{ secrets.MATCH_HOLDOUT_KEY }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
-      - name: Upload the ledger (commit its new row back to the release branch)
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: evaluation-budget-ledger
-          path: match-engine/docs/evaluation_budget.ledger.csv
-          retention-days: 90
+        run: make eval-holdout

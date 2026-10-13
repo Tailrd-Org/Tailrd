@@ -131,12 +131,15 @@ def proposed_yaml(current_text: str, proposed: Mapping[str, float]) -> str:
     return "".join(out)
 
 
-def weights_diff(current_text: str, proposed: Mapping[str, float]) -> str:
+def weights_diff(current_text: str, proposed: Mapping[str, float], header: Sequence[str] = ()) -> str:
+    """The unified diff, after `# ` comment lines (`git apply` ignores text before the first `---`), so
+    the do-not-adopt markers travel with the diff itself."""
     new = proposed_yaml(current_text, proposed)
     diff = "".join(difflib.unified_diff(current_text.splitlines(keepends=True), new.splitlines(keepends=True),
                                         fromfile="a/match-engine/config/weights.yaml",
                                         tofile="b/match-engine/config/weights.yaml"))
-    return diff or "# no change proposed: no feasible vector beat the current weights\n"
+    prefix = "".join(f"# {line}\n" for line in header)
+    return prefix + (diff or "# no change proposed: no feasible vector beat the current weights\n")
 
 
 # ─── writing ───────────────────────────────────────────────────────────────────────────────
@@ -180,19 +183,26 @@ def _case_lines(items: Sequence[Any], *, improved: bool) -> list[str]:
 
 
 def write_proposal(result: Any, evaluator: Any, *, out_root: Path, day: date, sensitivity_rows: Sequence[Any],
-                   n_resamples: int, wall_seconds: float, config_dir: Path = CONFIG_DIR) -> Path:
-    """Write `out_root/<day>-tune/`. Reads `config_dir/weights.yaml`, never writes under `config_dir`."""
+                   n_resamples: int, wall_seconds: float, config_dir: Optional[Path] = None,
+                   force: bool = False) -> Path:
+    """Write `out_root/<day>-tune/`. Reads `config_dir/weights.yaml` (default `CONFIG_DIR`), never writes
+    under it. An existing folder (perhaps holding a human-signed rationale.md) is refused unless `force`;
+    a target file that is a symlink or resolves outside the folder is always refused."""
     from eval.baseline import metric_deltas, regressions
     from eval.report import fmt_ci, fmt_delta, fmt_value, verdict_text
     from eval.suites.synthetic import RANKING_METRICS
     from eval.tune import sensitivity
 
+    config_dir = Path(config_dir) if config_dir is not None else CONFIG_DIR
     out_root = Path(out_root)
     if _inside(out_root, config_dir):
         raise ValueError(f"refusing to write a proposal under {config_dir}: proposals never touch config/")
     folder = out_root / f"{day.isoformat()}-tune"
     if _inside(folder, config_dir):
         raise ValueError(f"refusing to write a proposal under {config_dir}")
+    if folder.exists() and not force:
+        raise FileExistsError(f"refusing to overwrite {folder}: it may hold a signed rationale.md "
+                              "(pass --force to replace it)")
     current_text = (config_dir / "weights.yaml").read_text(encoding="utf-8")
     current, proposed = result.current, result.proposed_weights
     base_pairs, new_pairs = result.baseline.pairs, result.proposed_evaluation.pairs
@@ -206,8 +216,11 @@ def write_proposal(result: Any, evaluator: Any, *, out_root: Path, day: date, se
     rejected_bounds = sum(1 for t in result.trials if t.objective is None)
     abstain_bad = sum(1 for t in result.trials if any("abstention" in r for r in t.feasibility.reasons))
 
-    folder.mkdir(parents=True, exist_ok=True)
-    (folder / "weights.diff").write_text(weights_diff(current_text, proposed), encoding="utf-8", newline="\n")
+    files: dict[str, str] = {}
+    header = [*([SYNTHETIC_BANNER] if result.synthetic_only else []),
+              *([FAIRNESS_BANNER] if not result.fairness_assessed else []),
+              f"verdict: {decision.verdict} (report.md, EVAL 5.3); never apply without a signed rationale.md"]
+    files["weights.diff"] = weights_diff(current_text, proposed, header)
 
     moved = [d for d in constraints.DIMENSIONS if proposed[d] != current[d]]
     rationale = [f"# Tuning rationale draft, {day.isoformat()}", "", *banners, "",
@@ -234,7 +247,7 @@ def write_proposal(result: Any, evaluator: Any, *, out_root: Path, day: date, se
                   "- Which product behaviour motivates each move:", "- Which broken cases are acceptable, and why:",
                   "- Sensitivity concerns (see sensitivity.md):", "",
                   "Reviewer: ____________  Date: ____________  Decision: adopt / reject", ""]
-    (folder / "rationale.md").write_text("\n".join(rationale), encoding="utf-8", newline="\n")
+    files["rationale.md"] = "\n".join(rationale)
 
     table = ["| Metric | Current | Proposed | Δ | 95% CI | Verdict |", "|---|---:|---:|---:|---|---|"]
     for spec in RANKING_METRICS:
@@ -269,10 +282,8 @@ def write_proposal(result: Any, evaluator: Any, *, out_root: Path, day: date, se
         report.append(f"| {t.number} | {_fmt(t.objective)} | {_fmt(t.feasibility.abstention_rate, 3)} | "
                       + " | ".join(f"{t.weights[d]:.4f}" for d in constraints.DIMENSIONS) + " |")
     report.append("")
-    (folder / "report.md").write_text("\n".join(report), encoding="utf-8", newline="\n")
-    (folder / "sensitivity.md").write_text(
-        sensitivity.markdown(sensitivity_rows, proposed, pairs_label=f"{result.split} pair"), encoding="utf-8",
-        newline="\n")
+    files["report.md"] = "\n".join(report)
+    files["sensitivity.md"] = sensitivity.markdown(sensitivity_rows, proposed, pairs_label=f"{result.split} pair")
     summary = {
         "date": day.isoformat(), "split": result.split, "synthetic_only": result.synthetic_only,
         "fairness_assessed": result.fairness_assessed, "seed": result.seed, "budget": result.budget,
@@ -280,6 +291,12 @@ def write_proposal(result: Any, evaluator: Any, *, out_root: Path, day: date, se
         "dev_gain": deltas["ndcg@10"], "verdict": decision.verdict,
         "over_leveraged": sorted({r.dimension for r in sensitivity_rows if r.over_leveraged}),
     }
-    (folder / "proposal.json").write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n", encoding="utf-8",
-                                          newline="\n")
+    files["proposal.json"] = json.dumps(summary, indent=2, sort_keys=True) + "\n"
+    folder.mkdir(parents=True, exist_ok=True)
+    targets = {name: folder / name for name in files}
+    for target in targets.values():
+        if target.is_symlink() or not _inside(target, folder) or _inside(target, config_dir):
+            raise ValueError(f"refusing to write {target}: a symlink or a path outside {folder}")
+    for name, target in targets.items():
+        target.write_text(files[name], encoding="utf-8", newline="\n")
     return folder

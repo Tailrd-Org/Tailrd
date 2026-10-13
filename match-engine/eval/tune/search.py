@@ -260,6 +260,7 @@ def parse_args(argv: Optional[Sequence[str]] = None) -> argparse.Namespace:
     parser.add_argument("--out", default=str(PROPOSALS_DIR), help="proposal root (never config/)")
     parser.add_argument("--date", default=None, help="proposal date, YYYY-MM-DD (default: today, UTC)")
     parser.add_argument("--resamples", type=int, default=1000, help="bootstrap resamples for the report")
+    parser.add_argument("--force", action="store_true", help="replace an existing proposals/<date>-tune folder")
     args = parser.parse_args(argv)
     if args.budget < 1:
         parser.error("--budget must be at least 1")
@@ -294,8 +295,12 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     rows = sensitivity.analyse(evaluator.pairs, result.proposed_weights)
     day = date.fromisoformat(args.date) if args.date else datetime.now(timezone.utc).date()
     wall = time.perf_counter() - started
-    folder = proposal.write_proposal(result, evaluator, out_root=Path(args.out), day=day,
-                                     sensitivity_rows=rows, n_resamples=args.resamples, wall_seconds=wall)
+    try:
+        folder = proposal.write_proposal(result, evaluator, out_root=Path(args.out), day=day, sensitivity_rows=rows,
+                                         n_resamples=args.resamples, wall_seconds=wall, force=args.force)
+    except (ValueError, FileExistsError) as exc:
+        print(f"tune: refused: {exc}", flush=True)
+        return 2
     decision = proposal.decision_for(result, n_resamples=args.resamples)
     print(decision.text(), flush=True)
     print(f"tune: proposal written to {folder}", flush=True)

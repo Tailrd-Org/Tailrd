@@ -3,13 +3,15 @@ band-change rate on the evaluation pairs. A dimension whose 20 % change flips mo
 bands is over-leveraged.
 
 A band "changes" when a pair's band index differs, an abstention (band None) included. The
-perturbed vector is renormalised onto the 4-decimal simplex (`constraints.normalise`); a vector that
-leaves [0.03, 0.45] is still evaluated and marked `outside_bounds` (it could never be shipped, but
-the leverage it measures is real).
+perturbed vector is renormalised exactly (not onto the 4-decimal grid, whose rounding residual
+would land on, and skew, the largest weight, often the perturbed one) and scored through an
+unchecked in-memory config; a vector that leaves [0.03, 0.45] is still evaluated and marked
+`outside_bounds` (it could never be shipped, but the leverage it measures is real).
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
@@ -23,7 +25,13 @@ OVER_LEVERAGED = 0.15
 def perturb(weights: Mapping[str, float], dimension: str, factor: float) -> dict[str, float]:
     if dimension not in constraints.DIMENSIONS:
         raise ValueError(f"unknown dimension {dimension!r}")
-    return constraints.normalise({d: weights[d] * (factor if d == dimension else 1.0) for d in constraints.DIMENSIONS})
+    scaled = {d: weights[d] * (factor if d == dimension else 1.0) for d in constraints.DIMENSIONS}
+    total = math.fsum(scaled.values())
+    return {d: v / total for d, v in scaled.items()}
+
+
+def _outside(weights: Mapping[str, float]) -> bool:
+    return any(not (constraints.WEIGHT_MIN <= weights[d] <= constraints.WEIGHT_MAX) for d in constraints.DIMENSIONS)
 
 
 def band_change_rate(before: Sequence[PairScore], after: Sequence[PairScore]) -> float:
@@ -58,7 +66,7 @@ def analyse(pairs: Callable[[dict[str, float]], list[PairScore]], weights: Mappi
         for factor in FACTORS:
             moved = perturb(weights, dimension, factor)
             rows.append(Row(dimension, factor, weights[dimension], moved[dimension],
-                            band_change_rate(base, pairs(moved)), bool(constraints.bound_violations(moved))))
+                            band_change_rate(base, pairs(moved)), _outside(moved)))
     return rows
 
 

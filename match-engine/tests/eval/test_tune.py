@@ -376,14 +376,14 @@ def test_synthetic_proposal_is_marked_and_says_fairness_not_assessed(tmp_path: P
 
 
 def test_perturb_renormalises() -> None:
+    """Exact renormalisation (review Minor 5): no grid residual skews the perturbed weight."""
     up = sensitivity.perturb(CURRENT, "required_skills", 1.2)
-    # 0.42 / 1.07 = 0.392523..., the others x / 1.07; on the 4-decimal grid the largest weight takes the
-    # rounding residual (at most 7 half-quanta, 0.00035)
-    assert up["required_skills"] == pytest.approx(0.42 / 1.07, abs=3.5e-4)
-    assert up["tools"] == pytest.approx(0.10 / 1.07, abs=5e-5)
-    assert _decimal_sum(up) == Decimal(1)
+    assert up["required_skills"] == pytest.approx(0.42 / 1.07, abs=1e-12)  # 0.392523...
+    assert up["tools"] == pytest.approx(0.10 / 1.07, abs=1e-12)
+    assert math.fsum(up.values()) == pytest.approx(1.0, abs=1e-12)
     down = sensitivity.perturb(CURRENT, "tools", 0.8)
-    assert down["tools"] == pytest.approx(0.08 / 0.98, abs=5e-5)
+    assert down["tools"] == pytest.approx(0.08 / 0.98, abs=1e-12)
+    assert down["required_skills"] == pytest.approx(0.35 / 0.98, abs=1e-12)
 
 
 def test_band_change_rate_arithmetic() -> None:
@@ -414,8 +414,11 @@ def test_sensitivity_flags_over_leveraged_dimensions_on_a_toy() -> None:
     by = {(r.dimension, r.factor): r for r in rows}
     base = [_band(CURRENT["required_skills"] * (1.0 + i * 0.1) + 0.1) for i in range(10)]
     for (dim, factor), row in by.items():
-        w = sensitivity.perturb(CURRENT, dim, factor)
-        new = [_band(w["required_skills"] * (1.0 + i * 0.1) + 0.1) for i in range(10)]
+        # closed form, independent of `perturb`: scaling w_d by f and renormalising gives
+        # w_d f / (1 + (f - 1) w_d) for the moved weight and w / (1 + (f - 1) w_d) for the others
+        w_d = CURRENT[dim]
+        req = CURRENT["required_skills"] * (factor if dim == "required_skills" else 1.0) / (1 + (factor - 1) * w_d)
+        new = [_band(req * (1.0 + i * 0.1) + 0.1) for i in range(10)]
         expected = sum(1 for a, b in zip(base, new) if a != b) / 10
         assert row.rate == pytest.approx(expected)
         assert row.over_leveraged == (expected > sensitivity.OVER_LEVERAGED)
@@ -423,6 +426,26 @@ def test_sensitivity_flags_over_leveraged_dimensions_on_a_toy() -> None:
     assert any(r.over_leveraged for r in rows if r.dimension == "required_skills")
     md = sensitivity.markdown(rows, CURRENT)
     assert "over-leveraged" in md and "required_skills" in md
+
+
+def test_sensitivity_known_values_on_the_toy() -> None:
+    """Hand-computed: +20 % on required_skills (0.35 -> 0.392523) flips pairs 2, 6 and 7 of the toy."""
+
+    def pairs(weights: dict[str, float]) -> list[PairScore]:
+        return [PairScore(posting_id=f"p{i}", pair_id=f"x{i}", relevance=0,
+                          score=weights["required_skills"] * (1.0 + i * 0.1) + 0.1,
+                          band_pred=_band(weights["required_skills"] * (1.0 + i * 0.1) + 0.1)) for i in range(10)]
+
+    up = next(r for r in sensitivity.analyse(pairs, CURRENT) if (r.dimension, r.factor) == ("required_skills", 1.2))
+    # at 0.35: 0.450 0.485 0.520 0.555 0.590 0.625 0.660 0.695 0.730 0.765 -> bands 1 1 1 2 2 2 2 2 3 3
+    # at 0.392523: 0.493 0.532 0.571 0.610 0.650 0.689 0.728 0.767 0.807 0.846 -> 1 1 2 2 2 2 3 3 3 3
+    assert up.rate == pytest.approx(0.3) and up.over_leveraged
+
+
+def test_rate_of_exactly_15_percent_is_not_over_leveraged() -> None:
+    at = sensitivity.Row("tools", 1.2, 0.1, 0.1, 0.15, False)
+    above = sensitivity.Row("tools", 1.2, 0.1, 0.1, 0.1500001, False)
+    assert not at.over_leveraged and above.over_leveraged
 
 
 def test_sensitivity_marks_vectors_outside_the_bounds() -> None:
@@ -446,3 +469,80 @@ def test_engine_evaluator_scores_without_parsing() -> None:
     # an out-of-bounds vector is scored only on request (sensitivity), never by the search
     out = {**CURRENT, "required_skills": 0.5, "preferred_skills": 0.05, "experience": 0.05}
     assert len(evaluator.pairs(out)) == 20
+
+
+# ─── round 1: proposal hygiene, the CLI, real-engine determinism ───────────────────────────
+
+
+def test_weights_diff_starts_with_the_do_not_adopt_markers(tmp_path: Path) -> None:
+    folder, _, _ = _write(tmp_path)
+    diff = (folder / "weights.diff").read_text(encoding="utf-8")
+    head = diff.split("--- a/", 1)[0]
+    assert head.startswith(f"# {proposal.SYNTHETIC_BANNER}")
+    assert f"# {proposal.FAIRNESS_BANNER}" in head and "# verdict: " in head
+    assert all(line.startswith("#") for line in head.strip().splitlines())
+
+
+def test_an_existing_proposal_folder_is_never_overwritten(tmp_path: Path) -> None:
+    folder, config_dir, result = _write(tmp_path)
+    (folder / "rationale.md").write_text("signed by a reviewer", encoding="utf-8")
+    with pytest.raises(FileExistsError):
+        proposal.write_proposal(result, ToyEvaluator(), out_root=tmp_path / "proposals", day=date(2026, 10, 13),
+                                config_dir=config_dir, sensitivity_rows=[], n_resamples=10, wall_seconds=0.0)
+    assert (folder / "rationale.md").read_text(encoding="utf-8") == "signed by a reviewer"
+    proposal.write_proposal(result, ToyEvaluator(), out_root=tmp_path / "proposals", day=date(2026, 10, 13),
+                            config_dir=config_dir, sensitivity_rows=[], n_resamples=10, wall_seconds=0.0, force=True)
+    assert (folder / "rationale.md").read_text(encoding="utf-8") != "signed by a reviewer"
+
+
+def test_a_symlinked_target_file_is_refused(tmp_path: Path) -> None:
+    import os
+
+    evaluator = ToyEvaluator()
+    result = search.run_search(evaluator, CURRENT, budget=3, seed=0)
+    config_dir = _config_copy(tmp_path)
+    folder = tmp_path / "proposals" / "2026-10-13-tune"
+    folder.mkdir(parents=True)
+    try:
+        os.symlink(config_dir / "weights.yaml", folder / "weights.diff")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlinks need privileges on this platform")
+    before = (config_dir / "weights.yaml").read_bytes()
+    with pytest.raises(ValueError):
+        proposal.write_proposal(result, evaluator, out_root=tmp_path / "proposals", day=date(2026, 10, 13),
+                                config_dir=config_dir, sensitivity_rows=[], n_resamples=10, wall_seconds=0.0,
+                                force=True)
+    assert (config_dir / "weights.yaml").read_bytes() == before
+
+
+class _CliToy(ToyEvaluator):
+    items = list(range(len(_TOY)))
+
+
+def test_cli_exits_1_on_a_fairness_failure_of_the_current_weights(tmp_path: Path, monkeypatch) -> None:
+    toy = _CliToy(fairness=lambda w: _fair(False, 0.7))
+    monkeypatch.setattr(search.EngineEvaluator, "synthetic", classmethod(lambda cls, limit=None: toy))
+    assert search.main(["--budget", "2", "--split", "synthetic", "--out", str(tmp_path / "p")]) == 1
+    assert not (tmp_path / "p").exists()
+
+
+def test_cli_refuses_out_under_the_default_config(tmp_path: Path, monkeypatch, capsys) -> None:
+    """The guard uses `proposal.CONFIG_DIR` (the real config/ by default); pointed at a tmp copy here so a
+    broken guard cannot damage the real one."""
+    assert proposal.CONFIG_DIR == ROOT / "config"
+    config_dir = _config_copy(tmp_path)
+    monkeypatch.setattr(proposal, "CONFIG_DIR", config_dir)
+    before = (config_dir / "weights.yaml").read_bytes()
+    monkeypatch.setattr(search.EngineEvaluator, "synthetic", classmethod(lambda cls, limit=None: _CliToy()))
+    assert search.main(["--budget", "2", "--split", "synthetic", "--out", str(config_dir),
+                        "--resamples", "10"]) == 2
+    assert "refus" in capsys.readouterr().out
+    assert [p.name for p in config_dir.iterdir()] == ["weights.yaml"]
+    assert (config_dir / "weights.yaml").read_bytes() == before
+
+
+def test_search_on_the_real_engine_is_deterministic() -> None:
+    a = search.run_search(search.EngineEvaluator.synthetic(limit=20), CURRENT, budget=3, seed=0)
+    b = search.run_search(search.EngineEvaluator.synthetic(limit=20), CURRENT, budget=3, seed=0)
+    assert [(t.weights, t.objective) for t in a.trials] == [(t.weights, t.objective) for t in b.trials]
+    assert [p.score for p in a.baseline.pairs] == [p.score for p in b.baseline.pairs]

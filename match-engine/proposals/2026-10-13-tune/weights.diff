@@ -1,3 +1,6 @@
+# synthetic-only: do not adopt
+# fairness not assessed: proposal cannot be adopted until a grouped labelled set exists
+# verdict: REJECT (report.md, EVAL 5.3); never apply without a signed rationale.md
 --- a/match-engine/config/weights.yaml
 +++ b/match-engine/config/weights.yaml
 @@ -3,10 +3,10 @@

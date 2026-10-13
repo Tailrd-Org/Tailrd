@@ -10,7 +10,7 @@
 - Objective: NDCG@10 (maximise)
 - Sampler: Optuna TPE, seed 0, budget 50 trials
 - Trials: 50; rejected before scoring (a weight above 0.45): 0; infeasible on abstention > 15%: 0; infeasible on fairness FAIL: 0; feasible: 50
-- Search time 40.0 s; wall time including sensitivity 55.4 s
+- Search time 68.7 s; wall time including sensitivity 88.1 s
 
 ## Current vs proposed
 

@@ -1184,17 +1184,27 @@ rejected without scoring. Optuna TPE, seed 0 by default, constraints through `Tr
 (an unchecked in-memory config, never persisted) and marked.
 
 **D-121 Holdout format and look budget.** `labels.enc` is AES-256-GCM (`MHO1 | nonce | ciphertext`),
-key 32 bytes base64 in `MATCH_HOLDOUT_KEY` (CI secret only). The bundle (inputs and `labels.enc`)
-lives outside the public repository and is fetched into the CI runner from `MATCH_HOLDOUT_BUNDLE_URL`;
-`eval/corpora/holdout/` is git-ignored and guarded. `make eval-holdout` decrypts only on `release/**`
-refs, refuses the 11th look of a calendar quarter before decrypting, appends `date,ref,purpose` to
-`docs/evaluation_budget.ledger.csv` before decrypting, and prints aggregates only. The CI copy of the
-ledger is uploaded as an artifact and its row committed by hand (docs/evaluation_budget.md). Layer 4
-inside `eval.run` only reports whether the key is present; every look goes through `make eval-holdout`.
+key 32 bytes, strict base64, in `MATCH_HOLDOUT_KEY`: an environment secret of the `holdout` GitHub
+environment (deployment branches `release/**`, required reviewers, no repository-level copy), visible
+only to the `make eval-holdout` step. The bundle (inputs and `labels.enc`) lives outside the public
+repository and is fetched into the runner from `MATCH_HOLDOUT_BUNDLE_URL`; `eval/corpora/holdout/` is
+git-ignored, and the `holdout-guard` job checks every path touched by any commit of a pull request or
+push (a required status check). `make eval-holdout` decrypts only on `release/**` refs. Each look is
+claimed in a durable ledger before decryption (review I-1, option A): `evaluation_budget.ledger.csv`
+on the `holdout-ledger` branch, which every release branch shares. The claim fetches that branch,
+refuses the 11th look of the calendar quarter (UTC) and a second look at the same commit SHA (EVAL 0:
+once per release candidate), and pushes the `date,ref,sha,purpose` row as a fast-forward commit (a
+concurrent claim is rejected). An unreadable branch or a failed push refuses the run, and nothing is
+decrypted. `docs/evaluation_budget.ledger.csv` is only the format reference. The tool prints aggregates
+only; a malformed input is reported by index and exception type, never by content. Layer 4 inside
+`eval.run` only reports whether the key is present.
 
-**D-122 CI dependency pins.** CI installs `-c constraints-ci.txt -e ".[ingest,eval,dev]"`, the
-development venv's exact versions. numpy 2.5 and scipy 1.18 have no Python 3.11 wheels, so 3.11
-gets numpy 2.4.6 and scipy 1.17.1 (environment markers in pyproject.toml and the constraints file).
-The OCR (rapidocr-onnxruntime, pymupdf) is pure pip; the runner adds only `libgl1` and
-`libglib2.0-0` for OpenCV. The parse cache is restored by a key built from `generator_fingerprint`
-and `parser_fingerprint` (D-118), so warm CI runs skip OCR.
+**D-122 CI dependency pins.** CI installs `-c constraints-ci-<python>.txt -e ".[ingest,eval,dev]"`. The
+two constraint files are compiled with `uv pip compile` for Linux x86_64 (manylinux_2_28) and Python
+3.11 and 3.12 respectively, so every transitive dependency is pinned for the platform CI runs on.
+numpy 2.5 and scipy 1.18 have no Python 3.11 wheels, so 3.11 gets numpy 2.4.6 and scipy 1.17.1
+(environment markers in pyproject.toml). The OCR (rapidocr-onnxruntime, pymupdf) is pure pip; the
+runner adds only `libgl1` and `libglib2.0-0` for OpenCV. The parse cache is restored by a key built
+from `generator_fingerprint` and `parser_fingerprint` (D-118) and saved even when `make eval-fast`
+fails (split restore and save), so the next run is warm while guardrails are red. Actions are pinned
+by full commit SHA.
