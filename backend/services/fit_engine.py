@@ -1001,6 +1001,63 @@ def delete_user_traces(db, user_id: int) -> int:
     return count
 
 
+#: Trace retention (D-153): a closed job's trace and score row are kept this long after scoring.
+TRACE_RETENTION_DAYS = 90
+#: Traces deleted per call at most (one sweep), so the delete stays a short transaction.
+TRACE_PRUNE_LIMIT = 5000
+#: Listing statuses whose jobs can still be applied to (the feed shows them), so their traces are
+#: never pruned. A NULL status is treated the same way.
+_RETAINED_LISTING_STATUSES = ("active", "stale")
+
+
+def prune_traces(db, *, limit: int = TRACE_PRUNE_LIMIT, now: Optional[dt.datetime] = None,
+                 retention_days: int = TRACE_RETENTION_DAYS) -> int:
+    """Delete at most ``limit`` traces (and their score rows) of jobs that can no longer be applied
+    to (listing status set and neither active nor stale) and were scored more than
+    ``retention_days`` ago (D-153). Commits once: the traces and their score rows go in one
+    transaction. A trace's score row is the user's row for the same job with the same age; the
+    user is found through the subject id, so this needs FIT_TRACE_SALT (FitTraceSaltError
+    otherwise, before anything is deleted). Returns the number of traces deleted."""
+    from backend.db.models import JobMatchScore, MatchTrace, ScrapedJob
+
+    salt = _trace_salt()
+    if limit <= 0:
+        return 0
+    cutoff = (now or dt.datetime.utcnow()) - dt.timedelta(days=retention_days)
+    closed = db.query(ScrapedJob.id).filter(
+        ScrapedJob.listing_status.isnot(None),
+        ScrapedJob.listing_status.notin_(_RETAINED_LISTING_STATUSES),
+    )
+    traces = (
+        db.query(MatchTrace.id, MatchTrace.subject_id, MatchTrace.job_id)
+        .filter(MatchTrace.scored_at < cutoff, MatchTrace.job_id.in_(closed))
+        .order_by(MatchTrace.id.asc())
+        .limit(limit)
+        .all()
+    )
+    if not traces:
+        return 0
+    pairs = {(row.subject_id, row.job_id) for row in traces}
+    job_ids = sorted({row.job_id for row in traces})
+    score_ids = [
+        row.id for row in
+        db.query(JobMatchScore.id, JobMatchScore.user_id, JobMatchScore.job_id)
+        .filter(JobMatchScore.job_id.in_(job_ids), JobMatchScore.scored_at < cutoff)
+        .all()
+        if (subject_id(row.user_id, salt), row.job_id) in pairs
+    ]
+    try:
+        if score_ids:
+            db.query(JobMatchScore).filter(JobMatchScore.id.in_(score_ids)).delete(synchronize_session=False)
+        count = db.query(MatchTrace).filter(MatchTrace.id.in_([row.id for row in traces])).delete(
+            synchronize_session=False)
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return count
+
+
 # ─── The detail view ─────────────────────────────────────────────────────────────────────────
 
 

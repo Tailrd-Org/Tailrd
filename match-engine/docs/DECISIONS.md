@@ -1601,3 +1601,20 @@ run by the build controller on 2026-10-13, found affected legacy rows (all creat
 - *Dry run, same Development sample (1 résumé x 400 jobs):* before SCORED 0, SCORED_LOW_CONFIDENCE 0,
   NEEDS_REVIEW 399, GATE_FAIL 1; after SCORED 213, SCORED_LOW_CONFIDENCE 147, NEEDS_REVIEW 39,
   GATE_FAIL 1.
+
+## Owner decisions, batch A (2026-10-13) [Tailrd]
+
+**D-153 Trace retention. [Tailrd]** Rule: once per run, after scoring and only while
+`CRON_MATCH_BUDGET_S` has time left, the cron sweep deletes the `match_traces` rows, and their
+`job_match_scores` rows, of jobs that can no longer be applied to and were scored more than 90 days
+ago (`fit_engine.prune_traces`). At most 5,000 traces per run, in one transaction of their own; a
+failure is rolled back, reported (`traces_prune_error`) and retried next run. The count is
+`traces_pruned` in the sweep summary. Reason: a trace is about 2 KB per (user, job) pair and storage
+grew with every job ever shown, but a trace's audit value ends when the job closes.
+- *What counts as closed.* A set `listing_status` other than `active` and `stale` (so `removed`,
+  `expired`, `off_target`). `stale` jobs are still shown in the feed and can be applied to, and a NULL
+  status is treated as active, so their traces are never pruned whatever their age.
+- *Their score rows.* A trace's score row is the user's row for the same job with the same age; the
+  user is found through the subject id, so pruning needs `FIT_TRACE_SALT` (skipped with
+  `traces_prune_skipped: fit_trace_salt_missing` otherwise). Score rows with no trace (pre-engine
+  rows) are left alone. A job that reopens is simply scored again by the next sweep.

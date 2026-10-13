@@ -124,6 +124,17 @@ This must be revisited before any demographic data is collected (a separate sche
    are scored from the stored document (D-80). Any PR to main that touches `match-engine/**` will
    show a red `match-engine eval` check. Record the decision here.
 
+## Decisions
+
+Owner decisions taken on 2026-10-13. Each is one rule and its reason; the engine-side ones are
+recorded in full in `match-engine/docs/DECISIONS.md`.
+
+- **Trace retention (D-153).** The sweep deletes the traces, and their score rows, of closed jobs
+  (any listing status but active or stale) scored more than 90 days ago: at most 5,000 per run, in
+  its own transaction, inside the sweep deadline, reported as `traces_pruned`. Jobs that can still
+  be applied to keep their traces. Reason: storage grows with every job ever shown, but a trace's
+  audit value ends when the job closes.
+
 ## Costs
 
 - **Money:** none per score. No LLM call of any kind.
@@ -133,9 +144,8 @@ This must be revisited before any demographic data is collected (a separate sche
 - **CPU:** about 2.5 ms per (résumé, job) pair (p95 about 3.5 ms) and 20 to 80 ms to parse a
   posting the first time.
 - **Storage:** about 2 KB of trace per (user, job) pair plus a score row. At 2,000 jobs per user
-  that is about 4 MB per user, and it grows with the catalogue. **There is no pruning yet**:
-  traces are overwritten in place when a job is rescored, but never deleted when a job is
-  removed. A retention or pruning policy is an owner decision still to make.
+  that is about 4 MB per user. Traces are overwritten in place when a job is rescored, and the
+  sweep prunes closed jobs' traces (D-153): see "Decisions" below.
 - **Memory:** the built engine adds about 175 MB of Python heap per instance (peak about 220 MB).
   Fine on 1 to 2 GB functions; recheck before lowering the function memory.
 - **Monthly rescore:** scores are "as of" the first of the month, so every user is rescored once
@@ -157,6 +167,8 @@ This must be revisited before any demographic data is collected (a separate sche
 | `chunks_skipped` | Chunks rolled back because a concurrent sweep banked them first |
 | `scoring_budget_spent` | True when `CRON_MATCH_BUDGET_S` stopped scoring early |
 | `fit_trace_salt_missing` | True when the salt is missing or short: nothing was banked |
+| `traces_pruned` | Traces deleted this run, with their score rows (D-153: closed jobs, scored more than 90 days ago, at most 5,000 per run) |
+| `traces_prune_skipped` / `traces_prune_error` | Only when pruning did not run: `deadline` (the scoring budget was spent) or `fit_trace_salt_missing`; or the error class of a failed prune (rolled back, retried next run) |
 | `error` | The engine error class, with `status: engine_unavailable` |
 | `calibration` | The live reference refresh: `version`, and per family and globally `n_candidates`, `n_pairs`, `in_charge` (30+ people). `skipped: no scores` when nothing could be banked |
 | `drift` | The EVAL section 6 drift report: `alarms` (code, value, threshold, message), `skipped` (checks not evaluated and why, for example a PSI on fewer than 200 scores), `psi_reference_n`, `psi_current_n`, `abstention_rate`, `abstention_baseline`, `not_measured` (coverage, four-fifths and p95 latency are not measured by the sweep) |
