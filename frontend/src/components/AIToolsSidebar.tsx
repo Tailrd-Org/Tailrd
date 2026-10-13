@@ -6,7 +6,9 @@ interface Props {
   jobId: number;
 }
 
-type ToolType = "resume" | "cover-letter" | "fit-analysis";
+// No fit tool: /ai/analyze-fit is gone. Fit comes from the deterministic engine and
+// JobDetailView shows it (POST /ai/match-breakdown).
+type ToolType = "resume" | "cover-letter";
 
 interface ToolState {
   loading: boolean;
@@ -18,7 +20,6 @@ export default function AIToolsSidebar({ jobId }: Props) {
   const [tools, setTools] = useState<Record<ToolType, ToolState>>({
     resume: { loading: false, content: "", error: "" },
     "cover-letter": { loading: false, content: "", error: "" },
-    "fit-analysis": { loading: false, content: "", error: "" },
   });
   const [copied, setCopied] = useState<ToolType | null>(null);
 
@@ -31,7 +32,6 @@ export default function AIToolsSidebar({ jobId }: Props) {
     const endpoints: Record<ToolType, string> = {
       resume: `${API_BASE}/ai/tailor-resume/${jobId}`,
       "cover-letter": `${API_BASE}/ai/cover-letter/${jobId}`,
-      "fit-analysis": `${API_BASE}/ai/analyze-fit/${jobId}`,
     };
 
     try {
@@ -83,7 +83,6 @@ export default function AIToolsSidebar({ jobId }: Props) {
   const toolButtons: { type: ToolType; label: string; icon: string }[] = [
     { type: "resume", label: "Customize Your Resume", icon: "📄" },
     { type: "cover-letter", label: "Build Cover Letter", icon: "✉️" },
-    { type: "fit-analysis", label: "Analyze How Well You Fit", icon: "🎯" },
   ];
 
   return (
@@ -96,9 +95,7 @@ export default function AIToolsSidebar({ jobId }: Props) {
             className="ai-tool-btn"
             data-tour={
               type === "resume" ? "ai-tool-resume"
-              : type === "cover-letter" ? "ai-tool-cover-letter"
-              : type === "fit-analysis" ? "ai-tool-fit"
-              : undefined
+              : "ai-tool-cover-letter"
             }
             onClick={() => runTool(type)}
             disabled={tools[type].loading}

@@ -35,6 +35,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import api from "../auth/api";
+import { bandTone, cardFit, fitSummary, type BandTone } from "../lib/fit";
 import { useApplyTracking } from "../context/ApplyTracking";
 
 // Maps the client-side parser's icon keys to Phosphor icon components
@@ -49,12 +50,25 @@ const SECTION_ICONS: Record<string, Icon> = {
   "info-circle": Info,
 };
 
+interface MatchItem {
+  label: string;
+  impact?: string;
+  note?: string;
+  code?: string;
+}
+
+/** POST /ai/match-breakdown: the deterministic fit engine's result (backend/schemas/match.py). */
 interface MatchBreakdown {
-  experience_score: number;
-  skill_score: number;
-  industry_score: number;
-  overall_score: number;
-  match_label: string;
+  outcome: string; // SCORED | SCORED_LOW_CONFIDENCE | NEEDS_REVIEW | GATE_FAIL
+  band?: string | null;
+  display_score?: number | null; // set only for SCORED
+  headline?: string;
+  basis?: string;
+  strength_items?: MatchItem[];
+  gaps?: MatchItem[];
+  to_improve?: string[];
+  notes?: string[];
+  interval?: { low: number; high: number; display: boolean } | null;
 }
 
 interface Job {
@@ -64,7 +78,10 @@ interface Job {
   location: string;
   url: string;
   description: string;
+  // The engine's result on the card: a number only when match_outcome is SCORED.
   match_score: number;
+  match_band?: string | null;
+  match_outcome?: string | null;
   match_label: string;
   experience_score: number;
   skill_score: number;
@@ -87,16 +104,46 @@ interface Job {
   locations_json?: { city?: string; region?: string; region_name?: string; country?: string }[] | null;
 }
 
-function getMatchColor(score: number): string {
-  if (score >= 80) return "#533afd";
-  if (score >= 60) return "#f59e0b";
-  return "#64748d";
+const TONE_COLORS: Record<BandTone, string> = {
+  strong: "#533afd",
+  good: "#4f7cff",
+  partial: "#f59e0b",
+  limited: "#64748d",
+  none: "#64748d",
+};
+
+function FitItems({ title, items, showImpact }: { title: string; items: MatchItem[]; showImpact: boolean }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="fit-section">
+      <h4 className="fit-section-title">{title}</h4>
+      <ul className="fit-items">
+        {items.map((item, i) => (
+          <li key={`${item.code || item.label}-${i}`} className="fit-item">
+            <span className="fit-item-row">
+              <span className="fit-item-label">{item.label}</span>
+              {showImpact && item.impact && <span className="fit-item-impact">{item.impact}</span>}
+            </span>
+            {item.note && <span className="fit-item-note">{item.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
-function getMatchLabel(score: number): string {
-  if (score >= 80) return "STRONG MATCH";
-  if (score >= 60) return "GOOD MATCH";
-  return "FAIR MATCH";
+function FitTexts({ title, items, className }: { title: string; items: string[]; className?: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={`fit-section${className ? ` ${className}` : ""}`}>
+      <h4 className="fit-section-title">{title}</h4>
+      <ul className="fit-texts">
+        {items.map((text, i) => (
+          <li key={i}>{text}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function formatWorkType(wt: string): string {
@@ -300,16 +347,6 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
       if (parsed) setStructured(parsed);
     }
 
-    if (job.match_score > 0 && job.experience_score > 0) {
-      setBreakdown({
-        experience_score: job.experience_score,
-        skill_score: job.skill_score,
-        industry_score: job.industry_score,
-        overall_score: job.match_score,
-        match_label: job.match_label || getMatchLabel(job.match_score),
-      });
-    }
-
     async function fetchStructured(effectiveDescription: string) {
       if (effectiveDescription.length <= 50) return;
       try {
@@ -324,6 +361,9 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
     }
 
     (async () => {
+      // Details first: fetch-details backfills an empty description, and the
+      // engine reads the posting from it. Asked before, an empty posting
+      // would always read "We couldn't score this".
       const fetchedDescription = await fetchJobDetails();
       if (cancelled) return;
 
@@ -337,9 +377,9 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
       // Required / Preferred / skills) once it's available.
       fetchStructured(effectiveDescription);
 
-      if (job.match_score === 0 && effectiveDescription.length > 50) {
-        triggerAnalysis();
-      }
+      // The breakdown is deterministic and free now (no AI), so every open
+      // asks for it: the card only carries the band and the number.
+      triggerAnalysis();
     })();
 
     return () => {
@@ -408,18 +448,17 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
     setError("");
     try {
       const { data } = await api.post<MatchBreakdown>(`/ai/match-breakdown/${requestedId}`);
-      if (stillOnScreen()) setBreakdown(data);
+      if (stillOnScreen() && data && typeof data.outcome === "string") setBreakdown(data);
     } catch (err: unknown) {
       if (!stillOnScreen()) return;
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 503) {
-        // 503 = the scoring model is unreachable or refused the call (outage,
-        // billing). There is nothing for the user to connect or configure.
+        // Nothing for the user to connect or configure; it is on our side.
         setError("Match scoring is temporarily unavailable. Please try again later.");
-      } else if (status === 422) {
-        setError("Could not fetch a job description to analyze. Try opening the apply link directly.");
+      } else if (status === 400) {
+        setError("Upload a résumé to see how you fit this job.");
       } else if (status) {
-        setError("Failed to analyze job match.");
+        setError("We couldn't load your fit for this job. Please try again later.");
       } else {
         setError("Failed to connect to the server.");
       }
@@ -443,9 +482,20 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
 
   const closed = isListingClosed(liveStatus ?? job.listing_status);
   const source = sourceLabel(job);
-  const score = breakdown?.overall_score ?? job.match_score;
-  const label = breakdown?.match_label ?? getMatchLabel(score);
-  const color = getMatchColor(score);
+  // The full result once the breakdown answers; until then, the card's.
+  const cardResult = cardFit(job);
+  const scored = breakdown
+    ? breakdown.outcome === "SCORED" && typeof breakdown.display_score === "number"
+    : cardResult?.kind === "scored";
+  const score = breakdown ? breakdown.display_score ?? 0 : cardResult?.kind === "scored" ? cardResult.score : 0;
+  const headline = breakdown ? breakdown.headline || "" : cardResult ? fitSummary(cardResult) : "";
+  const band = breakdown
+    ? breakdown.band
+    : cardResult?.kind === "scored" || cardResult?.kind === "band"
+      ? cardResult.band
+      : null;
+  const color = TONE_COLORS[bandTone(band)];
+  const interval = breakdown?.interval?.display ? breakdown.interval : null;
 
   return (
     <div className="job-detail-view">
@@ -685,64 +735,46 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
           {loading && (
             <div className="match-loading-card">
               <div className="spinner" />
-              <span>Analyzing match...</span>
+              <span>Scoring your fit...</span>
             </div>
           )}
 
           {error && <div className="match-error-card">{error}</div>}
 
-          {score > 0 && !loading && (
-            <div className="match-score-card">
-              <div className="match-circle-large">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="6" />
-                  <circle
-                    cx="50" cy="50" r="42"
-                    fill="none" stroke={color} strokeWidth="6"
-                    strokeDasharray={`${score * 2.64} 264`}
-                    strokeLinecap="round"
-                    transform="rotate(-90 50 50)"
-                  />
-                </svg>
-                <span className="match-number-large">{score}<small>%</small></span>
-              </div>
-              <span className="match-label-large" style={{ color }}>{label}</span>
+          {/* The card's result stays up while the breakdown loads. */}
+          {headline && (
+            <div className="match-score-card fit-card" data-tour="fit-breakdown">
+              {scored && score > 0 && (
+                <div className="match-circle-large">
+                  <svg viewBox="0 0 100 100" aria-hidden="true">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="6" />
+                    <circle
+                      cx="50" cy="50" r="42"
+                      fill="none" stroke={color} strokeWidth="6"
+                      strokeDasharray={`${Math.min(100, score) * 2.64} 264`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <span className="match-number-large">{score}</span>
+                </div>
+              )}
+              {headline && (
+                <p className="fit-headline" style={scored ? { color } : undefined}>{headline}</p>
+              )}
+              {scored && breakdown?.basis && <p className="fit-basis">{breakdown.basis}</p>}
+              {scored && interval && (
+                <p className="fit-interval">{`Likely range ${interval.low} to ${interval.high}`}</p>
+              )}
             </div>
           )}
 
-          {breakdown && (
-            <div className="match-breakdown">
-              <h3>Match Breakdown</h3>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Experience</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.experience_score}%`, backgroundColor: getMatchColor(breakdown.experience_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.experience_score}%</span>
-              </div>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Skills</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.skill_score}%`, backgroundColor: getMatchColor(breakdown.skill_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.skill_score}%</span>
-              </div>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Industry</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.industry_score}%`, backgroundColor: getMatchColor(breakdown.industry_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.industry_score}%</span>
-              </div>
+          {breakdown && !loading && (
+            <div className="fit-breakdown">
+              <FitItems title="Strengths" items={breakdown.strength_items ?? []} showImpact={scored} />
+              <FitItems title="Gaps" items={breakdown.gaps ?? []} showImpact={scored} />
+              <FitTexts title="To improve" items={breakdown.to_improve ?? []} />
+              <FitTexts title="Notes" items={breakdown.notes ?? []} className="fit-notes" />
             </div>
           )}
         </div>

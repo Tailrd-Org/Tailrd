@@ -186,16 +186,16 @@ describe("Job Detail Inline Panel - Unit Tests (Task 6.7)", () => {
    * Test: AI Tools Sidebar renders all three tool buttons
    * Validates: Requirement 3.6
    */
-  it("AI Tools Sidebar renders all three tool buttons (Req 3.6)", async () => {
+  it("AI Tools Sidebar renders its tools, and no AI fit analysis (Req 3.6, Task 9.4)", async () => {
     const { default: AIToolsSidebar } = await vi.importActual<
       typeof import("../components/AIToolsSidebar")
     >("../components/AIToolsSidebar");
 
     render(<AIToolsSidebar jobId={1} />);
 
-    // Check all three AI tool buttons are present
     expect(screen.getByText("Customize Your Resume")).toBeInTheDocument();
     expect(screen.getByText("Build Cover Letter")).toBeInTheDocument();
-    expect(screen.getByText("Analyze How Well You Fit")).toBeInTheDocument();
+    // /ai/analyze-fit is gone (404): fit comes from the engine in the detail view.
+    expect(screen.queryByText("Analyze How Well You Fit")).toBeNull();
   });
 });

@@ -8,6 +8,7 @@ import VersionsPanel from "./VersionsPanel";
 import { DEFAULT_THEME, type ResumeDocument } from "../lib/resumeDocument";
 import { addSkills, useDocumentHistory } from "../lib/resumeEdit";
 import { analyzeKeywords, heatmapTerms } from "../lib/keywordMatch";
+import { bandFor, bandTone } from "../lib/fit";
 import { changedStrings } from "../lib/resumeDiff";
 import type { HighlightMode, HighlightState } from "./ResumeRenderer";
 import { downloadResumeDocx, printResume } from "../lib/resumeExport";
@@ -60,10 +61,13 @@ interface ResumeOption {
   is_primary: boolean;
 }
 
+// Scores come from the fit engine (Task 9.3): null unless the result is SCORED, and
+// match_label is the band, or "We couldn't score this" / "Not eligible" when there is none.
 interface Analysis {
-  overall_score: number;
-  ats_score: number;
+  overall_score: number | null;
+  ats_score: number | null;
   match_label: string;
+  outcome?: string;
   keyword_coverage: number;
   matched_keywords: string[];
   missing_keywords: string[];
@@ -78,9 +82,9 @@ interface RewriteResult {
   tailored_text: string;
   original_text: string;
   diff_summary: string;
-  original_overall_score: number;
-  new_overall_score: number;
-  new_ats_score: number;
+  original_overall_score: number | null;
+  new_overall_score: number | null;
+  new_ats_score: number | null;
   new_keyword_coverage: number;
   version_id?: number | null;
   changes?: string[];
@@ -118,16 +122,14 @@ function errorMessage(err: unknown, fallback: string): string {
   return detail?.data?.detail || fallback;
 }
 
-function labelOf(score: number): string {
-  return score >= 80 ? "STRONG" : score >= 60 ? "GOOD" : "FAIR";
-}
-
-// Semicircular rainbow score gauge (0-100 shown as X.X / 10).
-function Gauge({ score, size = "lg" }: { score: number; size?: "lg" | "sm" }) {
+// Semicircular rainbow fit-score gauge: the engine's integer (0-100) and its band.
+// With no score (low confidence, not eligible, not scored) it shows the words only.
+function Gauge({ score, label, size = "lg" }: { score: number | null; label: string; size?: "lg" | "sm" }) {
   const r = 52;
   const cx = 60;
   const cy = 62;
-  const frac = Math.max(0, Math.min(100, score)) / 100;
+  const hasScore = typeof score === "number";
+  const frac = hasScore ? Math.max(0, Math.min(100, score)) / 100 : 0;
   const len = Math.PI * r; // semicircle arc length
   const angle = Math.PI * (1 - frac); // 180° (empty) → 0° (full)
   const knobX = cx + r * Math.cos(angle);
@@ -152,10 +154,10 @@ function Gauge({ score, size = "lg" }: { score: number; size?: "lg" | "sm" }) {
           strokeLinecap="round"
           strokeDasharray={`${frac * len} ${len}`}
         />
-        <circle cx={knobX} cy={knobY} r="6" fill="#fff" stroke="#1f2937" strokeWidth="2.5" />
-        <text x="60" y="56" textAnchor="middle" className="ai-gauge2-num">{(score / 10).toFixed(1)}</text>
+        {hasScore && <circle cx={knobX} cy={knobY} r="6" fill="#fff" stroke="#1f2937" strokeWidth="2.5" />}
+        {hasScore && <text x="60" y="56" textAnchor="middle" className="ai-gauge2-num">{score}</text>}
       </svg>
-      <div className="ai-gauge2-lbl">{labelOf(score)}</div>
+      <div className="ai-gauge2-lbl">{label}</div>
     </div>
   );
 }
@@ -331,10 +333,13 @@ export default function CustomResumeModal({
 
   const matchHeadline = useMemo(() => {
     if (!analysis) return "";
-    const l = analysis.match_label.split(" ")[0];
-    if (l === "STRONG") return "Your Resume is a Strong Match. Here Are a Few Suggestions";
-    if (l === "GOOD") return "Your Resume is a Good Match. Here's What You Could Strengthen";
-    return "Your Resume is a Partial Match. Here's Where to Start";
+    // The band comes from the API (85 / 70 / 55); with no band, its own words.
+    const tone = bandTone(analysis.match_label);
+    if (tone === "strong") return "Your Resume is a Strong Match. Here Are a Few Suggestions";
+    if (tone === "good") return "Your Resume is a Good Match. Here's What You Could Strengthen";
+    if (tone === "partial") return "Your Resume is a Partial Match. Here's Where to Start";
+    if (tone === "limited") return "Your Resume is a Limited Match. Here's Where to Start";
+    return analysis.match_label || "Here's Where to Start";
   }, [analysis]);
 
   return (
@@ -407,7 +412,7 @@ export default function CustomResumeModal({
                 : "You're on the right track, but some keywords are still missing."}
             </span>
           </div>
-          <Gauge score={analysis.overall_score} />
+          <Gauge score={analysis.overall_score} label={analysis.match_label} />
         </div>
 
         <div className="ai-cmp">
@@ -444,7 +449,9 @@ export default function CustomResumeModal({
           {/* Keywords row */}
           <div className={`ai-cmp-label${fullCoverage ? "" : " warn"}`}>
             <span>Job Keywords <strong>({analysis.matched_keywords.length}/{total})</strong></span>
-            <span className="ai-cmp-sub">{analysis.keyword_coverage}% coverage · ATS {analysis.ats_score}</span>
+            <span className="ai-cmp-sub">
+              {analysis.keyword_coverage}% coverage{analysis.ats_score != null ? ` · ATS ${analysis.ats_score}` : ""}
+            </span>
             {!fullCoverage && <span className="ai-warn-badge" aria-hidden>!</span>}
           </div>
           <div className="ai-cmp-cell ai-cmp-wide warm">
@@ -593,11 +600,12 @@ export default function CustomResumeModal({
 
     const orig = rewrite.original_overall_score;
     const next = rewrite.new_overall_score;
+    const bothScored = typeof orig === "number" && typeof next === "number";
     const jumpHeadline =
-      next > orig
-        ? `With these suggestions your score goes from ${(orig / 10).toFixed(1)} to ${(next / 10).toFixed(1)}`
-        : next === orig
-          ? `Your score held strong at ${(next / 10).toFixed(1)}`
+      bothScored && next > orig
+        ? `With these suggestions your fit score goes from ${orig} to ${next}`
+        : bothScored && next === orig
+          ? `Your fit score holds at ${next}`
           : "Suggestions ready. Accept what sounds like you.";
 
     const changes: string[] =
@@ -633,13 +641,16 @@ export default function CustomResumeModal({
 
           {/* Right: score jump + what changed */}
           <aside className="ai-side">
-            <div className="ai-side-gauge"><Gauge score={next} size="sm" /></div>
+            <div className="ai-side-gauge">
+              <Gauge score={next} label={typeof next === "number" ? bandFor(next) : ""} size="sm" />
+            </div>
             <div className="ai-side-jump">
               <Spark />
               <p>{jumpHeadline}</p>
             </div>
             <div className="ai-side-stats">
-              ATS {rewrite.new_ats_score} · {rewrite.new_keyword_coverage}% keyword coverage
+              {rewrite.new_ats_score != null && `ATS ${rewrite.new_ats_score} · `}
+              {rewrite.new_keyword_coverage}% keyword coverage
             </div>
             <button className="ai-btn ai-btn-soft" style={{ width: "100%", justifyContent: "center" }} onClick={() => setEditing(true)}>
               Edit resume

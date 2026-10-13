@@ -13,7 +13,7 @@ vi.mock("./VersionsPanel", () => ({ default: () => <div /> }));
 import CustomResumeModal from "./CustomResumeModal";
 
 const analysis = {
-  overall_score: 70, ats_score: 65, match_label: "GOOD MATCH", keyword_coverage: 50,
+  overall_score: 82, ats_score: 82, match_label: "Good match", outcome: "SCORED", keyword_coverage: 50,
   matched_keywords: ["python"], missing_keywords: ["k8s"], strengths: [], weaknesses: [], suggestions: [],
 };
 
@@ -131,5 +131,68 @@ describe("CustomResumeModal", () => {
     expect(screen.getByText(/Role requires Kubernetes/i)).toBeTruthy();
     expect(screen.getByText(/Verify these figures/i)).toBeTruthy();
     expect(screen.getByText(/Reordered sections/i)).toBeTruthy();
+  });
+
+  it("shows the fit score as an integer with the API's band, never X.X or an 80 / 60 label", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={vi.fn()} jobId={null} />);
+    await screen.findByRole("button", { name: /Suggest Edits for This Job/i });
+    expect(await screen.findByText(/Your Resume is a Good Match/)).toBeTruthy();
+    const gauge = container.querySelector(".ai-gauge2");
+    expect(gauge?.textContent).toContain("82");
+    expect(gauge?.textContent).toContain("Good match");
+    expect(gauge?.textContent).not.toContain("8.2");
+    expect(gauge?.textContent).not.toMatch(/STRONG|GOOD|FAIR/);
+  });
+
+  it("renders a result with no score without a number (We couldn't score this)", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue({
+      ...analysis, overall_score: null, ats_score: null, outcome: "NEEDS_REVIEW", match_label: "We couldn't score this",
+    });
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={vi.fn()} jobId={null} />);
+    await screen.findByRole("button", { name: /Suggest Edits for This Job/i });
+    expect((await screen.findAllByText(/We couldn't score this/)).length).toBeGreaterThan(0);
+    const gauge = container.querySelector(".ai-gauge2");
+    expect(gauge?.textContent).not.toMatch(/\d/);
+    expect(container.textContent).not.toMatch(/null|NaN|ATS null/);
+  });
+
+  it("states the before and after fit scores as integers at review", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: 86, new_ats_score: 86, new_keyword_coverage: 80,
+      version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    expect(await screen.findByText("With these suggestions your fit score goes from 60 to 86")).toBeTruthy();
+    // 86 is Strong under 85 / 70 / 55.
+    expect(container.querySelector(".ai-side-gauge")?.textContent).toContain("Strong match");
+  });
+
+  it("does not crash or print null when the review scores are missing", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: null, new_overall_score: null, new_ats_score: null, new_keyword_coverage: 80,
+      version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    expect(await screen.findByText(/Suggestions ready/)).toBeTruthy();
+    expect(container.textContent).not.toMatch(/null|NaN/);
   });
 });
