@@ -181,23 +181,49 @@ class FitEngine:
 
 _ENGINE: Optional[FitEngine] = None
 _ENGINE_LOCK = threading.Lock()
+# A build failure is remembered for this long, so one sweep (every chunk, the calibration refresh
+# and the drift report) does not pay a full rebuild per call when an artifact is broken.
+BUILD_FAILURE_TTL_S = 300.0
+_BUILD_FAILURE: Optional[tuple[float, FitEngineError]] = None
+_monotonic = time.monotonic
 
 
 def get_engine() -> FitEngine:
-    """The process-wide engine, built on first use (thread-safe). Cold build: see build_engine."""
-    global _ENGINE
+    """The process-wide engine, built on first use (thread-safe). Cold build: see build_engine.
+    A failed build raises FitEngineError, and the same error again for BUILD_FAILURE_TTL_S."""
+    global _ENGINE, _BUILD_FAILURE
     engine = _ENGINE
     if engine is not None:
         return engine
     with _ENGINE_LOCK:
-        if _ENGINE is None:
+        if _ENGINE is not None:
+            return _ENGINE
+        failure = _BUILD_FAILURE
+        if failure is not None and _monotonic() - failure[0] < BUILD_FAILURE_TTL_S:
+            raise failure[1]
+        try:
             _ENGINE = build_engine()
+        except FitEngineError as exc:
+            _BUILD_FAILURE = (_monotonic(), exc)
+            raise
+        _BUILD_FAILURE = None
         return _ENGINE
 
 
 def build_engine(root: Path = MATCH_ENGINE_ROOT) -> FitEngine:
-    """Load and verify every engine artifact. Raises (never degrades) when one is missing or
-    does not match its MANIFEST: a half-built engine would score with the wrong data."""
+    """Load and verify every engine artifact. Raises FitEngineError (never degrades) when one is
+    missing, unreadable or does not match its MANIFEST: a half-built engine would score with the
+    wrong data. Every loader error (ConfigError, ArtifactError, PanelError, OSError, ValueError) is
+    converted, so a caller sees one error type and the sweep reports engine_unavailable (I-1)."""
+    try:
+        return _build_engine(root)
+    except FitEngineError:
+        raise
+    except (OSError, ValueError, KeyError, TypeError) as exc:  # ConfigError/ArtifactError/PanelError are ValueErrors
+        raise FitEngineError(f"{type(exc).__name__}: {exc}") from exc
+
+
+def _build_engine(root: Path) -> FitEngine:
     started = time.perf_counter()
     taxonomy = root / "data" / "taxonomy"
     config = load_config(root / "config")

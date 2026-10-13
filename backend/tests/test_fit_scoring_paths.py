@@ -774,6 +774,62 @@ async def test_an_engine_that_cannot_be_built_reports_engine_unavailable(db_sess
 
 
 @pytest.mark.asyncio
+async def test_a_loader_error_reports_engine_unavailable_and_builds_once(db_session, monkeypatch):
+    """A taxonomy loader error (not a panel error) is an unbuildable engine: the sweep reports
+    engine_unavailable, and the failure is remembered, so the sweep never rebuilds per chunk."""
+    from matcher.graph.loader import ArtifactError
+
+    from backend.services import fit_engine
+
+    builds = []
+
+    def broken_graph(*_a, **_k):
+        builds.append(1)
+        raise ArtifactError("MANIFEST does not list nodes.json.gz")
+
+    monkeypatch.setattr(fit_engine, "load_graph", broken_graph)
+    monkeypatch.setattr(fit_engine, "_ENGINE", None)
+    monkeypatch.setattr(fit_engine, "_BUILD_FAILURE", None, raising=False)
+    _user(db_session)
+    _resume(db_session)
+    for _ in range(3):
+        _job(db_session)
+    monkeypatch.setattr(match_notifier, "SWEEP_CHUNK", 1)
+    summary = await match_notifier.sweep_match_alerts(db_session)
+    assert summary["status"] == "engine_unavailable"
+    assert summary["error"] == "FitEngineError"
+    assert summary["scoring_errors"] == 0
+    assert len(builds) == 1
+    with pytest.raises(fit_engine.FitEngineError, match="ArtifactError"):
+        fit_engine.get_engine()
+    assert len(builds) == 1  # still remembered
+
+
+def test_a_remembered_build_failure_expires(monkeypatch):
+    from backend.services import fit_engine
+
+    builds = []
+
+    def broken_config(*_a, **_k):
+        builds.append(1)
+        raise OSError("config/weights.yaml is missing")
+
+    clock = [1000.0]
+    monkeypatch.setattr(fit_engine, "load_config", broken_config)
+    monkeypatch.setattr(fit_engine, "_ENGINE", None)
+    monkeypatch.setattr(fit_engine, "_BUILD_FAILURE", None, raising=False)
+    monkeypatch.setattr(fit_engine, "_monotonic", lambda: clock[0], raising=False)
+    for _ in range(2):
+        with pytest.raises(fit_engine.FitEngineError, match="OSError"):
+            fit_engine.get_engine()
+    assert len(builds) == 1
+    clock[0] += fit_engine.BUILD_FAILURE_TTL_S + 1
+    with pytest.raises(fit_engine.FitEngineError):
+        fit_engine.get_engine()
+    assert len(builds) == 2
+
+
+@pytest.mark.asyncio
 async def test_a_salt_missing_sweep_that_scored_nothing_skips_calibration_and_drift(db_session, monkeypatch):
     from backend.services import fit_engine
 
