@@ -187,6 +187,52 @@ def test_backfill_prioritizes_direct_urls_over_linkedin(client, db_session, monk
     assert (linkedin.desc_fetch_attempts or 0) == 0
 
 
+def _attempted(db_session, *rows):
+    for row in rows:
+        db_session.refresh(row)
+    return [(row.desc_fetch_attempts or 0) for row in rows]
+
+
+def _no_fetch(monkeypatch):
+    monkeypatch.setattr("backend.routers.jobs.extract_description_from_url", _no_description)
+
+
+def test_backfill_fetches_active_jobs_before_closed_ones(client, db_session, monkeypatch):
+    # An active job with no description reads "We couldn't score this" until it is filled; a
+    # closed one (newer, and a direct URL) can wait.
+    active = _mk(db_session, "https://www.linkedin.com/jobs/view/123")
+    closed = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/10")
+    closed.listing_status = "removed"
+    db_session.commit()
+    _no_fetch(monkeypatch)
+    client.post("/jobs/cron-backfill", params={"batch_size": 1}, headers=_cron_headers(monkeypatch))
+    assert _attempted(db_session, active, closed) == [1, 0]
+
+
+def test_backfill_fetches_the_newest_active_job_first(client, db_session, monkeypatch):
+    older = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/11")
+    newer = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/12")
+    expired = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/13")
+    expired.listing_status = "expired"
+    db_session.commit()
+    _no_fetch(monkeypatch)
+    client.post("/jobs/cron-backfill", params={"batch_size": 1}, headers=_cron_headers(monkeypatch))
+    assert _attempted(db_session, older, newer, expired) == [0, 1, 0]
+
+
+def test_backfill_counts_a_stale_or_unset_status_as_active(client, db_session, monkeypatch):
+    stale = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/14")
+    stale.listing_status = "stale"
+    unset = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/15")
+    unset.listing_status = None
+    closed = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/16")
+    closed.listing_status = "removed"
+    db_session.commit()
+    _no_fetch(monkeypatch)
+    client.post("/jobs/cron-backfill", params={"batch_size": 2}, headers=_cron_headers(monkeypatch))
+    assert _attempted(db_session, stale, unset, closed) == [1, 1, 0]
+
+
 def _hangs(started: list):
     """An extractor whose host answers only after 5 s; logs each start."""
     async def extract(client_, url):

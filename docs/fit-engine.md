@@ -151,6 +151,11 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   `/api/custom-resume` score the stored profile with `fit_engine.score_profile` (D-152 fallback
   allowed), so their "before" is the card's; the rewritten side is scored as written, never with the
   fallback. Reason: one résumé, one "before", wherever it is shown.
+- **Empty descriptions are fetched for open jobs first.** `cron-backfill` did not prioritise them
+  (it ordered direct URLs before LinkedIn/Indeed, then newest). It now takes the jobs the feed shows
+  (active, stale or no status) first, then direct before aggregator URLs, newest first, inside its
+  existing batch size and 75 s description budget. Reason: an open job with no description reads
+  "We couldn't score this" until it is filled, while a closed one can wait.
 
 ## Costs
 
