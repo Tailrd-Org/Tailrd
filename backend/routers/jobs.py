@@ -1762,7 +1762,12 @@ async def structure_description(
     db: Session = Depends(get_db),
 ):
     """Structured sections for a posting: the cached parse if one exists, else
-    an LLM parse when JOB_STRUCTURE_AI is on (off by default: zero cost)."""
+    an LLM parse when JOB_STRUCTURE_AI is on (off by default: zero cost).
+
+    Layout only (headings and bullets). No AI in job scoring or match signals (final
+    review I-4): no skill list is asked for, stored or served, and a ``skills`` key in a
+    row cached under the old prompt is dropped. The engine's breakdown is the detail
+    page's only match signal."""
     import json
     from backend.services.llm import get_llm_service
 
@@ -1771,16 +1776,17 @@ async def structure_description(
         raise HTTPException(status_code=404, detail="Job not found.")
 
     if not job.description or len(job.description) < 50:
-        return {"sections": [], "skills": [], "error": "No description available"}
+        return {"sections": [], "error": "No description available"}
 
     # Cache: proper column first, then the legacy company_description JSON hack
     # (rows structured before description_sections existed).
     if isinstance(job.description_sections, dict) and job.description_sections.get("sections"):
-        return job.description_sections
+        return _layout_only(job.description_sections)
     if job.company_description and job.company_description.startswith("{"):
         try:
             cached = json.loads(job.company_description)
             if cached.get("sections"):
+                cached = _layout_only(cached)
                 job.description_sections = cached
                 db.commit()
                 return cached
@@ -1794,7 +1800,7 @@ async def structure_description(
     import os
 
     if (os.getenv("JOB_STRUCTURE_AI") or "").strip().lower() not in ("1", "true", "yes", "on"):
-        return {"sections": [], "skills": list(job.skills or []), "source": "client"}
+        return {"sections": [], "source": "client"}
 
     llm = get_llm_service()
 
@@ -1809,7 +1815,6 @@ async def structure_description(
     {{"title": "Benefits", "icon": "gift", "items": ["..."]}},
     {{"title": "About the Company", "icon": "building", "items": ["..."]}}
   ],
-  "skills": ["Python", "SQL", "Stakeholder engagement"],
   "experience_years": "2-4",
   "education": "BS in Computer Science"
 }}
@@ -1817,7 +1822,6 @@ async def structure_description(
 Rules:
 - Preserve every bullet from the posting in the matching section; do not invent content.
 - Qualifications MUST use Required/Preferred subsections when the posting distinguishes them; otherwise put everything under Required.
-- "skills" are 5-18 concrete skill tags from the posting: technologies, tools, languages, certifications, and named competencies (e.g. "Bilingualism English/French").
 - Omit sections the posting does not contain. Keep items to one sentence.
 
 Job Description:
@@ -1825,13 +1829,18 @@ Job Description:
 
     try:
         response = await llm._generate(prompt, model="gpt-4o-mini", json_mode=True, op="jobs.structure_description")
-        data = json.loads(response)
+        data = _layout_only(json.loads(response))
         if data.get("sections"):
             job.description_sections = data
             db.commit()
         return data
     except Exception as e:
-        return {"sections": [], "skills": [], "error": str(e)}
+        return {"sections": [], "error": str(e)}
+
+
+def _layout_only(data: dict) -> dict:
+    """A structured description without any LLM-made skill list (I-4)."""
+    return {key: value for key, value in data.items() if key != "skills"}
 
 
 @router.post("/{job_id}/save", response_model=ScrapedJobOut)

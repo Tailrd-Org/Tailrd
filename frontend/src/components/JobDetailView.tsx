@@ -1,7 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import CompanyLogo from "./CompanyLogo";
 import { displayLocation } from "../lib/jobLocation";
-import { getPrimaryResumeText, skillCovered } from "../lib/resumeCoverage";
 import {
   checkListingLive,
   handleApplyLinkClick,
@@ -23,7 +22,6 @@ import {
   ArrowSquareOut,
   Prohibit,
   Users,
-  ThumbsUp,
   ClipboardText,
   Star,
   Gift,
@@ -246,11 +244,8 @@ function parseDescriptionClientSide(rawDesc: string): any | null {
       .filter(l => l.length > 10 && l.length < 300);
 
     if (bullets.length >= 3) {
-      // Extract skills from the text
-      const skills = extractSkills(text);
       return {
         sections: [{ title: "Job Description", icon: "list", items: bullets.slice(0, 20) }],
-        skills,
       };
     }
     return null; // Can't parse, show raw
@@ -289,34 +284,7 @@ function parseDescriptionClientSide(rawDesc: string): any | null {
     }
   }
 
-  const skills = extractSkills(text);
-  return { sections: result, skills };
-}
-
-function extractSkills(text: string): string[] {
-  const knownSkills = [
-    "Python", "Java", "JavaScript", "TypeScript", "C++", "C#", "Go", "Rust", "Ruby", "PHP", "Swift", "Kotlin",
-    "React", "Angular", "Vue", "Node.js", "Django", "Flask", "Spring", "Express", "Next.js",
-    "AWS", "Azure", "GCP", "Docker", "Kubernetes", "Terraform", "Jenkins", "CI/CD",
-    "SQL", "PostgreSQL", "MySQL", "MongoDB", "Redis", "Elasticsearch", "DynamoDB", "Cassandra",
-    "REST", "GraphQL", "gRPC", "Microservices", "Kafka", "RabbitMQ",
-    "Machine Learning", "Deep Learning", "TensorFlow", "PyTorch", "NLP",
-    "Git", "Linux", "Agile", "Scrum", "Jira",
-    "HTML", "CSS", "Tailwind", "SASS",
-    "Figma", "Sketch",
-    "Spark", "Hadoop", "Airflow", "dbt", "Snowflake", "BigQuery",
-    "iOS", "Android", "React Native", "Flutter",
-  ];
-
-  const found: string[] = [];
-  const lowerText = text.toLowerCase();
-  for (const skill of knownSkills) {
-    if (lowerText.includes(skill.toLowerCase())) {
-      found.push(skill);
-    }
-    if (found.length >= 12) break;
-  }
-  return found;
+  return { sections: result };
 }
 
 export default function JobDetailView({ job, onClose, onListingStatusChange, onFitChange }: Props) {
@@ -328,7 +296,6 @@ export default function JobDetailView({ job, onClose, onListingStatusChange, onF
   const [companyLogo, setCompanyLogo] = useState(job.company_logo || "");
   const [fetchingDetails, setFetchingDetails] = useState(false);
   const [structured, setStructured] = useState<any>(null);
-  const [resumeText, setResumeText] = useState("");
   // listing_status from the click-time live check; null until it answers.
   const [liveStatus, setLiveStatus] = useState<string | null>(null);
   const { registerApplyClick } = useApplyTracking();
@@ -336,18 +303,6 @@ export default function JobDetailView({ job, onClose, onListingStatusChange, onF
   // started for an earlier job must not write its answer onto this one.
   const activeJobIdRef = useRef(job.id);
   activeJobIdRef.current = job.id;
-
-  // Primary resume text (session-cached) powers the qualification-tag
-  // coverage highlighting; no resume just means neutral tags.
-  useEffect(() => {
-    let cancelled = false;
-    getPrimaryResumeText().then((text) => {
-      if (!cancelled) setResumeText(text);
-    });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -395,7 +350,8 @@ export default function JobDetailView({ job, onClose, onListingStatusChange, onF
       }
 
       // Upgrade to the cached server-side structured parse (Responsibilities /
-      // Required / Preferred / skills) once it's available.
+      // Required / Preferred) once it's available. Layout only: no skill list is
+      // shown, so the engine's breakdown is the only match signal here (I-4).
       fetchStructured(effectiveDescription);
 
       // The breakdown is deterministic and free now (no AI), so every open
@@ -664,30 +620,6 @@ export default function JobDetailView({ job, onClose, onListingStatusChange, onF
               </div>
             ) : structured ? (
               <div className="structured-description">
-                {/* Qualification skill tags, highlighted by resume coverage */}
-                {structured.skills && structured.skills.length > 0 && (
-                  <div className="qual-tags-block">
-                    {resumeText && (
-                      <div className="qual-tags-caption">
-                        <ThumbsUp size={12} weight="fill" /> marks skills your resume already covers
-                      </div>
-                    )}
-                    <div className="skill-tags">
-                      {structured.skills.map((skill: string, i: number) => {
-                        const matched = resumeText ? skillCovered(resumeText, skill) : false;
-                        return (
-                          <span
-                            key={i}
-                            className={`skill-tag${matched ? " skill-tag-matched" : ""}`}
-                          >
-                            {matched && <ThumbsUp size={12} weight="fill" />}
-                            {skill}
-                          </span>
-                        );
-                      })}
-                    </div>
-                  </div>
-                )}
                 {/* Sections */}
                 {structured.sections.map((section: any, i: number) => {
                   const SectionIcon = SECTION_ICONS[section.icon] || ListBullets;

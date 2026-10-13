@@ -2550,52 +2550,6 @@ h3 { letter-spacing: -0.4px; line-height: 1.15; }
   padding: 0;
 }
 
-.skill-tags {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  margin-bottom: 1.5rem;
-  padding-bottom: 1rem;
-  border-bottom: 1px solid #e5e7eb;
-}
-
-.skill-tag {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  padding: 0.25rem 0.75rem;
-  background: #f4f6f9;
-  color: #3c4a5d;
-  border: 1px solid #e3e8ee;
-  border-radius: 9999px;
-  font-size: 0.75rem;
-  font-weight: 500;
-}
-
-/* Tag covered by the user's resume ("skills you have"). */
-.skill-tag-matched {
-  background: #e7f8ef;
-  color: #047857;
-  border-color: #6ee7b7;
-}
-
-.qual-tags-block {
-  margin-bottom: 14px;
-}
-
-.qual-tags-caption {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 12px;
-  color: #64748d;
-  margin-bottom: 8px;
-}
-
-.qual-tags-caption svg {
-  color: #047857;
-}
-
 .desc-section {
   margin-bottom: 1.5rem;
 }

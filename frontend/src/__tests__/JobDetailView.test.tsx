@@ -13,15 +13,6 @@ vi.mock("../auth/api", () => ({
   },
 }));
 
-// Real skillCovered; canned resume text so coverage highlighting is testable.
-vi.mock("../lib/resumeCoverage", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("../lib/resumeCoverage")>();
-  return {
-    ...actual,
-    getPrimaryResumeText: () => Promise.resolve("Shipped Python services and SQL pipelines."),
-  };
-});
-
 function renderWithProviders(ui: ReactElement) {
   return render(<ApplyTrackingProvider>{ui}</ApplyTrackingProvider>);
 }
@@ -100,13 +91,19 @@ describe("JobDetailView", () => {
     expect(screen.getByText("3-5 years of experience")).toBeInTheDocument();
   });
 
-  it("highlights skill tags covered by the resume and leaves the rest neutral", async () => {
+  // No AI in match signals (final review I-4): a skill list (here from a row cached under
+  // the old LLM prompt) is never shown, and nothing marks what the résumé "covers". The
+  // engine's breakdown is the detail page's only match signal.
+  it("shows no skill chips and no resume coverage marks", async () => {
     renderWithProviders(<JobDetailView job={mockJob} />);
     await waitFor(() => {
-      expect(screen.getByText("Python")).toBeInTheDocument();
+      expect(screen.getByText("Responsibilities")).toBeInTheDocument();
     });
-    expect(screen.getByText("Python").className).toContain("skill-tag-matched");
-    expect(screen.getByText("Hyperion Planning").className).not.toContain("skill-tag-matched");
+    expect(screen.queryByText("Python")).toBeNull();
+    expect(screen.queryByText("Hyperion Planning")).toBeNull();
+    expect(screen.queryByText(/your resume already covers/i)).toBeNull();
+    expect(document.querySelector(".skill-tag, .qual-tags-block")).toBeNull();
+    expect(apiGet.mock.calls.some(([url]) => String(url).startsWith("/resumes"))).toBe(false);
   });
 
   // Every open asks /ai/match-breakdown. The old copy told users to "Connect
