@@ -37,7 +37,8 @@ user ids, no emails, no company tied to a user.
 | Schema | The pre-engine one: `job_match_scores` has no `outcome`, `band` or `raw_score`; no `match_traces` |
 
 So the sample is 1 résumé x 400 jobs = **400 pairs**. That is enough for latency and for the
-posting side, but every résumé-side number below is one person's résumé, not a population.
+posting side. **Every résumé-side figure below is n = 1**: it is kept only as evidence of how the
+engine behaves on that input, never as a population number, and it describes no one.
 
 ## Latency
 
@@ -60,11 +61,12 @@ change).
 
 ## Outcomes
 
-**Update, same day: the résumé-side cause was a legacy document, now handled (D-152).** The one
-résumé was extracted before 2026-07-09, when upload extraction dropped every date from the stored
-document although the raw text keeps them. The adapter now scores such a document from its raw
-text when the engine's text parse finds a dated role (DECISIONS D-152, amending D-80). The same
-sample, re-run read-only (403 rows, about 1.3 MB):
+**Update, same day: the résumé-side cause was a legacy document, now handled (D-152).** The stored
+document had lost every role date (a known, since-fixed upload-extraction defect) although the
+raw text keeps them. The adapter now scores such a document from its raw text when the engine's
+text parse finds a dated role, the profile was never edited and the text covers the document's
+skills (DECISIONS D-152, amending D-80). The same sample, re-run read-only with those guards
+(403 rows, about 1.3 MB; n = 1 on the résumé side):
 
 | Outcome | Before D-152 | After D-152 |
 | --- | --- | --- |
@@ -77,9 +79,8 @@ After the fix the drift monitor's abstention rate (NEEDS_REVIEW plus SCORED_LOW_
 46.5 %. That is still above the 20 % alarm, and it is now posting-driven: across the NEEDS_REVIEW
 and low-confidence pairs the reasons are POSTING_TRUNCATED 136, LOW_DIMENSION_COVERAGE 107,
 FEW_REQUIREMENTS 88, LOW_EVIDENCE_DENSITY 35, POSTING_UNSCORABLE 32, LOW_TAXONOMY_COVERAGE 16 and
-LOW_CONFIDENCE 7. LOW_TEMPORAL_COMPLETENESS is gone. Bands: Limited 358, Partial 2. The display
-score on the 213 SCORED pairs runs p10 0, p50 10, p90 34: one early-career résumé against the 400
-newest jobs of every family, so low percentiles are expected. The tables below are the original,
+LOW_CONFIDENCE 7. LOW_TEMPORAL_COMPLETENESS is gone. Band and display-score figures are not given:
+with one résumé they would describe a person, not the engine. The tables below are the original,
 pre-fix run.
 
 | Outcome | Pairs | Share |

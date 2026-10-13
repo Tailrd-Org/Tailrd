@@ -86,6 +86,7 @@ from matcher.models import (  # noqa: E402
     Location,
     MatchResult,
     Outcome,
+    Polarity,
     Resume,
     ScoreOptions,
     SkillKind,
@@ -330,7 +331,7 @@ _PARSE_CACHE_LOCK = threading.Lock()
 
 
 def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngine] = None,
-                       as_of: Optional[dt.date] = None) -> ParsedResume:
+                       as_of: Optional[dt.date] = None, text_fallback: bool = True) -> ParsedResume:
     """The engine résumé for a stored ``ResumeProfileDB`` and the user's ``UserSettings`` (or None).
 
     D-80: the stored document when it has experience / education / projects / skills content,
@@ -339,6 +340,11 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     what the answers leave unknown. Never raises: an empty profile is a ParsedResume with
     reasons (NOT_A_RESUME) and no résumé. Results are memoised per input (a feed request reads
     the fingerprint on every page).
+
+    D-152 (amends D-80): a stored profile that was never edited after upload
+    (``content_updated_at`` unset) and whose document roles all lost their dates is scored from
+    ``raw_text`` when the text parse has a dated role and covers at least 80 % of the document's
+    skills. ``text_fallback=False`` (the tailoring flow, ``resume_for_document``) never does.
     """
     engine = engine or get_engine()
     day = as_of or fit_as_of()
@@ -346,14 +352,15 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     raw_text = getattr(profile, "raw_text", None)
     fields = profile_fields(profile, settings)
     clearance = _clearance_answer(settings)
+    allow_text = text_fallback and getattr(profile, "content_updated_at", None) is None
     key = _digest([engine.combined_hash, engine.parse_config.version, day.isoformat(), document, raw_text or "",
-                   fields, clearance])
+                   fields, clearance, allow_text])
     with _PARSE_CACHE_LOCK:
         cached = _PARSE_CACHE.get(key)
         if cached is not None:
             _PARSE_CACHE.move_to_end(key)
             return cached
-    parsed = _parse_resume(document, raw_text, fields, clearance, engine, day)
+    parsed = _parse_resume(document, raw_text, fields, clearance, engine, day, text_fallback=allow_text)
     with _PARSE_CACHE_LOCK:
         _PARSE_CACHE[key] = parsed
         while len(_PARSE_CACHE) > _PARSE_CACHE_SIZE:
@@ -378,20 +385,47 @@ def _document_roles_undated(document: Mapping[str, Any]) -> bool:
                    for item in roles for key in _ROLE_DATE_KEYS)
 
 
+def _skill_ids(parsed: ParsedResume) -> frozenset[str]:
+    """Every affirmed resolved skill id of a parsed résumé (roles, projects, skills, credentials)."""
+    resume = parsed.resume
+    if resume is None:
+        return frozenset()
+    refs = [*resume.skills_blob, *resume.certifications,
+            *(ref for role in resume.roles for ref in role.skills),
+            *(ref for project in resume.projects for ref in project.skills)]
+    return frozenset(ref.canonical_id for ref in refs if ref.polarity is Polarity.AFFIRMED)
+
+
+#: D-152 guard: the text parse must name at least this share of the document parse's skills.
+_TEXT_SKILL_COVERAGE = 0.8
+
+
+def _text_covers_document(document_parse: ParsedResume, text_parse: ParsedResume) -> bool:
+    """True when the raw-text parse is not thinner than the document: its resolved skills cover at
+    least 80 % of the document parse's (or the document resolves none)."""
+    wanted = _skill_ids(document_parse)
+    if not wanted:
+        return True
+    return len(wanted & _skill_ids(text_parse)) >= _TEXT_SKILL_COVERAGE * len(wanted)
+
+
 def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Mapping[str, str], clearance: str,
-                  engine: FitEngine, as_of: dt.date) -> ParsedResume:
+                  engine: FitEngine, as_of: dt.date, *, text_fallback: bool = True) -> ParsedResume:
     parsed = resume_from_document(document, as_of=as_of, resolver=engine.resolver, config=engine.config,
                                   parse_config=engine.parse_config,
                                   raw_text=raw_text if isinstance(raw_text, str) else None,
                                   resources=engine.resume_resources)
-    if _document_roles_undated(document) and isinstance(raw_text, str) and raw_text.strip():
-        # D-80 amended (D-152): a legacy document that lost every date (pre-2026-07-09 extraction)
-        # is scored from the raw text instead, when the engine's text path finds a dated role there.
-        # The whole parse is swapped, never dates copied across, so roles cannot be mismatched.
+    if (text_fallback and _document_roles_undated(document) and isinstance(raw_text, str)
+            and raw_text.strip()):
+        # D-80 amended (D-152): a never-edited legacy document that lost every date (pre-2026-07-09
+        # extraction) is scored from the raw text instead, when the engine's text path finds a dated
+        # role there and the text is not thinner than the document (skill coverage). The whole parse
+        # is swapped, never dates copied across, so roles cannot be mismatched.
         from_text = resume_from_document({}, as_of=as_of, resolver=engine.resolver, config=engine.config,
                                          parse_config=engine.parse_config, raw_text=raw_text,
                                          resources=engine.resume_resources)
-        if from_text.resume is not None and any(role.dated for role in from_text.resume.roles):
+        if (from_text.resume is not None and any(role.dated for role in from_text.resume.roles)
+                and _text_covers_document(parsed, from_text)):
             parsed = from_text
     if parsed.resume is None:
         return parsed
@@ -1020,8 +1054,12 @@ def resume_for_document(document: Mapping[str, Any], settings: Any, *, raw_text:
     """The engine résumé for a document in the stored-profile shape (``location``, ``summary``,
     ``experience``, ``education``, ``projects``, ``skills``, ``technologies``, ``custom_sections``;
     see ``resume_document.document_to_record``), read exactly as ``resume_for_profile`` reads a
-    stored profile: the same résumé the feed scores when the document is the profile's own."""
-    return resume_for_profile(_document_profile(document, raw_text), settings, engine=engine, as_of=as_of)
+    stored profile: the same résumé the feed scores when the document is the profile's own, except
+    that the D-152 raw-text date fallback never applies: the tailoring flow scores the documents
+    themselves (an original and its rewrite), so ``raw_text`` is read only when a document has no
+    content (D-80)."""
+    return resume_for_profile(_document_profile(document, raw_text), settings, engine=engine, as_of=as_of,
+                              text_fallback=False)
 
 
 def score_document(db, user_id: Optional[int], document: Mapping[str, Any], posting: JobPosting, *,

@@ -158,3 +158,86 @@ def test_the_fingerprint_changes_only_in_the_affected_case(engine):
     first = fingerprint(_profile(_doc(), RAW_DATED))
     fit_engine._PARSE_CACHE.clear()
     assert fingerprint(_profile(_doc(), RAW_DATED)) == first
+
+
+# ─── Fix round 1: scope (I1), guards (I2), trigger edges (M5) ────────────────────────────────
+
+
+def _profile_edited(doc: dict, raw_text):
+    import datetime as dt
+
+    return SimpleNamespace(raw_text=raw_text, content_updated_at=dt.datetime(2026, 8, 1), **doc)
+
+
+def test_the_original_legacy_profile_still_falls_back(engine):
+    """Never edited (content_updated_at unset), and the text covers the document's skills."""
+    profile = _profile(_doc(), RAW_DATED)
+    profile.content_updated_at = None
+    parsed = _parse(engine, profile)
+    assert _dated_roles(parsed) >= 1
+    assert parsed != _parse(engine, _profile(_doc(), None))
+
+
+def test_an_edited_document_never_takes_the_fallback(engine):
+    """A document edited after upload is what the user sees; raw_text is never updated on edit."""
+    edited = _doc()
+    edited["skills"] = edited["skills"] + ["Terraform", "Go"]
+    parsed = _parse(engine, _profile_edited(edited, RAW_DATED))
+    assert parsed == _parse(engine, _profile_edited(edited, None))
+    assert _dated_roles(parsed) == 0
+    assert "terraform" in str(parsed.resume.model_dump()).lower()
+
+
+THIN_RAW = "Alex Sample\n\nEXPERIENCE\nIntern   05/2024 - 08/2024\nSome Co\n- Did things\n"
+
+
+def test_a_thin_raw_text_never_replaces_a_richer_document(engine):
+    """Review probe P4: 4 undated roles and full skills against a 1-role dated text with no skills."""
+    rich = _doc()
+    rich["experience"] = [dict(rich["experience"][0], title=f"Engineer {i}", company=f"Co {i}") for i in range(4)]
+    parsed = _parse(engine, _profile(rich, THIN_RAW))
+    assert parsed == _parse(engine, _profile(rich, None))
+    assert _dated_roles(parsed) == 0
+
+
+def test_the_text_parse_must_cover_80_percent_of_the_document_skills(engine):
+    doc_ids = fit_engine._skill_ids(_parse(engine, _profile(_doc(), None)))
+    text_ids = fit_engine._skill_ids(fit_engine.resume_from_document(
+        {}, as_of=fit_engine.fit_as_of(), resolver=engine.resolver, config=engine.config,
+        parse_config=engine.parse_config, raw_text=RAW_DATED, resources=engine.resume_resources))
+    assert doc_ids and len(doc_ids & text_ids) / len(doc_ids) >= 0.8  # the legacy case clears the bar
+    # Ten document skills the raw text never names pull the coverage under 80 %: no fallback.
+    wide = _doc()
+    wide["skills"] = wide["skills"] + ["Terraform", "Go", "Rust", "Scala", "Kafka", "Redis", "GraphQL",
+                                       "Ansible", "Jenkins", "Elasticsearch"]
+    parsed = _parse(engine, _profile(wide, RAW_DATED))
+    assert parsed == _parse(engine, _profile(wide, None))
+
+
+def test_a_document_without_experience_roles_never_takes_the_fallback(engine):
+    skills_only = _doc()
+    skills_only["experience"] = []
+    assert not fit_engine._document_roles_undated(skills_only)
+    assert _parse(engine, _profile(skills_only, RAW_DATED)) == _parse(engine, _profile(skills_only, None))
+
+
+@pytest.mark.parametrize("blank", [" ", "\t", "  \n "])
+def test_whitespace_only_dates_are_undated(engine, blank):
+    doc = _doc(blank, blank)
+    assert fit_engine._document_roles_undated(doc)
+    assert _dated_roles(_parse(engine, _profile(doc, RAW_DATED))) >= 1
+
+
+def test_tailoring_never_takes_the_fallback_so_a_rewrite_scores_differently(engine):
+    """resume_for_document (the tailoring flow) reads the documents themselves, never raw_text's
+    dated parse: otherwise the original and the rewrite would both be the same upload-time text."""
+    original = _doc()
+    tailored = _doc()
+    tailored["skills"] = original["skills"] + ["Go", "gRPC", "Terraform"]
+    tailored["experience"][0]["bullets"] = original["experience"][0]["bullets"] + [
+        "Wrote Go services with gRPC and Terraform"]
+    before = fit_engine.resume_for_document(original, None, raw_text=RAW_DATED, engine=engine)
+    after = fit_engine.resume_for_document(tailored, None, raw_text=RAW_DATED, engine=engine)
+    assert before == fit_engine.resume_for_document(original, None, raw_text=None, engine=engine)
+    assert before != after
+    assert _dated_roles(before) == 0

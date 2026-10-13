@@ -321,3 +321,21 @@ async def test_the_sweep_summary_and_log_show_drift_alarms_and_skipped_checks(db
     messages = [(rec.levelno, rec.getMessage()) for rec in caplog.records]
     assert any(level == logging.WARNING and "drift alarm ABSTENTION_HIGH" in m for level, m in messages)
     assert any(level == logging.INFO and "drift check skipped SCORE_DRIFT" in m for level, m in messages)
+
+
+def test_the_shadow_strong_bar_is_the_alert_filter(db_session):
+    """Review M3: crossed_strong must measure exactly the bar alerts use (fit_reads.strong_match)."""
+    _user(db_session)
+    cases = [("SCORED", fit_reads.BAND_STRONG, 90), ("SCORED", fit_reads.BAND_STRONG, None),
+             ("SCORED_LOW_CONFIDENCE", fit_reads.BAND_STRONG, 90), ("SCORED", fit_reads.BAND_GOOD, 90),
+             ("GATE_FAIL", None, None), ("NEEDS_REVIEW", None, None)]
+    expected = {}
+    for outcome, band, score in cases:
+        job = _job(db_session)
+        db_session.add(JobMatchScore(user_id=1, job_id=job.id, score=score, band=band, outcome=outcome,
+                                     resume_fingerprint="fit1:" + "c" * 59))
+        expected[job.id] = match_notifier.ShadowTally._strong(_result(outcome, band, score))
+    db_session.commit()
+    alertable = {row.job_id for row in db_session.query(JobMatchScore).filter(fit_reads.strong_match()).all()}
+    assert {job_id for job_id, strong in expected.items() if strong} == alertable
+    assert sum(expected.values()) == 1

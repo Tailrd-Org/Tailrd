@@ -179,7 +179,8 @@ async def tailor_document(
     rewrite text, and is fed the engine's missing requirements; it is never asked for a score,
     a label or a keyword list. ``user_id`` brings in the user's saved answers (work
     authorisation, location), as the feed reads them; ``raw_text`` is read only when a document
-    has no content (D-80).
+    has no content (D-80). The D-152 dated-text fallback of stored profiles never applies here, so
+    the original and the rewrite are each scored as written.
 
     Keyword semantics: when ``add_keywords`` is None, the engine's suggested terms are woven in
     (``suggested_keywords``: the REQUIRED skills the résumé does not show at all, at most 10;

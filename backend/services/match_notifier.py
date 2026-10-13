@@ -492,8 +492,9 @@ class ShadowTally:
 
     @classmethod
     def _strong(cls, result) -> bool:
-        return (result.outcome.value == fit_reads.OUTCOME_SCORED and cls._band(result) == fit_reads.BAND_STRONG
-                and getattr(result, "display_score", None) is not None)
+        """The alert bar itself (``fit_reads.is_strong_match``, the twin of the SQL filter alerts use)."""
+        return fit_reads.is_strong_match(result.outcome.value, cls._band(result),
+                                         getattr(result, "display_score", None))
 
     def add(self, live, shadow) -> None:
         self.jobs += 1

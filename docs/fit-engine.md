@@ -8,7 +8,7 @@ paid for to score a job. The same résumé, posting, config and date always give
 The backend touches the engine in one place, `backend/services/fit_engine.py`. Request paths
 that only read banked scores use `backend/services/fit_reads.py`, which imports nothing from the
 engine. Design decisions are in `match-engine/docs/DECISIONS.md` (D-80 onward for the
-integration, D-150 for shadow scoring). The dry run against real data is in
+integration, D-150 for shadow scoring, D-152 for the legacy-date fallback). The dry run against real data is in
 [fit-engine-dry-run.md](fit-engine-dry-run.md).
 
 ## How a job is scored
@@ -17,6 +17,10 @@ integration, D-150 for shadow scoring). The dry run against real data is in
    parsed into roles, dated skills, education and credentials. The saved application answers
    (work authorisation, sponsorship, location, clearance) fill in what the résumé does not say.
    A bare "United States" settings location is the column default, never read as a residence.
+   A stored document whose roles all lost their dates (uploads extracted before 2026-07-09) is
+   scored from its raw text when that text has a dated role, the profile was never edited in the
+   app, and the text covers at least 80 % of the document's skills (D-152). The tailoring flow
+   never does this: it scores each document as written.
 2. **Posting.** Title, description and the job's columns are parsed into required, preferred and
    implied requirements, seniority, location and work type. The parse is cached in
    `scraped_jobs.match_terms` and redone only when the description length, the parse tables, the
@@ -157,7 +161,9 @@ Limits (D-150): the candidate changes the engine config only (weights, gates, ba
 negation, scoring); the taxonomy, parse tables and calibration panel are the live ones, and
 postings keep their live parse. A change that works through posting parsing is judged offline
 with `make eval`. The shadow pass counts against `CRON_MATCH_BUDGET_S` and builds its resolver
-once per sweep (about 3 s). Tuned configs still go through a reviewed proposal under
+once per sweep (about 3 s). The shadow sample is the jobs the sweep newly banks (current rows are
+skipped), so in steady state a week of shadow summaries covers that week's new jobs plus the
+monthly rescore, not the whole served distribution. Tuned configs still go through a reviewed proposal under
 `match-engine/proposals/`; shadow scoring is evidence for that review, not a way around it.
 
 ## Calibration panel
