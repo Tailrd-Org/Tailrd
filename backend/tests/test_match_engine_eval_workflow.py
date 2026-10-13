@@ -45,7 +45,20 @@ def test_make_test_still_blocks():
 def test_a_red_gate_still_stops_a_release_holdout_look():
     job = _jobs()["eval-fast"]
     guards = [step for step in job["steps"]
-              if "steps.eval.outcome" in str(step.get("if", "")) and "release/" in str(step.get("if", ""))]
+              if "steps.eval.outcome" in str(step.get("if", "")) and "exit 1" in step.get("run", "")]
     assert len(guards) == 1
-    assert "exit 1" in guards[0]["run"]
+    assert "startsWith(github.ref, 'refs/heads/release/')" in guards[0]["if"]
     assert "eval-fast" in _jobs()["holdout"]["needs"]
+
+
+def test_a_red_gate_on_a_pr_is_annotated_not_silent():
+    """Review M-8: with continue-on-error the check is green, so a red gate must say so in a
+    ::warning:: annotation and the step summary, naming D-154."""
+    job = _jobs()["eval-fast"]
+    notes = [step for step in job["steps"] if "::warning" in step.get("run", "")]
+    assert len(notes) == 1
+    assert notes[0]["if"] == "steps.eval.outcome == 'failure'"
+    run = notes[0]["run"]
+    assert "::warning" in run and "D-154" in run
+    assert "GITHUB_STEP_SUMMARY" in run
+    assert "exit 1" not in run

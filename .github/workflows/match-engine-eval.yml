@@ -112,6 +112,11 @@ jobs:
         id: eval
         continue-on-error: true
         run: make eval-fast
+      - name: Say that the eval gate is red (D-154), so the green check is not silent
+        if: steps.eval.outcome == 'failure'
+        run: |
+          echo "::warning title=eval-fast red (D-154)::make eval-fast failed. The eval gate is red by owner decision D-154 (docs/fit-engine.md); it does not block a pull request. See the job log and the report artifact."
+          echo "**eval-fast is red** by owner decision D-154: a guardrail failed; it does not block a pull request. See the job log and the eval-fast report artifact." >> "$GITHUB_STEP_SUMMARY"
       - name: A release candidate must pass eval-fast before a holdout look (D-154)
         if: steps.eval.outcome == 'failure' && startsWith(github.ref, 'refs/heads/release/')
         run: |

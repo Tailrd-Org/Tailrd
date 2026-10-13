@@ -122,16 +122,19 @@ This must be revisited before any demographic data is collected (a separate sche
 Owner decisions taken on 2026-10-13. Each is one rule and its reason; the engine-side ones are
 recorded in full in `match-engine/docs/DECISIONS.md`.
 
-- **Trace retention (D-153).** The sweep deletes the traces, and their score rows, of closed jobs
-  (any listing status but active or stale) scored more than 90 days ago: at most 5,000 per run, in
-  its own transaction, inside the sweep deadline, reported as `traces_pruned`. Jobs that can still
-  be applied to keep their traces. Reason: storage grows with every job ever shown, but a trace's
+- **Trace retention (D-153).** The sweep deletes the traces, each with its score row, of closed jobs
+  (removed, expired or off_target only) scored more than 90 days ago: at most 5,000 per run, in its
+  own transaction, inside the sweep deadline, also when alerts are disabled, reported as
+  `traces_pruned`. Active, stale, unset and unknown statuses keep their traces, and a trace whose
+  score row is not found (a changed salt) is kept and reported. Reason: storage grows with every job ever shown, but a trace's
   audit value ends when the job closes.
 - **Shipping with the M6 eval gate red: accepted (D-154).** `make eval-fast` still fails 4
   guardrails (format invariance p99 within and across templates and against the functional
   oracle, and an unbounded date error on 2 scanned-PDF renderings). The gate stays red and honest
   and is never loosened; in CI only its step continues on error, so a pull request is not blocked
-  (`make test` still is, and on `release/**` a red gate still stops the holdout look). Reason: most
+  (`make test` still is, and on `release/**` a red gate still stops the holdout look). A red gate
+  adds a `::warning::` annotation and a step-summary line naming D-154, so the green check is not
+  silent. Reason: most
   users are scored from the stored document (D-80), not from file parsing; the remaining drift is
   OCR on scanned PDFs.
 - **Taxonomy approvals audit (D-155).** HPO is withdrawn from the approved tokens and the curated
@@ -144,13 +147,17 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   for age, a protected attribute.
 - **No default location.** A new `user_settings` row starts with an empty `location` instead of
   "United States"; existing rows are untouched (no data migration), and the engine still ignores
-  that old default. Every reader (autofill, the extension profile sync, the profile and settings
+  that old default. Existing rows keep their value on purpose: a stored "United States" may be the
+  default or a real answer, and the two cannot be told apart, so autofill still sends it for a user
+  with no city, address city or résumé location. Every reader (autofill, the extension profile sync, the profile and settings
   pages, the engine) falls through to the résumé or shows a blank. Reason: a default value posing
   as a user answer misstates location to employers and to the engine.
 - **Extension tailoring "before" (D-156).** `/api/custom-resume-analysis`, `/api/tailor-resume` and
   `/api/custom-resume` score the stored profile with `fit_engine.score_profile` (D-152 fallback
-  allowed), so their "before" is the card's; the rewritten side is scored as written, never with the
-  fallback. Reason: one résumé, one "before", wherever it is shown.
+  allowed), so they read the résumé exactly as the card does; the number matches the card when the
+  posting text does (the extension parses the live page, the card the stored description). The
+  rewritten side is scored as written, never with the fallback. Reason: one résumé, one "before",
+  wherever it is shown.
 - **Empty descriptions are fetched for open jobs first.** `cron-backfill` did not prioritise them
   (it ordered direct URLs before LinkedIn/Indeed, then newest). It now takes the jobs the feed shows
   (active, stale or no status) first, then direct before aggregator URLs, newest first, inside its
@@ -174,7 +181,7 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   posting the first time.
 - **Storage:** about 2 KB of trace per (user, job) pair plus a score row. At 2,000 jobs per user
   that is about 4 MB per user. Traces are overwritten in place when a job is rescored, and the
-  sweep prunes closed jobs' traces (D-153): see "Decisions" below.
+  sweep prunes closed jobs' traces (D-153): see "Decisions" above.
 - **Memory:** the built engine adds about 175 MB of Python heap per instance (peak about 220 MB).
   Fine on 1 to 2 GB functions; recheck before lowering the function memory.
 - **Monthly rescore:** scores are "as of" the first of the month, so every user is rescored once
@@ -197,6 +204,7 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
 | `scoring_budget_spent` | True when `CRON_MATCH_BUDGET_S` stopped scoring early |
 | `fit_trace_salt_missing` | True when the salt is missing or short: nothing was banked |
 | `traces_pruned` | Traces deleted this run, with their score rows (D-153: closed jobs, scored more than 90 days ago, at most 5,000 per run) |
+| `traces_prune_unmatched` | Only when some closed-job traces were kept because their score row was not found (logged as a warning; a changed `FIT_TRACE_SALT` looks like this) |
 | `traces_prune_skipped` / `traces_prune_error` | Only when pruning did not run: `deadline` (the scoring budget was spent) or `fit_trace_salt_missing`; or the error class of a failed prune (rolled back, retried next run) |
 | `error` | The engine error class, with `status: engine_unavailable` |
 | `calibration` | The live reference refresh: `version`, and per family and globally `n_candidates`, `n_pairs`, `in_charge` (30+ people). `skipped: no scores` when nothing could be banked |

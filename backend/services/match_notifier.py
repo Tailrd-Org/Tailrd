@@ -575,6 +575,30 @@ def _shadow_pass(db: Session, user_id: int, profile, results: dict, postings: di
     return shadow_engine
 
 
+def _prune_traces(db: Session) -> dict[str, Any]:
+    """One bounded retention pass (D-153) for the sweep summary: ``traces_pruned``, plus
+    ``traces_prune_unmatched`` (traces kept because their score row was not found, logged as a
+    warning: a changed FIT_TRACE_SALT looks like this), ``traces_prune_skipped`` or
+    ``traces_prune_error``. Never raises; a failure is rolled back and retried next run."""
+    from backend.services import fit_engine
+
+    try:
+        result = fit_engine.prune_traces(db, limit=TRACE_PRUNE_LIMIT)
+    except fit_engine.FitTraceSaltError:
+        db.rollback()
+        return {"traces_pruned": 0, "traces_prune_skipped": "fit_trace_salt_missing"}
+    except Exception as exc:
+        db.rollback()
+        logger.error("match-alert sweep: trace pruning failed: %s", type(exc).__name__)
+        return {"traces_pruned": 0, "traces_prune_error": type(exc).__name__}
+    summary: dict[str, Any] = {"traces_pruned": result.pruned}
+    if result.unmatched:
+        summary["traces_prune_unmatched"] = result.unmatched
+        logger.warning("match-alert sweep: %d closed-job traces kept because their score row was not "
+                       "found (was FIT_TRACE_SALT changed?)", result.unmatched)
+    return summary
+
+
 async def sweep_match_alerts(
     db: Session,
     max_users: Optional[int] = None,
@@ -598,8 +622,9 @@ async def sweep_match_alerts(
     Users are capped per run (CRON_MATCH_MAX_USERS); any truncation is logged.
 
     Trace retention (D-153): after scoring, while the deadline has time left, the sweep deletes
-    at most TRACE_PRUNE_LIMIT traces (and their score rows) of closed jobs scored more than 90
-    days ago (``fit_engine.prune_traces``, its own transaction), reported as ``traces_pruned``.
+    at most TRACE_PRUNE_LIMIT traces (each with its score row) of closed jobs scored more than 90
+    days ago (``fit_engine.prune_traces``, its own transaction), reported as ``traces_pruned``. It
+    runs when alerts are disabled too.
 
     Shadow scoring (EVAL section 6, D-150): when FIT_SHADOW_CONFIG names a config directory, each
     scored chunk is scored again with that config, in memory (``fit_engine.shadow_scores``), and
@@ -612,7 +637,9 @@ async def sweep_match_alerts(
     from backend.services import fit_engine
 
     if not alerts_enabled():
-        logger.info("Match-alert sweep disabled (MATCH_ALERTS_ENABLED); skipping.")
+        # Retention does not depend on alerts (review M-3): turning alerts off during an email
+        # incident must not let trace storage grow again.
+        logger.info("Match-alert sweep disabled (MATCH_ALERTS_ENABLED); skipping scoring and alerts.")
         return {
             "status": "disabled",
             "users_scanned": 0,
@@ -620,7 +647,7 @@ async def sweep_match_alerts(
             "jobs_notified": 0,
             "jobs_scored": 0,
             "scoring_errors": 0,
-            "traces_pruned": 0,
+            **_prune_traces(db),
         }
 
     if max_users is None:
@@ -814,24 +841,13 @@ async def sweep_match_alerts(
             users_notified += 1
             jobs_notified += sent
 
-    # Trace retention (D-153): closed jobs' traces and score rows older than 90 days, bounded,
-    # in their own transaction, and only while the sweep's deadline has time left.
-    traces_pruned = 0
-    prune_note: dict[str, str] = {}
+    # Trace retention (D-153), only while the sweep's deadline has time left.
     if scoring_budget_s > 0 and _now() - started >= scoring_budget_s:
-        prune_note["traces_prune_skipped"] = "deadline"
+        prune_summary: dict[str, Any] = {"traces_pruned": 0, "traces_prune_skipped": "deadline"}
     elif salt_missing:
-        prune_note["traces_prune_skipped"] = "fit_trace_salt_missing"
+        prune_summary = {"traces_pruned": 0, "traces_prune_skipped": "fit_trace_salt_missing"}
     else:
-        try:
-            traces_pruned = fit_engine.prune_traces(db, limit=TRACE_PRUNE_LIMIT)
-        except fit_engine.FitTraceSaltError:
-            db.rollback()
-            prune_note["traces_prune_skipped"] = "fit_trace_salt_missing"
-        except Exception as exc:
-            db.rollback()
-            logger.error("match-alert sweep: trace pruning failed: %s", type(exc).__name__)
-            prune_note["traces_prune_error"] = type(exc).__name__
+        prune_summary = _prune_traces(db)
         await asyncio.sleep(0)
 
     if salt_missing:
@@ -852,8 +868,7 @@ async def sweep_match_alerts(
         "chunks_skipped": chunks_skipped,
         "scoring_budget_spent": budget_spent,
         "fit_trace_salt_missing": salt_missing,
-        "traces_pruned": traces_pruned,
-        **prune_note,
+        **prune_summary,
     }
     if engine_failed:
         summary["error"] = engine_failed

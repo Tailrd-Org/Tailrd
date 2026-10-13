@@ -1609,19 +1609,28 @@ run by the build controller on 2026-10-13, found affected legacy rows (all creat
 ## Owner decisions, batch A (2026-10-13) [Tailrd]
 
 **D-153 Trace retention. [Tailrd]** Rule: once per run, after scoring and only while
-`CRON_MATCH_BUDGET_S` has time left, the cron sweep deletes the `match_traces` rows, and their
+`CRON_MATCH_BUDGET_S` has time left (and also when `MATCH_ALERTS_ENABLED` is off: retention does not
+depend on alerts), the cron sweep deletes the `match_traces` rows, and their
 `job_match_scores` rows, of jobs that can no longer be applied to and were scored more than 90 days
 ago (`fit_engine.prune_traces`). At most 5,000 traces per run, in one transaction of their own; a
 failure is rolled back, reported (`traces_prune_error`) and retried next run. The count is
 `traces_pruned` in the sweep summary. Reason: a trace is about 2 KB per (user, job) pair and storage
 grew with every job ever shown, but a trace's audit value ends when the job closes.
-- *What counts as closed.* A set `listing_status` other than `active` and `stale` (so `removed`,
-  `expired`, `off_target`). `stale` jobs are still shown in the feed and can be applied to, and a NULL
-  status is treated as active, so their traces are never pruned whatever their age.
-- *Their score rows.* A trace's score row is the user's row for the same job with the same age; the
-  user is found through the subject id, so pruning needs `FIT_TRACE_SALT` (skipped with
-  `traces_prune_skipped: fit_trace_salt_missing` otherwise). Score rows with no trace (pre-engine
-  rows) are left alone. A job that reopens is simply scored again by the next sweep.
+- *What counts as closed (fix round 1).* An allow-list: only a status in `HIDDEN_LISTING_STATUSES`
+  (`removed`, `expired`, `off_target`) prunes. `active`, `stale`, NULL and any status this code does
+  not know never prune, so a new status fails safe.
+- *No trace without its score row (fix round 1).* A trace's score row is the user's row for the same
+  job; the user is found by hashing each user id once with `FIT_TRACE_SALT` (skipped with
+  `traces_prune_skipped: fit_trace_salt_missing` without it). The score rows are deleted first,
+  returning their pairs, and only the traces of those pairs follow, in the same transaction. A trace
+  whose score row is not found is kept and counted (`traces_prune_unmatched`, logged as a warning):
+  after a changed salt nothing is pruned, and the count says so every run. Score rows with no trace
+  (pre-engine rows) are left alone.
+- *Bounded reads and a re-checked delete (fix round 1).* One SELECT of at most 5,000 traces, then user
+  ids until every subject of the batch is found; score rows are never loaded (deleted by their
+  `(user_id, job_id)` pairs). Both DELETEs repeat the whole predicate (closed status, older than the
+  cutoff), so a job that reopens and is rescored between the select and the delete keeps its fresh
+  rows. A job that reopens later is simply scored again by the next sweep.
 
 **D-154 Shipping with the M6 eval gate red: accepted. [Tailrd]** Rule: the owner ships with
 `make eval-fast` failing its 4 known guardrails (format invariance p99 0.046 within a template, 0.078
@@ -1630,6 +1639,8 @@ date error on 2 scanned-PDF renderings). The gate stays red and honest and is ne
 `.github/workflows/match-engine-eval.yml` only the `make eval-fast` step has `continue-on-error`, so a
 pull request is not blocked; `make test` stays blocking, and on `release/**` a following step fails
 the job when the gate is red, so a failing release candidate still does not spend a holdout look.
+A red gate is never silent (fix round 1): a step then emits a `::warning title=eval-fast red (D-154)::`
+annotation and a step-summary line naming this decision, so the green check carries the warning.
 Reason: most users are scored from the stored document (D-80), not from file parsing; the remaining
 drift is OCR on scanned PDFs.
 
@@ -1656,7 +1667,9 @@ certification. SparkTM is confirmed gone: the ingest normaliser drops the tradem
 unedited profile through `fit_engine.score_profile` (`MatchEngine.analyze_job(profile=...)`,
 `tailor_document(before_profile=...)`), exactly as the job-id routes do, so the D-152 dated-text
 fallback applies to a never-edited legacy profile. The rewritten side keeps the no-fallback rule
-(`score_document`). Reason: the extension's "before" must be the same number as the card for the same
-résumé; scored as a document, a legacy undated profile read "We couldn't score this" in the extension
-while its card showed a score. `/api/custom-resume` is included with the two named routes because it
+(`score_document`). Reason: the extension must read the résumé exactly as the card does; scored as a
+document, a legacy undated profile read "We couldn't score this" in the extension while its card
+showed a score. The numbers match when the posting does: the extension parses the live page's text,
+the card the job row's cached posting, so a page whose text differs from the stored description can
+still give a different number. `/api/custom-resume` is included with the two named routes because it
 is the same flow's Step 3 and its "before" must match Step 1's.
