@@ -605,7 +605,7 @@ def test_configured_stop_words_are_no_token(word: str) -> None:
 def test_short_capitals_need_the_allow_list_or_a_tech_context() -> None:
     assert parse("Requirements\n- Python and ZXQ").unresolved_requirement_tokens == ()
     assert parse("Requirements\n- Python and ZQ").unresolved_requirement_tokens == ()
-    assert parse("Requirements\n- Python and RAG pipelines").unresolved_requirement_tokens == ("RAG",)
+    assert parse("Requirements\n- Python and DFM reviews").unresolved_requirement_tokens == ("DFM",)
     assert parse("Requirements\n- Python and ZXQ/ZXW").unresolved_requirement_tokens == ("ZXQ/ZXW",)
     assert parse("Requirements\n- Python and ZXQW").unresolved_requirement_tokens == ("ZXQW",)
     assert parse("Requirements\n- Python and XYZ+ tooling").unresolved_requirement_tokens == ("XYZ",)  # "+" after

@@ -5,6 +5,7 @@
   "ai":"AI",
   "airflow":"Airflow",
   "ajax":"AJAX",
+  "amplitude":"Amplitude",
   "anaconda":"Anaconda",
   "angular":"Angular",
   "bash":"Bash",
@@ -33,6 +34,8 @@
   "groovy":"Groovy",
   "helm":"Helm",
   "hibernate":"Hibernate",
+  "http":"HTTP",
+  "https":"HTTPS",
   "illustrator":"Illustrator",
   "initiative":"Initiative",
   "it":"IT",
@@ -58,6 +61,7 @@
   "puppet":"Puppet",
   "qa":"QA",
   "r":"R",
+  "rag":"RAG",
   "rails":"Rails",
   "react":"React",
   "redshift":"Redshift",
@@ -131,6 +135,7 @@
   "Department of Finance",
   "document control system",
   "document control systems",
+  "economic reconciliation",
   "Epic Games",
   "Executive Chef",
   "Express Employment Professionals",
@@ -144,6 +149,7 @@
   "Head Chef",
   "Hep C",
   "Hepatitis C",
+  "Indigenous reconciliation",
   "Language Skills",
   "NCLEX-RN",
   "Pastry Chef",
@@ -151,6 +157,10 @@
   "pest control systems",
   "Platforms",
   "R&D",
+  "RAG reporting",
+  "RAG status",
+  "RAG statuses",
+  "reconciliation with Indigenous",
   "Rope Access",
   "Ropes Access",
   "Schedule C",
@@ -163,6 +173,8 @@
   "Swift Transportation",
   "Swift Water",
   "Technical Skills",
+  "Truth & Reconciliation",
+  "Truth and Reconciliation",
   "Unity Health",
   "Vitamin A",
   "Vitamin B",
@@ -2624,7 +2636,6 @@
   "truecrypt":"TrueCrypt",
   "truepianos":"Truepianos",
   "trumpets":"Trumpets",
-  "tsm":"TSM",
   "tso":"TSO",
   "tss":"TSS",
   "ttl":"TTL",
@@ -2863,6 +2874,17 @@
   "workstations"
  ],
  "format":1,
+ "fuzzy_exclusions":[
+  "analyse",
+  "analysed",
+  "heating",
+  "parents",
+  "patient",
+  "patients",
+  "seniors",
+  "supervisors",
+  "tenants"
+ ],
  "in_progress":{
   "cred.bar_admission":"cred.articling_student",
   "cred.cfa":"cred.cfa_candidate",
@@ -2876,5 +2898,41 @@
   "cred.professional_engineer":"cred.eit",
   "cred.registered_nurse":"cred.nursing_student",
   "cred.teaching_license":"cred.teacher_candidate"
+ },
+ "sentence_initial":{
+  "cues":[
+   "asset",
+   "bilingual",
+   "bilingualism",
+   "essential",
+   "fluency",
+   "fluent",
+   "fluently",
+   "language",
+   "languages",
+   "mandatory",
+   "native",
+   "oral",
+   "plus",
+   "preferred",
+   "proficiency",
+   "proficient",
+   "required",
+   "speak",
+   "speaking",
+   "speaks",
+   "spoken",
+   "verbal",
+   "written"
+  ],
+  "keys":[
+   "english",
+   "french",
+   "go"
+  ],
+  "languages":[
+   "english",
+   "french"
+  ]
  }
 }

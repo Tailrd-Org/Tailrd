@@ -119,7 +119,8 @@ CASES = [
      [("cred.registered_nurse", "RN"), ("esco.acute_care", "acute care")]),
     ("prose", "What we look for in a candidate: RN, BScN preferred.", [("cred.registered_nurse", "RN")]),
     ("prose", "Ideal Candidate - Registered Nurse (RN) with current CNO registration.",
-     [("cred.registered_nurse", "Registered Nurse"), ("cred.registered_nurse", "RN")]),
+     [("cred.registered_nurse", "Registered Nurse"), ("cred.registered_nurse", "RN"),
+      ("cred.registered_nurse", "CNO registration")]),  # Task 7.3 (D-140): CNO registration is the licence
     ("prose", "The ideal candidate: P.Eng. or EIT with five years of design experience.",
      [("cred.professional_engineer", "P.Eng"), ("cred.eit", "EIT")]),
     ("prose", "Preferred candidate: Ontario Certified Teacher with ESL Part 1.",

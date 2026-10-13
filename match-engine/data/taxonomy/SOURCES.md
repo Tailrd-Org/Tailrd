@@ -45,7 +45,7 @@ as downloaded.
 - Aliases (DECISIONS D-26): an ESCO concept merged into a curated node brings its preferred labels,
   and, into a skill (never a field of study), an alternative or hidden label of several words that
   shares a specific content word with the curated names or is made of the curated label's own
-  words ("control system"; 827 kept); a
+  words ("control system"; 863 kept); a
   one-word French preferred label is kept only when it is the English label. ESCO programming
   languages (labelled "(computer programming)" or under computer programming) are TECHNOLOGY.
   The formal in-progress designations of a professional licence or of the CFA charter ("CPA
@@ -76,26 +76,29 @@ as downloaded.
   licence, and the CFA charter, to the node of its formal in-progress designations, read only as
   written (D-28). `currency_skill_nouns` (curated) keep a currency code that is also a skill (CAD)
   the skill after an amount ("1,200 CAD drawings"); before any other word it is money (D-27).
+  `fuzzy_exclusions` (curated) are ordinary words `resolve` never fuzzy-matches ("patients", D-140);
+  `sentence_initial` (curated) names the keys that may open a prose sentence that lists skills, and
+  the languages that may open one about languages ("Go, Python and Rust", "French is an asset", D-141).
 
 ## Counts
 
 | Kind | Nodes |
 |---|---|
-| TECHNOLOGY | 2,200 |
-| METHODOLOGY | 11,120 |
-| DOMAIN | 3,312 |
-| TOOL | 27,893 |
+| TECHNOLOGY | 2,202 |
+| METHODOLOGY | 11,148 |
+| DOMAIN | 3,318 |
+| TOOL | 27,894 |
 | SOFT | 134 |
-| CREDENTIAL | 79 |
+| CREDENTIAL | 90 |
 
 | Source | Nodes | Aliases |
 |---|---|---|
-| curated | 706 | 3,356 |
-| esco | 14,293 | 102,789 |
-| onet | 29,739 | 1,986 |
+| curated | 765 | 3,595 |
+| esco | 14,285 | 102,745 |
+| onet | 29,736 | 1,983 |
 
-- Total: 44,738 nodes, 108,131 aliases; 162 curated related edges; 85 curated ambiguous keys and 2,641 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 103 blocked phrases.
-- Merged into curated nodes: 625 source concepts; dropped nodes: 30; keys dropped as ambiguous between nodes: 614; label ties left to the resolver: 115.
+- Total: 44,786 nodes, 108,323 aliases; 183 curated related edges; 89 curated ambiguous keys and 2,640 automatic cased keys (one-word names with a capital on nodes that are not curated, cased as written); 111 blocked phrases.
+- Merged into curated nodes: 636 source concepts; dropped nodes: 30; keys dropped as ambiguous between nodes: 613; label ties left to the resolver: 115.
 - titles.json: 49,660 titles; mos_crosswalk.json: 8,385 codes; naics.json: 2,129 codes.
 
 ## Corpus statistics
@@ -119,11 +122,11 @@ noisy-alias review.
   are left out, so 3,924 postings are counted; 891 description lines of 30+ characters recur in 5+
   postings (an employer's blurb, a benefits block) and count only in the first posting that has them
   (14,886 copies left out).
-- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,204 ids seen at least
+- `idf.json`: `normalize_idf(df, N)` (D-21) over N = 3,924 postings, for the 1,244 ids seen at least
   once; an id never seen takes `idf.unseen_default`.
-- `pmi_edges.json`: 696 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
-  where one id is an ancestor of the other left out; D-22) and 162 curated pairs laid over them.
-- `common_words.json`: 2,889 words, each used in at least 20 postings, that resolve to no key;
+- `pmi_edges.json`: 761 pairs mined (NPMI >= 0.4 over pairs in >= 5 postings, at most 20 per node, pairs
+  where one id is an ancestor of the other left out; D-22) and 183 curated pairs laid over them.
+- `common_words.json`: 2,884 words, each used in at least 20 postings, that resolve to no key;
   `resolve()` never fuzzy-matches them.
 - Recompute against any database (reads only `DATABASE_URL`), from `match-engine/`; run the two compute
   scripts again after every `scripts/build_taxonomy.py`, then the gate (`tests/test_surface_forms.py`):

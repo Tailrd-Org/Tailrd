@@ -101,7 +101,7 @@ skills:
   - {id: skill.bigquery, label: BigQuery, kind: TECHNOLOGY, aliases: [Google BigQuery, Big Query], parents: [skill.sql, skill.data_warehousing, skill.gcp], release_year: 2011}
   - {id: skill.kafka, label: Apache Kafka, kind: TECHNOLOGY, aliases: [kafka, Kafka Streams, Confluent Kafka], parents: [skill.data_engineering], release_year: 2011}
   - {id: skill.rabbitmq, label: RabbitMQ, kind: TECHNOLOGY, aliases: [Rabbit MQ], release_year: 2007}
-  - {id: skill.spark, label: Apache Spark, kind: TECHNOLOGY, aliases: [spark, pyspark, Spark SQL, Apache Spark software], parents: [skill.big_data], release_year: 2014}
+  - {id: skill.spark, label: Apache Spark, kind: TECHNOLOGY, aliases: [spark, SparkTM, Apache SparkTM, pyspark, Spark SQL, Apache Spark software], parents: [skill.big_data], release_year: 2014}
   - {id: skill.hadoop, label: Apache Hadoop, kind: TECHNOLOGY, aliases: [hadoop, HDFS, Hadoop MapReduce, MapReduce], parents: [skill.big_data], release_year: 2006}
   - {id: skill.airflow, label: Apache Airflow, kind: TECHNOLOGY, aliases: [airflow], parents: [skill.data_engineering], release_year: 2015}
   - {id: skill.dbt, label: dbt, kind: TECHNOLOGY, aliases: [data build tool, dbt Core, dbt Cloud], parents: [skill.data_engineering, skill.sql], release_year: 2016}
@@ -501,7 +501,7 @@ skills:
   - {id: skill.bookkeeping, label: Bookkeeping, kind: METHODOLOGY, aliases: [book keeping, bookkeeper skills, tenue de livres], parents: [skill.accounting]}
   - {id: skill.accounts_payable, label: Accounts payable, kind: METHODOLOGY, aliases: [A/P, accounts payable processing, comptes fournisseurs], parents: [skill.accounting]}
   - {id: skill.accounts_receivable, label: Accounts receivable, kind: METHODOLOGY, aliases: [A/R, accounts receivable management, comptes clients], parents: [skill.accounting]}
-  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [bank reconciliation, bank reconciliations, account reconciliations, reconciliations, rapprochement bancaire], parents: [skill.accounting]}
+  - {id: skill.reconciliation, label: Account reconciliation, kind: METHODOLOGY, aliases: [reconciliation, bank reconciliation, bank reconciliations, account reconciliations, reconciliations, rapprochement bancaire], parents: [skill.accounting]}
   - {id: skill.budgeting, label: Budgeting, kind: METHODOLOGY, aliases: [budget management, budget planning, budgets, budget preparation, budgétisation], parents: [skill.finance]}
   - {id: skill.forecasting, label: Forecasting, kind: METHODOLOGY, aliases: [financial forecasting, demand forecasting, sales forecasting, prévisions financières, prévisions des ventes, prévision de la demande, prévisions budgétaires]}
   - {id: skill.auditing, label: Auditing, kind: METHODOLOGY, aliases: [audit, audits, internal audit, external audit, financial audit, audit interne, vérification comptable, vérification interne], parents: [skill.accounting]}
@@ -553,7 +553,7 @@ skills:
   - {id: skill.hipaa, label: HIPAA, kind: DOMAIN, aliases: [HIPAA compliance, Health Insurance Portability and Accountability Act], parents: [skill.compliance]}
   - {id: skill.phipa, label: PHIPA, kind: DOMAIN, aliases: [Personal Health Information Protection Act], parents: [skill.compliance]}
   - {id: skill.patient_care, label: Patient care, kind: METHODOLOGY, aliases: [direct patient care, patient support, soins aux patients]}
-  - {id: skill.vital_signs, label: Vital signs, kind: METHODOLOGY, aliases: [taking vital signs, vital signs monitoring, measure vital signs, signes vitaux], parents: [skill.patient_care]}
+  - {id: skill.vital_signs, label: Vital signs, kind: METHODOLOGY, aliases: [vital signs assessment, vital sign assessment, assessing vital signs, taking vital signs, vital signs monitoring, measure vital signs, signes vitaux], parents: [skill.patient_care]}
   - {id: skill.medication_administration, label: Medication administration, kind: METHODOLOGY, aliases: [administer medication, administered medication, administered medications, administering medications, medication management, administration de médicaments], parents: [skill.patient_care]}
   - {id: skill.phlebotomy, label: Phlebotomy, kind: METHODOLOGY, aliases: [venipuncture, blood draws, blood collection, prélèvement sanguin], parents: [skill.patient_care]}
   - {id: skill.medical_terminology, label: Medical terminology, kind: DOMAIN, aliases: [medical vocabulary, terminologie médicale]}
@@ -618,9 +618,61 @@ skills:
   - {id: skill.research, label: Research, kind: METHODOLOGY, aliases: [research skills, conducting research, academic research, recherche scientifique, recherche universitaire, recherche académique, projet de recherche, projets de recherche, méthodes de recherche]}
   - {id: skill.writing, label: Writing, kind: SOFT, aliases: [writing skills, written skills, report writing, rédaction]}
 
+  # ─── Task 7.3 (DECISIONS D-140): common skills the eval vocabulary named and the taxonomy lacked ──
+  - {id: skill.product_analytics, label: Product analytics, kind: METHODOLOGY, aliases: [product analytics tools], parents: [skill.product_management, skill.data_analysis]}
+  - {id: skill.amplitude, label: Amplitude, kind: TOOL, aliases: [Amplitude Analytics], parents: [skill.product_analytics]}
+  - {id: skill.backlog_prioritization, label: Backlog prioritization, kind: METHODOLOGY, aliases: [backlog prioritisation, backlog grooming, backlog refinement, backlog management, product backlog management], parents: [skill.product_management, skill.agile]}
+  - {id: skill.product_roadmapping, label: Product roadmapping, kind: METHODOLOGY, aliases: [product roadmap, product roadmaps, product roadmap planning, roadmap planning, roadmapping, roadmap development], parents: [skill.product_management]}
+  - {id: skill.user_stories, label: User stories, kind: METHODOLOGY, aliases: [user story, writing user stories, user story writing, user story mapping], parents: [skill.agile, skill.business_analysis]}
+  - {id: skill.okrs, label: OKRs, kind: METHODOLOGY, aliases: [OKR, objectives and key results, objectives & key results], parents: [skill.strategic_planning]}
+  - {id: skill.customer_interviews, label: Customer interviews, kind: METHODOLOGY, aliases: [customer interviewing, customer discovery interviews], parents: [skill.user_research]}
+  - {id: skill.experiment_design, label: Experimental design, kind: METHODOLOGY, aliases: [experiment design, experimental design and analysis], parents: [skill.statistics, skill.research]}
+  - {id: skill.go_to_market, label: Go-to-market strategy, kind: METHODOLOGY, aliases: [go to market strategy, go-to-market strategies, go-to-market planning, GTM strategy], parents: [skill.marketing, skill.strategic_planning]}
+  - {id: skill.campaign_management, label: Campaign management, kind: METHODOLOGY, aliases: [marketing campaign management, marketing campaigns, campaign planning, campaign execution], parents: [skill.marketing]}
+  - {id: skill.cro, label: Conversion rate optimization, kind: METHODOLOGY, aliases: [conversion rate optimisation, conversion optimization, conversion optimisation], parents: [skill.digital_marketing]}
+  - {id: skill.design_systems, label: Design systems, kind: DOMAIN, aliases: [design system, UI design systems], parents: [skill.ui]}
+  - {id: skill.miro, label: Miro, kind: TOOL, aliases: [Miro board, Miro whiteboard, RealtimeBoard]}
+  - {id: skill.code_review, label: Code review, kind: METHODOLOGY, aliases: [code reviews, peer code review, peer code reviews, code reviewing, conduct ICT code review], parents: [skill.software_development]}
+  - {id: skill.incident_response, label: Incident response, kind: METHODOLOGY, aliases: [incident handling, security incident response, incident response planning], parents: [skill.sre, skill.cybersecurity]}
+  - {id: skill.time_series_forecasting, label: Time series forecasting, kind: METHODOLOGY, aliases: [time-series forecasting, time series modeling, time series modelling, time series analysis], parents: [skill.forecasting, skill.statistics]}
+  - {id: skill.fpa, label: Financial planning and analysis, kind: METHODOLOGY, aliases: [FP&A, financial planning & analysis, budgeting and forecasting, budgeting & forecasting], parents: [skill.finance]}
+  - {id: skill.cost_accounting, label: Cost accounting, kind: METHODOLOGY, aliases: [cost accountancy, perform cost accounting activities], parents: [skill.accounting]}
+  - {id: skill.general_ledger, label: General ledger, kind: METHODOLOGY, aliases: [general ledger accounting, GL accounting, manage the general ledger], parents: [skill.accounting]}
+  - {id: skill.month_end_close, label: Month-end close, kind: METHODOLOGY, aliases: [month end close, month-end closing, month-end close process, period close, period-end close, financial close], parents: [skill.accounting]}
+  - {id: skill.variance_analysis, label: Variance analysis, kind: METHODOLOGY, aliases: [budget variance analysis, variance reporting, budget-to-actual analysis], parents: [skill.financial_analysis]}
+  - {id: skill.care_planning, label: Care planning, kind: METHODOLOGY, aliases: [care plans, care plan development, nursing care plans, patient care planning], parents: [skill.patient_care]}
+  - {id: skill.case_management, label: Case management, kind: METHODOLOGY, aliases: [apply case management], parents: [skill.patient_care]}
+  - {id: skill.discharge_planning, label: Discharge planning, kind: METHODOLOGY, aliases: [discharge plans, patient discharge planning, develop plans related to client discharge], parents: [skill.patient_care]}
+  - {id: skill.patient_education, label: Patient education, kind: METHODOLOGY, aliases: [patient teaching, patient and family education, health teaching], parents: [skill.patient_care]}
+  - {id: skill.telemetry_monitoring, label: Telemetry monitoring, kind: METHODOLOGY, aliases: [cardiac telemetry, telemetry nursing, cardiac monitoring, ECG monitoring], parents: [skill.patient_care]}
+  # ─── Task 7.3 (D-140): parked gaps and the review-queue tokens the build controller approved ───
+  # (data/taxonomy/approvals/2026-10-13-controller.txt; the tokens and their counts: review_queue.csv)
+  - {id: skill.saas, label: SaaS, kind: DOMAIN, aliases: [software as a service, software-as-a-service], parents: [skill.cloud_computing]}
+  - {id: skill.paas, label: Platform as a service, kind: DOMAIN, aliases: [PaaS, platform-as-a-service, Platform as a service PaaS], parents: [skill.cloud_computing]}
+  - {id: skill.b2b, label: B2B, kind: DOMAIN, aliases: [business-to-business, business to business], parents: [skill.sales, skill.marketing]}
+  - {id: skill.distributed_systems, label: Distributed systems, kind: DOMAIN, aliases: [distributed system, distributed computing], parents: [skill.software_architecture]}
+  - {id: skill.mlops, label: MLOps, kind: METHODOLOGY, aliases: [ML Ops, machine learning operations], parents: [skill.machine_learning, skill.devops]}
+  - {id: skill.devsecops, label: DevSecOps, kind: METHODOLOGY, aliases: [Dev Sec Ops], parents: [skill.devops, skill.cybersecurity]}
+  - {id: skill.chatgpt, label: ChatGPT, kind: TOOL, aliases: [OpenAI ChatGPT, Chat GPT], parents: [skill.generative_ai]}
+  - {id: skill.langchain, label: LangChain, kind: TECHNOLOGY, aliases: [Lang Chain], parents: [skill.llm, skill.python]}
+  - {id: skill.rag, label: Retrieval-augmented generation, kind: METHODOLOGY, aliases: [RAG, retrieval augmented generation, RAG pipelines], parents: [skill.llm, skill.generative_ai]}
+  - {id: skill.reinforcement_learning, label: Reinforcement learning, kind: DOMAIN, aliases: [RL], parents: [skill.machine_learning]}
+  - {id: skill.hyperparameter_tuning, label: Hyperparameter tuning, kind: METHODOLOGY, aliases: [hyperparameter optimization, hyperparameter optimisation, hyper-parameter tuning, HPO], parents: [skill.machine_learning]}
+  - {id: skill.gpu_computing, label: GPU computing, kind: TECHNOLOGY, aliases: [GPU, GPUs, GPU programming, GPGPU, GPU acceleration], parents: [skill.programming]}
+  - {id: skill.http, label: HTTP, kind: TECHNOLOGY, aliases: [HTTPS, HTTP/HTTPS, Hypertext Transfer Protocol, HTTP protocol], parents: [skill.web_development, skill.networking]}
+  - {id: skill.iam, label: Identity and access management, kind: DOMAIN, aliases: [IAM, AWS IAM], parents: [skill.cybersecurity]}
+  - {id: skill.sast, label: Static application security testing, kind: METHODOLOGY, aliases: [SAST, static analysis security testing], parents: [skill.cybersecurity, skill.software_testing]}
+  - {id: skill.pcb, label: Printed circuit boards, kind: DOMAIN, aliases: [PCB, PCBs, printed circuit board]}
+  - {id: skill.ndt, label: Non-destructive testing, kind: DOMAIN, aliases: [NDT, NDE, non-destructive evaluation, nondestructive testing, nondestructive evaluation, non-destructive inspection]}
+  - {id: skill.ultrasonic_testing, label: Ultrasonic testing, kind: METHODOLOGY, aliases: [ultrasonic inspection], parents: [skill.ndt]}
+  - {id: skill.paut, label: Phased array ultrasonic testing, kind: METHODOLOGY, aliases: [PAUT, phased array UT, phased array ultrasonics, phased array inspection], parents: [skill.ultrasonic_testing]}
+  - {id: skill.radiographic_testing, label: Radiographic testing, kind: METHODOLOGY, aliases: [radiographic inspection], parents: [skill.ndt]}
+  - {id: skill.gtaw, label: Gas tungsten arc welding, kind: METHODOLOGY, aliases: [GTAW, tungsten inert gas welding], parents: [skill.welding]}
+  - {id: skill.fcaw, label: Flux-cored arc welding, kind: METHODOLOGY, aliases: [FCAW, flux core arc welding, flux-core welding], parents: [skill.welding]}
+
 credentials:
   # ─── licences the license gate treats as professional (config/gates.yaml) ────────────────
-  - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN, R.N., Registered Nurse licence, Registered Nurse license, infirmière autorisée, infirmier autorisé]}
+  - {id: cred.registered_nurse, label: Registered Nurse, kind: CREDENTIAL, aliases: [RN, R.N., CNO registration, College of Nurses of Ontario registration, Registered Nurse licence, Registered Nurse license, infirmière autorisée, infirmier autorisé]}
   - {id: cred.licensed_practical_nurse, label: Licensed Practical Nurse, kind: CREDENTIAL, aliases: [LPN, RPN, Registered Practical Nurse, L.P.N., Licensed Vocational Nurse, LVN, infirmière auxiliaire autorisée]}
   - {id: cred.cpa, label: Chartered Professional Accountant, kind: CREDENTIAL, aliases: [CPA, CPA Canada, Certified Public Accountant, C.P.A., CPA designation, comptable professionnel agréé]}
   - {id: cred.commercial_drivers_license, label: Commercial driver's licence, kind: CREDENTIAL, aliases: [CDL, commercial driver's license, commercial drivers license, Class A CDL, Class AZ licence, AZ licence, AZ license, DZ licence, DZ license, Class A license]}
@@ -635,7 +687,7 @@ credentials:
   # Only fixed formal names, read as written (never across ":" or a dash). A status written around a
   # licence ("RN student", "CPA (in progress)", "pursuing") is the résumé parser's business.
   - {id: cred.cpa_in_progress, label: CPA candidate, kind: CREDENTIAL, aliases: [C.P.A. candidate, CPA student, CPA PEP, CPA PEP Core 1, CPA PEP Core 2, CPA PEP Capstone 1, CPA PEP Capstone 2, CPA Professional Education Program, CPA Professional Education Programme, CPA PREP, writing the CFE, CFE candidate, Common Final Examination, candidat à la profession de CPA, candidate à la profession de CPA, CPA Canada PEP, CPA Ontario PEP, CPA Quebec PEP, CPA Québec PEP, CPA British Columbia PEP, CPA BC PEP, CPA Alberta PEP, CPA Manitoba PEP, CPA Saskatchewan PEP, CPA Nova Scotia PEP, CPA New Brunswick PEP, CPA Newfoundland and Labrador PEP, CPA Prince Edward Island PEP, CPA PEI PEP, CPA Atlantic PEP, CPA Western School of Business PEP, CPA Yukon PEP, CPA Northwest Territories PEP, CPA Nunavut PEP]}
-  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [student nurse, BScN student, BSN student, nursing program student, practical nursing student, étudiante en soins infirmiers, étudiant en soins infirmiers, étudiante infirmière, étudiant infirmier]}
+  - {id: cred.nursing_student, label: Nursing student, kind: CREDENTIAL, aliases: [Graduate Nurse, student nurse, BScN student, BSN student, nursing program student, practical nursing student, étudiante en soins infirmiers, étudiant en soins infirmiers, étudiante infirmière, étudiant infirmier]}
   - {id: cred.cdl_trainee, label: Commercial learner's permit, kind: CREDENTIAL, aliases: [commercial learner permit, CDL learner's permit, CDL permit]}
   - {id: cred.articling_student, label: Articling student, kind: CREDENTIAL, aliases: [articling, articling clerk, articled student, student-at-law, student at law, law student, law school student, JD student, JD candidate, LLB student, Law Society licensing candidate, Lawyer Licensing Process candidate, stagiaire en droit, étudiant en droit, étudiante en droit]}
   - {id: cred.medical_student, label: Medical student, kind: CREDENTIAL, aliases: [medical school student, MD student, MD candidate, clinical clerk, medical clerk, étudiant en médecine, étudiante en médecine, externe en médecine]}
@@ -644,10 +696,10 @@ credentials:
   - {id: cred.electrician_apprentice, label: Electrical apprentice, kind: CREDENTIAL, aliases: [apprentice electrician, electrician apprentice, electrical apprenticeship, electrician apprenticeship, 309A apprentice, 309A apprenticeship, 309A apprentice electrician, apprenti électricien, apprentie électricienne]}
   - {id: cred.paramedic_student, label: Paramedic student, kind: CREDENTIAL, aliases: [student paramedic, paramedic trainee, paramedic program student]}
   # ─── common certifications ───────────────────────────────────────────────────────────────
-  - {id: cred.aws_cloud_practitioner, label: AWS Certified Cloud Practitioner, kind: CREDENTIAL, aliases: [AWS Cloud Practitioner, AWS CCP, CLF-C02]}
-  - {id: cred.aws_saa, label: AWS Certified Solutions Architect – Associate, kind: CREDENTIAL, aliases: [AWS Solutions Architect Associate, AWS SAA, AWS Certified Solutions Architect Associate, SAA-C03, AWS Certified Solutions Architect]}
-  - {id: cred.aws_sap, label: AWS Certified Solutions Architect – Professional, kind: CREDENTIAL, aliases: [AWS Solutions Architect Professional, AWS SAP, AWS Certified Solutions Architect Professional]}
-  - {id: cred.aws_developer, label: AWS Certified Developer – Associate, kind: CREDENTIAL, aliases: [AWS Certified Developer, AWS Developer Associate, AWS Certified Developer Associate]}
+  - {id: cred.aws_cloud_practitioner, label: AWS Certified Cloud Practitioner, kind: CREDENTIAL, aliases: [AWS Cloud Practitioner, AWS Cloud Practitioner certification, AWS CCP, CLF-C02]}
+  - {id: cred.aws_saa, label: AWS Certified Solutions Architect – Associate, kind: CREDENTIAL, aliases: [AWS Solutions Architect certification, AWS Solutions Architect Associate certification, AWS Certified Solutions Architect certification, AWS Solutions Architect Associate, AWS SAA, AWS Certified Solutions Architect Associate, SAA-C03, AWS Certified Solutions Architect]}
+  - {id: cred.aws_sap, label: AWS Certified Solutions Architect – Professional, kind: CREDENTIAL, aliases: [AWS Solutions Architect Professional certification, AWS Solutions Architect Professional, AWS SAP, AWS Certified Solutions Architect Professional]}
+  - {id: cred.aws_developer, label: AWS Certified Developer – Associate, kind: CREDENTIAL, aliases: [AWS Developer certification, AWS Developer Associate certification, AWS Certified Developer, AWS Developer Associate, AWS Certified Developer Associate]}
   - {id: cred.aws_sysops, label: AWS Certified SysOps Administrator – Associate, kind: CREDENTIAL, aliases: [AWS SysOps Administrator, AWS Certified SysOps Administrator]}
   - {id: cred.azure_fundamentals, label: Microsoft Certified Azure Fundamentals, kind: CREDENTIAL, aliases: [AZ-900, Azure Fundamentals, AZ900]}
   - {id: cred.azure_administrator, label: Microsoft Certified Azure Administrator Associate, kind: CREDENTIAL, aliases: [AZ-104, Azure Administrator, Azure Administrator Associate]}
@@ -693,7 +745,7 @@ credentials:
   - {id: cred.psw_certificate, label: Personal Support Worker certificate, kind: CREDENTIAL, aliases: [PSW certificate, PSW certification, certified PSW]}
   - {id: cred.google_analytics_cert, label: Google Analytics Certification, kind: CREDENTIAL, aliases: [Google Analytics Individual Qualification, GAIQ, Google Analytics certified]}
   - {id: cred.google_ads_cert, label: Google Ads Certification, kind: CREDENTIAL, aliases: [Google Ads certified, Google AdWords certification]}
-  - {id: cred.hubspot_cert, label: HubSpot certification, kind: CREDENTIAL, aliases: [HubSpot Inbound Marketing certification, HubSpot certified]}
+  - {id: cred.hubspot_cert, label: HubSpot certification, kind: CREDENTIAL, aliases: [HubSpot Inbound Certification, HubSpot Inbound certified, HubSpot Inbound Marketing certification, HubSpot certified]}
   - {id: cred.salesforce_admin, label: Salesforce Certified Administrator, kind: CREDENTIAL, aliases: [Salesforce Administrator certification, Salesforce Admin certification, Salesforce Certified Admin]}
   - {id: cred.tensorflow_developer, label: TensorFlow Developer Certificate, kind: CREDENTIAL, aliases: [TensorFlow certification, TensorFlow Developer certification]}
   - {id: cred.ckad, label: Certified Kubernetes Application Developer, kind: CREDENTIAL, aliases: [CKAD]}
@@ -703,6 +755,19 @@ credentials:
   - {id: cred.tesol, label: TESOL certificate, kind: CREDENTIAL, aliases: [TESOL, TEFL, TESL, TEFL certificate, TESL certificate, CELTA]}
   - {id: cred.csc, label: Canadian Securities Course, kind: CREDENTIAL, aliases: [Canadian Securities Course certification]}
   - {id: cred.working_at_heights, label: Working at Heights, kind: CREDENTIAL, aliases: [Working at Heights training, Working at Heights certification, fall protection certification, fall arrest training]}
+
+  # ─── Task 7.3 (D-140): AWS certification names, Tableau, Google UX, NDT personnel ──────────
+  - {id: cred.aws_devops_pro, label: AWS Certified DevOps Engineer – Professional, kind: CREDENTIAL, aliases: [AWS Certified DevOps Engineer Professional, AWS DevOps Engineer Professional, AWS Certified DevOps Engineer, DOP-C02]}
+  - {id: cred.aws_data_engineer, label: AWS Certified Data Engineer – Associate, kind: CREDENTIAL, aliases: [AWS Certified Data Engineer Associate, AWS Data Engineer Associate, AWS Certified Data Engineer, DEA-C01]}
+  - {id: cred.aws_ml_specialty, label: AWS Certified Machine Learning – Specialty, kind: CREDENTIAL, aliases: [AWS Certified Machine Learning Specialty, AWS Machine Learning Specialty, MLS-C01]}
+  - {id: cred.aws_ml_engineer, label: AWS Certified Machine Learning Engineer – Associate, kind: CREDENTIAL, aliases: [AWS Certified Machine Learning Engineer Associate, AWS Machine Learning Engineer Associate, MLA-C01]}
+  - {id: cred.aws_security_specialty, label: AWS Certified Security – Specialty, kind: CREDENTIAL, aliases: [AWS Certified Security Specialty, AWS Security Specialty, SCS-C02]}
+  - {id: cred.aws_networking_specialty, label: AWS Certified Advanced Networking – Specialty, kind: CREDENTIAL, aliases: [AWS Certified Advanced Networking Specialty, AWS Advanced Networking Specialty, ANS-C01]}
+  - {id: cred.aws_ai_practitioner, label: AWS Certified AI Practitioner, kind: CREDENTIAL, aliases: [AWS AI Practitioner, AIF-C01]}
+  - {id: cred.aws_data_analytics_specialty, label: AWS Certified Data Analytics – Specialty, kind: CREDENTIAL, aliases: [AWS Certified Data Analytics Specialty, AWS Data Analytics Specialty, DAS-C01]}
+  - {id: cred.tableau_desktop_specialist, label: Tableau Desktop Specialist, kind: CREDENTIAL, aliases: [Tableau Desktop Specialist certification, Tableau Certified Desktop Specialist]}
+  - {id: cred.google_ux_certificate, label: Google UX Design Certificate, kind: CREDENTIAL, aliases: [UX Design Certificate, Google UX Design Professional Certificate, Google UX Design Certification, UX design certification]}
+  - {id: cred.ndt_certification, label: NDT personnel certification, kind: CREDENTIAL, aliases: [ASNT, ASNT certification, ASNT certified, ASNT Level I, ASNT Level II, ASNT Level III, SNT-TC-1A, NAS 410, NAS410, EN 4179, NDT certification, NDT Level II]}
 
 fields:
   - {id: field.science, label: Science, kind: DOMAIN, aliases: [sciences, natural sciences, BSc, B.Sc., Bachelor of Science, sciences naturelles], parents: []}
@@ -848,6 +913,12 @@ ambiguous:
   flutter: Flutter
   angular: Angular
   vue: Vue
+  # Task 7.3 (D-140): a product named like an English word; a URL scheme is no protocol skill; a
+  # cleaning rag is no RAG
+  amplitude: Amplitude
+  http: HTTP
+  https: HTTPS
+  rag: RAG
 
 blocked_aliases: [Scratch, Assembly, Source, Salt, Absorb, RAGE, Shiva, Frostbite, plan, Project, Office, Database, Analytics, Notes, Pages, Numbers, Keynote, Drive, Docs, Sheets, Slides, Classroom, Ads, Dynamics, Windows, Server, Mail, Calendar, Contacts, Photos, Maps, Chat, Meet, Forms, Sites, Groups, Translate, Voice, Cloud, Email, Scheduling, Teleconferencing, Publisher, Millennium, energy, Ant, Arena, Colleague, Navigator, Presenter, Scholar, Quest, Rio, Hive, Middleware, Persuasion, Concordance, Ovation, Painter, Opus, Beehive, Evolver, Cobalt, Helix, Darwin, Saber, Hercules, Dracula, Domino, environment, services, health, welfare, sports, languages, arts,
   cleaning, constructing, communicating, interviewing, weighing, logging, migration, dies, sing, Chef, Teams,
@@ -893,7 +964,11 @@ blocked_phrases: [American Express, Express Entry, Express Scripts, Sous Chef, C
   # fix round 1: "building blocks" of a platform are no O*NET toy class; "Access" in security and
   # rope-access titles is no Microsoft Access; child care among benefits is no early childhood education
   building blocks, Access Management, Access Control, Access Engineer, Ropes Access, Rope Access,
-  child care benefits, Child care and pet benefits]
+  child care benefits, Child care and pet benefits,
+  # Task 7.3 (D-140): the Indigenous sense of reconciliation is no accounting skill; "RAG status" is a
+  # project-status colour code
+  Truth and Reconciliation, Truth & Reconciliation, reconciliation with Indigenous, Indigenous reconciliation,
+  economic reconciliation, RAG status, RAG statuses, RAG reporting]
 
 # Professional licences (config/gates.yaml) -> the credential of their formal in-progress
 # designations (D-28). The build fails when a licence has none, or when one of those names reaches
@@ -925,6 +1000,24 @@ licence_probes:
   - ["Graduate of an accredited RN program with current registration.", cred.registered_nurse]
   - ["Candidate must hold a CPA designation.", cred.cpa]
   - ["Successful candidate: licensed 309A electrician.", cred.electrician_license]
+
+# Ordinary words that `resolve` never fuzzy-matches (Task 7.3, DECISIONS D-140): each one reached
+# an unrelated node by edit distance ("patients" -> patents, "supervisors" -> hypervisors under
+# virtualization, "heating" -> betting) where the posting corpus is too small to list it among the
+# common words (common_words.json, Task 2.3). Exact matches are unaffected.
+fuzzy_exclusions: [patient, patients, parents, analyse, analysed, supervisors, heating, tenants, seniors]
+
+# Keys that may open a prose sentence (Task 7.3, DECISIONS D-141). An ambiguous or cased key never
+# opens one ("Go above and beyond"), except one listed here when the sentence lists skills (right
+# after it comes ",", "/", "&", "and" or "or", then a skill: "Go, Python and Rust") or, for a
+# language, when the sentence speaks of languages (a cue word or another listed language in it:
+# "English and French required", "French is an asset"). Skills lists and `resolve` are unchanged.
+sentence_initial:
+  keys: [Go, French, English]
+  languages: [French, English]
+  cues: [fluent, fluently, fluency, bilingual, bilingualism, proficiency, proficient, language, languages,
+    spoken, written, oral, verbal, speak, speaks, speaking, native, asset, plus, required, mandatory, essential,
+    preferred]
 
 # Job titles that name no occupation by themselves: titles.json leaves them out (D-26).
 generic_titles: [intern, interns, internship, co-op, co-op student, coop student, student, students,
