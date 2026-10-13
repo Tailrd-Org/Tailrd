@@ -147,14 +147,61 @@ _PARSER_CONFIG = ("verbs.yaml", "negation.yaml", "curated_taxonomy.yaml", "curat
 _PARSER_SCORING_SECTIONS = ("ingest", "taxonomy")  # the parts of scoring.yaml ingest and resolution read
 
 
+_PARSER_ROOTS = ("parse.resume", "parse.config", "graph.loader", "config")  # what `real_parser` imports
+
+
+def _module_file(src: Path, dotted: str) -> Optional[Path]:
+    """`matcher.<dotted>` as a file under `src` (a package's __init__.py), or None."""
+    base = src.joinpath(*dotted.split(".")) if dotted else src
+    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _import_closure(src: Path, roots: Sequence[str]) -> set[Path]:
+    """Every `matcher` module reachable by static imports (module level or inside functions, absolute
+    or relative) from `roots`, with the __init__.py of every package on the way."""
+    import ast
+
+    seen: set[Path] = set()
+    todo = [r for r in roots]
+    while todo:
+        dotted = todo.pop()
+        path = _module_file(src, dotted)
+        if path is None or path in seen:
+            continue
+        seen.add(path)
+        parts = dotted.split(".") if dotted else []
+        for depth in range(len(parts)):  # the packages a module lives in run their __init__ first
+            todo.append(".".join(parts[:depth]))
+        package = parts if path.name == "__init__.py" else parts[:-1]
+        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+            names: list[str] = []
+            if isinstance(node, ast.Import):
+                names = [a.name for a in node.names]
+            elif isinstance(node, ast.ImportFrom):
+                if node.level:
+                    anchor = package[: len(package) - node.level + 1]
+                    base = ".".join(["matcher", *anchor, *(node.module.split(".") if node.module else [])])
+                else:
+                    base = node.module or ""
+                names = [base] + [f"{base}.{a.name}" for a in node.names]
+            for name in names:
+                if name == "matcher" or name.startswith("matcher."):
+                    todo.append(name[len("matcher."):] if name != "matcher" else "")
+    return seen
+
+
 def parser_inputs(root: Path = ROOT) -> list[Path]:
-    """What the résumé parser reads: its modules (ingest, parse, normalize, graph, the verb and
-    negation classifier in score/evidence.py, models, config, errors), config/parse/**, the verb,
+    """What the résumé parser reads: its modules (ingest, parse, normalize, graph, plus the static
+    import closure of what `real_parser` imports, which brings score/evidence.py, score/numeric.py,
+    models, config, errors and every package __init__.py), config/parse/**, the verb,
     negation and curated taxonomy files, and the taxonomy's manifest and resolver tables. Weights,
     bands, gates and every other scoring module are not inputs (DECISIONS D-118)."""
     src = root / "src" / "matcher"
     files = [p for sub in ("ingest", "parse", "normalize", "graph") for p in (src / sub).rglob("*.py")]
-    files += [src / "score" / "evidence.py", src / "models.py", src / "config.py", src / "errors.py"]
+    files += sorted(_import_closure(src, _PARSER_ROOTS))  # every module the parser imports, packages too
     files += [p for p in (root / "config" / "parse").rglob("*") if p.is_file()]
     files += [root / "config" / name for name in _PARSER_CONFIG]
     files += [root / "data" / "taxonomy" / name for name in ("MANIFEST.json", "resolver.json")]

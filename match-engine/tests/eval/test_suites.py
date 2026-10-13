@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 import math
 from datetime import date
 
@@ -515,3 +516,37 @@ def test_invariance_failures_state_the_true_count_and_dimensions(small_corpus, c
     within = [f for f in report.failures if f.kind == "invariance within"]
     assert within[0].detail["failing_total"] >= len(within)
     assert "written" in within[0].detail and set(within[0].detail["dimensions"]) == {"txt", "docx"}
+
+
+# ─── fix round 2 ───────────────────────────────────────────────────────────────────────────
+
+
+def test_parser_inputs_cover_every_module_the_parser_imports() -> None:
+    import os
+    import subprocess
+    import sys
+
+    from eval.suites import ROOT
+
+    code = "\n".join((
+        "import sys, matcher.parse.resume, matcher.parse.config, matcher.graph.loader, matcher.config",
+        "for name, module in sorted(sys.modules.items()):",
+        "    if name.startswith('matcher') and getattr(module, '__file__', None):",
+        "        print(module.__file__)",
+    ))
+    run = subprocess.run([sys.executable, "-c", code], cwd=ROOT, capture_output=True, text=True,
+                         env={**os.environ, "PYTHONPATH": str(ROOT / "src")})
+    assert run.returncode == 0, run.stderr
+    out = run.stdout
+    imported = {Path(line).resolve() for line in out.splitlines() if line.strip()}
+    covered = {p.resolve() for p in synthetic.parser_inputs()}
+    assert imported and not imported - covered, sorted(str(p) for p in imported - covered)
+
+
+def test_four_fifths_is_not_assessed_with_one_group_or_no_selections() -> None:
+    from eval.suites import fairness_guardrail
+
+    one = fairness_guardrail(_grouped("a", 150, 90))
+    assert one.passed is None and "fewer than 2 groups" in one.detail
+    none_selected = fairness_guardrail(_grouped("a", 100, 0) + _grouped("b", 100, 0))
+    assert none_selected.passed is None and "no pair selected" in none_selected.detail

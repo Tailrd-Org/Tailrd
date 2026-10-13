@@ -341,11 +341,21 @@ def fairness_guardrail(pairs: Sequence[PairScore], *, name: str = "Four-fifths (
     No eligible group is "not assessed" (passed None), never a pass (D-93)."""
     from eval.metrics import FOUR_FIFTHS_THRESHOLD, four_fifths
 
+    threshold = f">= {FOUR_FIFTHS_THRESHOLD:.2f}"
     result = four_fifths(pairs, lambda p: p.score is not None and p.score >= SHORTLIST)
     if result.min_ratio is None:
         groups = len({p.group for p in pairs if p.group is not None})
         detail = "no group with n >= 100" + (f" ({groups} smaller groups)" if groups else " (pairs carry no group)")
-        return Guardrail(name, None, None, f">= {FOUR_FIFTHS_THRESHOLD:.2f}", detail, "fairness")
+        return Guardrail(name, None, None, threshold, detail, "fairness")
+    # A ratio needs two groups to compare and someone selected to compare: otherwise every ratio is a
+    # vacuous 1.0, which is not evidence of parity (not assessed, never a pass).
+    if len(result.per_group) < 2:
+        return Guardrail(name, None, None, threshold, f"fewer than 2 groups with n >= 100 "
+                         f"({len(result.per_group)} eligible)", "fairness")
+    if all(rate.rate == 0.0 for rate in result.per_group.values()):
+        return Guardrail(name, None, None, threshold,
+                         f"no pair selected (raw >= {SHORTLIST}) in any of the {len(result.per_group)} groups",
+                         "fairness")
     worst = min(result.per_group, key=lambda g: result.per_group[g].ratio)
     return Guardrail(name, result.passed, result.min_ratio, f">= {FOUR_FIFTHS_THRESHOLD:.2f}",
                      f"{len(result.per_group)} groups; lowest {worst}", "fairness")
