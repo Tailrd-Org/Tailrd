@@ -43,6 +43,8 @@ interface Job {
   url: string;
   description: string;
   match_score: number;
+  match_band?: string | null;
+  match_outcome?: string | null;
   match_summary: string;
   match_label: string;
   salary_range: string;
@@ -278,8 +280,8 @@ describe("Feature: job-detail-inline-panel, Property 1: Inline rendering without
  * For any job with populated fields (title, company, location, work_type,
  * description, match_score > 0, applicant_count > 0), the rendered detail panel
  * SHALL contain: the job title, company name, location tag, work type badge,
- * job description text under an "Overview" heading, the match score circle with
- * breakdown bars, and the applicant count.
+ * job description text under an "Overview" heading, the card's fit band (Task 9.4:
+ * no number before the breakdown answers, D-54), and the applicant count.
  */
 describe("Feature: job-detail-inline-panel, Property 2: Detail panel content completeness", () => {
   let RealJobDetailView: typeof import("../components/JobDetailView").default;
@@ -314,8 +316,10 @@ describe("Feature: job-detail-inline-panel, Property 2: Detail panel content com
     url: fc.constant("https://example.com/job"),
     description: fc.string({ minLength: 51, maxLength: 200 }).filter((s) => s.trim().length > 50),
     match_score: fc.integer({ min: 1, max: 100 }),
+    match_band: fc.constantFrom("Strong match", "Good match", "Partial match", "Limited match"),
+    match_outcome: fc.constant("SCORED"),
     match_summary: fc.constant(""),
-    match_label: fc.constantFrom("STRONG MATCH", "GOOD MATCH", "FAIR MATCH"),
+    match_label: fc.constant(""),
     salary_range: fc.constant(""),
     company_size: fc.constant(""),
     status: fc.constantFrom("new", "applied", "viewed"),
@@ -380,16 +384,12 @@ describe("Feature: job-detail-inline-panel, Property 2: Detail panel content com
         const descContent = container.querySelector(".description-content");
         expect(descContent).not.toBeNull();
 
-        // Match score circle should be present (score > 0)
-        const matchCircle = container.querySelector(".match-circle-large");
-        expect(matchCircle).not.toBeNull();
-        const matchNumber = container.querySelector(".match-number-large");
-        expect(matchNumber).not.toBeNull();
-        expect(matchNumber!.textContent).toContain(String(job.match_score));
-
-        // Match breakdown bars should be present
-        const breakdownSection = container.querySelector(".match-breakdown");
-        expect(breakdownSection).not.toBeNull();
+        // Before the breakdown answers, the panel shows the card's band only: the card's
+        // number may hide a displayed interval (D-54), so no ring and no number yet.
+        const headline = container.querySelector(".fit-headline");
+        expect(headline).not.toBeNull();
+        expect(headline!.textContent).toBe(job.match_band);
+        expect(container.querySelector(".match-circle-large")).toBeNull();
 
         // Applicant count should be present
         const metaRow = container.querySelector(".job-detail-meta-row");

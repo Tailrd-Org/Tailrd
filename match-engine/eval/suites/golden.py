@@ -10,8 +10,8 @@ bootstrap CI over postings (`metrics["summary"]`). Off-by-two stays a metric: EV
 one to alarm on but gives no threshold. Without the
 file it reports `GOLDEN: skipped (no labels)`.
 
-Layer 4 never reads `eval/corpora/holdout/`. It asks Task 8.1's tooling (`eval.holdout.find_key`)
-for the CI key and reports `HOLDOUT: skipped (no key)` when that tooling or the key is absent.
+Layer 4 never reads `eval/corpora/holdout/` here. It asks `eval.holdout.find_key` for the CI key
+and reports `HOLDOUT: skipped (no key)` without it; the look itself is `make eval-holdout`.
 """
 
 from __future__ import annotations
@@ -151,16 +151,20 @@ def run_golden(engine: Any, as_of: date, labels: Path = GOLDEN_LABELS, parse: Op
 
 
 def run_holdout() -> SuiteResult:
-    """Layer 4: only Task 8.1's tooling may open the holdout, and only with the CI key."""
+    """Layer 4 never decrypts here: `make eval-holdout` (`eval.holdout evaluate`) owns every look, so
+    each one is budgeted and logged. This only reports whether the key is present."""
+    from eval import holdout
+
     try:
-        from eval import holdout  # type: ignore[attr-defined]  # Task 8.1
-    except ImportError:
-        holdout = None
-    key = holdout.find_key() if holdout is not None and hasattr(holdout, "find_key") else None
+        key = holdout.find_key()
+    except holdout.HoldoutError as exc:
+        result = skipped("holdout", 4, f"bad key: {exc}")
+        result.notes.append(f"HOLDOUT: skipped (bad key: {exc})")
+        return result
     if key is None:
         result = skipped("holdout", 4, "no key")
         result.notes.append(HOLDOUT_SKIPPED)
         return result
-    result = skipped("holdout", 4, "key found, but holdout evaluation belongs to Task 8.1's tooling")
-    result.notes.append("HOLDOUT: skipped (Task 8.1 runs it)")
+    result = skipped("holdout", 4, "key present; layer 4 runs only through `make eval-holdout`")
+    result.notes.append("HOLDOUT: skipped here (key present; run `make eval-holdout` on a release branch)")
     return result

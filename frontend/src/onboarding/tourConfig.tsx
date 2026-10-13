@@ -60,9 +60,9 @@ export const TOUR_STEPS: TourStep[] = [
   {
     id: "ai-fit",
     route: "/app",
-    target: '[data-tour="ai-tool-fit"]',
-    title: "Analyze your fit",
-    description: "See how well you match the role and which keywords to add for ATS.",
+    target: '[data-tour="fit-breakdown"]',
+    title: "Your fit score",
+    description: "See your fit score for the role, what works in your favour and what to add.",
     placement: "left",
     prepare: () =>
       (document.querySelector('[data-tour="job-card"]') as HTMLElement | null)?.click(),

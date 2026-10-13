@@ -35,6 +35,7 @@ import {
   type Icon,
 } from "@phosphor-icons/react";
 import api from "../auth/api";
+import { bandTone, cardFit, fitSummary, impactViews, type BandTone, type ImpactView } from "../lib/fit";
 import { useApplyTracking } from "../context/ApplyTracking";
 
 // Maps the client-side parser's icon keys to Phosphor icon components
@@ -49,12 +50,25 @@ const SECTION_ICONS: Record<string, Icon> = {
   "info-circle": Info,
 };
 
+interface MatchItem {
+  label: string;
+  impact?: string;
+  note?: string;
+  code?: string;
+}
+
+/** POST /ai/match-breakdown: the deterministic fit engine's result (backend/schemas/match.py). */
 interface MatchBreakdown {
-  experience_score: number;
-  skill_score: number;
-  industry_score: number;
-  overall_score: number;
-  match_label: string;
+  outcome: string; // SCORED | SCORED_LOW_CONFIDENCE | NEEDS_REVIEW | GATE_FAIL
+  band?: string | null;
+  display_score?: number | null; // set only for SCORED
+  headline?: string;
+  basis?: string;
+  strength_items?: MatchItem[];
+  gaps?: MatchItem[];
+  to_improve?: string[];
+  notes?: string[];
+  interval?: { low: number; high: number; display: boolean } | null;
 }
 
 interface Job {
@@ -64,7 +78,10 @@ interface Job {
   location: string;
   url: string;
   description: string;
+  // The engine's result on the card: a number only when match_outcome is SCORED.
   match_score: number;
+  match_band?: string | null;
+  match_outcome?: string | null;
   match_label: string;
   experience_score: number;
   skill_score: number;
@@ -87,16 +104,65 @@ interface Job {
   locations_json?: { city?: string; region?: string; region_name?: string; country?: string }[] | null;
 }
 
-function getMatchColor(score: number): string {
-  if (score >= 80) return "#533afd";
-  if (score >= 60) return "#f59e0b";
-  return "#64748d";
+const TONE_COLORS: Record<BandTone, string> = {
+  strong: "#533afd",
+  good: "#4f7cff",
+  partial: "#f59e0b",
+  limited: "#64748d",
+  none: "#64748d",
+};
+
+/** What the page needs to update the job's card after a breakdown (Jobs.tsx). */
+export interface FitChange {
+  match_outcome: string;
+  match_band: string | null;
+  match_score: number;
 }
 
-function getMatchLabel(score: number): string {
-  if (score >= 80) return "STRONG MATCH";
-  if (score >= 60) return "GOOD MATCH";
-  return "FAIR MATCH";
+function Impact({ view }: { view: ImpactView }) {
+  const tone = view.word.toLowerCase().includes("plus") ? "plus" : "gap";
+  return (
+    <span className={`fit-impact fit-impact-${tone}`} title={view.raw} aria-label={`${view.word} (${view.raw})`}>
+      <span className="fit-impact-bar" aria-hidden="true">
+        <span className="fit-impact-fill" style={{ width: `${view.width}%` }} />
+      </span>
+      <span aria-hidden="true">{view.word}</span>
+    </span>
+  );
+}
+
+function FitItems({ title, items, impacts }: { title: string; items: MatchItem[]; impacts: Array<ImpactView | null> | null }) {
+  if (items.length === 0) return null;
+  return (
+    <div className="fit-section">
+      <h4 className="fit-section-title">{title}</h4>
+      <ul className="fit-items">
+        {items.map((item, i) => (
+          <li key={`${item.code || item.label}-${i}`} className="fit-item">
+            <span className="fit-item-row">
+              <span className="fit-item-label">{item.label}</span>
+              {impacts?.[i] && <Impact view={impacts[i]!} />}
+            </span>
+            {item.note && <span className="fit-item-note">{item.note}</span>}
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function FitTexts({ title, items, className }: { title: string; items: string[]; className?: string }) {
+  if (items.length === 0) return null;
+  return (
+    <div className={`fit-section${className ? ` ${className}` : ""}`}>
+      <h4 className="fit-section-title">{title}</h4>
+      <ul className="fit-texts">
+        {items.map((text, i) => (
+          <li key={i}>{text}</li>
+        ))}
+      </ul>
+    </div>
+  );
 }
 
 function formatWorkType(wt: string): string {
@@ -123,6 +189,8 @@ interface Props {
   onClose?: () => void;
   /** Called when the click-time live check changes the listing's status. */
   onListingStatusChange?: (jobId: number, listingStatus: string) => void;
+  /** Called with the engine's result once the breakdown answers, so the card can match it. */
+  onFitChange?: (jobId: number, fit: FitChange) => void;
 }
 
 /**
@@ -251,7 +319,7 @@ function extractSkills(text: string): string[] {
   return found;
 }
 
-export default function JobDetailView({ job, onClose, onListingStatusChange }: Props) {
+export default function JobDetailView({ job, onClose, onListingStatusChange, onFitChange }: Props) {
   const [breakdown, setBreakdown] = useState<MatchBreakdown | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -300,16 +368,6 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
       if (parsed) setStructured(parsed);
     }
 
-    if (job.match_score > 0 && job.experience_score > 0) {
-      setBreakdown({
-        experience_score: job.experience_score,
-        skill_score: job.skill_score,
-        industry_score: job.industry_score,
-        overall_score: job.match_score,
-        match_label: job.match_label || getMatchLabel(job.match_score),
-      });
-    }
-
     async function fetchStructured(effectiveDescription: string) {
       if (effectiveDescription.length <= 50) return;
       try {
@@ -324,6 +382,9 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
     }
 
     (async () => {
+      // Details first: fetch-details backfills an empty description, and the
+      // engine reads the posting from it. Asked before, an empty posting
+      // would always read "We couldn't score this".
       const fetchedDescription = await fetchJobDetails();
       if (cancelled) return;
 
@@ -337,9 +398,9 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
       // Required / Preferred / skills) once it's available.
       fetchStructured(effectiveDescription);
 
-      if (job.match_score === 0 && effectiveDescription.length > 50) {
-        triggerAnalysis();
-      }
+      // The breakdown is deterministic and free now (no AI), so every open
+      // asks for it: the card only carries the band and the number.
+      triggerAnalysis();
     })();
 
     return () => {
@@ -373,11 +434,15 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
     }
   }, [description]);
 
+  // Always asked, even with a long local description: it may be a placeholder that
+  // fetch-details replaces, and the breakdown must score the real posting. The
+  // backend answers at once when it already has a good description. The spinner
+  // only replaces the text when there is none to show yet.
   async function fetchJobDetails(): Promise<string> {
-    if (job.description && job.description.length > 50) return job.description;
+    const local = job.description && job.description.length > 50 ? job.description : "";
     const requestedId = job.id;
     const stillOnScreen = () => activeJobIdRef.current === requestedId;
-    setFetchingDetails(true);
+    if (!local) setFetchingDetails(true);
     try {
       const { data } = await api.post(`/jobs/${requestedId}/fetch-details`);
       // The fetch found the posting closed (404, error landing, closed
@@ -389,16 +454,16 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
         if (stillOnScreen()) setLiveStatus(status);
       }
       if (!stillOnScreen()) return "";
-      if (data.apply_url) setApplyUrl(data.apply_url);
-      if (data.description) setDescription(data.description);
-      if (data.company_logo) setCompanyLogo(data.company_logo);
-      return data.description || "";
+      if (data?.apply_url) setApplyUrl(data.apply_url);
+      if (data?.description && data.description !== local) setDescription(data.description);
+      if (data?.company_logo) setCompanyLogo(data.company_logo);
+      return data?.description || local;
     } catch {
       // Keep original URL if fetch fails
     } finally {
       if (stillOnScreen()) setFetchingDetails(false);
     }
-    return "";
+    return local;
   }
 
   async function triggerAnalysis() {
@@ -408,18 +473,26 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
     setError("");
     try {
       const { data } = await api.post<MatchBreakdown>(`/ai/match-breakdown/${requestedId}`);
-      if (stillOnScreen()) setBreakdown(data);
+      if (data && typeof data.outcome === "string") {
+        // The breakdown banks this result, so the card takes it even if the
+        // user has moved on to another job.
+        onFitChange?.(requestedId, {
+          match_outcome: data.outcome,
+          match_band: data.band ?? null,
+          match_score: data.outcome === "SCORED" ? data.display_score ?? 0 : 0,
+        });
+        if (stillOnScreen()) setBreakdown(data);
+      }
     } catch (err: unknown) {
       if (!stillOnScreen()) return;
       const status = (err as { response?: { status?: number } })?.response?.status;
       if (status === 503) {
-        // 503 = the scoring model is unreachable or refused the call (outage,
-        // billing). There is nothing for the user to connect or configure.
+        // Nothing for the user to connect or configure; it is on our side.
         setError("Match scoring is temporarily unavailable. Please try again later.");
-      } else if (status === 422) {
-        setError("Could not fetch a job description to analyze. Try opening the apply link directly.");
+      } else if (status === 400) {
+        setError("Upload a résumé to see how you fit this job.");
       } else if (status) {
-        setError("Failed to analyze job match.");
+        setError("We couldn't load your fit for this job. Please try again later.");
       } else {
         setError("Failed to connect to the server.");
       }
@@ -443,9 +516,20 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
 
   const closed = isListingClosed(liveStatus ?? job.listing_status);
   const source = sourceLabel(job);
-  const score = breakdown?.overall_score ?? job.match_score;
-  const label = breakdown?.match_label ?? getMatchLabel(score);
-  const color = getMatchColor(score);
+  // The full result once the breakdown answers; until then, the card's.
+  const cardResult = cardFit(job);
+  // Only the breakdown shows a number (the card's may hide a displayed interval, D-54).
+  const scored = !!breakdown && breakdown.outcome === "SCORED" && typeof breakdown.display_score === "number";
+  const score = scored ? breakdown!.display_score! : 0;
+  const headline = breakdown ? breakdown.headline || "" : cardResult ? fitSummary(cardResult) : "";
+  const band = breakdown ? breakdown.band : cardResult?.kind === "band" ? cardResult.band : null;
+  const color = TONE_COLORS[bandTone(band)];
+  // A displayed interval replaces the number everywhere (D-54): the ring shows the range.
+  const interval = scored && breakdown?.interval?.display ? breakdown.interval : null;
+  const strengthItems = breakdown?.strength_items ?? [];
+  const gapItems = breakdown?.gaps ?? [];
+  // Impacts are shown on SCORED results only, as words sized against the largest one.
+  const impacts = scored ? impactViews([...strengthItems, ...gapItems].map((item) => item.impact)) : null;
 
   return (
     <div className="job-detail-view">
@@ -685,64 +769,56 @@ export default function JobDetailView({ job, onClose, onListingStatusChange }: P
           {loading && (
             <div className="match-loading-card">
               <div className="spinner" />
-              <span>Analyzing match...</span>
+              <span>Scoring your fit...</span>
             </div>
           )}
 
           {error && <div className="match-error-card">{error}</div>}
 
-          {score > 0 && !loading && (
-            <div className="match-score-card">
-              <div className="match-circle-large">
-                <svg viewBox="0 0 100 100">
-                  <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="6" />
-                  <circle
-                    cx="50" cy="50" r="42"
-                    fill="none" stroke={color} strokeWidth="6"
-                    strokeDasharray={`${score * 2.64} 264`}
-                    strokeLinecap="round"
-                    transform="rotate(-90 50 50)"
-                  />
-                </svg>
-                <span className="match-number-large">{score}<small>%</small></span>
-              </div>
-              <span className="match-label-large" style={{ color }}>{label}</span>
+          {/* The card's result stays up while the breakdown loads. */}
+          {headline && (
+            <div className="match-score-card fit-card" data-tour="fit-breakdown">
+              {scored && score > 0 && (
+                <div className={`match-circle-large${interval ? " fit-range" : ""}`}>
+                  <svg viewBox="0 0 100 100" aria-hidden="true">
+                    <circle cx="50" cy="50" r="42" fill="none" stroke="#e5e7eb" strokeWidth="6" />
+                    <circle
+                      cx="50" cy="50" r="42"
+                      fill="none" stroke={color} strokeWidth="6"
+                      strokeDasharray={
+                        interval
+                          ? `${Math.max(1, interval.high - interval.low) * 2.64} 264`
+                          : `${Math.min(100, score) * 2.64} 264`
+                      }
+                      strokeDashoffset={interval ? -interval.low * 2.64 : undefined}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                  </svg>
+                  <span className="match-number-large">
+                    {interval ? `${interval.low}–${interval.high}` : score}
+                  </span>
+                </div>
+              )}
+              {headline && (
+                <p className="fit-headline" style={scored ? { color } : undefined}>{headline}</p>
+              )}
+              {/* The basis names the point score ("Better fit than 76% ..."), so a displayed
+                  interval hides it too. */}
+              {scored && !interval && breakdown?.basis && <p className="fit-basis">{breakdown.basis}</p>}
             </div>
           )}
 
-          {breakdown && (
-            <div className="match-breakdown">
-              <h3>Match Breakdown</h3>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Experience</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.experience_score}%`, backgroundColor: getMatchColor(breakdown.experience_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.experience_score}%</span>
-              </div>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Skills</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.skill_score}%`, backgroundColor: getMatchColor(breakdown.skill_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.skill_score}%</span>
-              </div>
-              <div className="breakdown-item">
-                <span className="breakdown-label">Industry</span>
-                <div className="breakdown-bar">
-                  <div
-                    className="breakdown-fill"
-                    style={{ width: `${breakdown.industry_score}%`, backgroundColor: getMatchColor(breakdown.industry_score) }}
-                  />
-                </div>
-                <span className="breakdown-value">{breakdown.industry_score}%</span>
-              </div>
+          {breakdown && !loading && (
+            <div className="fit-breakdown">
+              <FitItems title="Strengths" items={strengthItems} impacts={impacts && impacts.slice(0, strengthItems.length)} />
+              <FitItems title="Gaps" items={gapItems} impacts={impacts && impacts.slice(strengthItems.length)} />
+              <FitTexts title="To improve" items={breakdown.to_improve ?? []} />
+              <FitTexts title="Notes" items={breakdown.notes ?? []} className="fit-notes" />
+              {breakdown.outcome === "GATE_FAIL" && (
+                // Compliance section 2: the candidate can correct the facts and recompute.
+                <a className="fit-profile-link" href="/app/profile">Update your application answers</a>
+              )}
             </div>
           )}
         </div>

@@ -61,11 +61,27 @@ describe("JobsSidebar", () => {
   it("shows the résumé snapshot with display-cased skill gaps and a review link", () => {
     setup();
     expect(screen.getByText("Main CV")).toBeTruthy();
-    expect(screen.getByText("72% average")).toBeTruthy();
+    expect(screen.getByText("72 average fit score")).toBeTruthy();
     expect(screen.getByText("AWS")).toBeTruthy();
     expect(screen.getByText("Node.js")).toBeTruthy();
     expect(screen.getByText(/actually used/)).toBeTruthy();
     expect(screen.getByRole("link", { name: /Review résumé/ }).getAttribute("href")).toBe("/app/resume/7");
+  });
+
+  it("names the average by the engine's bands and never shows a percent match", () => {
+    setup();
+    // 72 is a Good match under 85 / 70 / 55 (it was nothing special under the old 80 cut).
+    expect(screen.getByText(/Good match/)).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Average fit score 72" })).toBeTruthy();
+    const rail = screen.getByLabelText("Your job search").textContent ?? "";
+    expect(rail).not.toMatch(/\d%|% match|80%/);
+  });
+
+  it("alert copy follows the Strong band (fit score 85 or higher)", () => {
+    setup();
+    expect(screen.getByText(/Strong match \(fit score 85 or higher\)/)).toBeTruthy();
+    setup({ ...DATA, alerts_enabled: false });
+    expect(screen.getAllByText(/Strong match \(fit score 85 or higher\)/).length).toBe(2);
   });
 
   it("asks for a résumé when there is none", () => {

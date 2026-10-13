@@ -1,0 +1,141 @@
+{
+  "_source": "Captured 2026-10-13 from backend.routers.ai.breakdown_from_result(fit_engine.explain_job(...)) on the real engine (backend/tests fixtures: invented resume and postings). Do not hand-edit; derive variants in the test instead.",
+  "SCORED": {
+    "overall_score": 64,
+    "experience_score": 14,
+    "skill_score": 77,
+    "industry_score": 0,
+    "match_label": "Partial match",
+    "strengths": [
+      "2 of 2 required skills"
+    ],
+    "weaknesses": [
+      "0.1 yrs relevant vs a typical 1.0",
+      "This role is one level above your current one"
+    ],
+    "outcome": "SCORED",
+    "band": "Partial match",
+    "display_score": 64,
+    "headline": "Fit score 64 · Partial match",
+    "basis": "Better fit than 64% of a reference group of candidate profiles",
+    "strength_items": [
+      {
+        "label": "2 of 2 required skills",
+        "impact": "+0.39",
+        "note": "Python and SQL (through your PostgreSQL experience)",
+        "code": "REQUIRED_SKILLS"
+      }
+    ],
+    "gaps": [
+      {
+        "label": "0.1 yrs relevant vs a typical 1.0",
+        "impact": "-0.18",
+        "note": "",
+        "code": "EXPERIENCE_SHORT"
+      },
+      {
+        "label": "This role is one level above your current one",
+        "impact": "-0.04",
+        "note": "",
+        "code": "SENIORITY_GAP"
+      }
+    ],
+    "to_improve": [],
+    "notes": [],
+    "interval": {
+      "low": 64,
+      "high": 64,
+      "display": false
+    }
+  },
+  "SCORED_LOW_CONFIDENCE": {
+    "overall_score": 0,
+    "experience_score": 0,
+    "skill_score": 0,
+    "industry_score": 0,
+    "match_label": "Limited match",
+    "strengths": [
+      "2 of 2 required skills"
+    ],
+    "weaknesses": [
+      "0.1 yrs relevant vs a typical 1.0",
+      "This role is one level above your current one"
+    ],
+    "outcome": "SCORED_LOW_CONFIDENCE",
+    "band": "Limited match",
+    "display_score": null,
+    "headline": "Limited match",
+    "basis": "",
+    "strength_items": [
+      {
+        "label": "2 of 2 required skills",
+        "impact": "",
+        "note": "Docker and Python",
+        "code": "REQUIRED_SKILLS"
+      }
+    ],
+    "gaps": [
+      {
+        "label": "0.1 yrs relevant vs a typical 1.0",
+        "impact": "",
+        "note": "",
+        "code": "EXPERIENCE_SHORT"
+      },
+      {
+        "label": "This role is one level above your current one",
+        "impact": "",
+        "note": "",
+        "code": "SENIORITY_GAP"
+      }
+    ],
+    "to_improve": [],
+    "notes": [
+      "We're showing a band instead of a number because some information was limited.",
+      "Docker is only listed in your skills section; showing it in a project or role would count for more.",
+      "This posting lists very few requirements, so the score rests on little."
+    ],
+    "interval": null
+  },
+  "NEEDS_REVIEW": {
+    "overall_score": 0,
+    "experience_score": 0,
+    "skill_score": 0,
+    "industry_score": 0,
+    "match_label": "We couldn't score this",
+    "strengths": [],
+    "weaknesses": [],
+    "outcome": "NEEDS_REVIEW",
+    "band": null,
+    "display_score": null,
+    "headline": "We couldn't score this",
+    "basis": "",
+    "strength_items": [],
+    "gaps": [],
+    "to_improve": [],
+    "notes": [
+      "We couldn't find any requirements in this job posting."
+    ],
+    "interval": null
+  },
+  "GATE_FAIL": {
+    "overall_score": 0,
+    "experience_score": 0,
+    "skill_score": 0,
+    "industry_score": 0,
+    "match_label": "Not eligible",
+    "strengths": [],
+    "weaknesses": [],
+    "outcome": "GATE_FAIL",
+    "band": null,
+    "display_score": null,
+    "headline": "Not eligible: This role doesn't sponsor work visas, and you indicated you need sponsorship.",
+    "basis": "",
+    "strength_items": [],
+    "gaps": [],
+    "to_improve": [],
+    "notes": [
+      "This is based on the details in your profile. If they've changed, update them and we'll check again."
+    ],
+    "interval": null
+  }
+}

@@ -126,6 +126,7 @@ function stubFor(pathname, method, userOverrides, empty) {
   if (p === "/api/render-resume" || p === "/api/render-cover-letter") return json({ url: "" });
 
   // The AI modals post to /ai/<flow>/<jobId>. Specific flows before the catch-all.
+  if (/^\/ai\/match-breakdown\//.test(p)) return json(F.matchBreakdown);
   if (/^\/ai\/custom-resume-analysis\//.test(p)) return json(F.customResumeAnalysis);
   if (/^\/ai\/custom-resume\//.test(p)) return json(F.customResume);
   if (/^\/ai\/cover-letter\//.test(p)) return json(F.coverLetter);
