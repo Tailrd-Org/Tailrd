@@ -139,6 +139,9 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   taxonomy and the calibration panel were rebuilt with the scripts (panel `panel-66e8ae79ee29`), so
   every banked row is rescored once after deploy. Reason: HPO is ambiguous (Human Phenotype
   Ontology or hyperparameter optimisation) and rare.
+- **Over-qualification stays unpenalised (D-39 confirmed).** Being above a posting's level costs
+  nothing (it raises an `OVERQUALIFIED` flag only). Reason: penalising surplus experience proxies
+  for age, a protected attribute.
 
 ## Costs
 

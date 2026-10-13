@@ -618,6 +618,9 @@ qualified one (distinguished, technical, senior, engineering fellow) is IC6.
 posting's level, which §5.3 explicitly forbids as an age proxy. Default
 `seniority.penalize_overqualification: false`: being above level counts as gap 0 and raises an
 `OVERQUALIFIED` flag in the explanation; the cross-track penalty still applies.
+*Confirmed by the owner (2026-10-13):* over-qualification stays unpenalised, and the flag must not
+be turned on. Reason: penalising surplus experience proxies for age, a protected attribute.
+`tests/test_config_integrity.py` pins the setting to false.
 
 **D-40 Domain (§5.5).** Candidate credit = max over roles (any role, dated or not) of the NAICS
 partial credit against any posting code: exact 1.00 when one code is a prefix of the other or
