@@ -1,4 +1,5 @@
 import OnboardingWizard from "../components/OnboardingWizard";
+import { Logo } from "../components/brand";
 import "./DemoApply.css";
 
 /**
@@ -12,11 +13,7 @@ export default function DemoApply() {
       {/* Company Header */}
       <header className="demo-apply-header">
         <div className="demo-apply-header-inner">
-          <img
-            src="/logo-icon.png"
-            alt="Tailrd"
-            className="demo-apply-logo"
-          />
+          <Logo variant="mark" theme="light" size={48} className="demo-apply-logo" />
           <div className="demo-apply-header-text">
             <h1 className="demo-apply-company">Tailrd</h1>
             <p className="demo-apply-job-title">Software Engineer, Full Stack</p>
@@ -165,7 +162,7 @@ export default function DemoApply() {
             {/* Extension Popup Area */}
             <div id="extension-popup-area" className="demo-extension-popup-area">
               <div className="demo-extension-popup-header">
-                <img src="/logo-icon.png" alt="" className="demo-extension-popup-logo" />
+                <Logo variant="mark" theme="light" size={24} decorative className="demo-extension-popup-logo" />
                 <span className="demo-extension-popup-title">Tailrd Extension</span>
               </div>
               <p className="demo-extension-popup-text">

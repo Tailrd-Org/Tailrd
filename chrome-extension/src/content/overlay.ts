@@ -14,7 +14,7 @@
 import { reattachIfDetached } from "./domUtils";
 import { base64ToFile } from "./fileUpload";
 import { resolveCompanyLogo } from "./companyLogo";
-import { BRAND_LOGO_DATA_URI, BRAND_MARK_DATA_URI } from "./brandLogo";
+import { BRAND_LOCKUP_SVG, BRAND_MARK_SVG } from "./brandLogo";
 import {
   cryptoId,
   emptyExtras,
@@ -378,11 +378,10 @@ const I_PAPERCLIP = ph(P_PAPERCLIP);
 const I_INFO = ph(P_INFO);
 const I_KEY = ph(P_KEY);
 
-// The header brand mark is the real Tailrd wing logo, rendered as a data-URI
-// <img> (see brandLogo.ts + wireBrandLogo). It is NOT an inline SVG because the
-// real logo is a gradient wing that can't be faithfully reproduced as hand-coded
-// vector; the <img> shows the true logo where the page CSP allows it and the
-// header falls back to the "Tailrd" wordmark where a strict img-src CSP blocks it.
+// The header lockup and the edge-tab mark are inline SVG from brandLogo.ts, which
+// is generated from the web app's brand constants. Inline SVG stays crisp at any
+// device pixel ratio and, unlike a data-URI <img>, is never blocked by a host
+// page's img-src CSP, so neither needs a fallback.
 
 
 // ---------------------------------------------------------------------------
@@ -426,10 +425,7 @@ export const STYLES = `
 .ap-root * { pointer-events: auto; }
 
 /* ---- Edge tab ----
-   A white tab carrying the circular Tailrd mark. On strict img-src CSP pages
-   the data-URI mark is blocked, and wireBrandLogo() adds .is-fallback, which
-   restores the original purple gradient + white chevron so the tab is never
-   an empty white sliver. */
+   A white tab carrying the circular Tailrd mark (inline SVG). */
 .ap-edge-tab {
   position: fixed;
   top: 50%; right: 0;
@@ -446,18 +442,7 @@ export const STYLES = `
   transition: width 0.15s, box-shadow 0.15s;
 }
 .ap-edge-tab:hover { width: 48px; box-shadow: -3px 0 16px rgba(var(--stripe-shadow-rgb),0.24); }
-.ap-edge-mark { width: 28px; height: 28px; object-fit: contain; display: block; }
-.ap-edge-tab svg { display: none; }
-.ap-edge-tab.is-fallback {
-  width: 28px;
-  border: none;
-  border-radius: 10px 0 0 10px;
-  background: linear-gradient(180deg, var(--stripe-primary) 0%, var(--stripe-primary-deep) 100%);
-  box-shadow: -2px 0 10px rgba(var(--stripe-primary-rgb),0.3);
-}
-.ap-edge-tab.is-fallback:hover { width: 32px; }
-.ap-edge-tab.is-fallback .ap-edge-mark { display: none; }
-.ap-edge-tab.is-fallback svg { display: block; width: 14px; height: 14px; transform: rotate(180deg); }
+.ap-edge-mark { width: 28px; height: 28px; display: block; flex-shrink: 0; }
 .ap-root.ap-expanded .ap-edge-tab { display: none; }
 .ap-root.ap-collapsed .ap-panel { display: none; }
 
@@ -490,8 +475,7 @@ export const STYLES = `
   flex-shrink: 0;
 }
 .ap-brand { display: flex; align-items: center; gap: 10px; }
-.ap-brand-lockup { height: 26px; width: auto; max-width: 160px; object-fit: contain; display: block; }
-.ap-brand-name { font-weight: 800; font-size: 18px; color: var(--stripe-ink); letter-spacing: -0.3px; }
+.ap-brand-lockup { height: 26px; width: 69.85px; display: block; flex-shrink: 0; }
 .ap-header-right { display: flex; align-items: center; gap: 6px; }
 .ap-icon-btn {
   border: none; background: var(--stripe-canvas-soft);
@@ -544,8 +528,7 @@ export const STYLES = `
 
    The waves are inline <svg>, never a url(data:image/svg+xml…) background:
    pages with a strict img-src CSP (Greenhouse, Workday, many banks) block
-   data-URI images outright, the same trap wireBrandLogo() works around for
-   the brand marks. */
+   data-URI images outright (which is also why the brand marks are inline SVG). */
 .ap-fillwave {
   flex-shrink: 0;
   height: 0;
@@ -1343,38 +1326,8 @@ function ensureMounted(): void {
   // wireEvents dereferenced a null refs and threw, aborting overlay mount, the
   // panel then never opened on any form page.)
   installRefs(root);
-  wireBrandLogo(root);
   wireEvents(root);
   installMountWatchdog();
-}
-
-/**
- * The header lockup and the edge-tab mark are the real Tailrd logo as data-URI
- * <img>s. Pages with a strict `img-src` CSP (Greenhouse, Workday, many banks)
- * block data-URI images, and inline `onerror=""` handlers are blocked too, so
- * attach the error handlers from our own (allowed) content-script JS, and set
- * `src` only AFTER they are live so a synchronous failure can't beat the
- * listener. On failure the header falls back to the "Tailrd" wordmark and the
- * edge tab to its original purple chevron.
- */
-function wireBrandLogo(root: HTMLElement): void {
-  const img = root.querySelector<HTMLImageElement>(".ap-brand-lockup");
-  if (img) {
-    img.addEventListener("error", () => {
-      img.style.display = "none";
-      const wordmark = root.querySelector<HTMLElement>(".ap-brand-name");
-      if (wordmark) wordmark.style.display = "";
-    });
-    img.src = BRAND_LOGO_DATA_URI;
-  }
-
-  const mark = root.querySelector<HTMLImageElement>(".ap-edge-mark");
-  if (mark) {
-    mark.addEventListener("error", () => {
-      root.querySelector(".ap-edge-tab")?.classList.add("is-fallback");
-    });
-    mark.src = BRAND_MARK_DATA_URI;
-  }
 }
 
 /**
@@ -1448,15 +1401,13 @@ export function waveLayerHTML(which: "back" | "front"): string {
 export function buildHTML(): string {
   return `
     <button class="ap-edge-tab" type="button" title="Open Tailrd" aria-label="Open Tailrd">
-      <img class="ap-edge-mark" alt="" />
-      ${I_CHEVRON_RIGHT}
+      ${BRAND_MARK_SVG}
     </button>
     <div class="ap-panel">
       <!-- Header -->
       <header class="ap-header">
         <div class="ap-brand">
-          <img class="ap-brand-lockup" alt="Tailrd" />
-          <span class="ap-brand-name" style="display:none">Tailrd</span>
+          ${BRAND_LOCKUP_SVG}
         </div>
         <div class="ap-header-right">
           <button class="ap-icon-btn" id="ap-btn-close" title="Close">${I_CLOSE}</button>

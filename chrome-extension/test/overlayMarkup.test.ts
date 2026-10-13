@@ -97,13 +97,18 @@ describe("autofill information", () => {
 });
 
 describe("edge tab", () => {
-  it("carries the brand mark plus a chevron for the strict-CSP fallback", () => {
+  it("carries the brand mark as inline SVG, so no page CSP can block it", () => {
     const tab = root.querySelector(".ap-edge-tab")!;
-    expect(tab.querySelector("img.ap-edge-mark")).not.toBeNull();
-    expect(tab.querySelector("svg")).not.toBeNull();
+    const mark = tab.querySelector("svg.ap-edge-mark")!;
+    expect(mark).not.toBeNull();
+    expect(mark.getAttribute("aria-hidden")).toBe("true");
+    expect(tab.querySelector("img")).toBeNull();
   });
 
-  it("leaves the mark's src unset in markup, wireBrandLogo sets it after the error listener", () => {
-    expect(root.querySelector(".ap-edge-mark")!.getAttribute("src")).toBeNull();
+  it("puts the inline-SVG lockup, named Tailrd, in the header", () => {
+    const lockup = root.querySelector(".ap-brand svg.ap-brand-lockup")!;
+    expect(lockup).not.toBeNull();
+    expect(lockup.getAttribute("role")).toBe("img");
+    expect(lockup.getAttribute("aria-label")).toBe("Tailrd");
   });
 });

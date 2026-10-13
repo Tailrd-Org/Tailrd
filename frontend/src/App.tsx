@@ -25,6 +25,7 @@ import ApplyConfirmModal from "./components/ApplyConfirmModal";
 import SettingsModal from "./components/SettingsModal";
 import ExtensionBanner from "./components/ExtensionBanner";
 import { OnboardingProvider } from "./onboarding";
+import { Logo } from "./components/brand";
 
 export default function App() {
   const { user, logout } = useAuth();
@@ -76,7 +77,7 @@ export default function App() {
         >
           <List size={22} weight="bold" />
         </button>
-        <img src="/logo-icon.png" alt="" className="app-topbar-logo" />
+        <Logo variant="mark" theme="light" size={24} decorative className="app-topbar-logo" />
         <span className="app-topbar-title">Tailrd</span>
       </header>
 
@@ -89,7 +90,7 @@ export default function App() {
       <aside className="sidebar" id="app-sidebar">
         {/* Logo */}
         <div className="sidebar-logo">
-          <img src="/logo-icon.png" alt="Tailrd" className="sidebar-logo-img" />
+          <Logo variant="mark" theme="light" size={28} className="sidebar-logo-img" />
           <span className="logo-text">Tailrd</span>
           <button
             className="sidebar-close"

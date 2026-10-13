@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import { safeNextPath } from "../auth/nextRedirect";
+import { Logo } from "../components/brand";
 
 /** Landing page after the LinkedIn OAuth callback (route: /linkedin/complete).
  *  Hydrates the session from the refresh cookie, then redirects into the app. */
@@ -24,7 +25,7 @@ export default function LinkedInComplete() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <img src="/logo-icon.png" alt="Tailrd" className="auth-brand-logo" />
+          <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
         </div>
         {failed ? (
           <div className="auth-head">

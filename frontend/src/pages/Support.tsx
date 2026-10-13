@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Logo } from "../components/brand";
 import "../privacy.css";
 
 /**
@@ -11,7 +12,7 @@ export default function Support() {
       <div className="legal-doc">
         {/* Brand */}
         <Link to="/" className="legal-brand" aria-label="Back to home">
-          <img src="/logo-icon.png" alt="" className="legal-brand-img" />
+          <Logo variant="mark" theme="light" size={30} decorative className="legal-brand-img" />
           <span>Tailrd</span>
         </Link>
 

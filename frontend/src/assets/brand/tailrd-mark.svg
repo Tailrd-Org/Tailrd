@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img">
+  <title>Tailrd</title>
+  <!-- Tailrd mark, light. 48-unit box; round caps and joins throughout. -->
+  <g fill="none" stroke="#6247E5" stroke-linecap="round" stroke-linejoin="round">
+    <!-- 1. Ring: r = 21.5 about (24, 24), broken by a 31.9 deg gap at the lower
+         left where the trail exits. Heavier than the plane, as in the source art. -->
+    <path stroke-width="1.73" d="M4.92 33.91A21.5 21.5 0 1 1 13.05 42.5"/>
+    <g stroke-width="1.1">
+      <!-- 2. Plane silhouette: wing tip, nose, tail tip, keel junction, keel tip, wing root. -->
+      <path d="M9.61 22.65L37.97 12.83L29.99 35.94L23.48 31.59L18.23 36.08L16.41 27.5Z"/>
+      <!-- 3. Folds: the wing's inner edge, the centre crease running down the keel,
+           and the tail panel's lower edge. -->
+      <path d="M16.41 27.5L37.97 12.83"/>
+      <path d="M37.97 12.83L20.41 29.53L18.23 36.08"/>
+      <path d="M20.41 29.53L23.48 31.59"/>
+      <!-- 4. Trail: four dashes on two parallel speed lines at 37 deg; the outer
+           pair exits through the gap in the ring. -->
+      <path d="M8.34 36.17L5.69 38.17"/>
+      <path d="M10.01 39.72L5.96 42.78"/>
+      <path d="M13.44 32.33L10.53 34.52"/>
+      <path d="M15.06 35.91L12.01 38.22"/>
+    </g>
+  </g>
+</svg>

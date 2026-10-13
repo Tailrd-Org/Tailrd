@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import { motion } from "framer-motion";
 import { useAuth } from "../auth/useAuth";
+import { Logo } from "../components/brand";
 
 interface Props {
   headline: string;
@@ -16,7 +17,7 @@ export function SetupLayout({ headline, stepIndex, total, children }: Props) {
       <div className="setup-left">
         <div className="setup-assistant">
           <span className="setup-assistant-avatar">
-            <img src="/logo-icon.png" alt="Tailrd" className="setup-assistant-logo" />
+            <Logo variant="mark" theme="light" size={48} className="setup-assistant-logo" />
           </span>
           <span>
             <div className="setup-assistant-name">Tailrd</div>

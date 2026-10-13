@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import type { To } from "react-router-dom";
 import { useAuth } from "../../auth/useAuth";
+import { Logo } from "../brand";
 
 /** Section links use hash routes so they work from any page; the Landing page
  *  scrolls to the hash on mount / hash change. */
@@ -46,7 +47,7 @@ export default function SiteHeader() {
       <div className="landing-nav-inner">
         <div className="landing-brand">
           <Link to="/" aria-label="Tailrd home">
-            <img src="/logo-full.png" alt="Tailrd" className="landing-logo-full" />
+            <Logo theme="light" size={32} className="landing-logo-full" />
           </Link>
         </div>
         <div className="landing-nav-links">

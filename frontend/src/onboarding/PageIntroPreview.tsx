@@ -1,4 +1,5 @@
 import type { PageIntroId } from "./pageIntros";
+import { Logo } from "../components/brand";
 
 /**
  * A detailed, themed mini-mock of each page/feature, shown inside the intro
@@ -9,7 +10,7 @@ export function PageIntroPreview({ id }: { id: PageIntroId }) {
     <div className="pgi-mock" aria-hidden>
       <div className="pgi-mock-bar">
         <span className="pgi-mock-brand">
-          <img src="/logo-icon.png" alt="" />
+          <Logo variant="mark" theme="light" size={16} decorative />
           <b>Tailrd</b>
         </span>
         <span className="pgi-mock-dots"><i /><i /><i /></span>

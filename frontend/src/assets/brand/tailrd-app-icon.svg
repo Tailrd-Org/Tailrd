@@ -1,0 +1,18 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 48 48" role="img">
+  <title>Tailrd</title>
+  <!-- Tailrd app icon. -->
+  <!-- Rounded tile: corner radius 22.37% of the canvas. -->
+  <rect width="48" height="48" rx="10.74" fill="#6247E5"/>
+  <!-- Plane and trail in white, no ring: the tile already contains the mark. The ring's
+       footprint sets the scale (64% of the canvas), then the plane is optically centred. -->
+  <g transform="translate(9.01 4.9) scale(0.6868)" fill="none" stroke="#FFFFFF" stroke-width="1.91" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M9.61 22.65L37.97 12.83L29.99 35.94L23.48 31.59L18.23 36.08L16.41 27.5Z"/>
+    <path d="M16.41 27.5L37.97 12.83"/>
+    <path d="M37.97 12.83L20.41 29.53L18.23 36.08"/>
+    <path d="M20.41 29.53L23.48 31.59"/>
+    <path d="M8.34 36.17L5.69 38.17"/>
+    <path d="M10.01 39.72L5.96 42.78"/>
+    <path d="M13.44 32.33L10.53 34.52"/>
+    <path d="M15.06 35.91L12.01 38.22"/>
+  </g>
+</svg>

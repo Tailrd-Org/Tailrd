@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Logo } from "../components/brand";
 import "../privacy.css";
 
 /** Public Terms of Service (route: /terms). Reuses the legal reading layout. */
@@ -7,7 +8,7 @@ export default function Terms() {
     <div className="legal-page">
       <div className="legal-doc">
         <Link to="/" className="legal-brand" aria-label="Back to home">
-          <img src="/logo-icon.png" alt="" className="legal-brand-img" />
+          <Logo variant="mark" theme="light" size={30} decorative className="legal-brand-img" />
           <span>Tailrd</span>
         </Link>
         <h1 className="legal-title">Terms of Service</h1>

@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { X } from "@phosphor-icons/react";
 import type { PageIntroContent, PageIntroId } from "./pageIntros";
 import { PageIntroPreview } from "./PageIntroPreview";
+import { Logo } from "../components/brand";
 import "./page-intro.css";
 
 interface Props {
@@ -35,7 +36,7 @@ export function PageIntroModal({ id, content, onClose }: Props) {
 
         <div className="pgi-banner">
           <div className="pgi-badge">
-            <img src="/logo-icon.png" alt="Tailrd" />
+            <Logo variant="mark" theme="light" size={34} />
           </div>
           <span className="pgi-eyebrow">{content.eyebrow}</span>
           <h2 className="pgi-title">{content.title}</h2>

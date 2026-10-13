@@ -38,7 +38,7 @@
   width: 60px; height: 60px; margin: 0 auto 16px; border-radius: 16px; display: grid; place-items: center;
   background: #fff; box-shadow: 0 8px 20px rgba(0, 55, 112, 0.14);
 }
-.pgi-badge img { width: 34px; height: 34px; object-fit: contain; display: block; }
+.pgi-badge img, .pgi-badge svg { width: 34px; height: 34px; object-fit: contain; display: block; }
 .pgi-eyebrow {
   display: inline-block; font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase;
   color: var(--accent, #533afd); margin-bottom: 8px;
@@ -56,7 +56,7 @@
   border-bottom: 1px solid var(--border-light, #eef2f6); background: var(--bg-page, #fafbfc);
 }
 .pgi-mock-brand { display: flex; align-items: center; gap: 7px; font-size: 12px; color: var(--text, #1a1a1a); }
-.pgi-mock-brand img { width: 16px; height: 16px; object-fit: contain; }
+.pgi-mock-brand img, .pgi-mock-brand svg { width: 16px; height: 16px; object-fit: contain; }
 .pgi-mock-brand b { font-weight: 700; }
 .pgi-mock-dots { display: flex; gap: 4px; }
 .pgi-mock-dots i { width: 7px; height: 7px; border-radius: 9999px; background: var(--border, #e2e2e2); }

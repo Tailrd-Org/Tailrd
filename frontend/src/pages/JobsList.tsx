@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Logo } from "../components/brand";
 import "../jobslist.css";
 
 const API_BASE = "";
@@ -177,7 +178,7 @@ export default function JobsList() {
         <div className="jl-nav-inner">
           <div className="jl-nav-left">
             <a href="/" className="jl-logo">
-              <img src="/logo-icon.png" alt="Tailrd" className="jl-logo-img" />
+              <Logo variant="mark" theme="light" size={32} className="jl-logo-img" />
               <span className="jl-logo-text">Tailrd</span>
             </a>
           </div>
