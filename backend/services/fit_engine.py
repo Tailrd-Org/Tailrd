@@ -361,12 +361,38 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     return parsed
 
 
+_ROLE_DATE_KEYS = ("start_date", "end_date")
+_ROLE_CONTENT_KEYS = ("title", "company")
+
+
+def _document_roles_undated(document: Mapping[str, Any]) -> bool:
+    """True when the stored document has at least one experience role and no role has a start or
+    an end date: the shape of a résumé extracted before 2026-07-09 (commit 1062972), whose dates
+    were dropped at ingest although its raw text holds them (D-152)."""
+    roles = [item for item in (document.get("experience") or ()) if isinstance(item, Mapping) and (
+        any(isinstance(item.get(key), str) and item.get(key).strip() for key in _ROLE_CONTENT_KEYS)
+        or any(isinstance(b, str) and b.strip() for b in (item.get("bullets") or ())))]
+    if not roles:
+        return False
+    return not any(isinstance(item.get(key), str) and item.get(key).strip()
+                   for item in roles for key in _ROLE_DATE_KEYS)
+
+
 def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Mapping[str, str], clearance: str,
                   engine: FitEngine, as_of: dt.date) -> ParsedResume:
     parsed = resume_from_document(document, as_of=as_of, resolver=engine.resolver, config=engine.config,
                                   parse_config=engine.parse_config,
                                   raw_text=raw_text if isinstance(raw_text, str) else None,
                                   resources=engine.resume_resources)
+    if _document_roles_undated(document) and isinstance(raw_text, str) and raw_text.strip():
+        # D-80 amended (D-152): a legacy document that lost every date (pre-2026-07-09 extraction)
+        # is scored from the raw text instead, when the engine's text path finds a dated role there.
+        # The whole parse is swapped, never dates copied across, so roles cannot be mismatched.
+        from_text = resume_from_document({}, as_of=as_of, resolver=engine.resolver, config=engine.config,
+                                         parse_config=engine.parse_config, raw_text=raw_text,
+                                         resources=engine.resume_resources)
+        if from_text.resume is not None and any(role.dated for role in from_text.resume.roles):
+            parsed = from_text
     if parsed.resume is None:
         return parsed
     place = _profile_location(fields)

@@ -60,6 +60,28 @@ change).
 
 ## Outcomes
 
+**Update, same day: the résumé-side cause was a legacy document, now handled (D-152).** The one
+résumé was extracted before 2026-07-09, when upload extraction dropped every date from the stored
+document although the raw text keeps them. The adapter now scores such a document from its raw
+text when the engine's text parse finds a dated role (DECISIONS D-152, amending D-80). The same
+sample, re-run read-only (403 rows, about 1.3 MB):
+
+| Outcome | Before D-152 | After D-152 |
+| --- | --- | --- |
+| SCORED | 0 | **213** (53.25 %) |
+| SCORED_LOW_CONFIDENCE | 0 | 147 (36.75 %) |
+| NEEDS_REVIEW | 399 (99.75 %) | **39** (9.75 %) |
+| GATE_FAIL | 1 | 1 |
+
+After the fix the drift monitor's abstention rate (NEEDS_REVIEW plus SCORED_LOW_CONFIDENCE) is
+46.5 %. That is still above the 20 % alarm, and it is now posting-driven: across the NEEDS_REVIEW
+and low-confidence pairs the reasons are POSTING_TRUNCATED 136, LOW_DIMENSION_COVERAGE 107,
+FEW_REQUIREMENTS 88, LOW_EVIDENCE_DENSITY 35, POSTING_UNSCORABLE 32, LOW_TAXONOMY_COVERAGE 16 and
+LOW_CONFIDENCE 7. LOW_TEMPORAL_COMPLETENESS is gone. Bands: Limited 358, Partial 2. The display
+score on the 213 SCORED pairs runs p10 0, p50 10, p90 34: one early-career résumé against the 400
+newest jobs of every family, so low percentiles are expected. The tables below are the original,
+pre-fix run.
+
 | Outcome | Pairs | Share |
 | --- | --- | --- |
 | SCORED | 0 | 0 % |
@@ -140,7 +162,7 @@ queue.
 ## What this means for the deploy
 
 - Latency is fine: about 2.5 ms a pair, and a cold build well inside the budget.
-- The abstention rate on this sample would page the drift alarm on day one. Before deploy, check
+- The abstention rate on this sample (99.75 % before D-152, 46.5 % with low confidence included after it) would page the drift alarm on day one. Before deploy, check
   on production (read-only) how many descriptions are truncated, and expect "We couldn't score
   this" on most cards for any user whose roles have no dates and for every truncated posting.
 - The Development schema has not been migrated: the Postgres migration smoke test (an owner

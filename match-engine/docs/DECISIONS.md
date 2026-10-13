@@ -911,7 +911,8 @@ sections, because that is what the user sees and edits (`raw_text` is never upda
 When the document has no sections (the upload-time section extraction is an LLM call and fails
 when OpenAI is unavailable), the engine parses `raw_text` with its own deterministic parser.
 Scoring therefore never calls, and never waits on, any AI. Upload-time extraction itself is a
-résumé feature, not job scoring, and is out of scope.
+résumé feature, not job scoring, and is out of scope. *Amended by D-152:* a document whose
+experience roles are all undated is scored from `raw_text` when the text parse finds a dated role.
 
 **D-81 Which résumé.** Unchanged from today: the user's newest résumé with text
 (`jobs_sidebar` / `match_notifier` selection), so this change does not also move users between
@@ -1546,3 +1547,29 @@ moved 20.8 at raw 0.5 and is never used. Over the new pooled samples, old-minus-
 -0.31 at the median (p05 -0.85, p95 +0.08). No test pins the panel to the current config: a rebuild
 needs the corpus, which is not committed, so a CI check would block every config or taxonomy change
 for contributors without it. The rebuild stays a release step (docs/fit-engine.md).
+
+**D-152 The raw-text fallback for a document that lost its dates (amends D-80; Task 9.6). [Tailrd]**
+Résumé rows extracted before 2026-07-09 (commit 1062972) hold documents whose experience
+`start_date` / `end_date` are all empty although the raw text has the dates: the old prompts returned
+dates under keys pydantic dropped. D-80 prefers the document, so the engine saw no dated role and
+withheld every score (temporal completeness 0, LOW_TEMPORAL_COMPLETENESS; the Task 9.6 dry run's one
+Development résumé was 99.75 % NEEDS_REVIEW for this reason). A read-only production count found 1 of
+5 users with a résumé affected, all rows from before the fix.
+- *Rule* (`fit_engine._parse_resume`): when the stored document has at least one experience role
+  (a title, company or bullet) and no role has a start or an end date, the raw text, if present, is
+  also parsed with the engine's text path. If that parse has at least one dated role it is the one
+  scored; otherwise the document parse is kept. Undated raw text, no raw text, or any dated
+  document role: the document path, exactly as before.
+- *Whole parse, never a merge.* Dates are not copied between the two parses: matching document roles
+  to text roles would be a second heuristic, and a wrong match would invent a timeline.
+- *Stable.* The choice depends only on the stored inputs, so it is deterministic; the scored
+  `Resume`, and so the fingerprint (D-82), changes only for an affected row (it is rescored once).
+- *Thresholds untouched.* The confidence rules (D-44, SPEC section 17) are the spec's and right for a
+  résumé that truly has no dates; nothing about them changed.
+- *Cost.* One extra text parse (about 0.7 s) per affected résumé per month, memoised by the parse
+  cache.
+- *Still open:* such rows also file Projects as experience roles; re-extracting them is a data task
+  for the owner, not the adapter's.
+- *Dry run, same Development sample (1 résumé x 400 jobs):* before SCORED 0, SCORED_LOW_CONFIDENCE 0,
+  NEEDS_REVIEW 399, GATE_FAIL 1; after SCORED 213, SCORED_LOW_CONFIDENCE 147, NEEDS_REVIEW 39,
+  GATE_FAIL 1.
