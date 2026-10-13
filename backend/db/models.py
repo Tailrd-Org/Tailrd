@@ -14,7 +14,7 @@ Models:
 import enum
 import datetime
 from sqlalchemy import (
-    Boolean, Column, Integer, String, Text, DateTime, Enum, JSON, Float,
+    Boolean, Column, Date, Integer, String, Text, DateTime, Enum, JSON, Float,
     ForeignKey, LargeBinary, UniqueConstraint, func, true,
 )
 from sqlalchemy.orm import deferred
@@ -405,14 +405,18 @@ class MatchFingerprint(Base):
     (fit_reads.serving_fingerprints): when ``input_key`` (a sha256 of the stored résumé and the
     saved answers, computed without the engine) still matches the user's current inputs, the
     rows banked under ``fingerprint`` are current for them. An edited résumé or answer changes
-    the key, so its old scores stop being served at once. Written by fit_engine.bank_scores.
-    One row per user (DECISIONS D-107).
+    the key, so its old scores stop being served at once. ``as_of`` is the scoring month the
+    fingerprint was banked for (fit_engine.fit_as_of, D-87): a fingerprint from another month is
+    not served, since the résumé is re-parsed, and so re-fingerprinted, every month. NULL (a row
+    from before the column) is served. Written by fit_engine.bank_scores. One row per user
+    (DECISIONS D-107).
     """
     __tablename__ = "match_fingerprints"
 
     user_id = Column(Integer, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
     input_key = Column(String(64), nullable=False)
     fingerprint = Column(String(64), nullable=False)
+    as_of = Column(Date, nullable=True)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow)
 
 

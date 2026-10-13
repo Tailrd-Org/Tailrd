@@ -120,9 +120,30 @@ def _sqlite(engine, columns: dict[str, dict]) -> None:
                 conn.execute(text(f"ALTER TABLE {TABLE} ADD COLUMN {name} {COLUMNS[name]}"))
 
 
+FINGERPRINTS = "match_fingerprints"
+
+
+def _fingerprint_month(engine) -> None:
+    """``match_fingerprints.as_of`` (fix round 1 of Task 9.2): nullable, additive, idempotent."""
+    if FINGERPRINTS not in inspect(engine).get_table_names():
+        return
+    if "as_of" in {col["name"] for col in inspect(engine).get_columns(FINGERPRINTS)}:
+        return
+    with engine.begin() as conn:
+        if engine.dialect.name == "postgresql":
+            conn.execute(text(f"SET LOCAL lock_timeout = '{LOCK_TIMEOUT}'"))
+            conn.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": _ADVISORY_LOCK_KEY})
+            conn.execute(text(f"ALTER TABLE {FINGERPRINTS} ADD COLUMN IF NOT EXISTS as_of DATE"))
+        else:
+            conn.execute(text(f"ALTER TABLE {FINGERPRINTS} ADD COLUMN as_of DATE"))
+    logger.info("Added %s.as_of", FINGERPRINTS)
+
+
 def run_migration(engine=None) -> None:
-    """Bring job_match_scores, match_traces and match_calibration to the fit-engine shape."""
+    """Bring job_match_scores, match_traces, match_calibration and match_fingerprints to the
+    fit-engine shape."""
     engine = engine or default_engine
+    _fingerprint_month(engine)
     if TABLE not in inspect(engine).get_table_names():
         logger.info("Fit-engine migration skipped: %s missing (create_all builds it).", TABLE)
         return

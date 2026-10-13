@@ -91,12 +91,19 @@ def _overlay_saved(db: Session, jobs: list[ScrapedJob], user_id: Optional[int]) 
     for job in jobs:
         out = ScrapedJobOut.model_validate(job)
         out.saved = 1 if job.id in saved_ids else 0
+        # A card carries engine data only: the AI-era per-job values still on
+        # scraped_jobs (written from one user's résumé by the deleted AI paths)
+        # are never served (D-109).
         out.match_score, out.match_band, out.match_outcome = 0, None, None
+        out.experience_score = out.skill_score = out.industry_score = 0
+        out.requirements_met = out.requirements_total = 0
+        out.requirements_detail, out.match_summary, out.match_label = [], "", ""
         if job.id in scores:
             value, band, outcome = scores[job.id]
             # A number only for SCORED (D-86); the band alone for low confidence.
             out.match_score = value if outcome == "SCORED" and value is not None else 0
             out.match_band, out.match_outcome = band, outcome
+            out.match_label = band or ""
         out.url = legacy_urls.apply_url(out.url)
         results.append(out)
     return results
@@ -185,7 +192,9 @@ def list_jobs(
         expand_experience_filter_values,
     )
 
-    q = db.query(ScrapedJob).filter(ScrapedJob.match_score >= min_score)
+    # min_score is applied below to the user's own engine score; the global
+    # scraped_jobs.match_score is an AI-era value and is never read (D-109).
+    q = db.query(ScrapedJob)
     q = q.filter(
         ScrapedJob.company.isnot(None),
         func.trim(ScrapedJob.company) != "",
@@ -297,19 +306,28 @@ def list_jobs(
     user_score = None
     profile = (
         jobs_sidebar.scoring_resume(db, user_id)
-        if user_id is not None and (strong or sort == "match")
+        if user_id is not None and (strong or sort == "match" or min_score > 0)
         else None
     )
     fingerprints = jobs_sidebar.serving_fingerprints(db, user_id, profile) if profile is not None else []
-    if strong:
-        # A confident Strong match: outcome SCORED, band Strong (D-85).
+    if strong or min_score > 0:
+        # strong=1: a confident Strong match (outcome SCORED, band Strong, D-85).
+        # min_score: the user's own SCORED engine score at or above it; a NULL
+        # score (not scored, low confidence, gate fail, review) never passes.
         if profile is None or not fingerprints:
             return []
         q = q.join(JobMatchScore, JobMatchScore.job_id == ScrapedJob.id).filter(
             JobMatchScore.user_id == user_id,
             JobMatchScore.resume_fingerprint.in_(fingerprints),
-            fit_reads.strong_match(),
         )
+        if strong:
+            q = q.filter(fit_reads.strong_match())
+        if min_score > 0:
+            q = q.filter(
+                JobMatchScore.outcome == fit_reads.OUTCOME_SCORED,
+                JobMatchScore.score.isnot(None),
+                JobMatchScore.score >= min_score,
+            )
         user_score = JobMatchScore.score
     elif profile is not None:
         q = q.outerjoin(
@@ -329,7 +347,7 @@ def list_jobs(
 
     # id tiebreaker: bulk inserts share timestamps, and ties without a total
     # order make pagination unstable (the same job shows up on two pages).
-    if user_score is not None:
+    if user_score is not None and (strong or sort == "match"):
         # NULL scores (not scored, low confidence, gate fail, needs review) after
         # every scored job, never as a low score (D-86); ties newest first.
         q = q.order_by(
@@ -337,13 +355,9 @@ def list_jobs(
             effective_date.desc().nullslast(),
             ScrapedJob.id.desc(),
         )
-    elif sort == "match":
-        q = q.order_by(
-            ScrapedJob.match_score.desc(),
-            effective_date.desc().nullslast(),
-            ScrapedJob.id.desc(),
-        )
     else:
+        # Also sort=match without a résumé: there is no score of this user's to
+        # sort by, so newest first (never the AI-era global column).
         q = q.order_by(effective_date.desc().nullslast(), ScrapedJob.id.desc())
 
     q = q.offset((page - 1) * page_size).limit(page_size)
@@ -1034,8 +1048,29 @@ def job_stats(
             .count()
         )
 
-    avg_score = db.query(func.avg(ScrapedJob.match_score)).scalar()
-    avg_match_score = round(avg_score) if avg_score else 0
+    # The user's own SCORED engine scores on visible jobs; None when there are
+    # none (anonymous, no résumé, nothing scored yet). Never the AI-era column.
+    avg_match_score = None
+    if user_id is not None:
+        profile = jobs_sidebar.scoring_resume(db, user_id)
+        fingerprints = jobs_sidebar.serving_fingerprints(db, user_id, profile)
+        if fingerprints:
+            from backend.db.models import JobMatchScore
+            from backend.services import fit_reads
+
+            avg_score = (
+                db.query(func.avg(JobMatchScore.score))
+                .join(ScrapedJob, ScrapedJob.id == JobMatchScore.job_id)
+                .filter(
+                    _has_company,
+                    JobMatchScore.user_id == user_id,
+                    JobMatchScore.resume_fingerprint.in_(fingerprints),
+                    JobMatchScore.outcome == fit_reads.OUTCOME_SCORED,
+                    JobMatchScore.score.isnot(None),
+                )
+                .scalar()
+            )
+            avg_match_score = round(avg_score) if avg_score is not None else None
 
     # Breakdown by country
     by_country = {}

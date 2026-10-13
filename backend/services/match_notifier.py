@@ -705,8 +705,12 @@ async def sweep_match_alerts(
     if engine_failed:
         summary["error"] = engine_failed
 
-    # Once per sweep: the live calibration references, then the drift report.
-    if users_scanned and not engine_failed:
+    # Once per sweep: the live calibration references, then the drift report. A sweep
+    # that could not score anything (no salt) skips both rather than build the engine
+    # (about 10 s of the cron's 300) for nothing, and says so.
+    if salt_missing and jobs_scored == 0:
+        summary["calibration"] = summary["drift"] = "skipped: no scores"
+    elif users_scanned and not engine_failed:
         try:
             summary["calibration"] = fit_engine.refresh_calibration(db)
         except Exception as exc:

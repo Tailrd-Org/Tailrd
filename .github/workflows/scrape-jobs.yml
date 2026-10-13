@@ -166,13 +166,14 @@ jobs:
           head -c 6000 response.json 2>/dev/null || true; echo
           case "$code" in 2*) ;; *) exit 1 ;; esac
 
-      # cron-poll also runs the match-alert sweep, which answers 200 even when
-      # OpenAI refuses the account (billing, quota, revoked key): it stops
-      # scoring and reports match_alerts.status "llm_unavailable". That gets a
-      # warning annotation on every run's summary, deliberately not a failure:
-      # the owner already knows about an account outage, and a red scheduled
-      # run would email them every few hours until billing is fixed. Setting
-      # MATCH_ALERTS_ENABLED=false turns the sweep (and this warning) off.
+      # cron-poll also runs the match-alert sweep (the deterministic fit engine,
+      # no AI), which answers 200 even when it cannot score: FIT_TRACE_SALT is
+      # unset or too short ("fit_trace_salt_missing":true, nothing is banked,
+      # so the feed shows no scores and no alert goes out) or the engine
+      # cannot be built ("status":"engine_unavailable"). Either gets a warning
+      # annotation on every run's summary, deliberately not a failure: a red
+      # scheduled run would email the owner every few hours until it is fixed.
+      # Setting MATCH_ALERTS_ENABLED=false turns the sweep (and this warning) off.
       - name: Trigger GitHub aggregator
         id: cron_poll
         if: ${{ !cancelled() }}
@@ -189,9 +190,11 @@ jobs:
           echo "HTTP $code"
           head -c 6000 response.json 2>/dev/null || true; echo
           case "$code" in 2*) ;; *) exit 1 ;; esac
-          if grep -q '"llm_unavailable"' response.json 2>/dev/null; then
-            reason=$(grep -o '"llm_unavailable".*' response.json | grep -o '"error":"[^"]*"' | head -n 1 | cut -d '"' -f 4 || true)
-            echo "::warning title=Match alerts paused::OpenAI refused the account (${reason:-see match_alerts.error above}). Match scoring, autofill answers and every other AI feature stay down until billing, quota or the API key is fixed. MATCH_ALERTS_ENABLED=false stops the sweep deliberately."
+          if grep -q '"fit_trace_salt_missing":true' response.json 2>/dev/null; then
+            echo "::warning title=Match scoring stopped::FIT_TRACE_SALT is missing or shorter than 16 bytes on the API, so the match sweep banked no scores: the feed shows none and no match alert goes out. Set it in the Vercel environment (a secret of at least 16 random bytes). MATCH_ALERTS_ENABLED=false stops the sweep deliberately."
+          elif grep -q '"status":"engine_unavailable"' response.json 2>/dev/null; then
+            reason=$(grep -o '"status":"engine_unavailable".*' response.json | grep -o '"error":"[^"]*"' | head -n 1 | cut -d '"' -f 4 || true)
+            echo "::warning title=Match scoring stopped::The fit engine could not be built (${reason:-see match_alerts.error above}), so the match sweep scored nothing. Check the deploy's match-engine data against its MANIFEST. MATCH_ALERTS_ENABLED=false stops the sweep deliberately."
           fi
 
       - name: Backfill descriptions + locations + logos

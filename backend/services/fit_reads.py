@@ -177,24 +177,35 @@ def settings_for(db, user_id: int):
 # ─── Which banked rows are current (D-107) ───────────────────────────────────────────────────
 
 
-def remember_fingerprint(db, user_id: int, key: str, fingerprint: str) -> None:
-    """Record that ``fingerprint`` is the newest one banked for these inputs. Adds to the
-    caller's session; the caller commits (bank_scores commits it with the scores)."""
+def current_as_of(today: Optional[dt.date] = None) -> dt.date:
+    """The scoring month as of now: the first day of the current UTC month (D-87). The same
+    rule as ``fit_engine.fit_as_of``, computed here without the engine."""
+    day = today or dt.datetime.now(dt.timezone.utc).date()
+    return day.replace(day=1)
+
+
+def remember_fingerprint(db, user_id: int, key: str, fingerprint: str,
+                         as_of: Optional[dt.date] = None) -> None:
+    """Record that ``fingerprint`` is the newest one banked for these inputs and this scoring
+    month. Adds to the caller's session; the caller commits (bank_scores commits it with the
+    scores)."""
     from backend.db.models import MatchFingerprint
 
     row = db.get(MatchFingerprint, user_id)
     if row is None:
-        db.add(MatchFingerprint(user_id=user_id, input_key=key, fingerprint=fingerprint,
+        db.add(MatchFingerprint(user_id=user_id, input_key=key, fingerprint=fingerprint, as_of=as_of,
                                 updated_at=dt.datetime.utcnow()))
-    elif row.input_key != key or row.fingerprint != fingerprint:
-        row.input_key, row.fingerprint, row.updated_at = key, fingerprint, dt.datetime.utcnow()
+    elif row.input_key != key or row.fingerprint != fingerprint or row.as_of != as_of:
+        row.input_key, row.fingerprint, row.as_of = key, fingerprint, as_of
+        row.updated_at = dt.datetime.utcnow()
 
 
 def serving_fingerprints(db, user_id: int, profile: Any, settings: Any = _UNSET) -> list[str]:
     """The fit fingerprints whose banked rows are current for this user and résumé.
 
     * The remembered one (``match_fingerprints``), while its ``input_key`` matches the stored
-      inputs today: an edited résumé or answer serves nothing until it is scored again.
+      inputs today and it was banked for this scoring month: an edited résumé or answer, or a
+      new month (D-87), serves nothing until it is scored again.
     * The exact one (``fit_engine.current_fingerprints``), only when this process has already
       built the engine. A request path never builds it.
 
@@ -209,7 +220,8 @@ def serving_fingerprints(db, user_id: int, profile: Any, settings: Any = _UNSET)
         settings = settings_for(db, user_id)
     fingerprints: list[str] = []
     row = db.get(MatchFingerprint, user_id)
-    if row is not None and row.input_key == input_key(profile, settings):
+    if (row is not None and row.input_key == input_key(profile, settings)
+            and (row.as_of is None or row.as_of == current_as_of())):
         fingerprints.append(row.fingerprint)
     if engine_ready():
         from backend.services import fit_engine
@@ -232,6 +244,7 @@ __all__ = [
     "OUTCOME_SCORED",
     "UNSCORED_TEXT",
     "clearance_answer",
+    "current_as_of",
     "engine_ready",
     "good_or_better",
     "input_key",

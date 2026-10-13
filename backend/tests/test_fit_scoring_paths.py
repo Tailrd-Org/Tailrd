@@ -167,11 +167,15 @@ def _local_fp(text):
 @pytest.fixture
 def app_client(db_session, monkeypatch):
     from backend.routers.ai import router as ai_router
+    from backend.routers.apply import router as apply_router
     from backend.routers.jobs import router as jobs_router
+    from backend.routers.resumes import router as resumes_router
 
     app = FastAPI()
     app.include_router(ai_router, prefix="/ai")
     app.include_router(jobs_router, prefix="/jobs")
+    app.include_router(apply_router, prefix="/apply")
+    app.include_router(resumes_router, prefix="/resumes")
 
     def _db():
         yield db_session
@@ -204,7 +208,12 @@ async def test_stale_fingerprints_are_never_served(db_session, app_client, cold,
     _user(db_session)
     profile = _resume(db_session)
     _remember(db_session, profile)
-    ai_job, local_job, fit_job, old_fit_job = (_job(db_session, title=t) for t in
+    # Every job also carries the AI-era per-job values the deleted AI paths wrote on scraped_jobs.
+    ai_era = dict(match_score=95, experience_score=80, skill_score=70, industry_score=60,
+                  match_label="STRONG MATCH", match_summary="An AI summary of the fit.",
+                  requirements_met=3, requirements_total=4,
+                  requirements_detail=[{"requirement": "Python", "met": True}])
+    ai_job, local_job, fit_job, old_fit_job = (_job(db_session, title=t, **ai_era) for t in
                                                ("AI row", "Local row", "Fit row", "Old fit row"))
     _bank(db_session, ai_job, score=95, band="Strong match", fingerprint=_ai_fp(RAW_TEXT))
     _bank(db_session, local_job, score=95, band="Strong match", fingerprint=_local_fp(RAW_TEXT))
@@ -218,6 +227,23 @@ async def test_stale_fingerprints_are_never_served(db_session, app_client, cold,
     for title in ("AI row", "Local row", "Old fit row"):
         assert feed[title]["match_score"] == 0, title
         assert feed[title]["match_band"] is None and feed[title]["match_outcome"] is None, title
+    for title, card in feed.items():
+        assert card["experience_score"] == 0 and card["skill_score"] == 0, title
+        assert card["industry_score"] == 0, title
+        assert card["requirements_met"] == 0 and card["requirements_total"] == 0, title
+        assert card["requirements_detail"] == [] and card["match_summary"] == "", title
+        assert card["match_label"] == (card["match_band"] or ""), title
+        assert "STRONG MATCH" not in str(card), title
+
+    # min_score filters on the user's own engine score (SCORED only), never the AI column.
+    assert [j["title"] for j in app_client.get("/jobs", params={"min_score": 80}).json()] == ["Fit row"]
+    assert app_client.get("/jobs", params={"min_score": 90}).json() == []
+    # The stats average is the user's SCORED engine scores.
+    assert app_client.get("/jobs/stats").json()["avg_match_score"] == 88
+    # The extension's apply session carries the user's engine score, never the AI column.
+    for job, expected in ((ai_job, 0), (fit_job, 88)):
+        session = app_client.post("/apply/initiate", json={"job_id": job.id}).json()
+        assert session["match_score"] == expected, job.title
 
     assert [j["title"] for j in app_client.get("/jobs", params={"strong": 1}).json()] == ["Fit row"]
     assert app_client.get("/jobs", params={"sort": "match"}).json()[0]["title"] == "Fit row"
@@ -244,7 +270,11 @@ def test_the_breakdown_never_reads_a_stale_row(db_session, app_client, no_llm):
     job = _job(db_session)
     _bank(db_session, job, score=95, band="Strong match", fingerprint=_ai_fp(RAW_TEXT))
     body = app_client.post(f"/ai/match-breakdown/{job.id}").json()
-    assert body["overall_score"] != 95
+    from backend.routers.ai import breakdown_from_result
+    from backend.services import fit_engine
+
+    expected = breakdown_from_result(fit_engine.explain_job(db_session, 1, db_session.get(ScrapedJob, job.id)))
+    assert body == expected.model_dump(mode="json")
     assert body["outcome"] == "SCORED"
 
 
@@ -640,3 +670,172 @@ def test_no_scoring_module_calls_openai():
 def test_no_user_facing_percent_match_copy_in_the_backend():
     for path, text in _backend_sources().items():
         assert "% match" not in text, path
+
+
+# ─── Fix round 1 ─────────────────────────────────────────────────────────────────────────────
+
+
+def test_the_sort_match_fallback_without_a_resume_is_by_date(db_session, app_client, cold):
+    _user(db_session)
+    old = _job(db_session, title="Old AI 95", match_score=95,
+               scraped_at=dt.datetime.utcnow() - dt.timedelta(days=5))
+    new = _job(db_session, title="New", scraped_at=dt.datetime.utcnow() - dt.timedelta(hours=1))
+    titles = [j["title"] for j in app_client.get("/jobs", params={"sort": "match"}).json()]
+    assert titles == [new.title, old.title]
+    assert app_client.get("/jobs/stats").json()["avg_match_score"] is None
+
+
+def test_upload_schedules_the_prescore(db_session, app_client, monkeypatch):
+    from backend.routers import resumes
+
+    calls = []
+
+    async def no_ai(*_a, **_k):
+        raise RuntimeError("no AI in this test")
+
+    async def no_blob(*_a, **_k):
+        return None
+
+    class _LLM:
+        analyze_resume = staticmethod(no_ai)
+
+    monkeypatch.setattr(resumes, "extract_text", lambda content, name: RAW_TEXT)
+    monkeypatch.setattr(resumes, "get_llm_service", lambda: _LLM())
+    monkeypatch.setattr(resumes.blob_storage, "upload_resume", no_blob)
+    monkeypatch.setattr(resumes, "_prescore_in_background", lambda uid, pid: calls.append((uid, pid)))
+    _user(db_session)
+    r = app_client.post("/resumes/upload", files={"file": ("cv.pdf", b"%PDF-1.4 x", "application/pdf")})
+    assert r.status_code == 200, r.text
+    assert calls == [(1, r.json()["id"])]
+
+
+def test_a_warm_feed_whose_banking_fails_still_answers_with_banked_rows(db_session, app_client, monkeypatch):
+    from backend.services import fit_engine
+
+    monkeypatch.setattr(fit_reads, "engine_ready", lambda: True)
+    monkeypatch.setattr(fit_engine, "current_fingerprints", lambda profile, settings=None, **k: [FIT_FP])
+
+    def broken(*_a, **_k):
+        raise fit_engine.FitTraceSaltError("FIT_TRACE_SALT must be set")
+
+    monkeypatch.setattr(fit_engine, "bank_scores", broken)
+    _user(db_session)
+    _resume(db_session)
+    banked, _unbanked = _job(db_session, title="Banked"), _job(db_session, title="Unbanked")
+    _bank(db_session, banked, score=77, band="Good match")
+    r = app_client.get("/jobs")
+    assert r.status_code == 200
+    feed = {j["title"]: j for j in r.json()}
+    assert feed["Banked"]["match_score"] == 77 and feed["Unbanked"]["match_outcome"] is None
+
+
+def test_inline_feed_banking_is_capped_at_50_on_its_own_session(db_session, app_client, monkeypatch):
+    from backend.services import fit_engine, jobs_sidebar
+
+    assert jobs_sidebar.INLINE_BANK_LIMIT == 50
+    monkeypatch.setattr(fit_reads, "engine_ready", lambda: True)
+    monkeypatch.setattr(fit_engine, "current_fingerprints", lambda profile, settings=None, **k: [FIT_FP])
+    seen = []
+
+    def bank(db, user_id, profile, job_ids, **_k):
+        seen.append((db is db_session, list(job_ids)))
+        return {}
+
+    monkeypatch.setattr(fit_engine, "bank_scores", bank)
+    _user(db_session)
+    _resume(db_session)
+    for _ in range(60):
+        _job(db_session)
+    assert app_client.get("/jobs", params={"page_size": 60}).status_code == 200
+    assert len(seen) == 1
+    same_session, ids = seen[0]
+    assert same_session is False  # the request's loaded rows are never expired by its commit
+    assert len(ids) == 50
+
+
+@pytest.mark.asyncio
+async def test_an_engine_that_cannot_be_built_reports_engine_unavailable(db_session, cold, monkeypatch, caplog):
+    from backend.services import fit_engine
+
+    def unbuildable(*_a, **_k):
+        raise fit_engine.FitEngineError("panel sha256 does not match MANIFEST")
+
+    monkeypatch.setattr(fit_engine, "bank_scores", unbuildable)
+    refreshes = []
+    monkeypatch.setattr(fit_engine, "refresh_calibration", lambda db, **k: refreshes.append(1) or {})
+    _user(db_session)
+    _resume(db_session)
+    _job(db_session)
+    with caplog.at_level(logging.ERROR):
+        summary = await match_notifier.sweep_match_alerts(db_session)
+    assert summary["status"] == "engine_unavailable"
+    assert summary["error"] == "FitEngineError"
+    assert refreshes == []
+
+
+@pytest.mark.asyncio
+async def test_a_salt_missing_sweep_that_scored_nothing_skips_calibration_and_drift(db_session, monkeypatch):
+    from backend.services import fit_engine
+
+    monkeypatch.delenv("FIT_TRACE_SALT")
+
+    def forbidden(*_a, **_k):
+        raise AssertionError("the engine was built for a sweep that scored nothing")
+
+    monkeypatch.setattr(fit_engine, "refresh_calibration", forbidden)
+    monkeypatch.setattr(match_notifier, "_drift_report", forbidden)
+    monkeypatch.setattr(fit_reads, "engine_ready", lambda: False)
+    _user(db_session)
+    _resume(db_session)
+    _job(db_session)
+    summary = await match_notifier.sweep_match_alerts(db_session)
+    assert summary["fit_trace_salt_missing"] is True
+    assert summary["calibration"] == "skipped: no scores"
+    assert summary["drift"] == "skipped: no scores"
+
+
+def test_a_remembered_fingerprint_from_another_month_is_not_served(db_session, app_client, cold):
+    _user(db_session)
+    profile = _resume(db_session)
+    _remember(db_session, profile)
+    job = _job(db_session, title="Banked")
+    _bank(db_session, job, score=90, band="Strong match")
+    this_month = fit_reads.current_as_of()
+    memo = db_session.get(MatchFingerprint, 1)
+
+    memo.as_of = this_month
+    db_session.commit()
+    assert app_client.get("/jobs").json()[0]["match_score"] == 90
+
+    memo.as_of = (this_month - dt.timedelta(days=1)).replace(day=1)
+    db_session.commit()
+    assert app_client.get("/jobs").json()[0]["match_score"] == 0
+
+
+def test_banking_remembers_the_month_it_scored_for(db_session, no_llm):
+    from backend.services import fit_engine
+
+    _user(db_session)
+    profile = _resume(db_session)
+    job = _job(db_session)
+    fit_engine.bank_scores(db_session, 1, profile, [job.id])
+    assert db_session.get(MatchFingerprint, 1).as_of == fit_engine.fit_as_of()
+
+
+def test_the_migration_adds_the_fingerprint_month_to_an_existing_table():
+    from sqlalchemy import create_engine, inspect, text
+    from sqlalchemy.pool import StaticPool
+
+    from backend.migrations import add_fit_engine
+
+    engine = create_engine("sqlite://", poolclass=StaticPool)
+    with engine.begin() as conn:
+        conn.execute(text("CREATE TABLE match_fingerprints (user_id INTEGER PRIMARY KEY, "
+                          "input_key VARCHAR(64) NOT NULL, fingerprint VARCHAR(64) NOT NULL, "
+                          "updated_at DATETIME)"))
+        conn.execute(text("INSERT INTO match_fingerprints VALUES (1, 'k', 'fit1:x', NULL)"))
+    add_fit_engine.run_migration(engine)
+    add_fit_engine.run_migration(engine)  # idempotent
+    assert "as_of" in {c["name"] for c in inspect(engine).get_columns("match_fingerprints")}
+    with engine.connect() as conn:
+        assert conn.execute(text("SELECT fingerprint, as_of FROM match_fingerprints")).one() == ("fit1:x", None)

@@ -9,7 +9,7 @@ GET /resumes/{id}, get full resume detail including profile and analysis report.
 
 import datetime
 import logging
-from fastapi import APIRouter, UploadFile, File, HTTPException, Depends, Response
+from fastapi import APIRouter, BackgroundTasks, UploadFile, File, HTTPException, Depends, Response
 from sqlalchemy.orm import Session
 
 from backend.db.database import get_db
@@ -47,8 +47,8 @@ def prescore_upload(db: Session, user_id: int, profile: ResumeProfileDB) -> int:
     """Bank fit scores for the newest UPLOAD_PRESCORE_JOBS visible jobs against a new résumé.
 
     Deterministic, no AI (DECISIONS D-83). It may build the engine (about ten seconds cold),
-    so it runs off the request, in a worker thread. Returns how many jobs were newly scored;
-    never raises (the upload already succeeded)."""
+    so it runs after the response, in a worker thread (BackgroundTasks). Returns how many
+    jobs were newly scored; never raises (the upload already succeeded)."""
     from backend.services import fit_engine
     from backend.services.jobs_sidebar import visible_job_filter
 
@@ -413,6 +413,7 @@ async def delete_resume(
 
 @router.post("/upload", response_model=ResumeUploadResponse)
 async def upload_resume(
+    background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
     user_id: int = Depends(get_verified_user_id),
     db: Session = Depends(get_db),
@@ -492,10 +493,9 @@ async def upload_resume(
     # Bump the sync version so the extension picks up the new resume.
     bump_profile_version(db, user_id)
 
-    # Pre-score the newest visible jobs with the fit engine in the background, so
-    # the feed shows this résumé's results right away. Alerts are left to the sweep.
-    import asyncio
-
-    asyncio.ensure_future(asyncio.to_thread(_prescore_in_background, user_id, db_profile.id))
+    # Pre-score the newest visible jobs with the fit engine after the response, in
+    # the same invocation (BackgroundTasks runs a sync callable in a worker thread),
+    # so the feed shows this résumé's results right away. Alerts are left to the sweep.
+    background_tasks.add_task(_prescore_in_background, user_id, db_profile.id)
 
     return ResumeUploadResponse(id=db_profile.id, profile=profile)

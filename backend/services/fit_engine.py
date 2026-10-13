@@ -783,7 +783,7 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     )]
     key = input_key(profile, settings)
     if not todo:
-        remember_fingerprint(db, user_id, key, fingerprint)
+        remember_fingerprint(db, user_id, key, fingerprint, day)
         if db.new or db.dirty:
             db.commit()
         return {}
@@ -829,7 +829,7 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
         else:
             for name, value in trace_values.items():
                 setattr(trace_row, name, value)
-    remember_fingerprint(db, user_id, key, fingerprint)
+    remember_fingerprint(db, user_id, key, fingerprint, day)
     db.commit()
     return results
 

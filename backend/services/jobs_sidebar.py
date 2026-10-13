@@ -43,6 +43,9 @@ CLOSING_AGE_DAYS = 21
 MAX_GAPS = 3
 MAX_CLOSING = 3
 MAX_COMPANIES = 6
+# A warm feed request banks at most this many not-yet-scored jobs of its page;
+# the rest show as not scored yet until the sweep reaches them.
+INLINE_BANK_LIMIT = 50
 # Tags too generic to tell someone to "add to your resume".
 _GAP_SKIP = {"agile", "scrum", "kanban", "git", "rest", "ui", "ux", "qa", "excel", "lean"}
 
@@ -179,19 +182,27 @@ def user_match_scores(
         .all()
     ) if fingerprints else []
     scores = {job_id: (score, band, outcome) for job_id, score, band, outcome in rows}
-    missing = [j for j in job_ids if j not in scores]
+    missing = [j for j in job_ids if j not in scores][:INLINE_BANK_LIMIT]
     if missing and fit_reads.engine_ready():
+        from sqlalchemy.orm import sessionmaker
+
         from backend.services import fit_engine
 
+        # A short-lived session on the same connection pool: bank_scores commits, and a
+        # commit on the request's own session would expire every job row the request
+        # already loaded, so each would be reloaded, description and all.
+        side = sessionmaker(bind=db.get_bind(), autoflush=False)()
         try:
-            for job_id, result in fit_engine.bank_scores(db, user_id, profile, missing).items():
+            for job_id, result in fit_engine.bank_scores(side, user_id, profile, missing).items():
                 scores[job_id] = (fit_engine.stored_score(result),
                                   result.band.value if result.band is not None else None,
                                   result.outcome.value)
         except Exception as exc:
             # Badges are a nicety; a scoring hiccup must never break the feed.
-            db.rollback()
+            side.rollback()
             logger.error("fit scoring on the feed failed for user %s: %s", user_id, type(exc).__name__)
+        finally:
+            side.close()
     return scores
 
 
