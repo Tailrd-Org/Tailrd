@@ -311,6 +311,43 @@ def test_qualifications_that_dominate_with_no_chronology_are_functional(deps) ->
     assert Flag.FUNCTIONAL_RESUME in parsed.flags
 
 
+UNDERLINED_FUNCTIONAL = """Rowan Illustrative
+rowan.illustrative@example.com | Denver, CO
+Summary of Qualifications
+-------------------------
+Dependable product designer with 5+ years of experience turning requests into finished deliverables.
+Areas of Expertise
+------------------
+Technical Skills: HTML, CSS, React, JavaScript
+Tools and Platforms: Adobe XD, Git, Adobe Illustrator
+Methods and Practices: Prototyping, Data Visualization, Wireframing, User Research
+Domain Expertise: Accessibility
+Professional Strengths: Problem Solving, Mentoring, Communication
+Employment History
+------------------
+Product Designer III, Silverline Studio
+Vancouver, BC
+Product Designer, Juniper Design
+Ottawa, ON
+Education
+---------
+B.Sc. Human-Computer Interaction, Fairmont College
+Certifications
+--------------
+- UX Design Certificate
+"""
+
+
+def test_underlines_do_not_count_as_lines_for_the_functional_reading(deps) -> None:
+    """Task 5.3 format-invariance finding: the plain-text rendering of a functional résumé underlines
+    its headers; the "-----" lines were counted as body lines, so the PDF of the same résumé was
+    functional (experience abstains) and the text was not (experience 0)."""
+    plain = "".join(line for line in UNDERLINED_FUNCTIONAL.splitlines(keepends=True) if set(line.strip()) != {"-"})
+    assert "---" not in plain
+    assert Flag.FUNCTIONAL_RESUME in parse(plain, deps).flags
+    assert Flag.FUNCTIONAL_RESUME in parse(UNDERLINED_FUNCTIONAL, deps).flags
+
+
 def test_a_dated_resume_is_not_functional(student: ParsedResume) -> None:
     assert Flag.FUNCTIONAL_RESUME not in student.flags
 

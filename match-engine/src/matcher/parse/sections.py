@@ -98,6 +98,49 @@ def _simple(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Opti
     return None
 
 
+_MIN_FUSED = 6  # shortest token tried as fused header words
+_MAX_FUSED = 60
+
+
+def _header_words(table: SectionsTable) -> frozenset[str]:
+    cached = _HEADER_WORDS.get(id(table))
+    if cached is None or cached[0] is not table:
+        known = frozenset(w for key in table.header_index for w in key.split()) | frozenset(table.joiner_words)
+        cached = _HEADER_WORDS[id(table)] = (table, known)
+    return cached[1]
+
+
+_HEADER_WORDS: dict[int, tuple[SectionsTable, frozenset[str]]] = {}
+
+
+def _segments(token: str, known: frozenset[str]) -> Optional[list[str]]:
+    """`token` as the fewest header words (each of two letters or more), or None."""
+    best: list[Optional[list[str]]] = [[]] + [None] * len(token)
+    for end in range(2, len(token) + 1):
+        for start in range(0, end - 1):
+            if best[start] is not None and token[start:end] in known:
+                candidate = best[start] + [token[start:end]]
+                if best[end] is None or len(candidate) < len(best[end]):
+                    best[end] = candidate
+    return best[len(token)]
+
+
+def _defused(text: str, table: SectionsTable) -> Optional[str]:
+    """OCR often drops the spaces between the words of a styled header ("ProfessionalExperience",
+    "ResearchandProfessionalExperience"): each token that is not a header word but splits into
+    header words is split. None when nothing splits."""
+    known = _header_words(table)
+    out, changed = [], False
+    for token in header_key(text).split():
+        pieces = _segments(token, known) if token not in known and _MIN_FUSED <= len(token) <= _MAX_FUSED else None
+        if pieces and len(pieces) > 1:
+            out += pieces
+            changed = True
+        else:
+            out.append(token)
+    return " ".join(out) if changed else None
+
+
 def _composite_parts(text: str, table: SectionsTable) -> list[str]:
     pieces = [text]
     for symbol in table.joiner_symbols:
@@ -110,6 +153,15 @@ def _composite_parts(text: str, table: SectionsTable) -> list[str]:
 
 
 def _lookup(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Optional[str]]]:
+    found = _lookup_words(text, table)
+    if found is None:
+        split = _defused(text, table)
+        if split is not None:
+            found = _lookup_words(split, table)
+    return found
+
+
+def _lookup_words(text: str, table: SectionsTable) -> Optional[tuple[SectionKind, Optional[str]]]:
     found = _simple(text, table)
     if found is not None:
         return found

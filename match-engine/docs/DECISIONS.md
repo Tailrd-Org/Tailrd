@@ -1090,3 +1090,72 @@ sentences.
 **D-70** Language detection is a stop-word profile plus script detection (no model). Supported:
 English, plus French where the taxonomy carries French labels. Anything else →
 `NEEDS_REVIEW: UNSUPPORTED_LANGUAGE`. RTL scripts get an explicit fixture and the same route.
+
+## Evaluation harness (Task 5.3) [Tailrd]
+
+**D-110 Guardrails and exit code.** `python -m eval.run` writes `reports/<UTC timestamp>/` and exits 1
+when any guardrail has `passed = False`. A guardrail that cannot be measured has `passed = None` and
+reads "not assessed", never PASS. This covers a delta with an undefined point and a four-fifths check
+with no group of n >= 100 (D-93). Four-fifths is a guardrail on every suite whose pairs carry a group
+(selected = raw >= 0.70, the Good band), the golden set included through its optional `group` field.
+The synthetic corpus has no groups, so it always reads "not assessed" there.
+
+**D-111 Vocabulary ids in the taxonomy's namespace.** The generator's vocabulary (`skill.<slug>`) is
+translated to taxonomy ids by resolving each label or alias with the real resolver, EXACT or ALIAS
+only (the methods the extractor uses). Translation can merge: on the default vocabulary Market
+Research and Competitive Analysis both become `skill.market_research`, User Research and Usability
+Testing become `skill.user_research`, and Visual Design and Graphic Design become
+`skill.graphic_design`. Merged mentions count as one skill. Two merged posting requirements become
+one requirement with the stronger necessity. 31 of 178 vocabulary skills have no resolvable
+spelling. Translated résumés drop them, translated postings carry them as unresolved requirement
+tokens, and their labels are listed in metrics.json (`taxonomy_unknown_labels`). They are reported,
+not hidden: the guardrails "Parser fidelity: recovered skills (all vocabulary)" (>= 0.95, every
+skill the rendering shows) and "Taxonomy coverage (posting requirement tokens)" (>= 0.92, SPEC §16)
+both count them, and both fail on the default vocabulary (0.867 and 0.833 on the eval-fast sample).
+Recovery over taxonomy-known skills only (0.984) is a diagnostic.
+
+**D-112 M6 format invariance has three parts.** This supersedes BUILD.md Milestone 6's "<= 0.02
+spread across all 48 renderings" (orchestrator ruling; SPEC §14.3 makes a functional résumé score
+differently by design). The three parts: (a) max - min raw over the 6 formats of each template;
+(b) the same over the 42 renderings of the 7 information-equivalent templates (all but
+`functional`); (c) every `functional` rendering against `expected_resume(template="functional")`.
+Each must be <= 0.02 at p99. A rendering with no résumé or no raw score has an unbounded spread.
+Industry codes are stripped from both sides of oracle-versus-parse comparisons, because no page
+prints the oracle's NAICS codes. Parser fidelity requires recovered skills (all vocabulary) >= 0.95,
+and date error <= 1 month on every dated rendering (max, not a percentile; a role the parser misses
+counts as unbounded).
+
+**D-113 Abstention precision.** "Hard" pairs are fit levels 1 and 2, the borderline candidates an
+abstention should concentrate on. Observation on the synthetic corpus: all 45 abstentions (9 %) are
+fit-0 candidates from another family, abstaining with LOW_EVIDENCE_DENSITY, so abstention precision
+is 0 %. The engine abstains on easy negatives, not on borderline pairs.
+
+**D-114 Pairs as metric records.** NEEDS_REVIEW is an abstention (score None). GATE_FAIL is
+ineligible: it ranks last (score 0.0), and its band counts as Limited (0) for band accuracy, so a
+gate never hides a pair from that metric. SCORED and SCORED_LOW_CONFIDENCE rank by their raw score.
+
+**D-115 Regressions.** A pair regresses against a baseline when its score moves against the advanced
+direction by more than 0.005 (a drop for an advanced pair, fit >= 2; a rise for a pair that is not),
+or when it newly abstains. Regressions are listed worst first. Metric deltas use `bootstrap_delta`
+with each metric's own `min_effect` (0.01; 0.005 for band off-by-two).
+
+**D-116 Parser bugs get unit regression tests.** A bug fixed in parsing (sections, entries, dates,
+ingest) gets a regression test next to the code it fixes (tests/test_sections.py,
+tests/test_parse_resume.py, ...), not a mutation-suite case. `eval/suites/mutations.py` is the
+regression suite for scoring arithmetic (EVAL 2.3) and grows with every scoring bug fixed.
+
+**D-117 Mutation constructions.** Every EVAL 2.3 row runs on a constructed pair whose arithmetic
+makes the stated range exact, and the closed form is checked before and after the change. Example:
+"remove one required skill (idf 0.8)" starts from a moderate candidate (raw 0.772). From a stronger
+base the miss would trip the critical-miss cap (idf 0.8 > 0.7, D-43), and the drop would be the cap's.
+
+**D-118 eval-fast budget. [Deviation]** BUILD.md M5's "under 2 minutes" applies to `make eval-fast`
+as the eval harness: `pytest tests/eval` plus `eval.run --layers 1,2`. The full non-slow unit suite
+is `make test`, which CI runs separately. Measured 2026-10-13 on the development machine (8 cores,
+shared with other work): warm parse cache 52 s (tests/eval 23 s, eval 27 s); cold cache 8 min 27 s,
+of which 457 s is OCR of the 80 scanned renderings. The old target, which ran the whole unit suite
+first, took 2 min 48 s warm. The parse cache (`.cache/eval/parse/`, git-ignored) is keyed by render
+identity and by what the parser reads (`synthetic.parser_inputs`): its modules, config/parse/**,
+verbs.yaml, negation.yaml, the curated taxonomy files, the taxonomy manifest and resolver tables,
+and the ingest and taxonomy sections of scoring.yaml. A weights or scoring-module change keeps it
+warm. A cold full `make eval` (24,000 renderings) takes about 6-7 hours.

@@ -644,7 +644,9 @@ def _paragraphs(lines: Sequence[str]) -> list[str]:
 
 
 def _nonblank(lines: Iterable[str]) -> int:
-    return sum(1 for line in lines if line.strip())
+    """Lines with text: a rule of dashes or equals signs under a header is decoration, not content
+    (a plain-text rendering would otherwise read as less functional than its PDF, Task 5.3)."""
+    return sum(1 for line in lines if any(ch.isalnum() for ch in line))
 
 
 # ─── reference building ─────────────────────────────────────────────────────────────────────

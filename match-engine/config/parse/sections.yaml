@@ -19,7 +19,7 @@ headers:
     en: [summary, professional summary, career summary, executive summary, profile,
          professional profile, career profile, objective, career objective, professional objective,
          about me, about, summary of qualifications, highlights of qualifications, qualifications,
-         introduction, overview]
+         introduction, overview, research profile]
     fr: [profil, profil professionnel, sommaire, résumé de carrière, résumé professionnel, objectif,
          objectif de carrière, objectif professionnel, à propos, à propos de moi, présentation,
          sommaire des compétences]
@@ -28,7 +28,8 @@ headers:
          employment, employment history, employment experience, work history, career history,
          career, professional background, experience highlights, internships, internship experience,
          co-op experience, co-op work experience, coop experience, work terms, co-op work terms,
-         military experience, military service, military history, service history, research
+         military experience, military service, military history, service history, civilian work
+         experience, civilian experience, civilian employment, civilian work history, research
          experience, research, teaching experience, teaching, industry experience, positions held,
          positions, roles, where i've been, where i've worked, work, jobs, appointments,
          academic appointments, professional appointments]

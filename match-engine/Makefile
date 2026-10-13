@@ -1,6 +1,7 @@
 # Match engine tasks. Run from match-engine/.
 #   make test                 unit + property tests (fast)
-#   make eval-fast            EVAL layers 1-2 (pre-commit; must stay under 2 minutes; no slow tests)
+#   make eval-fast            EVAL layers 1-2 + tests/eval (pre-commit; under 2 minutes warm, DECISIONS D-118;
+#                             the unit suite is `make test`, which CI runs separately)
 #   make gate                 milestone gate: the slow tests and 50,000-example totality (about an hour)
 #   make eval                 EVAL layers 1-3, report under reports/<timestamp>/
 #   make eval BASELINE=main   ... diffed against a saved baseline
@@ -27,7 +28,7 @@ lint:
 	$(PY) -m ruff check src tests scripts eval
 
 eval-fast:
-	$(PY) -m pytest -q -m "not slow"
+	$(PY) -m pytest -q tests/eval
 	$(PY) -m eval.run --layers 1,2 $(if $(BASELINE),--baseline $(BASELINE),)
 
 eval:
