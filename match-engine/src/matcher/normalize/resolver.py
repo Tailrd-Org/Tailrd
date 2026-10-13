@@ -196,6 +196,10 @@ _FIELD_PREFIX = "field."  # fields of study: extract reports them only with incl
 # A skill list after a sentence-initial key (D-141): "Go, Python", "Go/Rust", "Go & SQL", "Go and SQL".
 _LIST_SEPARATORS = frozenset(",/&")
 _LIST_LINKS = frozenset({"and", "or", "&"})
+# A list-only key (D-144) also stands right after a tool cue ("Experience with Miro", "workshops in
+# Miro") or a tools label ("Tools: Miro"), unless a capitalised word that is no skill follows it.
+_TOOL_CUES = frozenset({"with", "in", "using", "via", "on"})
+_TOOL_LABELS = frozenset({"tools", "tooling"})
 
 
 class Resolution(Frozen):
@@ -527,12 +531,42 @@ class Resolver:
         )
 
     def _in_skill_list(self, text: str, tokens: list[_Token], i: int, j: int) -> bool:
-        """Whether the span of tokens i..j stands in a skill list within its sentence: a list
-        separator joins it to a skill after it ("Miro, Figma") or before it ("Figma and Miro")."""
+        """Whether the span of tokens i..j stands as a tool in its sentence (D-144): a list separator
+        joins it to a skill after it ("Miro, Figma") or before it ("Figma and Miro"), or a tool cue
+        or a tools label comes right before it ("Experience with Miro", "Tools: Miro"); never when
+        a capitalised word that is no skill follows it, which makes it a name ("with Miro Kovac")."""
         end = j + 1
         while end < len(tokens) and not tokens[end].sentence_start:
             end += 1
-        return self._lists_a_skill(text, tokens, j, end) or self._follows_a_skill(text, tokens, i)
+        if self._a_name_follows(text, tokens, j, end):
+            return False
+        return (
+            self._lists_a_skill(text, tokens, j, end)
+            or self._follows_a_skill(text, tokens, i)
+            or self._follows_a_tool_cue(text, tokens, i)
+        )
+
+    def _a_name_follows(self, text: str, tokens: list[_Token], j: int, end: int) -> bool:
+        """A capitalised word that is no skill right after token j, in its sentence ("Miro Kovac")."""
+        k = j + 1
+        if k >= end or text[tokens[j].end : tokens[k].start].strip():
+            return False
+        word = text[tokens[k].start : tokens[k].end]
+        if not (word[:1].isupper() and any(ch.islower() for ch in word)):
+            return False
+        hit = self._lookup(surface_variants(tokens[k].norm), word, "prose", sentence_start=False, include_fields=False)
+        return hit is None
+
+    def _follows_a_tool_cue(self, text: str, tokens: list[_Token], i: int) -> bool:
+        """A tool cue ("with", "in", "using", "via", "on") right before token i in its sentence, or
+        a tools label and a colon ("Tools: Miro")."""
+        if i == 0 or tokens[i].sentence_start:
+            return False
+        gap = text[tokens[i - 1].end : tokens[i].start].strip()
+        before = tokens[i - 1].norm
+        if not gap:
+            return before in _TOOL_CUES
+        return gap == ":" and before in _TOOL_LABELS
 
     def _follows_a_skill(self, text: str, tokens: list[_Token], i: int) -> bool:
         """Whether a skill ends right before token i, across ",", "/", "&", "and" or "or", within

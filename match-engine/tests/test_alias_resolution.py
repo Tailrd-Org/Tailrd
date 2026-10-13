@@ -1137,3 +1137,31 @@ def test_a_list_only_name_stands_in_prose_only_inside_a_skill_list(config) -> No
     assert _ids(r, "Miro", context="list") == ["skill.miro"]
     assert r.resolve("Miro").canonical_id == "skill.miro"
     assert _ids(Resolver(graph, config), "Worked with Miro Kovac on the launch.") == ["skill.miro"]
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    [
+        # fix round 2 (D-144): a tool cue right before the name, or a "Tools:" label, lets it stand
+        ("Experience with Miro", ["skill.miro"]),
+        ("Facilitated workshops in Miro.", ["skill.miro"]),
+        ("Planned sprints using Miro.", ["skill.miro"]),
+        ("Shared the board via Miro and Slack.", ["skill.miro"]),
+        ("Collaborated on Miro daily.", ["skill.miro"]),
+        ("- Tools: Miro", ["skill.miro"]),
+        ("Tooling: Miro", ["skill.miro"]),
+        # ... but a capitalised word after it that is no skill makes it a name
+        ("Worked with Miro Kovac", []),
+        ("Worked with Miro Kovac on the launch.", []),
+        ("Met in Miro Petrov's office.", []),
+        ("Miro Petrov", []),
+        ("Tools: Miro Petrov", []),
+        ("Built in Miro Figma flows.", ["skill.miro", "skill.figma"]),  # the next word is a skill
+        ("Thanks to Miro for the review.", []),  # "to" is no tool cue
+        ("We need better tools, Miro said.", []),  # a tools label needs its colon
+    ],
+)
+def test_a_list_only_name_stands_after_a_tool_cue_unless_a_name_follows(config, text: str, expected: list) -> None:
+    graph = _graph(_node("skill.miro", "Miro", "Miro board"), _node("skill.figma", "Figma"))
+    r = Resolver(graph, config, list_only=["Miro"])
+    assert _ids(r, text) == expected

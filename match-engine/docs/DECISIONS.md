@@ -478,8 +478,11 @@ normaliser now drops the trademark, service-mark and registered signs before NFK
 **D-144 List-only names (Task 7.3 fix round 1). [Tailrd]** A key listed under `list_only` (Miro) is
 also a given name. In prose it stands only inside a skill list in its sentence: ",", "/", "&",
 "and" or "or" joins it to another skill before or after it ("Ran workshops in Figma and Miro",
-"Miro, Figma and Jira"). "Worked with Miro Kovac" and the résumé name line "Miro Petrov" name no
-tool. Longer keys ("Miro board") are unrestricted, and skills lists and `resolve` are unchanged.
+"Miro, Figma and Jira"), or (fix round 2) right after a tool cue ("with", "in", "using", "via",
+"on": "Experience with Miro", "Facilitated workshops in Miro") or a tools label ("Tools: Miro",
+"Tooling: Miro"); never when a capitalised word that is no skill follows it, which makes it a name.
+"Worked with Miro Kovac" and the résumé name line "Miro Petrov" name no tool. Longer keys ("Miro
+board") are unrestricted, and skills lists and `resolve` are unchanged.
 
 ## Scoring
 

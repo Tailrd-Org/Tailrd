@@ -131,6 +131,9 @@ def test_new_nodes_have_their_kind(graph, node_id: str, kind: SkillKind) -> None
         ("Worked with Miro Kovac on the launch.", []),
         ("Miro Petrov\nmiro.petrov@example.com", []),
         ("Ran design workshops in Figma and Miro.", ["skill.figma", "skill.miro"]),
+        ("Experience with Miro", ["skill.miro"]),
+        ("Facilitated workshops in Miro.", ["skill.miro"]),
+        ("Worked with Miro Kovac", []),
         ("Mapped journeys on a Miro board.", ["skill.miro"]),
         ("Member of ASNT.", ["skill.ndt"]),
         ("Holds ASNT Level II in UT.", ["cred.ndt_certification"]),
@@ -311,3 +314,10 @@ def test_case_management_and_time_series_analysis_have_their_own_place(graph) ->
     assert "skill.patient_care" not in set(ancestors(graph, "skill.case_management", 10))
     assert graph.nodes["skill.time_series_analysis"].label == "Time series analysis"
     assert "skill.time_series_analysis" in graph.nodes["skill.time_series_forecasting"].parents
+
+
+def test_miro_on_a_posting_tools_line_is_required() -> None:
+    from tests.posting_helpers import parse
+
+    posting = parse("Requirements\n- Tools: Miro\n- Experience with Miro and Figma")
+    assert "skill.miro" in {r.skill_id for r in posting.requirements}
