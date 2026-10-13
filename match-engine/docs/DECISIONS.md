@@ -1530,3 +1530,19 @@ band on both sides, and the jobs that cross the alert bar (a SCORED Strong match
 - *Failures.* A directory that is missing or a config that fails to load sets `status: "error"`
   with the error class and message, and no further shadow pass runs that sweep; a fault while
   scoring a chunk counts in `errors`. Neither ever stops or changes the live sweep.
+
+**D-151 The calibration panel rebuilt for the merged parser and taxonomy (Task 9.6). [Tailrd]** The
+panel's MANIFEST recorded config hash `b44170942753a66f` and graph `1c13153c7e3c7a93`; after the
+parser and taxonomy work of Tasks 5.4, 6.5 and 7.3 the engine's are `48335e3c488c5fe9` and
+`e27a2eda90711e67`, so `build_engine` was calibrating against references scored by an older engine.
+Rebuilt with `scripts/build_reference_panel.py` on the same corpus (sha256 `bd943d2d...`), seed and
+parameters: version `panel-6c0ff8f59781` became `panel-bed969e57383`. The same postings were sampled
+(two families changed one posting each) and every family kept its candidate count. The shift is
+small: the pooled group's mean raw score by fit level moved by at most 0.005 (level 0 0.3907 to
+0.3859, level 3 0.8487 to 0.8453); the percentile of a fixed raw score (0.3 to 0.9) moved by a median
+of 0.8 points across families, at most 6.2 points in the families that are in charge (DevOps at raw
+0.6); Product Management (24 candidates, under the minimum, so it falls back to the pooled group)
+moved 20.8 at raw 0.5 and is never used. Over the new pooled samples, old-minus-new percentile is
+-0.31 at the median (p05 -0.85, p95 +0.08). No test pins the panel to the current config: a rebuild
+needs the corpus, which is not committed, so a CI check would block every config or taxonomy change
+for contributors without it. The rebuild stays a release step (docs/fit-engine.md).
