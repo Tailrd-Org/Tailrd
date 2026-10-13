@@ -1501,3 +1501,32 @@ Fix round 1 (review of 9.3):
   most 10.
 - *`gaps`.* `gaps` stays LLM prose by decision. It is honest-gap text written with the rewrite, not
   a score, a label or a keyword list, so it can differ from the engine's `missing_keywords`.
+
+## Shadow scoring and the real-data dry run (Task 9.6) [Tailrd]
+
+**D-150 Shadow scoring in the cron sweep (EVAL section 6). [Tailrd]** When `FIT_SHADOW_CONFIG` names
+a config directory (the layout of `match-engine/config`: the six YAML files and
+`engine_version.txt`), the sweep scores every chunk it banked a second time with that config and puts
+`shadow` in its summary: the outcome and band histograms of both sides, the display-score delta
+(shadow minus live, over jobs SCORED on both sides: n, mean, p50), band agreement over jobs with a
+band on both sides, and the jobs that cross the alert bar (a SCORED Strong match) into or out of it.
+- *Only live is persisted.* `fit_engine.shadow_scores` scores in memory: no score row, no trace, no
+  posting cache entry, no remembered fingerprint. It reads only the user's settings and the live
+  calibration references.
+- *What the shadow varies.* Only the `EngineConfig` (weights, gates, bands, verbs, negation, scoring)
+  and a resolver built for it. The skill graph, the parse tables, the title and MOS indexes and the
+  calibration panel are the live ones. The résumé is parsed again with the shadow config (one parse
+  per user, cheap). The postings are the ones the live pass just used (`bank_scores(postings_out=)`),
+  NOT parsed again: a second parse costs about 20 ms a posting plus the description egress, which
+  the 300 s cron cannot afford. So a candidate whose change works through posting parsing (posting
+  negation or verbs) is under-measured; the summary says `"postings": "live parse"`. A candidate of
+  that kind is judged offline (`make eval`), as EVAL section 5 requires anyway.
+- *One calibrator.* Both sides use the live calibrator, so the display delta is the config's alone,
+  not a change of reference group.
+- *Deadline.* The shadow pass runs inside the sweep's scoring budget (`CRON_MATCH_BUDGET_S`): its time
+  counts toward the check before the next live chunk, and once the budget is spent the shadow pass is
+  skipped and its jobs counted (`skipped_deadline`). The shadow engine is built lazily on the first
+  scored chunk (about 3 s: the resolver).
+- *Failures.* A directory that is missing or a config that fails to load sets `status: "error"`
+  with the error class and message, and no further shadow pass runs that sweep; a fault while
+  scoring a chunk counts in `errors`. Neither ever stops or changes the live sweep.
