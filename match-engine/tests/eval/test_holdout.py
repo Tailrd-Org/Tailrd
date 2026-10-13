@@ -409,3 +409,33 @@ def test_a_malformed_pair_prints_only_its_index_and_type(tmp_path: Path, key: by
     assert code == 2
     assert "pair 1" in out and "ValidationError" in out
     assert "SECRET-RESUME-TEXT-991" not in out and "input_value" not in out
+
+
+# ─── round 2: the ledger credential exists only inside the ledger's own git commands ───────
+
+
+def test_git_ledger_passes_the_token_through_git_config_env_only(tmp_path: Path) -> None:
+    token = "ghs_secret-token-value-123"
+    ledger = holdout.GitLedger(tmp_path, token=token)
+    env = ledger._env()
+    assert env["GIT_CONFIG_COUNT"] == "1"
+    assert env["GIT_CONFIG_KEY_0"] == "http.https://github.com/.extraheader"
+    expected = base64.b64encode(f"x-access-token:{token}".encode()).decode("ascii")
+    assert env["GIT_CONFIG_VALUE_0"] == f"AUTHORIZATION: basic {expected}"
+    assert "GIT_CONFIG_COUNT" not in holdout.GitLedger(tmp_path)._env()
+
+
+def test_cli_hands_the_ledger_token_only_to_the_ledger(tmp_path: Path, key: bytes, monkeypatch) -> None:
+    seen = {}
+    real_init = holdout.GitLedger.__init__
+
+    def spy(self, *args, **kwargs):  # noqa: ANN001, ANN202
+        seen["token"] = kwargs.get("token")
+        real_init(self, *args, **kwargs)
+
+    monkeypatch.setattr(holdout.GitLedger, "__init__", spy)
+    monkeypatch.setattr(holdout, "open_labels", lambda *a, **k: (_ for _ in ()).throw(holdout.HoldoutError("stop")))
+    env = {**_env(key), holdout.LEDGER_TOKEN_ENV: "tok-1"}
+    assert holdout.main(["evaluate", "--labels", str(_labels(tmp_path, key)), "--ref", "release/1", "--sha", SHA],
+                        environ=env, today=TODAY) == 2
+    assert seen["token"] == "tok-1" and holdout.LEDGER_TOKEN_ENV == "HOLDOUT_LEDGER_TOKEN"

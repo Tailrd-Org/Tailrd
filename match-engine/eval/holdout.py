@@ -60,6 +60,10 @@ PAIRS = HOLDOUT_DIR / "pairs" / "pairs.jsonl"
 LEDGER = ROOT / "docs" / "evaluation_budget.ledger.csv"  # format reference; the durable ledger is the branch
 LEDGER_BRANCH = "holdout-ledger"
 LEDGER_FILE = "evaluation_budget.ledger.csv"  # its path on the ledger branch
+# The write credential for the ledger push. The CI checkout persists no credential; the workflow
+# sets this only on the `make eval-holdout` step, and only the ledger's own git commands receive it
+# (as GIT_CONFIG_* environment entries of those subprocesses, never argv).
+LEDGER_TOKEN_ENV = "HOLDOUT_LEDGER_TOKEN"
 LOOKS_PER_QUARTER = 10
 RELEASE_PREFIX = "release/"
 MAGIC = b"MHO1"
@@ -248,16 +252,27 @@ class GitLedger(_LedgerBase):
                  "GIT_COMMITTER_EMAIL": "holdout-ledger@invalid"}
 
     def __init__(self, repo: Path, *, remote: str = "origin", branch: str = LEDGER_BRANCH,
-                 filename: str = LEDGER_FILE) -> None:
+                 filename: str = LEDGER_FILE, token: Optional[str] = None) -> None:
         self.repo = Path(repo)
+        self._token = token or None
         self.remote = remote
         self.branch = branch
         self.filename = filename
         self._tip: Optional[str] = None
         self._rows: list[dict[str, str]] = []
 
+    def _env(self) -> dict[str, str]:
+        env = {k: v for k, v in os.environ.items() if k != LEDGER_TOKEN_ENV}
+        env.update(self._IDENTITY)
+        env["GIT_TERMINAL_PROMPT"] = "0"
+        if self._token:
+            basic = base64.b64encode(f"x-access-token:{self._token}".encode("utf-8")).decode("ascii")
+            env.update({"GIT_CONFIG_COUNT": "1", "GIT_CONFIG_KEY_0": "http.https://github.com/.extraheader",
+                        "GIT_CONFIG_VALUE_0": f"AUTHORIZATION: basic {basic}"})
+        return env
+
     def _git(self, *args: str, data: Optional[bytes] = None) -> subprocess.CompletedProcess:
-        env = {**os.environ, **self._IDENTITY, "GIT_TERMINAL_PROMPT": "0"}
+        env = self._env()
         return subprocess.run(["git", *args], cwd=self.repo, input=data, capture_output=True, env=env, check=False)
 
     def _out(self, *args: str, data: Optional[bytes] = None) -> str:
@@ -451,7 +466,8 @@ def main(argv: Optional[Sequence[str]] = None, *, environ: Optional[Mapping[str,
             return 2
         ledger = Ledger(Path(args.local_ledger))
     else:
-        ledger = GitLedger(Path(args.ledger_repo), remote=args.ledger_remote, branch=args.ledger_branch)
+        ledger = GitLedger(Path(args.ledger_repo), remote=args.ledger_remote, branch=args.ledger_branch,
+                           token=env.get(LEDGER_TOKEN_ENV))
     sha = args.sha or _from_env_or_git(env, ("GITHUB_SHA",), ("rev-parse", "HEAD"))
     day = today or utc_today()
     try:

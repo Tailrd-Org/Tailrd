@@ -9,6 +9,8 @@
 #                 exits 0. With it, the look is claimed on the shared `holdout-ledger` branch (pushed
 #                 before anything is decrypted; 10 per quarter, once per commit), eval/HOLDOUT.md.
 #
+# The holdout guard is its own workflow (holdout-guard.yml) so no path filter can skip it.
+#
 # Actions are pinned by full commit SHA (the tag each SHA resolved to on 2026-10-13 is in the comment).
 name: match-engine eval
 
@@ -38,39 +40,6 @@ defaults:
     working-directory: match-engine
 
 jobs:
-  holdout-guard:
-    # EVAL 0: nothing under eval/corpora/holdout/ is ever committed (scripts/guard_holdout.py). Every
-    # path touched by ANY commit in the range is checked, so adding a file and deleting it in a later
-    # commit is still caught. Make this a required status check on main and release/** (eval/HOLDOUT.md).
-    runs-on: ubuntu-24.04
-    steps:
-      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
-        with:
-          fetch-depth: 0
-      - name: Reject any commit that touches eval/corpora/holdout/
-        env:
-          EVENT: ${{ github.event_name }}
-          BASE_REF: ${{ github.base_ref }}
-          BEFORE: ${{ github.event.before }}
-        run: |
-          if [ "$EVENT" = "pull_request" ]; then
-            base="$(git merge-base "origin/$BASE_REF" HEAD)"
-          else
-            base="$BEFORE"
-          fi
-          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
-             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
-            range="HEAD"  # a new branch: every commit it holds
-          else
-            range="$base..HEAD"
-          fi
-          git -C .. log --format= --name-only --no-renames -m "$range" | sed '/^$/d' | sort -u \
-            > "$RUNNER_TEMP/touched.txt"
-          echo "$(wc -l < "$RUNNER_TEMP/touched.txt") paths touched in $range"
-          if [ -s "$RUNNER_TEMP/touched.txt" ]; then
-            xargs -d '\n' python3 scripts/guard_holdout.py < "$RUNNER_TEMP/touched.txt"
-          fi
-
   test:
     runs-on: ubuntu-24.04
     timeout-minutes: 30
@@ -158,7 +127,7 @@ jobs:
     # candidate with a failing guardrail does not spend a holdout look). The `holdout` environment
     # holds both secrets, allows only release/** deployments and needs a reviewer (eval/HOLDOUT.md).
     if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')
-    needs: [holdout-guard, test, eval-fast]
+    needs: [test, eval-fast]
     runs-on: ubuntu-24.04
     timeout-minutes: 30
     environment: holdout
@@ -166,6 +135,9 @@ jobs:
       contents: write  # to push the look's row to the holdout-ledger branch before decrypting
     steps:
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          # No token in .git/config: installs, downloads and other actions never hold a write credential.
+          persist-credentials: false
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         with:
           python-version: "3.12"
@@ -189,8 +161,10 @@ jobs:
             curl -fsSL "$BUNDLE_URL" | tar -xz -C eval/corpora/holdout
           fi
       - name: make eval-holdout
-        # The key is visible to this step only, never to installs, downloads or other actions.
+        # The key and the write token are visible to this step only, never to installs, downloads or
+        # other actions; eval.holdout hands the token to the ledger's own git commands only.
         env:
           MATCH_HOLDOUT_KEY: ${{ secrets.MATCH_HOLDOUT_KEY }}
+          HOLDOUT_LEDGER_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GITHUB_REF_NAME: ${{ github.ref_name }}
         run: make eval-holdout

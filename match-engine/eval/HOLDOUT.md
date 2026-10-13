@@ -7,9 +7,11 @@ tooling is `eval/holdout.py`; the look budget is `docs/evaluation_budget.md`.
 ## Rules
 
 1. Nothing is ever committed under `eval/corpora/holdout/`. The folder is git-ignored;
-   `scripts/guard_holdout.py` rejects staged changes locally, and the CI job `holdout-guard` runs it
-   over every path touched by any commit of a pull request or release push (so adding a file in one
-   commit and deleting it in the next is still caught). The guard is never bypassed.
+   `scripts/guard_holdout.py` rejects staged changes locally, and the job `holdout-guard` (workflow
+   `.github/workflows/holdout-guard.yml`, which has no path filter, so it runs on every pull request
+   and every push to main and `release/**`) runs it over every path touched by any commit in the
+   range (so adding a file in one commit and deleting it in the next is still caught). The guard is
+   never bypassed.
 2. The labels are decrypted only in CI, only on `release/**` branches, only by `make eval-holdout`,
    at most 10 times per calendar quarter (UTC) and at most once per commit.
 3. Claude Code and every developer machine never hold the key. Locally, `make eval-holdout` prints
@@ -29,12 +31,18 @@ depend on them.
      edits the workflow could read a repository secret.
    - Deployment branches: selected branches only, pattern `release/**`.
    - Required reviewers: at least one person who did not author the release.
-2. **Required status check** `holdout-guard` on `main` and `release/**` (branch protection or a
-   ruleset), so a pull request that touches the holdout path cannot merge.
+2. **Required status check** `holdout-guard` (the job of workflow `holdout guard`,
+   `.github/workflows/holdout-guard.yml`) on `main` and `release/**` (branch protection or a
+   ruleset), so a pull request that touches the holdout path cannot merge. It runs on every pull
+   request, so requiring it never leaves an unrelated pull request pending.
 3. **Branch `holdout-ledger`**: protect it against deletion and force pushes (allow the workflow's
    fast-forward pushes). It holds `evaluation_budget.ledger.csv`, the durable look ledger.
 4. Allow GitHub Actions to push (Settings, Actions, Workflow permissions); the `holdout` job asks
-   for `contents: write` only to push the ledger row.
+   for `contents: write` only to push the ledger row. Its checkout persists no credential
+   (`persist-credentials: false`); the token is set as `HOLDOUT_LEDGER_TOKEN` on the
+   `make eval-holdout` step only, and `eval/holdout.py` hands it only to the ledger's own git
+   commands (as `GIT_CONFIG_*` environment entries, never on a command line), so package installs,
+   the bundle download and other actions never hold a write credential.
 
 ## Bundle format
 
