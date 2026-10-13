@@ -1,12 +1,15 @@
 """
-Migration: scraped_jobs.match_terms, the per-job input to the free local
-match scorer (services/local_match.py).
+Migration: scraped_jobs.match_terms, the per-job posting cache.
 
-The local scorer reads each job's 40 most frequent content words. Computing
-them needs the full description, and pulling every description for every user
-on every sweep is the egress pattern that cost 4.9 GB in July. So each job's
-terms are computed ONCE (lazily, by the sweep) and stored here; per-user
-scoring then reads a few hundred bytes per job instead of the whole posting.
+Since Task 9.2 the column holds the fit engine's parsed posting
+(services/fit_engine.postings_for, DECISIONS D-84): {"v": <posting cache
+version>, "dl": <description length>, "posting": {...}}. It first held the
+retired local scorer's {"v": 1, "top", "tags"} terms; those entries never
+match the fit version, so each is re-parsed the first time it is read.
+Parsing needs the full description, and pulling every description for every
+user on every sweep is the egress pattern that cost 4.9 GB in July. So each
+posting is parsed once per parser version and stored here; per-user scoring
+then reads the cached posting instead of the whole description.
 
 Adds a nullable JSON column: NULL means "not computed yet". DDL only, no
 backfill (the sweep fills rows as it meets them). Same first-deploy guard as

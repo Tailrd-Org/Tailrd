@@ -887,6 +887,52 @@ while both its fingerprint and its posting key match, so a description backfill 
 parse-table change or a year change rescores it, and an INTERNAL_ERROR result is stored with a
 NULL key and retried by the next sweep.
 
+**D-107 Reading banked scores without the engine. [Tailrd]** A fit fingerprint (D-82) needs the
+built engine (about 10 s cold per process), which the feed, the sidebar and the job list must
+never pay. `backend/services/fit_reads.py` holds everything those paths need and imports nothing
+from `matcher`. `bank_scores` records, per user, the fingerprint it banked under and an
+`input_key` (sha256 of the résumé document, its raw text, the ten profile fields and the
+clearance answer: every stored input the fingerprint depends on) in `match_fingerprints`. A
+request serves rows under that fingerprint while its `input_key` still matches the stored inputs,
+plus the exact fingerprint when its process has already built the engine; rows are one per
+(user, job), so two fingerprints never count a job twice. An edited résumé or answer changes the
+key, so its old scores stop being served at once ("not scored yet" until the next sweep, upload or
+breakdown). A request path calls `bank_scores` only when `engine_ready()`. Accepted: between a
+config-changing deploy and the next sweep, a cold process serves the previous config's fit rows
+for an unchanged résumé (they are engine rows, never AI or "local1:" ones), and in a new month a
+cold process serves last month's rows until the sweep rescores (D-87).
+
+**D-108 The sweep, without AI. [Tailrd]** The cron sweep keeps its scope (the newest 2,000 jobs
+the feed shows per user, in the user's region, not yet alerted) and its 120 s scoring box, and
+calls `bank_scores` in chunks of at most 500 job ids, each committed on its own, yielding to the
+event loop between chunks (the cron-poll wall clock can only cut at an await). An IntegrityError
+(a concurrent sweep or upload banked the same pair first) rolls back and skips that chunk only. A
+`FitTraceSaltError` stops scoring for the rest of the sweep (`fit_trace_salt_missing: true`, an
+ERROR log, banked Strong matches still emailed); there is no fallback scorer. Alerts go out only
+for SCORED rows in the Strong band (D-85); `MATCH_NOTIFY_THRESHOLD` is gone. Once per sweep with
+at least one user scanned: `refresh_calibration`, then `audit.evaluate_drift` with the 30-day
+baseline (current-config rows banked before the sweep started, at most 5,000 raw scores, newest
+first) as the PSI reference and this sweep's raw scores as current, both sample sizes passed (an
+empty side is reported as skipped, never evaluated); abstention is NEEDS_REVIEW plus
+SCORED_LOW_CONFIDENCE over all pairs (D-95). Coverage, four-fifths and latency are not measured
+by the sweep and are listed as `not_measured`, so no check is silently dropped. The upload
+pre-score banks the newest 300 visible jobs in a worker thread on its own session; it sends no
+alert.
+
+**D-109 The breakdown and the feed fields. [Tailrd]** `/ai/match-breakdown` is
+`fit_engine.explain_job` (a sync route, so the first call's engine build runs in a worker thread),
+never charges the daily AI limit, and also banks the job's score so the card agrees with the
+panel. `MatchBreakdown` keeps its seven old fields (`strengths` / `weaknesses` stay lists of
+strings: the labels of the structured items) and adds `outcome`, `band`, `display_score`,
+`headline`, `basis`, `strength_items` and `gaps` (label, impact, note, code), `to_improve`,
+`notes` and `interval`. Only SCORED carries numbers: every other outcome has 0 in the old number
+fields and no `display_score`; `match_label` is the band, else "Not eligible" (GATE_FAIL) or "We
+couldn't score this" (NEEDS_REVIEW). The three old sub-scores are the engine's required-skills,
+experience and domain dimension values on 0..100. The job list overlays `match_score` (the
+displayed score for SCORED, else 0), `match_band` and `match_outcome` per user; the global
+`scraped_jobs.match_score` column (an AI-era leftover) is never shown on a card again. No
+response or email says "% match": the alert subject is "Strong match: <title> · fit score 88".
+
 ## Posting parser (Task 6.5) [Tailrd]
 
 The guiding rule for every entry below: a phantom requirement lowers every candidate's score on

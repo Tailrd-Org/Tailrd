@@ -7,7 +7,7 @@ Migration: storage for the deterministic fit engine (services/fit_engine.py, Tas
 2. ``job_match_scores.score`` becomes nullable: an engine result that shows no number
    (GATE_FAIL, NEEDS_REVIEW, a low-confidence band) stores NULL, never a numeric sentinel that
    could leak into a display, an average or a threshold (DECISIONS D-86).
-3. ``match_traces`` and ``match_calibration`` exist. create_all builds them on startup before
+3. ``match_traces``, ``match_calibration`` and ``match_fingerprints`` (Task 9.2, D-107) exist. create_all builds them on startup before
    any migration runs (on Postgres under its advisory lock); on SQLite they are also created
    here if missing, so a standalone run is complete. Postgres leaves table creation to
    create_all: a second, unlocked CREATE path would reintroduce the cold-start race it guards.
@@ -52,9 +52,9 @@ def _columns(engine) -> dict[str, dict]:
 
 
 def _ensure_tables(engine) -> None:
-    from backend.db.models import MatchCalibration, MatchTrace
+    from backend.db.models import MatchCalibration, MatchFingerprint, MatchTrace
 
-    for model in (MatchTrace, MatchCalibration):
+    for model in (MatchTrace, MatchCalibration, MatchFingerprint):
         model.__table__.create(bind=engine, checkfirst=True)
 
 

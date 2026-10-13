@@ -85,14 +85,18 @@ def _overlay_saved(db: Session, jobs: list[ScrapedJob], user_id: Optional[int]) 
         )
         saved_ids = {row[0] for row in rows}
     # The global match_score column is a single-user leftover (0 on every row);
-    # the real numbers are per user, banked by the match sweep.
+    # the real results are per user, banked by the fit engine (D-83).
     scores = jobs_sidebar.user_match_scores(db, user_id, [j.id for j in jobs])
     results = []
     for job in jobs:
         out = ScrapedJobOut.model_validate(job)
         out.saved = 1 if job.id in saved_ids else 0
+        out.match_score, out.match_band, out.match_outcome = 0, None, None
         if job.id in scores:
-            out.match_score = scores[job.id]
+            value, band, outcome = scores[job.id]
+            # A number only for SCORED (D-86); the band alone for low confidence.
+            out.match_score = value if outcome == "SCORED" and value is not None else 0
+            out.match_band, out.match_outcome = band, outcome
         out.url = legacy_urls.apply_url(out.url)
         results.append(out)
     return results
@@ -284,10 +288,11 @@ def list_jobs(
             since = since.astimezone(datetime.timezone.utc).replace(tzinfo=None)
         q = q.filter(func.coalesce(ScrapedJob.first_seen_at, ScrapedJob.scraped_at) >= since)
 
-    # The user's own score (LLM-confirmed or free local), for strong=1 and for
-    # sort=match. The global scraped_jobs.match_score is 0 on every row.
+    # The user's own fit-engine result, for strong=1 and for sort=match. The
+    # global scraped_jobs.match_score is 0 on every row. Banked rows only: this
+    # request never builds the engine (fit_reads, D-107).
     from backend.db.models import JobMatchScore
-    from backend.services.local_match import current_fingerprints
+    from backend.services import fit_reads
 
     user_score = None
     profile = (
@@ -295,13 +300,15 @@ def list_jobs(
         if user_id is not None and (strong or sort == "match")
         else None
     )
+    fingerprints = jobs_sidebar.serving_fingerprints(db, user_id, profile) if profile is not None else []
     if strong:
-        if profile is None:
+        # A confident Strong match: outcome SCORED, band Strong (D-85).
+        if profile is None or not fingerprints:
             return []
         q = q.join(JobMatchScore, JobMatchScore.job_id == ScrapedJob.id).filter(
             JobMatchScore.user_id == user_id,
-            JobMatchScore.resume_fingerprint.in_(current_fingerprints(profile.raw_text)),
-            JobMatchScore.score >= jobs_sidebar.STRONG_MATCH,
+            JobMatchScore.resume_fingerprint.in_(fingerprints),
+            fit_reads.strong_match(),
         )
         user_score = JobMatchScore.score
     elif profile is not None:
@@ -310,7 +317,7 @@ def list_jobs(
             and_(
                 JobMatchScore.job_id == ScrapedJob.id,
                 JobMatchScore.user_id == user_id,
-                JobMatchScore.resume_fingerprint.in_(current_fingerprints(profile.raw_text)),
+                JobMatchScore.resume_fingerprint.in_(fingerprints),
             ),
         )
         user_score = JobMatchScore.score
@@ -323,9 +330,10 @@ def list_jobs(
     # id tiebreaker: bulk inserts share timestamps, and ties without a total
     # order make pagination unstable (the same job shows up on two pages).
     if user_score is not None:
-        # Unscored jobs last; ties (and the unscored) newest first.
+        # NULL scores (not scored, low confidence, gate fail, needs review) after
+        # every scored job, never as a low score (D-86); ties newest first.
         q = q.order_by(
-            func.coalesce(user_score, -1).desc(),
+            *fit_reads.score_order(user_score),
             effective_date.desc().nullslast(),
             ScrapedJob.id.desc(),
         )

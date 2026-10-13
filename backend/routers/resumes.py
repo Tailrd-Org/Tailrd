@@ -39,6 +39,52 @@ from backend.services.resume_pdf import render_resume_pdf
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
+#: How many of the newest visible jobs an upload pre-scores (Task 9.2).
+UPLOAD_PRESCORE_JOBS = 300
+
+
+def prescore_upload(db: Session, user_id: int, profile: ResumeProfileDB) -> int:
+    """Bank fit scores for the newest UPLOAD_PRESCORE_JOBS visible jobs against a new résumé.
+
+    Deterministic, no AI (DECISIONS D-83). It may build the engine (about ten seconds cold),
+    so it runs off the request, in a worker thread. Returns how many jobs were newly scored;
+    never raises (the upload already succeeded)."""
+    from backend.services import fit_engine
+    from backend.services.jobs_sidebar import visible_job_filter
+
+    ids = [
+        row[0]
+        for row in db.query(ScrapedJob.id)
+        .filter(visible_job_filter())
+        .order_by(ScrapedJob.id.desc())
+        .limit(UPLOAD_PRESCORE_JOBS)
+        .all()
+    ]
+    try:
+        return len(fit_engine.bank_scores(db, user_id, profile, ids))
+    except fit_engine.FitTraceSaltError:
+        db.rollback()
+        logger.error("Résumé upload pre-score skipped: FIT_TRACE_SALT is missing or too short.")
+    except Exception as exc:
+        db.rollback()
+        logger.error("Résumé upload pre-score failed: %s", type(exc).__name__)
+    return 0
+
+
+def _prescore_in_background(user_id: int, profile_id: int) -> None:
+    """``prescore_upload`` on its own session (the request's is closed by then)."""
+    from backend.db.database import SessionLocal
+
+    db = SessionLocal()
+    try:
+        profile = db.get(ResumeProfileDB, profile_id)
+        if profile is not None and profile.user_id == user_id:
+            prescore_upload(db, user_id, profile)
+    except Exception as exc:
+        logger.error("Résumé upload pre-score could not start: %s", type(exc).__name__)
+    finally:
+        db.close()
+
 
 def _record_to_profile(record: ResumeProfileDB) -> ResumeProfile:
     """The one place a DB row becomes a ResumeProfile.
@@ -446,94 +492,10 @@ async def upload_resume(
     # Bump the sync version so the extension picks up the new resume.
     bump_profile_version(db, user_id)
 
-    # Trigger batch scoring for top jobs in background
+    # Pre-score the newest visible jobs with the fit engine in the background, so
+    # the feed shows this résumé's results right away. Alerts are left to the sweep.
     import asyncio
-    from backend.db.models import JobMatchScore
-    from backend.services.match_engine import MatchEngine
-    from backend.services.match_notifier import (
-        _remember_score,
-        _resume_fingerprint,
-        notify_high_matches,
-    )
 
-    async def _score_top_jobs():
-        from backend.services.local_match import bank_local_scores, scoring_mode
-
-        if scoring_mode() == "local":
-            # Free: score the newest visible jobs locally so the feed shows
-            # this resume's matches right away. Alerts are left to the sweep,
-            # which confirms the best candidates before emailing.
-            try:
-                from backend.services.jobs_sidebar import visible_job_filter
-
-                ids = [
-                    row[0]
-                    for row in db.query(ScrapedJob.id)
-                    .filter(visible_job_filter())
-                    .order_by(ScrapedJob.id.desc())
-                    .limit(300)
-                    .all()
-                ]
-                bank_local_scores(db, user_id, db_profile, ids)
-            except Exception:
-                logger.exception("Local match scoring after resume upload failed")
-            return
-
-        try:
-            engine = MatchEngine(db)
-            jobs_to_score = (
-                db.query(ScrapedJob)
-                .filter(
-                    ScrapedJob.match_score == 0,
-                    ScrapedJob.description != "",
-                    ScrapedJob.description != None,
-                )
-                .order_by(ScrapedJob.id.desc())
-                .limit(10)
-                .all()
-            )
-            # Share the sweep's score cache: whichever of the two runs first
-            # for a (user, job, resume) triple pays the LLM; the other reads
-            # the receipt. Without this, every upload re-buys scores the cron
-            # already owns, and the cron re-buys these within the hour.
-            fingerprint = _resume_fingerprint(raw_text)
-            cached: dict[int, int] = {}
-            if jobs_to_score:
-                cached = dict(
-                    db.query(JobMatchScore.job_id, JobMatchScore.score)
-                    .filter(
-                        JobMatchScore.user_id == user_id,
-                        JobMatchScore.job_id.in_([j.id for j in jobs_to_score]),
-                        JobMatchScore.resume_fingerprint == fingerprint,
-                    )
-                    .all()
-                )
-            scored: list[tuple[ScrapedJob, int]] = []
-            for job in jobs_to_score:
-                if job.id in cached:
-                    scored.append((job, cached[job.id]))
-                    continue
-                if job.description and len(job.description) > 50:
-                    try:
-                        breakdown = await engine.compute_breakdown(raw_text, job.description)
-                        job.match_score = breakdown.overall_score
-                        job.experience_score = breakdown.experience_score
-                        job.skill_score = breakdown.skill_score
-                        job.industry_score = breakdown.industry_score
-                        job.match_label = breakdown.match_label
-                        db.commit()
-                        _remember_score(db, user_id, job.id, breakdown.overall_score, fingerprint)
-                        scored.append((job, breakdown.overall_score))
-                    except Exception:
-                        pass
-            # Email the user about any strong (>=80%) matches we just found.
-            try:
-                notify_high_matches(db, user_id, scored)
-            except Exception:
-                logger.exception("Failed to send match alert after resume upload")
-        except Exception:
-            pass
-
-    asyncio.ensure_future(_score_top_jobs())
+    asyncio.ensure_future(asyncio.to_thread(_prescore_in_background, user_id, db_profile.id))
 
     return ResumeUploadResponse(id=db_profile.id, profile=profile)

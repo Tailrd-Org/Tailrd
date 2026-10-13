@@ -61,3 +61,11 @@ def test_parse_json_complex_response():
     assert result["industry_score"] == 70
     assert result["strengths"] == ["Python", "AWS"]
     assert result["weaknesses"] == ["No Java"]
+
+
+def test_no_job_scoring_is_left_in_the_llm_match_engine():
+    # Job scores come from the deterministic fit engine (Task 9.2, D-83); MatchEngine keeps only
+    # the tailoring flow's analysis.
+    for gone in ("compute_breakdown", "analyze_fit", "queue_analysis"):
+        assert not hasattr(MatchEngine, gone), gone
+    assert hasattr(MatchEngine, "analyze_job")

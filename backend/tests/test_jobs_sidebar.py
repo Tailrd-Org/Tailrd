@@ -1,6 +1,10 @@
 """
 Tests for GET /jobs/sidebar and the per-user score overlay / strong filter on
 GET /jobs. Isolated SQLite app (never the Neon lifespan), safe standalone.
+
+Scores are fit-engine rows (Task 9.2): seeded under a remembered fit fingerprint
+(match_fingerprints, D-107) with the band the engine gives that number (85/70/55),
+and read the way every request reads them, without building the engine.
 """
 
 import datetime
@@ -18,6 +22,7 @@ from backend.db.models import (
     ApplicationStatus,
     AutofillReport,
     JobMatchScore,
+    MatchFingerprint,
     ResumeProfileDB,
     ScrapedJob,
     User,
@@ -25,8 +30,8 @@ from backend.db.models import (
     UserSettings,
 )
 from backend.routers.jobs import router as jobs_router
-from backend.services.jobs_sidebar import build_sidebar
-from backend.services.match_notifier import _resume_fingerprint
+from backend.services import fit_reads
+from backend.services.jobs_sidebar import build_sidebar, display_skill
 
 TEST_DATABASE_URL = "sqlite:///./test_jobs_sidebar.db"
 engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -38,6 +43,16 @@ NOW = datetime.datetime(2026, 10, 8, 12, 0, 0)  # a Thursday
 
 app = FastAPI()
 app.include_router(jobs_router, prefix="/jobs")
+
+
+FIT_FP = "fit1:" + "c" * 59
+OLD_FIT_FP = "fit1:" + "d" * 59
+
+
+@pytest.fixture(autouse=True)
+def cold_engine(monkeypatch):
+    """Request paths read banked rows only; nothing here builds or calls the engine."""
+    monkeypatch.setattr(fit_reads, "engine_ready", lambda: False)
 
 
 @pytest.fixture(autouse=True)
@@ -95,12 +110,24 @@ def resume(db, text=RESUME_TEXT):
     r = ResumeProfileDB(user_id=USER, name="Main CV", raw_text=text, skills=["Kubernetes"])
     db.add(r)
     db.commit()
+    # What bank_scores leaves behind: the fit fingerprint for these exact inputs.
+    db.add(MatchFingerprint(user_id=USER, input_key=fit_reads.input_key(r, None), fingerprint=FIT_FP))
+    db.commit()
     return r
 
 
-def score(db, job_row, value, text=RESUME_TEXT):
+def _band(value):
+    for floor, band in ((85, "Strong match"), (70, "Good match"), (55, "Partial match")):
+        if value >= floor:
+            return band
+    return "Limited match"
+
+
+def score(db, job_row, value, current=True):
+    """A SCORED fit row; ``current=False`` banks it under another (stale) fingerprint."""
     db.add(JobMatchScore(
-        user_id=USER, job_id=job_row.id, score=value, resume_fingerprint=_resume_fingerprint(text)
+        user_id=USER, job_id=job_row.id, score=value, band=_band(value), outcome="SCORED",
+        resume_fingerprint=FIT_FP if current else OLD_FIT_FP,
     ))
     db.commit()
 
@@ -125,7 +152,7 @@ def test_resume_snapshot_uses_only_current_fingerprint(db):
     a, b, c = job(db), job(db), job(db)
     score(db, a, 90)
     score(db, b, 70)
-    score(db, c, 99, text="an older resume")  # stale score must not count
+    score(db, c, 99, current=False)  # stale score must not count
     data = build_sidebar(db, USER, now=NOW)
     assert data["resume"]["name"] == "Main CV"
     assert data["resume"]["scored_jobs"] == 2
@@ -155,8 +182,7 @@ def test_skill_gaps_come_from_good_fit_jobs_and_skip_owned_skills(db):
 def test_implied_skills_are_never_reported_missing(db):
     resume(db, text="Built services in PostgreSQL and Next.js.")
     for _ in range(3):
-        score(db, job(db, skills=["sql", "javascript", "react", "aws"]), 90,
-              text="Built services in PostgreSQL and Next.js.")
+        score(db, job(db, skills=["sql", "javascript", "react", "aws"]), 90)
     data = build_sidebar(db, USER, now=NOW)
     assert {"sql", "javascript", "react"} <= set(data["resume_skills"])
     assert [g["skill"] for g in data["skill_gaps"]] == ["aws"]
@@ -265,10 +291,13 @@ def test_endpoint_and_list_overlay_and_strong_filter(client, db):
     assert r.status_code == 200, r.text
     assert r.json()["resume"]["strong_matches"] == 1
 
-    by_title = {j["title"]: j["match_score"] for j in client.get("/jobs").json()}
-    assert by_title["Great"] == 88 and by_title["Okay"] == 60
-    # Not reached by the sweep yet: scored locally on the spot, for free.
-    assert by_title["Unscored"] > 0
+    listed = {j["title"]: j for j in client.get("/jobs").json()}
+    assert listed["Great"]["match_score"] == 88 and listed["Okay"]["match_score"] == 60
+    assert listed["Great"]["match_band"] == "Strong match" and listed["Okay"]["match_band"] == "Partial match"
+    # Not reached by the sweep yet: shown as not scored (no number, no band), and the
+    # feed never builds the engine to score it on the spot.
+    assert listed["Unscored"]["match_score"] == 0
+    assert listed["Unscored"]["match_band"] is None and listed["Unscored"]["match_outcome"] is None
 
     strong = client.get("/jobs", params={"strong": 1}).json()
     assert [j["title"] for j in strong] == ["Great"]
@@ -293,3 +322,9 @@ def test_list_since_filter(client, db):
     since = (NOW - datetime.timedelta(hours=2)).isoformat() + "Z"
     titles = [j["title"] for j in client.get("/jobs", params={"since": since}).json()]
     assert titles == ["New"]
+
+
+def test_display_skill_casing_moved_with_the_skill_tags():
+    assert display_skill("postgresql") == "PostgreSQL"
+    assert display_skill("machine learning") == "Machine Learning"
+    assert display_skill("") == ""

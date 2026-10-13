@@ -3,17 +3,19 @@ OpenAIService, OpenAI Chat Completions client for AI-powered features.
 
 Drop-in replacement for the former AnthropicService: same public interface
 (analyze_resume, generate_cover_letter, answer_question, suggest_job_titles,
-tailor_resume*, edit_snippet, extract_experience_years,
-generate_connection_message, match_job, analyze_resume_quality) so every caller
+tailor_resume*, edit_snippet, generate_connection_message,
+analyze_resume_quality) so every caller
 that goes through get_llm_service() works unchanged. Only the transport
 (_generate) and configuration (__init__) are OpenAI-specific; all prompt
 building and parsing is provider-agnostic.
+
+No job scoring happens here: ``match_job`` and ``extract_experience_years`` were removed with every
+AI scoring path (DECISIONS D-83); job scores come from the deterministic fit engine.
 """
 
 import os
 import json
 import logging
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -662,16 +664,6 @@ class OpenAIService:
         result = await self._generate(prompt, op="edit_snippet")
         return result.strip().strip('"').strip()
 
-    async def extract_experience_years(self, description: str) -> int | None:
-        template = _load_prompt("extract_experience.txt")
-        prompt = template.replace("{{JOB_DESCRIPTION}}", description[:3000])
-        response = await self._generate(prompt, op="extract_experience")
-        text = response.strip().lower()
-        if text == "none" or not text:
-            return None
-        match = re.search(r"\d+", text)
-        return int(match.group()) if match else None
-
     async def generate_connection_message(
         self, profile_name: str, profile_title: str, job_title: str, company: str
     ) -> str:
@@ -685,24 +677,3 @@ class OpenAIService:
         )
         message = await self._generate(prompt, op="connection_message")
         return message.strip()[:300]
-
-    async def match_job(
-        self, resume_text: str, job_title: str, company: str, description: str
-    ) -> dict:
-        template = _load_prompt("match_job.txt")
-        prompt = (
-            template
-            .replace("{{RESUME_TEXT}}", resume_text[:3000])
-            .replace("{{JOB_TITLE}}", job_title)
-            .replace("{{JOB_COMPANY}}", company)
-            .replace("{{JOB_DESCRIPTION}}", description[:3000])
-        )
-        response = await self._generate(prompt, op="match.job")
-        try:
-            return json.loads(_extract_json(response))
-        except json.JSONDecodeError:
-            logger.warning("Failed to parse match response: %s", response[:300])
-            return {
-                "match_score": 0, "requirements": [], "summary": "",
-                "salary_range": "", "company_size": "", "company_description": "",
-            }

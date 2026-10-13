@@ -20,7 +20,16 @@ class ScrapedJobOut(BaseModel):
     easy_apply: bool
     status: JobStatus
     scraped_at: datetime.datetime
+    # The requesting user's fit score, overlaid per user (services/jobs_sidebar.user_match_scores).
+    # It is the engine's displayed integer only when match_outcome is "SCORED"; every other
+    # outcome shows no number and leaves it 0 (DECISIONS D-86). Read match_outcome first.
     match_score: int = 0
+    # The engine's band ("Strong match", "Good match", "Partial match", "Limited match"), also
+    # present for SCORED_LOW_CONFIDENCE (band only, no number). None when not scored yet.
+    match_band: Optional[str] = None
+    # SCORED, SCORED_LOW_CONFIDENCE, GATE_FAIL or NEEDS_REVIEW ("We couldn't score this");
+    # None when this job has not been scored for the user's current résumé yet.
+    match_outcome: Optional[str] = None
     requirements_met: int = 0
     requirements_total: int = 0
     match_summary: str = ""
