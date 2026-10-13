@@ -280,10 +280,16 @@ export interface WorkAuthFacts {
   unscopedAuthorized: boolean | null;
 }
 
+/** "N/A" and its spellings, read against a trimmed, lowercased answer. */
+const NOT_APPLICABLE = /^(n\s*[/.]?\s*a\b\.?|not applicable\b|does not apply\b|doesn'?t apply\b)/;
+
 /** Yes/no reading of a short stored answer, or null. */
 export function polarityOf(text: string): boolean | null {
   const t = (text || "").trim().toLowerCase();
   if (!t) return null;
+  // "N/A", "NA", "N.A.", "not applicable": unanswered, never a No (owner
+  // decisions 2026-10-13; "n" before "/" read as "No").
+  if (NOT_APPLICABLE.test(t)) return null;
   if (/^(yes|y|true|oui|si)\b/.test(t)) return true;
   if (/^(no|n|false|non|none|not)\b/.test(t)) return false;
   if (/\b(will not|won't|do not|don't|does not|doesn't|no longer|never)\s+(need|require)/.test(t)) return false;
@@ -343,13 +349,21 @@ export function countriesIn(text: string): Country[] {
  *   "Yes"                                      unscoped: authorized
  */
 export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
-  const text = (profile.workAuthorization || "").trim();
-  const lower = text.toLowerCase();
+  const fullText = (profile.workAuthorization || "").trim();
   const byCountry = new Map<string, CountryAuth>();
   const statedSponsorship = polarityOf(profile.requiresSponsorship || "");
   let unscopedAuthorized: boolean | null = null;
 
-  const countries = countriesIn(text);
+  // "Canada but not in the US": the negated clause names countries that are
+  // never authorized, and the rest of the sentence is read without it, so the
+  // status it states belongs only to the countries named positively.
+  const scope = negatedCountryScope(fullText);
+  const text = scope.positiveText;
+  const lower = text.toLowerCase();
+  const countries = countriesIn(text).filter((c) => !scope.negated.has(c.code));
+  // A statement that limits itself ("only in Canada", "but not the US") is an
+  // authorization statement for the countries it keeps.
+  const scoped = scope.negated.size > 0 || /\bonly\b/.test(lower);
   const set = (code: string, a: CountryAuth): void => {
     byCountry.set(code, a);
   };
@@ -363,7 +377,7 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
   const affirmative = /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(lower);
   const bareYes = polarityOf(text);
 
-  if (countries.length === 0) {
+  if (countries.length === 0 && scope.negated.size === 0) {
     if (denied || bareYes === false) unscopedAuthorized = false;
     else if (affirmative || bareYes === true || citizen || pr) unscopedAuthorized = true;
     applyExplicitCountries(profile, byCountry);
@@ -377,10 +391,61 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     else if (sponsoredVisa) set(c.code, { authorized: true, needsSponsorship: true, basis: "work_permit" });
     else if (student) set(c.code, { authorized: null, needsSponsorship: null, basis: "student" });
     else if (permit) set(c.code, { authorized: true, needsSponsorship: null, basis: "work_permit" });
-    else if (affirmative || bareYes === true) set(c.code, { authorized: true, needsSponsorship: null, basis: "statement" });
+    else if (affirmative || bareYes === true || scoped) set(c.code, { authorized: true, needsSponsorship: null, basis: "statement" });
+  }
+  // A country the sentence excludes outright ("not in the US", "except the
+  // US") is a No. One it only says the applicant is not a citizen of ("not a
+  // US citizen") stays unknown: a green card holder says that too.
+  for (const [code, outright] of scope.negated) {
+    if (outright) set(code, { authorized: false, needsSponsorship: null, basis: "denied" });
   }
   applyExplicitCountries(profile, byCountry);
   return { byCountry, statedSponsorship, unscopedAuthorized };
+}
+
+/** A negation's reach ends at the next clause. "and" ends it only before a new
+ *  statement ("not in the US and authorized in Canada"); between two countries
+ *  ("not in the US and the UK") it keeps both negated. */
+const CLAUSE_BREAK =
+  /[,;.!?()]|\b(but|however|whereas|while|although|though|yet)\b|\band\s+(?=(i|am|is|authori[sz]ed|eligible|entitled|permitted|allowed|legally|can|have|hold|a|an)\b)/;
+/** Words that put the countries after them outside the statement. */
+const NEGATION = /\b(not|never|except|excluding|other than|outside( of)?)\b/g;
+/** A negated clause about sponsorship ("not requiring sponsorship in the US")
+ *  says nothing against the country's authorization. */
+const SPONSORSHIP_WORDS = /\b(sponsor\w*|requir\w*|need\w*)\b/;
+
+/**
+ * Split a work-authorization statement into the countries it negates and the
+ * text that is left. Each negation word reaches to the next clause break:
+ *
+ *   "Authorized to work in Canada but not in the US"  negated US (outright)
+ *   "Not authorized to work in the US, but in Canada"  negated US (outright)
+ *   "Canadian citizen, not a US citizen"               negated US (not outright)
+ *
+ * "Outright" means the clause excludes the country itself, not a status in it
+ * ("not a ... citizen / resident"), so the country is a No and not unknown.
+ */
+export function negatedCountryScope(text: string): { negated: Map<string, boolean>; positiveText: string } {
+  const negated = new Map<string, boolean>();
+  const lower = text.toLowerCase();
+  const cuts: Array<[number, number]> = [];
+  for (const m of lower.matchAll(NEGATION)) {
+    const from = (m.index ?? 0) + m[0].length;
+    const rest = lower.slice(from);
+    const brk = rest.search(CLAUSE_BREAK);
+    const to = from + (brk >= 0 ? brk : rest.length);
+    const clause = lower.slice(from, to);
+    if (SPONSORSHIP_WORDS.test(clause)) continue;
+    // Same indices in the original text: countriesIn reads "US" by its capitals.
+    const named = countriesIn(text.slice(from, to));
+    if (named.length === 0) continue;
+    const outright = !/^\s*(an?|the applicant an?)\s/.test(clause) && !/\b(citizen|national|resident)\b/.test(clause);
+    for (const c of named) negated.set(c.code, (negated.get(c.code) ?? false) || outright);
+    cuts.push([m.index ?? 0, to]);
+  }
+  let positiveText = text;
+  for (const [a, b] of cuts.reverse()) positiveText = positiveText.slice(0, a) + " " + positiveText.slice(b);
+  return { negated, positiveText: positiveText.trim() };
 }
 
 /**
