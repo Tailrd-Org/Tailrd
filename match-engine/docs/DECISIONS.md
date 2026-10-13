@@ -1364,6 +1364,97 @@ from `generator_fingerprint` and `parser_fingerprint` (D-118) and saved even whe
 fails (split restore and save), so the next run is warm while guardrails are red. Actions are pinned
 by full commit SHA.
 
+## Format invariance (Task 5.4) [Tailrd]
+
+**D-130 OCR text repair.** Scanned résumés are repaired after ingest and before parsing
+(`parse.resume.parse_ingested` runs `ingest.ocr_repair.repair_ocr`), only when ingest flagged
+OCR_USED; typed text is never touched. The rules are tables in `config/parse/ocr.yaml` (a fifth parse
+config file, part of the parse-config version): a misread roman level right after a title word of the
+role parser ("Analyst Ill," -> "III"; "Il" reads as II, never guessed up to III), a misread bullet glyph
+at a line start (": ", ". ", ";", "。", or "e"/"o" and a space, then a capital or a digit; a stray quote
+after it is the same speck), a dot read for a space before a capitalised word ("to.Present") and a dot
+touching a range dash ("2024. - Present"), a region code read in lower case at a line end ("Denver, co",
+only when the capitals make the line a place), a speck read as a final period after a line that is
+exactly a listed header ("Education."), and misread acronyms ("Bl" -> "BI", "Cl/CD" -> "CI/CD") or a
+lost letter of a pair ("Ilustrator"). An acronym or letter repair applies only when the repaired word is
+an exact key of the resolver (EXACT or ALIAS, one list-context mention spanning the whole word, never a
+fuzzy match, so the check has no side effect) and the word as read is not. [Deviation] The brief says
+"resolves EXACT"; most acronyms the taxonomy knows are aliases of a longer label (BI, IaC, GCP), so EXACT
+alone would repair almost nothing; ALIAS is still an exact key. The first line (the person's name, "Al")
+is never repaired. Nothing is ever added: every rule restores a spelling the page shows.
+
+**D-131 Undated entries of a functional résumé are roles.** In an experience-like section with no dated
+line and no bullet at all, a head line naming a job or an organisation is an undated entry without
+bullets; a line naming a title and an employer is a whole entry, and the place lines below it join it
+("Title, Employer / City"). The role has no dates: its title is evidence (ROLE_TITLE, undated
+`first_used`/`last_used`), it adds no months (`total_experience_months` stays the union of dated roles,
+None when none is dated), as undated roles already were (D-34). A section with bullets keeps the old rule
+(an undated entry needs bullets under it), so a bullet whose glyph a scan lost is not a role. The
+FUNCTIONAL_RESUME qualifications share counts words, not lines (a paragraph wrapped over four PDF lines
+weighs what it weighs on one line), and a résumé with undated roles and listed skills is functional
+whatever its layout.
+
+**D-132 A line opening with a past-tense action verb is no head line.** The verb lexicon's forms ending
+in "ed" and its irregular past forms (`roles.past_verbs`: built, led, ...) open bullet text ("Optimized
+audience segments ..."), so such a line never names a role, even when a scan lost its bullet glyph. Base
+forms are left out because titles open with them ("Lead Data Analyst", "Engineer").
+
+**D-133 A header word inside a list.** Inside a section that is no entry section (skills, a
+"Qualifications" sidebar, a summary), a listed header opens a section only in a strong form (ALL CAPS, a
+trailing colon, a rule under it), or when a line follows it that is not another header (an empty
+section is the tail of a wrapped item: "Market / Research / Employment History") and that does not
+continue the list. A line continues the list when it is written like the line before the header (or,
+for the first item, like the header line itself): a "Label: items" line, items between separators, or
+one short item (at most four words, no digit, no final period, no job title, degree or school). Lines
+and words only, never the layout. [Deviation] The brief names SKILLS blocks; the same sidebar list is
+also written under "Other Qualifications" (a SUMMARY header), where "Leadership" opened a VOLUNTEER
+section, so the rule covers every non-entry section.
+
+**D-134 Lines a narrow column wrapped.** Read as the unwrapped line, layout-independent: a skills-list
+line that is no bullet and no label carries on the list line before it when that line does not end with
+a separator ("Methods: A/B" / "Testing, Agile"); a field of study that runs over a degree line's end into
+the next line is read over both ("in Business" / "Administration, ..."); a short line naming no job
+right below a complete header line that ends with its dates, followed by a place, a bullet or nothing,
+is the end of that line's last piece ("Redwood    Sep 2025 – Present" / "Creative"); a place line
+between a dates-only line and the head line above it is passed over (a dates column read after the
+place); and "following", "within", "between", "through", "throughout", "during" and "among" end a line
+mid-sentence like the other function words.
+
+**D-135 Header vocabulary.** "Badges" and "Digital Badges" (CERTIFICATIONS) are listed headers: creative
+headers of real designer résumés as much as of the synthetic designer template. [Fix round 1] "Learning"
+was listed too and is withdrawn: a wrapped "Machine / Learning" bullet opened an EDUCATION section inside
+an experience entry. The designer template's "Learning" section stays unread (a known M6 cost).
+
+**Fix round 1 amendments (review of 8c75b0b..17ea24c; precision on real résumés outranks the M6
+number).**
+- D-130: OCR provenance is per page. Ingest marks each line OCR read (`TextLine.ocr`: every line of
+  an image file, the lines of each PDF page read by OCR) and only those lines are repaired, so a PDF
+  with one scanned page among typed pages leaves the typed lines alone. Finer (per block) provenance
+  does not exist: a page is OCRed whole. Tightened rules: a bullet glyph needs a space after it
+  (".NET Developer" stays); an acronym or doubled-letter repair is skipped when the next word is
+  capitalised (a name: "Al Smith", "Al Ain", "Mel Studio"); a level token needs a title word directly
+  before it (no comma between: "Server, Il Fornaio" stays) and nothing word-like after it (the end, a
+  separator, a spaced dash or a digit; "Ill-health" and "Chef Il Fornaio" stay). A repair that fails
+  leaves its line as read, and a failure of the whole step parses the text as read; neither fails
+  the résumé.
+- D-131: the listing rule applies only when the whole résumé has no dated role (no experience-like
+  section holds a dated line), in experience and volunteer sections alike (the brief named
+  experience; volunteer listings are read the same way). A listing entry needs a title piece that
+  names a job (`title_score`), in at most six words, opening with no pronoun ("Sorted donations" and
+  "I worked as a Software Engineer" are no roles). Its roles carry `Role.listed`; they are evidence
+  only and are left out of temporal completeness (`score/confidence.py`: a résumé whose roles are all
+  listed has none, as with no roles at all). This is the one change under `score/`, by ruling.
+- D-132: past forms that open titles as adjectives (assisted, automated, founded, registered,
+  certified, licensed, chartered, ...) are not bullet openers ("Assisted Living Coordinator").
+- D-133: the list rule runs only inside SKILLS and SUMMARY sections, and never holds back a header of
+  an entry kind (experience, education, projects, certifications, volunteer): "Experience" after a
+  one-per-line skills list always opens its section, so "Leadership" and "Research" in a sidebar open
+  theirs again. A header of another kind is judged by its run up to the next listed header: an empty
+  run opens nothing; any line in the run not written like the line before the header (a dated line,
+  a title, a degree, a school, a place, contact details, a sentence) opens the section.
+- D-134: a wrapped employer tail joins only when it names an organisation itself (an employer word)
+  or starts in lower case or with "&"/"and"; "Payments Analytics" under "Acme Corp" is a team.
+
 **D-123 Tailoring scores. [Tailrd]** Task 9.3 completes D-83 for the tailoring flow. Every number,
 band and keyword in `/ai/job-analysis`, `/ai/custom-resume-analysis`, `/ai/rewrite`,
 `/ai/custom-resume` and the extension's `/api/tailor-resume`, `/api/custom-resume-analysis` and

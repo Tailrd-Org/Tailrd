@@ -16,11 +16,18 @@ Shared by the section fallback (`sections.segment` when no header exists anywher
 
 An entry is an anchor plus the head lines it needs: a header line holds two pieces at most (title
 and employer), so an anchor with fewer pieces takes the head lines right above it, then right
-below it ("Employer / Title / dates", "Title  dates / Employer  Location"); places and employment
-types right below always join ("Ottawa, ON", "Full-time"). A dated line whose only piece names no
+below it ("Employer / Title / dates", "Title  dates / Employer  Location"; a place line between a
+dates-only line and the head line above it is passed over: a dates column read after the place,
+"Title, Employer / City / dates", Task 5.4); places and employment
+types right below always join ("Ottawa, ON", "Full-time"); so does a short line naming no job
+right below a complete header line that ends with its dates, followed by a place, a bullet or
+nothing: a narrow column wrapped the last piece ("Redwood    Sep 2025 – Present" / "Creative").
+A dated line whose only piece names no
 job, directly followed by another anchor, is an employer heading its promotions (`group`). Without
 an anchor, a run of head lines naming a job or an organisation and followed by bullets is an
-undated entry (role parsing only). The body is the lines up to the next entry; in strict mode
+undated entry (role parsing only). In a section with no dated line and no bullet at all (a
+functional résumé), an undated entry needs no bullets: a line naming a title and an employer is a
+whole entry, with the place lines below it (Task 5.4). The body is the lines up to the next entry; in strict mode
 (the fallback) it ends at the first line that is neither a bullet, a bullet's continuation nor a
 sentence. Standard library only (plus the date parser), total on any input.
 """
@@ -400,7 +407,11 @@ def is_head(text: str) -> bool:
     return any(ch.isalpha() for ch in text)
 
 
-def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en") -> list[Line]:
+def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en",
+             verbs: frozenset[str] = frozenset()) -> list[Line]:
+    """Every line classified (see the module docstring). A line opening with one of `verbs` (the
+    past-tense action verbs of the verb lexicon) is bullet text and never a head line: a scan can
+    lose the glyph of "- Optimized audience segments ..." (Task 5.4)."""
     out: list[Line] = []
     for index, raw_line in enumerate(raw_lines):
         raw = str(raw_line).replace("\r", "").replace("\n", " ").rstrip()
@@ -419,12 +430,20 @@ def classify(raw_lines: Sequence[str], *, as_of: dt.date, lang: str = "en") -> l
         ranges = () if bullet else anchor_ranges(text, as_of=as_of, lang=lang)
         out.append(Line(
             index=index, raw=raw, text=text, blank=False, bullet=bullet, indented=indented, label=label,
-            head=not bullet and not label and is_head(text), sentence=is_sentence(text),
+            head=not bullet and not label and is_head(text) and not _opens_with(text, verbs),
+            sentence=is_sentence(text),
             place=not bullet and bool(place_of(text)), ranges=ranges,
         ))
     if not any(line.ranges for line in out):  # one bulleted line per role
         out = [_bullet_anchor(line, as_of, lang) for line in out]
     return out
+
+
+def _opens_with(text: str, verbs: frozenset[str]) -> bool:
+    if not verbs:
+        return False
+    first = words(text)[:1]
+    return bool(first) and first[0] in verbs
 
 
 def _bullet_anchor(line: Line, as_of: dt.date, lang: str) -> Line:
@@ -462,11 +481,13 @@ class Entry:
     body: tuple[int, ...]
     group: bool = False
     pieces: dict[int, HeadParts] = field(default_factory=dict, compare=False)
+    listed: bool = False  # an undated entry of a functional listing (no dates, no bullets): evidence only
 
 
 _DANGLING_WORDS = frozenset({"and", "or", "the", "a", "an", "of", "for", "to", "with", "in", "on", "at", "by",
                              "from", "using", "via", "into", "across", "over", "under", "as", "including",
-                             "such", "plus", "et", "de", "des", "du", "la", "le", "les", "pour", "avec"})
+                             "such", "plus", "following", "within", "between", "through", "throughout",
+                             "during", "among", "et", "de", "des", "du", "la", "le", "les", "pour", "avec"})
 
 
 def continues(previous: str, line: Line) -> bool:
@@ -483,7 +504,7 @@ def continues(previous: str, line: Line) -> bool:
     return last in _DANGLING_WORDS
 
 
-def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
+def entries(lines: Sequence[Line], *, strict: bool, listing: bool = True) -> list[Entry]:
     """Entries in document order (see the module docstring)."""
     anchors = [line.index for line in lines if line.ranges]
     claimed: set[int] = set(anchors)
@@ -502,10 +523,13 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
         i = anchor - 1
         while need > 0 and i >= 0:
             line = lines[i]
-            if i in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head or line.place:
+            if i in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head:
+                break
+            if line.place and not (need == 2 and _head_above(lines, i, claimed)):
                 break
             before.append(i)
-            need -= max(1, len(parts_of(i).pieces))
+            if not line.place:  # a dates column read after the place line: "Title, Employer" / "City" / dates
+                need -= max(1, len(parts_of(i).pieces))
             i -= 1
         before.reverse()
         after: list[int] = []
@@ -522,6 +546,14 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
             else:
                 break
             j += 1
+        if need <= 0:
+            tail = _wrapped_tail(lines, anchor, j, claimed, parts_of, pieces)
+            if tail is not None:
+                after.append(tail)
+                j = tail + 1
+                while j < len(lines) and j not in claimed and lines[j].place and not lines[j].ranges:
+                    after.append(j)
+                    j += 1
         claimed.update(before)
         claimed.update(after)
         group = _heads_promotions(lines, anchors, position, parts_of)
@@ -529,7 +561,8 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
                            after=tuple(after), body=(), group=group))
 
     if not strict:
-        specs.extend(_undated(lines, claimed, parts_of))
+        bare = listing and not anchors and not any(line.bullet for line in lines)
+        specs.extend(_undated(lines, claimed, parts_of, bare=bare))
     specs.sort(key=lambda entry: entry.start)
 
     out: list[Entry] = []
@@ -540,8 +573,49 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
         body = _body(lines, last_head + 1, limit, strict=strict)
         end = body[-1] if body else last_head
         out.append(Entry(start=spec.start, end=end, anchor=spec.anchor, before=spec.before, after=spec.after,
-                         body=tuple(body), group=spec.group, pieces={i: parts_of(i) for i in heads}))
+                         body=tuple(body), group=spec.group, pieces={i: parts_of(i) for i in heads},
+                         listed=spec.listed))
     return out
+
+
+def _head_above(lines: Sequence[Line], i: int, claimed: set[int]) -> bool:
+    """Whether a head line that is no place and is not claimed stands right above line `i`."""
+    k = i - 1
+    if k < 0 or k in claimed:
+        return False
+    line = lines[k]
+    return not (line.blank or line.bullet or line.ranges or line.label or line.place) and line.head
+
+
+_MAX_TAIL_WORDS = 3
+
+
+def _wrapped_tail(lines: Sequence[Line], anchor: int, j: int, claimed: set[int], parts_of,
+                  pieces: dict[int, HeadParts]) -> Optional[int]:
+    """The line right after a complete header line that holds the end of its last piece, wrapped
+    by a narrow column before the dates ("Specialist, Redwood    Sep 2025 – Present" / "Creative" /
+    "Halifax, NS"): the dates end the header line, and the tail is a short piece naming no job,
+    followed by a place line, a bullet, a blank line or nothing. The tail joins that last piece
+    (Task 5.4). None otherwise."""
+    line = lines[anchor]
+    if j >= len(lines) or j in claimed or not line.ranges or max(end for _, end, _ in line.ranges) < len(line.text):
+        return None
+    tail = lines[j]
+    if tail.blank or tail.bullet or tail.ranges or tail.label or tail.place or not tail.head:
+        return None
+    text = tail.text
+    if "," in text or len(text.split()) > _MAX_TAIL_WORDS or title_score(text) or not parts_of(anchor).pieces:
+        return None
+    first = text.split()[0]
+    if not (employer_score(text) or first[:1].islower() or first.casefold() in ("&", "and", "et")):
+        return None  # fix round 1 (M1): "Payments Analytics" is a team, not the end of "Acme Corp"
+    following = lines[j + 1] if j + 1 < len(lines) else None
+    if following is not None and not (following.blank or following.bullet or following.place):
+        return None
+    own = parts_of(anchor)
+    pieces[anchor] = HeadParts(own.pieces[:-1] + (f"{own.pieces[-1]} {text}",), own.place, own.kinds)
+    pieces[j] = HeadParts((), "", ())  # its text now belongs to the anchor's last piece
+    return j
 
 
 def _heads_promotions(lines: Sequence[Line], anchors: list[int], position: int, parts_of) -> bool:
@@ -558,25 +632,49 @@ def _heads_promotions(lines: Sequence[Line], anchors: list[int], position: int, 
     return any(title_score(piece) for piece in parts_of(j).pieces)
 
 
-def _undated(lines: Sequence[Line], claimed: set[int], parts_of) -> list[Entry]:
+_MAX_TITLE_WORDS = 6
+_PRONOUNS = frozenset({"i", "we", "my", "our", "je", "nous", "mon", "ma", "mes"})
+
+
+def _titled(piece: str) -> bool:
+    """A listing title: it names a job (`title_score`), in at most six words, and opens with no
+    pronoun ("I worked as a Software Engineer" is a sentence)."""
+    tokens = words(piece)
+    return bool(tokens) and len(tokens) <= _MAX_TITLE_WORDS and tokens[0] not in _PRONOUNS and title_score(piece) > 0
+
+
+def _undated(lines: Sequence[Line], claimed: set[int], parts_of, *, bare: bool) -> list[Entry]:
+    """Undated entries. `bare` (a section with no dated line at all, such as a functional
+    résumé's "Title, Employer / City" list): an entry needs no bullets, a line naming both a title
+    and an employer is a whole entry, and the place lines right below it join it."""
     out: list[Entry] = []
     i = 0
     while i < len(lines):
         run: list[int] = []
+        need = 2
         j = i
-        while j < len(lines) and len(run) < 2:
+        while j < len(lines) and len(run) < 2 and (not bare or need > 0):
             line = lines[j]
             if j in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head or line.place:
                 break
             run.append(j)
+            need -= max(1, len(parts_of(j).pieces))
             j += 1
         follows = j < len(lines) and lines[j].bullet
         previous = lines[i - 1] if i > 0 else None
         wrapped = previous is not None and previous.bullet and run and continues(previous.text, lines[run[0]])
-        if run and follows and not wrapped and any(names_a_role(lines[r].text) for r in run):
-            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=(), body=()))
-            for r in run:
-                parts_of(r)
+        listed = bare and not follows
+        if listed and not any(_titled(piece) for r in run for piece in parts_of(r).pieces):
+            run = []  # a listing entry needs a title: "Sorted donations" or a sentence is no role
+        if run and (follows or bare) and not wrapped and any(names_a_role(lines[r].text) for r in run):
+            after: list[int] = []
+            while bare and j < len(lines) and j not in claimed and lines[j].place:
+                after.append(j)
+                parts_of(j)
+                j += 1
+            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=tuple(after), body=(),
+                             listed=listed))
+            claimed.update(after)
             i = j
             continue
         i += 1

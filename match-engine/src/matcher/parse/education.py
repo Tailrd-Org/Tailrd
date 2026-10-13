@@ -18,7 +18,9 @@ a date (SPEC §5.6 forbids prestige and graduation year; D-14).
   the segment naming the institution. A field that is the degree's own name ("Bachelor of
   Science" -> field.science, "MBA" -> field.business_admin) counts only when the line names no
   specific field; when the degree line names none at all, the entry's other lines may ("Bachelor of
-  Applied Science" / "Electrical Engineering").
+  Applied Science" / "Electrical Engineering"). A field that runs over the degree line's end into
+  the next line ("... in Business" / "Administration, ...": a narrow column wrapped it) is read
+  over both lines (Task 5.4).
 * No degree word: an institution line with a field of study in its entry is that institution's
   usual credential ("University of Toronto, Computer Science": a bachelor's program; a college: a
   diploma), unless the entry says certificate, exchange, course, summer, program, camp, ...
@@ -353,6 +355,24 @@ def _school_year(ranges: list[DateRange], as_of: Optional[dt.date]) -> bool:
     return _open_or_ongoing(ranges, as_of)
 
 
+def _wrapped(degree_at: int, texts: list[int], lines: list[_Line], resolver: "Resolver") -> str:
+    """The degree line, joined to the line after it when a field of study runs over the break
+    ("Bachelor of Science in Business" / "Administration, Ridgemont": a narrow column wrapped it;
+    Task 5.4). Otherwise the degree line alone."""
+    line = lines[degree_at]
+    position = texts.index(degree_at)
+    if position + 1 >= len(texts):
+        return line.text
+    following = lines[texts[position + 1]]
+    if following.bullet or following.skip or following.degrees:
+        return line.text
+    cut = len(line.text)
+    joined = f"{line.text} {following.text}"
+    crossing = any(m.canonical_id.startswith(_FIELD_PREFIX) and m.start < cut < m.end
+                   for m in resolver.extract(joined, include_fields=True))
+    return joined if crossing else line.text
+
+
 def _entry(block: list[int], lines: list[_Line], compiled: _Compiled, resolver: "Resolver",
            as_of: Optional[dt.date]) -> Optional[Education]:
     texts = [i for i in block if lines[i].text]
@@ -361,7 +381,7 @@ def _entry(block: list[int], lines: list[_Line], compiled: _Compiled, resolver: 
     if degree_at is not None:
         line = lines[degree_at]
         level = max((d.level for d in line.degrees), key=lambda lvl: lvl.rank)
-        specific, named = _fields(line.text, line.degrees, compiled, resolver)
+        specific, named = _fields(_wrapped(degree_at, texts, lines, resolver), line.degrees, compiled, resolver)
         if not specific:
             for i in content:
                 if i == degree_at or lines[i].bullet:

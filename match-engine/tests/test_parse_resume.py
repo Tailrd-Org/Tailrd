@@ -348,6 +348,104 @@ def test_underlines_do_not_count_as_lines_for_the_functional_reading(deps) -> No
     assert Flag.FUNCTIONAL_RESUME in parse(UNDERLINED_FUNCTIONAL, deps).flags
 
 
+def test_undated_entries_without_bullets_are_roles(deps) -> None:
+    """Task 5.4 (M6): a functional résumé lists "Title, Employer / City" with no dates and no
+    bullets. Each entry is a role with unknown dates (its title is evidence, it adds no months)."""
+    parsed = parse(UNDERLINED_FUNCTIONAL, deps)
+    roles = parsed.resume.roles
+    assert [(r.title_raw, r.employer) for r in roles] == [
+        ("Product Designer III", "Silverline Studio"), ("Product Designer", "Juniper Design")]
+    assert not any(r.dated for r in roles)
+    assert roles[0].seniority is not None and roles[0].seniority.level == 3
+    assert parsed.resume.total_experience_months is None
+    assert Flag.FUNCTIONAL_RESUME in parsed.flags
+
+
+_QUALIFICATIONS = ("Dependable office coordinator with eight years of experience keeping calendars, budgets, "
+                   "vendors and travel running smoothly for busy teams, trusted to handle confidential records, "
+                   "train new staff and keep every project moving")
+_NO_ROLES = "Taylor Sample\nSummary of Qualifications\n{summary}\nEducation\nB.A. History, Fairmont College\n" \
+            "Interests\nHiking\nChess\nCooking\n"
+
+
+def test_the_functional_reading_does_not_depend_on_line_wrapping(deps) -> None:
+    """Task 5.4 (M6): the same qualifications on one line (a text file) or wrapped over four lines
+    (a PDF) are the same résumé: the functional reading counts words, never lines."""
+    words = _QUALIFICATIONS.split()
+    wrapped = "\n".join(" ".join(words[k:k + 10]) for k in range(0, len(words), 10))
+    one_line = parse(_NO_ROLES.format(summary=_QUALIFICATIONS), deps)
+    four_lines = parse(_NO_ROLES.format(summary=wrapped), deps)
+    assert Flag.FUNCTIONAL_RESUME in four_lines.flags
+    assert Flag.FUNCTIONAL_RESUME in one_line.flags
+
+
+_EXPERTISE = ("Jordan Sample\nAreas of Expertise\n"
+              "Methods and Practices: A/B Testing, Go-to-Market Strategy, User Stories\n"
+              "Domain Expertise: Pricing Strategy, Product Analytics\n"
+              "Professional Strengths: Time Management, Presentation Skills\n")
+_EXPERTISE_WRAPPED = ("Jordan Sample\nAreas of Expertise\n"
+                      "Methods and Practices: A/B\nTesting, Go-to-Market Strategy, User\nStories\n"
+                      "Domain Expertise: Pricing\nStrategy, Product Analytics\n"
+                      "Professional Strengths: Time\nManagement, Presentation\nSkills\n")
+
+
+def test_a_wrapped_skills_list_reads_like_the_unwrapped_one(deps) -> None:
+    """Task 5.4 (M6): a narrow PDF column wraps a skills list inside its items ("A/B" / "Testing");
+    a line that carries on a list line not ending in a separator is the rest of that line."""
+    flat, wrapped = parse(_EXPERTISE, deps).resume, parse(_EXPERTISE_WRAPPED, deps).resume
+    assert {"skill.ab_testing", "skill.time_management", "skill.public_speaking"} <= ids(flat.skills_blob)
+    assert ids(wrapped.skills_blob) == ids(flat.skills_blob)
+
+
+def test_functional_listing_roles_are_marked_listed(deps) -> None:
+    """Fix round 1 (I1): the roles of a functional listing say so (`Role.listed`)."""
+    roles = parse(UNDERLINED_FUNCTIONAL, deps).resume.roles
+    assert roles and all(role.listed for role in roles)
+
+
+def _text(*lines: str) -> str:
+    return "".join(line + chr(10) for line in lines)
+
+
+def test_a_dated_resume_keeps_an_undated_volunteer_list_as_text(deps) -> None:
+    """Fix round 1 (I1, reviewer probe C1): the bare listing rule is for résumés with no dated role
+    at all; a dated résumé's plain "Volunteer" lines are never roles."""
+    text = _text("Jordan Sample", "Experience", "Software Developer, Shopify | 2022 – 2024",
+                 "- Built the admin portal in React", "Volunteer", "Food Bank Volunteer, Daily Bread",
+                 "Soccer Coach, Ottawa Youth League", "Director, Hackathon Club")
+    resume = parse(text, deps).resume
+    assert [(r.title_raw, r.employer) for r in resume.roles] == [("Software Developer", "Shopify")]
+    assert not any(r.listed for r in resume.roles)
+
+
+def test_prose_experience_is_no_listing_role(deps) -> None:
+    """Fix round 1 (I1, probe C2): a sentence is no title, so prose experience gives no role."""
+    text = _text("Jordan Sample", "Experience", "I worked as a Software Engineer at Shopify",
+                 "building checkout services for merchants.", "Skills", "Python, Go")
+    parsed = parse(text, deps)
+    assert parsed.resume.roles == ()
+    assert Flag.FUNCTIONAL_RESUME not in parsed.flags
+
+
+def test_entry_sections_after_a_one_per_line_skills_list(deps) -> None:
+    """Fix round 1 (C1, probes A1, A3, A7): a typed résumé keeps its Experience, Certifications,
+    Projects and Volunteer sections after a skills list."""
+    a1 = parse(_text("Jordan Sample", "jordan@example.com", "Skills", "Python", "Docker", "Experience", "Shopify",
+                     "Software Developer", "May 2023 – Aug 2023", "- Built internal tools in Ruby", "Education",
+                     "BSc Computer Science, McGill University, 2019 – 2023"), deps).resume
+    assert [(r.title_raw, r.employer) for r in a1.roles] == [("Software Developer", "Shopify")]
+    assert a1.roles[0].dated and a1.total_experience_months is not None
+    a3 = parse(_text("Jordan Sample", "Skills", "Python", "Docker", "Certifications", "AWS Certified Cloud Practitioner",
+                     "Projects", "Budget Tracker", "- Built a budget app in React", "Volunteer", "Daily Bread Food Bank",
+                     "Sorted donations"), deps)
+    assert a3.resume.certifications and len(a3.resume.projects) == 1
+    assert Flag.FUNCTIONAL_RESUME not in a3.flags
+    a7 = parse(_text("Jordan Sample", "Experience", "Software Developer, Shopify | 2022 – 2024",
+                     "- Built the admin portal in React", "Skills", "Python", "Go", "Volunteer", "Daily Bread Food Bank",
+                     "Shift Lead | 2020 – 2021", "- Led a team of 6 volunteers"), deps).resume
+    assert len(a7.roles) == 2 and all(r.dated for r in a7.roles)
+
+
 def test_a_dated_resume_is_not_functional(student: ParsedResume) -> None:
     assert Flag.FUNCTIONAL_RESUME not in student.flags
 

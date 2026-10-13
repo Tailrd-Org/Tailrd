@@ -147,7 +147,7 @@ def confidence_components(
     taxonomy = None
     if count > 0:
         taxonomy = clamp01((count - len(posting.unresolved_requirement_tokens)) / count)
-    roles = resume.roles
+    roles = [role for role in resume.roles if not role.listed]  # a functional listing is no timeline (D-131)
     temporal = clamp01(sum(1 for role in roles if role.dated) / len(roles)) if roles else None
     distinct = len({requirement.skill_id for requirement in posting.requirements})
     quality = rules.parse_quality[ParseTier(resume.parse_tier).value]

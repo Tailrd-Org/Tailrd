@@ -164,6 +164,7 @@ class PdfResult:
     flags: set[Flag]
     ocr_confidence: Optional[float] = None
     failure: Optional[Flag] = None
+    ocr_pages: frozenset[int] = frozenset()  # pages whose lines came from OCR (Task 5.4 fix round 1)
 
     @classmethod
     def failed(cls, reason: Flag, page_count: int = 0, flags: Iterable[Flag] = (),
@@ -534,6 +535,7 @@ def _finish(reads: Sequence[_PageRead], has_ink: Callable[[int], bool], render: 
     scanned = all(read.image_page for read in reads)
     confidences: list[float] = []
     layouts: list[PageLayout] = []
+    ocr_pages: set[int] = set()
     for read in reads:
         layout = PageLayout(read.width, read.height, read.fragments)
         if read.image_page and has_ink(read.index):
@@ -556,6 +558,7 @@ def _finish(reads: Sequence[_PageRead], has_ink: Callable[[int], bool], render: 
                                             fragments_from_ocr(lines, read.index, 1.0 / rendered[1]))
                         if scanned or layout.fragments:
                             flags.add(Flag.OCR_USED)
+                            ocr_pages.add(read.index)
         layouts.append(layout)
     mean = round(math.fsum(confidences) / len(confidences), 4) if confidences else None
     if scanned and mean is not None and mean < ocr_min_confidence:
@@ -563,7 +566,7 @@ def _finish(reads: Sequence[_PageRead], has_ink: Callable[[int], bool], render: 
     lines, uncertain = layout_document(layouts)
     if uncertain:
         flags.add(Flag.COLUMN_ORDER_UNCERTAIN)
-    return PdfResult(lines, page_count, flags, mean)
+    return PdfResult(lines, page_count, flags, mean, ocr_pages=frozenset(ocr_pages))
 
 
 def extract_pdf(data: bytes, *, max_pages: int, ocr_min_confidence: float) -> PdfResult:

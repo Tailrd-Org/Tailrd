@@ -1,6 +1,6 @@
 """Parse configuration: the rules tables the résumé and posting parsers read (Task 6.3).
 
-Three YAML files under `config/parse/` (one directory, read once by `load_parse_config`):
+The YAML files under `config/parse/` (one directory, read once by `load_parse_config`):
 
 * `sections.yaml`: section-header synonyms in English and French, the filler words a header may
   carry, composite joiners, and the education vocabulary (degree words per level, institution
@@ -10,6 +10,8 @@ Three YAML files under `config/parse/` (one directory, read once by `load_parse_
 * `industries.yaml`: the curated company -> NAICS table and the keyword rules.
 * `posting.yaml`: the job-posting tables (section headers, modal phrases, gate phrases; Task 6.5,
   models in `matcher.parse.posting_config`).
+* `ocr.yaml`: the OCR text repairs (misread levels, bullet glyphs and acronyms; Task 5.4, model in
+  `matcher.ingest.ocr_repair`).
 
 Like `matcher.config`, the files are validated into frozen models and the `version` is a hash of
 the validated content (16 hex characters), never of the bytes: comments and formatting change
@@ -32,6 +34,7 @@ import yaml
 from pydantic import Field, ValidationError, field_validator, model_validator
 
 from matcher.config import ConfigError, default_config_dir
+from matcher.ingest.ocr_repair import OcrTable
 from matcher.models import DegreeLevel, Frozen, SeniorityLevel, Track
 from matcher.parse._text import APOSTROPHES, company_key, fold, phrase_words, words
 from matcher.parse.posting_config import PostingTable
@@ -43,6 +46,7 @@ __all__ = [
     "HeaderTerms",
     "IndustriesTable",
     "IndustryRule",
+    "OcrTable",
     "ParseConfig",
     "PhraseList",
     "PostingTable",
@@ -57,7 +61,7 @@ __all__ = [
 ]
 
 FORMAT = 1
-_FILES = ("sections", "seniority", "industries", "posting")
+_FILES = ("sections", "seniority", "industries", "posting", "ocr")
 
 
 class SectionKind(str, Enum):
@@ -357,6 +361,7 @@ class ParseConfig(Frozen):
     seniority: SeniorityTable
     industries: IndustriesTable
     posting: PostingTable
+    ocr: OcrTable
 
 
 def default_parse_config_dir() -> Path:
@@ -386,7 +391,8 @@ def _version(tables: dict[str, Frozen]) -> str:
 
 
 def load_parse_config(config_dir: Optional[Union[str, Path]] = None) -> ParseConfig:
-    """Read and validate `sections.yaml`, `seniority.yaml`, `industries.yaml` and `posting.yaml`.
+    """Read and validate `sections.yaml`, `seniority.yaml`, `industries.yaml`, `posting.yaml` and
+    `ocr.yaml`.
 
     `config_dir` is the directory holding them (default: match-engine/config/parse) or the engine
     config directory above it (match-engine/config). Raises `matcher.config.ConfigError` on a
@@ -402,6 +408,7 @@ def load_parse_config(config_dir: Optional[Union[str, Path]] = None) -> ParseCon
             "seniority": SeniorityTable(**raw["seniority"]),
             "industries": IndustriesTable(**raw["industries"]),
             "posting": PostingTable(**raw["posting"]),
+            "ocr": OcrTable(**raw["ocr"]),
         }
     except (ValidationError, ValueError, TypeError) as exc:
         raise ConfigError(f"invalid parse config in {root}: {exc}") from exc

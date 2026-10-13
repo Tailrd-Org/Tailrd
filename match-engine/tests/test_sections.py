@@ -81,6 +81,8 @@ def _kinds(sections: tuple[Section, ...]) -> list[SectionKind]:
         ("Langues", K.LANGUAGES),
         ("Centres d'intérêt", K.INTERESTS),
         ("Profil", K.SUMMARY),
+        ("Badges", K.CERTIFICATIONS),  # Task 5.4: a creative header of a designer's résumé
+        ("Digital Badges", K.CERTIFICATIONS),
     ],
 )
 def test_classify_header(pc, line: str, kind: SectionKind) -> None:
@@ -198,6 +200,91 @@ def test_inline_labels_open_a_section_only_outside_entries(pc) -> None:
     assert _kinds(sections) == [K.SUMMARY, K.LANGUAGES, K.EXPERIENCE]
     assert (sections[1].header, sections[1].lines, sections[1].start_line) == ("Languages", ("English, French",), 2)
     assert sections[2].lines == tuple(lines[4:7])
+
+
+def test_a_non_entry_header_word_inside_a_sidebar_list_is_an_item(pc) -> None:
+    """Task 5.4 (M6), D-133: one item per line (a sidebar). "Strengths" is a listed SKILLS header, but
+    every line up to the next header continues the list, so it is an item."""
+    lines = ["Jordan Sample", "Core Skills", "Jira", "Strengths", "Mentoring", "Excel", "Education",
+             "Bachelor of Arts in Marketing,", "Fairmont State University"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.CONTACT, K.SKILLS, K.EDUCATION]
+    assert sections[1].lines == ("Jira", "Strengths", "Mentoring", "Excel")
+
+
+def test_a_wrapped_skills_item_never_opens_a_section(pc) -> None:
+    """Task 5.4 (M6): a PDF wraps "Presentation Skills" so that "Skills" stands alone; followed by
+    another header it would open an empty section, so it stays in the list."""
+    lines = ["Areas of Expertise", "Technical Skills: Python, SQL", "Professional Strengths: Mentoring, Presentation",
+             "Skills", "Employment History", "Data Analyst, Acme Corp"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.EXPERIENCE]
+    assert sections[0].lines == tuple(lines[1:4])
+
+
+@pytest.mark.parametrize("lines", [
+    ["Skills", "Jira", "Leadership", "Mentoring", "Excel"],  # a skill word, but VOLUNTEER is an entry kind
+    ["Skills", "Python", "Research", "Employment History", "Data Analyst, Acme Corp"],
+])
+def test_a_primary_entry_header_is_never_suppressed(pc, lines: list[str]) -> None:
+    """Fix round 1 (C1): a header of an entry kind (experience, education, projects, certifications,
+    volunteer) always opens its section: precision on typed résumés outranks the sidebar case."""
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections)[1] in (K.VOLUNTEER, K.EXPERIENCE)
+    assert sections[0].lines == tuple(lines[1:2])
+
+
+# Fix round 1 (C1, I4): real layouts the list rule must never swallow (reviewer probes; BASE is the oracle).
+REAL_LAYOUTS = [
+    (["Jordan Sample", "jordan@example.com", "Skills", "Python", "Docker", "Experience", "Shopify",
+      "Software Developer", "May 2023 – Aug 2023", "- Built internal tools in Ruby", "Education",
+      "BSc Computer Science, McGill University, 2019 – 2023"],
+     [K.CONTACT, K.SKILLS, K.EXPERIENCE, K.EDUCATION]),  # A1: employer first, one line
+    (["Jordan Sample", "jordan@example.com", "Skills", "Python, Java, SQL", "Experience", "Shopify, Ottawa, ON",
+      "Software Developer | May 2023 – Aug 2023", "- Built internal tools in Ruby"],
+     [K.CONTACT, K.SKILLS, K.EXPERIENCE]),  # A2: "Employer, City, Region" first
+    (["Jordan Sample", "Skills", "Python", "Docker", "Certifications", "AWS Certified Cloud Practitioner", "Projects",
+      "Budget Tracker", "- Built a budget app in React", "Volunteer", "Daily Bread Food Bank", "Sorted donations"],
+     [K.CONTACT, K.SKILLS, K.CERTIFICATIONS, K.PROJECTS, K.VOLUNTEER]),  # A3
+    (["Jordan Sample", "Experience", "Software Developer, Shopify | 2022 – 2024", "- Built the admin portal in React",
+      "Skills", "Python", "Go", "Volunteer", "Daily Bread Food Bank", "Shift Lead | 2020 – 2021",
+      "- Led a team of 6 volunteers"],
+     [K.CONTACT, K.EXPERIENCE, K.SKILLS, K.VOLUNTEER]),  # A7
+    (["Jordan Sample", "Contact", "jordan@example.com", "Ottawa, ON", "Skills", "Python, SQL, Tableau", "Experience",
+      "Data Analyst, Acme Corp | 2022 – 2024", "- Built dashboards"],
+     [K.CONTACT, K.CONTACT, K.SKILLS, K.EXPERIENCE]),  # H1: a contact block is no list
+    (["Jordan Sample", "Experience", "Data Analyst, Acme Corp | 2022 – 2024", "- Built dashboards", "Interests", "Chess",
+      "Awards", "Dean's List", "Education", "BSc Statistics, University of Ottawa, 2018 – 2022"],
+     [K.CONTACT, K.EXPERIENCE, K.INTERESTS, K.AWARDS, K.EDUCATION]),  # H2: an interests list is no skills list
+    (["Jordan Sample", "Experience", "Data Scientist, Acme | 2021 – 2024", "- Built churn models with Machine",
+      "Learning", "- Cut costs by 10%", "Skills", "Python, SQL"],
+     [K.CONTACT, K.EXPERIENCE, K.SKILLS]),  # G4: a wrapped "Machine / Learning" opens nothing (I2)
+]
+
+
+@pytest.mark.parametrize("lines, kinds", REAL_LAYOUTS, ids=["A1", "A2", "A3", "A7", "H1", "H2", "G4"])
+def test_real_layouts_keep_their_sections(pc, lines: list[str], kinds: list[SectionKind]) -> None:
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == kinds
+
+
+@pytest.mark.parametrize("header, after", [
+    ("STRENGTHS", []),  # all capitals
+    ("Strengths:", []),  # a colon
+    ("Strengths", ["------------"]),  # a rule under it
+])
+def test_a_strong_header_inside_a_skills_list_opens_a_section(pc, header: str, after: list[str]) -> None:
+    lines = ["Technical Skills", "Jira", header, *after, "Mentoring", "Excel"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.SKILLS]
+    assert sections[0].lines == ("Jira",)
+
+
+def test_a_header_after_a_skills_list_still_opens_its_section(pc) -> None:
+    lines = ["Skills", "Jira", "Mentoring", "Experience", "Data Analyst, Acme Corp | 2022 – 2024",
+             "- Built dashboards", "Leadership", "President, Debate Club | 2021 – 2022"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.EXPERIENCE, K.VOLUNTEER]
 
 
 def test_unknown_all_caps_lines(pc) -> None:

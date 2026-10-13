@@ -68,6 +68,7 @@ class TextLine(Frozen):
     size: float = Field(default=0.0, ge=0.0)  # font size in points (OCR: box height in points)
     bold: bool = False
     column: int = Field(default=0, ge=0)  # column index on its page, left to right
+    ocr: bool = False  # the line came from OCR (its page was read as an image; Task 5.4 fix round 1)
 
 
 class IngestResult(Frozen):
@@ -107,7 +108,7 @@ def _finite(value: Any) -> float:
 
 
 def _result(raw: Sequence[Any], *, flags: set[Flag], page_count: int, ocr_confidence: Optional[float],
-            config: EngineConfig, positioned: bool) -> IngestResult:
+            config: EngineConfig, positioned: bool, ocr_pages: frozenset[int] = frozenset()) -> IngestResult:
     """Normalise the extracted lines and decide the outcome (rules 2-4)."""
     texts = normalize_lines([line.text for line in raw])
     lines = []
@@ -117,7 +118,7 @@ def _result(raw: Sequence[Any], *, flags: set[Flag], page_count: int, ocr_confid
         if positioned:
             lines.append(TextLine(text=text, page=line.page, x0=_finite(line.x0), y0=_finite(line.y0),
                                   x1=_finite(line.x1), y1=_finite(line.y1), size=max(0.0, _finite(line.size)),
-                                  bold=bool(line.bold), column=line.column))
+                                  bold=bool(line.bold), column=line.column, ocr=line.page in ocr_pages))
         else:
             lines.append(TextLine(text=text, page=0, x0=0.0, y0=0.0, x1=0.0, y1=0.0,
                                   size=max(0.0, _finite(getattr(line, "size", 0.0))),
@@ -166,7 +167,8 @@ def _from_pdf(data: bytes, config: EngineConfig) -> IngestResult:
         return _failed(extracted.failure, page_count=extracted.page_count, flags=extracted.flags,
                        ocr_confidence=extracted.ocr_confidence)
     return _result(extracted.lines, flags=extracted.flags, page_count=extracted.page_count,
-                   ocr_confidence=extracted.ocr_confidence, config=config, positioned=True)
+                   ocr_confidence=extracted.ocr_confidence, config=config, positioned=True,
+                   ocr_pages=extracted.ocr_pages)
 
 
 def _from_docx(data: bytes, config: EngineConfig) -> IngestResult:
@@ -197,7 +199,8 @@ def _from_image(data: bytes, config: EngineConfig) -> IngestResult:
     placed, uncertain = pdf.layout_document([page])
     if uncertain:
         flags.add(Flag.COLUMN_ORDER_UNCERTAIN)
-    return _result(placed, flags=flags, page_count=1, ocr_confidence=confidence, config=config, positioned=True)
+    return _result(placed, flags=flags, page_count=1, ocr_confidence=confidence, config=config, positioned=True,
+                   ocr_pages=frozenset({0}))
 
 
 def _ingest(data: bytes, filename: str, config: EngineConfig) -> IngestResult:

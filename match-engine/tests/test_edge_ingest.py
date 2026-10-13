@@ -1245,3 +1245,12 @@ def test_fixture_generator_is_deterministic_and_current() -> None:
     assert first == second, "make_edge_fixtures.py is not a pure function"
     stale = [name for name, data in first.items() if (EDGE / name).read_bytes() != data]
     assert not stale, f"committed fixtures differ from the generator; regenerate: {stale}"
+
+
+def test_ocr_provenance_is_marked_per_line(ingested: _Cache) -> None:
+    """Task 5.4 fix round 1 (I3): the lines OCR read say so (`TextLine.ocr`), so the OCR repair
+    touches only them; typed lines never carry it."""
+    for name in ("scan_300dpi.pdf", "image_resume.png"):
+        lines = ingested(name).lines
+        assert lines and all(line.ocr for line in lines), name
+    assert not any(line.ocr for line in ingested("pdf_clean_one_column.pdf").lines)
