@@ -397,6 +397,55 @@ def test_a_wrapped_skills_list_reads_like_the_unwrapped_one(deps) -> None:
     assert ids(wrapped.skills_blob) == ids(flat.skills_blob)
 
 
+def test_functional_listing_roles_are_marked_listed(deps) -> None:
+    """Fix round 1 (I1): the roles of a functional listing say so (`Role.listed`)."""
+    roles = parse(UNDERLINED_FUNCTIONAL, deps).resume.roles
+    assert roles and all(role.listed for role in roles)
+
+
+def _text(*lines: str) -> str:
+    return "".join(line + chr(10) for line in lines)
+
+
+def test_a_dated_resume_keeps_an_undated_volunteer_list_as_text(deps) -> None:
+    """Fix round 1 (I1, reviewer probe C1): the bare listing rule is for résumés with no dated role
+    at all; a dated résumé's plain "Volunteer" lines are never roles."""
+    text = _text("Jordan Sample", "Experience", "Software Developer, Shopify | 2022 – 2024",
+                 "- Built the admin portal in React", "Volunteer", "Food Bank Volunteer, Daily Bread",
+                 "Soccer Coach, Ottawa Youth League", "Director, Hackathon Club")
+    resume = parse(text, deps).resume
+    assert [(r.title_raw, r.employer) for r in resume.roles] == [("Software Developer", "Shopify")]
+    assert not any(r.listed for r in resume.roles)
+
+
+def test_prose_experience_is_no_listing_role(deps) -> None:
+    """Fix round 1 (I1, probe C2): a sentence is no title, so prose experience gives no role."""
+    text = _text("Jordan Sample", "Experience", "I worked as a Software Engineer at Shopify",
+                 "building checkout services for merchants.", "Skills", "Python, Go")
+    parsed = parse(text, deps)
+    assert parsed.resume.roles == ()
+    assert Flag.FUNCTIONAL_RESUME not in parsed.flags
+
+
+def test_entry_sections_after_a_one_per_line_skills_list(deps) -> None:
+    """Fix round 1 (C1, probes A1, A3, A7): a typed résumé keeps its Experience, Certifications,
+    Projects and Volunteer sections after a skills list."""
+    a1 = parse(_text("Jordan Sample", "jordan@example.com", "Skills", "Python", "Docker", "Experience", "Shopify",
+                     "Software Developer", "May 2023 – Aug 2023", "- Built internal tools in Ruby", "Education",
+                     "BSc Computer Science, McGill University, 2019 – 2023"), deps).resume
+    assert [(r.title_raw, r.employer) for r in a1.roles] == [("Software Developer", "Shopify")]
+    assert a1.roles[0].dated and a1.total_experience_months is not None
+    a3 = parse(_text("Jordan Sample", "Skills", "Python", "Docker", "Certifications", "AWS Certified Cloud Practitioner",
+                     "Projects", "Budget Tracker", "- Built a budget app in React", "Volunteer", "Daily Bread Food Bank",
+                     "Sorted donations"), deps)
+    assert a3.resume.certifications and len(a3.resume.projects) == 1
+    assert Flag.FUNCTIONAL_RESUME not in a3.flags
+    a7 = parse(_text("Jordan Sample", "Experience", "Software Developer, Shopify | 2022 – 2024",
+                     "- Built the admin portal in React", "Skills", "Python", "Go", "Volunteer", "Daily Bread Food Bank",
+                     "Shift Lead | 2020 – 2021", "- Led a team of 6 volunteers"), deps).resume
+    assert len(a7.roles) == 2 and all(r.dated for r in a7.roles)
+
+
 def test_a_dated_resume_is_not_functional(student: ParsedResume) -> None:
     assert Flag.FUNCTIONAL_RESUME not in student.flags
 

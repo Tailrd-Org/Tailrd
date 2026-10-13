@@ -121,18 +121,18 @@ SPLIT_CASES = [
     (  # functional: undated entries with no bullets are roles, the place line below joins its entry
         ["Junior Data Engineer, Clearwater Research", "Chicago, IL", "Retail Associate, Northwind Foods",
          "Toronto, ON", "Barista | Second Cup | Ottawa, ON"],
-        [_draft("Junior Data Engineer", "Clearwater Research", "Chicago, IL", None),
-         _draft("Retail Associate", "Northwind Foods", "Toronto, ON", None),
-         _draft("Barista", "Second Cup", "Ottawa, ON", None)],
+        [_draft("Junior Data Engineer", "Clearwater Research", "Chicago, IL", None).model_copy(update={"listed": True}),
+         _draft("Retail Associate", "Northwind Foods", "Toronto, ON", None).model_copy(update={"listed": True}),
+         _draft("Barista", "Second Cup", "Ottawa, ON", None).model_copy(update={"listed": True})],
     ),
     (  # a dated section: an undated line with no bullets stays text of the role above it
         ["Software Developer, Shopify | 2022 – 2024", "- Built the admin portal", "Mentor, Code Club"],
         [_draft("Software Developer", "Shopify", "", "2022 – 2024", "Built the admin portal", "Mentor, Code Club")],
     ),
-    (  # Task 5.4: a narrow column wraps the employer before the dates; its tail line joins it
-        ["Junior Marketing Specialist, Redwood    September 2025 – Present", "Creative", "Halifax, NS",
+    (  # Task 5.4: a narrow column wraps the employer before the dates; a tail naming an organisation joins it
+        ["Junior Marketing Specialist, Redwood    September 2025 – Present", "Technologies", "Halifax, NS",
          "- Ran launch campaigns"],
-        [_draft("Junior Marketing Specialist", "Redwood Creative", "Halifax, NS", "September 2025 – Present",
+        [_draft("Junior Marketing Specialist", "Redwood Technologies", "Halifax, NS", "September 2025 – Present",
                 "Ran launch campaigns")],
     ),
     (  # a line naming a job after a complete header line is no wrapped tail
@@ -152,6 +152,10 @@ SPLIT_CASES = [
         [_draft("Financial Analyst", "Copperleaf Trust", "", "2023 – 2026",
                 "Shadowed colleagues on reports following Financial Modeling practices, lowering errors by 8%",
                 "Built budget reviews")],
+    ),
+    (  # fix round 1 (M1, probe D2): a team name below a complete header line is no employer tail
+        ["Data Analyst, Acme Corp | 2022 – 2024", "Payments Analytics", "- Built dashboards in Tableau"],
+        [_draft("Data Analyst", "Acme Corp", "", "2022 – 2024", "Payments Analytics", "Built dashboards in Tableau")],
     ),
     (  # a year inside a bullet is never a role's date
         ["IT Support Assistant, Carleton University | Sep 2021 – Apr 2022",
@@ -218,7 +222,24 @@ def test_a_bullet_that_lost_its_glyph_is_never_a_role(config) -> None:
     assert draft.bullets == ("Built dashboards in Tableau", "Optimized audience segments for Social Media",
                              "Cut reporting time by 10%")
     assert past_verbs(config) >= {"optimized", "worked", "built", "led"}
-    assert not past_verbs(config) & {"lead", "engineer", "design", "registered"}
+    assert not past_verbs(config) & {"lead", "engineer", "design", "registered", "assisted", "automated", "founded",
+                                     "certified", "licensed", "chartered", "integrated", "applied"}
+
+
+def test_a_title_opening_with_a_past_form_keeps_its_employer(config) -> None:
+    """Fix round 1 (M2, probe E2): "Assisted" opens a title ("Assisted Living Coordinator"), so the
+    line stays a head line and the employer is kept (title and employer as BASE read them)."""
+    lines = ["Assisted Living Coordinator", "Sunrise Senior Living | 2020 – 2024", "- Coordinated care plans"]
+    (draft,) = split_roles(_section(lines), as_of=AS_OF, verbs=past_verbs(config))
+    assert {draft.title_raw, draft.employer} == {"Assisted Living Coordinator", "Sunrise Senior Living"}
+
+
+def test_listing_roles_need_the_parser_s_permission() -> None:
+    """Fix round 1 (I1): with `listing=False` (a résumé that has a dated role) a bullet-less
+    undated line is no role."""
+    lines = ["Food Bank Volunteer, Daily Bread", "Soccer Coach, Ottawa Youth League"]
+    assert split_roles(_section(lines, SectionKind.VOLUNTEER), as_of=AS_OF, listing=False) == ()
+    assert all(d.listed for d in split_roles(_section(lines, SectionKind.VOLUNTEER), as_of=AS_OF))
 
 
 def test_undated_lines_among_bullets_are_no_functional_entries() -> None:

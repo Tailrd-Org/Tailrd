@@ -41,7 +41,7 @@ headers:
   EDUCATION:
     en: [education, academic background, academics, academic history, educational background,
          education history, schooling, academic qualifications, degrees, where i studied,
-         where i've studied, education and training, learning]
+         where i've studied, education and training]
     fr: [formation, formations, éducation, études, scolarité, diplômes, formation académique,
          formation universitaire, parcours académique, parcours scolaire, formation scolaire]
   SKILLS:

@@ -500,3 +500,15 @@ def test_compute_confidence_refuses_a_match_the_resume_does_not_hold(small_graph
     with pytest.raises(EngineFault) as err:
         compute_confidence(SPEC_RESUME, posting, prepared, aggregated, matches, config)
     assert err.value.flag is Flag.INTERNAL_ERROR
+
+
+def test_roles_from_an_undated_listing_are_left_out_of_temporal_completeness(small_graph, config) -> None:
+    """Task 5.4 fix round 1 (I1, D-131): a functional résumé's undated "Title, Employer" roles are
+    evidence only; they never count for or against temporal completeness."""
+    posting = JobPosting(requirements=(_req("skill.python"),))
+    dated = Role(start=DateValue.exact(date(2020, 1, 1)), end=DateValue.exact(date(2021, 1, 1)))
+    listing = Role(title_raw="Data Analyst", listed=True)
+    only_listing = Resume(roles=(listing,), skills_blob=listed("skill.python"))
+    assert _pair_confidence(only_listing, posting, small_graph, config).components["temporal_completeness"] is None
+    mixed = Resume(roles=(dated, listing, Role()), skills_blob=listed("skill.python"))
+    assert close(_pair_confidence(mixed, posting, small_graph, config).components["temporal_completeness"], 1 / 2)

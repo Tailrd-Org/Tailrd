@@ -95,7 +95,6 @@ def test_other_ls_and_is_are_left_alone(pc, resolver, line: str) -> None:
     (". Automated launch plans with Jira", "- Automated launch plans with Jira"),
     (":. Cut costs by 12%", "- Cut costs by 12%"),
     (": : Built 3 dashboards", "- Built 3 dashboards"),
-    (".Engineered a data pipeline", "- Engineered a data pipeline"),
     (". 'Led the rollout of launch campaigns", "- Led the rollout of launch campaigns"),
     ("。 Lab demonstrator, Practical Methods Studio", "- Lab demonstrator, Practical Methods Studio"),
     ("e Mentored 4 interns", "- Mentored 4 interns"),
@@ -185,15 +184,54 @@ def test_the_name_line_is_never_repaired(pc, resolver) -> None:
 # ─── only OCR-sourced text ──────────────────────────────────────────────────────────────────
 
 
-def _ingested(lines: list[str], flags: tuple[Flag, ...]) -> IngestResult:
-    placed = tuple(TextLine(text=t, page=0, x0=0.0, y0=12.0 * i, x1=200.0, y1=12.0 * i + 10, size=10.0)
-                   for i, t in enumerate(lines))
+def _ingested(lines: list[str], flags: tuple[Flag, ...], ocr_lines: set[int] | None = None) -> IngestResult:
+    """Lines placed one per row; `ocr_lines` (default: every line when OCR_USED) came from OCR."""
+    if ocr_lines is None:
+        ocr_lines = set(range(len(lines))) if Flag.OCR_USED in flags else set()
+    placed = tuple(TextLine(text=t, page=0, x0=0.0, y0=12.0 * i, x1=200.0, y1=12.0 * i + 10, size=10.0,
+                            ocr=i in ocr_lines) for i, t in enumerate(lines))
     return IngestResult(ok=True, text="\n".join(lines), lines=placed, tier=ParseTier.C, language="en",
                         languages={"en": 1.0}, flags=flags, reasons=(), page_count=1, resume_likelihood=0.9)
 
 
 SCAN = ["Jordan Sample", "Work Experience", "Data Analyst Ill, Tidewater Research Oct 2020 - May 2023",
         ": Built Bl dashboards in Tableau", ". Automated reports with Python"]
+
+
+def test_repair_ocr_repairs_only_the_lines_ocr_read(pc, resolver) -> None:
+    """Fix round 1 (I3): a PDF with one scanned page among typed pages is flagged OCR_USED for the
+    whole document; only the lines OCR read (per page) are repaired."""
+    typed_then_scanned = _ingested(["Jordan Sample", "- Built Bl dashboards", ": Built Bl dashboards"],
+                                   (Flag.OCR_USED,), ocr_lines={2})
+    repaired = repair_ocr(typed_then_scanned, table=pc.ocr, title_words=TITLE_NOUNS, known=_known(resolver),
+                          place=place_of, header=_header(pc))
+    assert [line.text for line in repaired.lines] == ["Jordan Sample", "- Built Bl dashboards", "- Built BI dashboards"]
+
+
+@pytest.mark.parametrize("line", [
+    ".NET Developer, Acme Corp | 2020 – 2022",  # a dot glued to a word is no bullet
+    "Al Ain, UAE",  # a name before another capitalised word is never an acronym
+    "References: Al Smith, Manager",
+    "Graphic Designer, Mel Studio",
+    "Server, Il Fornaio | 2019 – 2020",  # Italian "Il" after a comma: no title word right before it
+    "Chef Il Fornaio",  # a word follows the token
+    "Coordinator Ill-health leave program",  # hyphenated: part of a word
+    "Director, Ill Communications",
+])
+def test_real_text_is_never_repaired_into_something_else(pc, resolver, line: str) -> None:
+    """Fix round 1 (I3, M3): the reviewer's false positives."""
+    assert _repair(["Jordan Sample", line], pc, resolver) == ["Jordan Sample", line]
+
+
+def test_a_failing_repair_leaves_that_line_as_read(pc) -> None:
+    """Fix round 1 (M4): a repair that raises leaves its line unrepaired and never fails the rest."""
+    def known(word: str) -> bool:
+        if word == "Bl":
+            raise RuntimeError("resolver down")
+        return word == "IaC"
+    out = repair_lines(["Jordan Sample", "- Built Bl dashboards", "Tools: laC", "Data Analyst Ill, Acme Corp"],
+                       table=pc.ocr, title_words=TITLE_NOUNS, known=known)
+    assert out == ["Jordan Sample", "- Built Bl dashboards", "Tools: IaC", "Data Analyst III, Acme Corp"]
 
 
 def test_repair_ocr_repairs_only_ocr_text(pc, resolver) -> None:

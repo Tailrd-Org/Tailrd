@@ -32,6 +32,7 @@ the place reading and the header check.
 
 from __future__ import annotations
 
+import logging
 import re
 from collections.abc import Callable, Collection, Sequence
 from functools import cached_property
@@ -43,6 +44,7 @@ from matcher.models import Frozen
 
 __all__ = ["OcrTable", "exact_key", "repair_lines", "repair_ocr"]
 
+_logger = logging.getLogger(__name__)
 _ROMAN_LEVELS = frozenset({"I", "II", "III", "IV", "V"})
 
 
@@ -84,14 +86,14 @@ class OcrTable(Frozen):
         if not self.level_tokens:
             return None
         tokens = "|".join(re.escape(t) for t in sorted(self.level_tokens, key=lambda t: (-len(t), t)))
-        return re.compile(rf"(?<=\S)(?P<gap> +)(?P<token>{tokens})(?=$|[\s,;:|/()\[\]\u2013\u2014-])")
+        return re.compile(rf"(?<=\S)(?P<gap> +)(?P<token>{tokens})(?=\s*$|\s*[,;:|/()\[\]]|\s+[-\u2013\u2014]\s|\s+\d)")
 
     @cached_property
     def bullet_pattern(self) -> re.Pattern[str] | None:
         alternatives = []
         if self.bullet_glyphs:
             glyphs = "".join(re.escape(g) for g in self.bullet_glyphs)
-            alternatives.append(rf"(?:[{glyphs}] ?){{1,3}}")
+            alternatives.append(rf"(?:[{glyphs}] ?){{0,2}}[{glyphs}] ")
         if self.letter_bullets:
             letters = "".join(re.escape(g) for g in self.letter_bullets)
             alternatives.append(rf"[{letters}] ")
@@ -130,8 +132,8 @@ def _repair_levels(line: str, table: OcrTable, title_words: Collection[str]) -> 
 
     def fix(found: re.Match[str]) -> str:
         before = line[: found.start()].split()
-        word = before[-1].strip(",;:|()[]").casefold() if before else ""
-        if word not in title_words:
+        word = before[-1] if before else ""
+        if not word[-1:].isalpha() or word.casefold() not in title_words:  # "Server, Il Fornaio": no
             return found.group(0)
         return found.group("gap") + table.level_tokens[found.group("token")]
 
@@ -209,6 +211,9 @@ def _repair_acronyms(line: str, table: OcrTable, known: Callable[[str], bool]) -
             return word  # "Excel": no misread character and no inner capital
         if known(word):
             return word
+        following = line[found.end():].lstrip()
+        if following[:1].isupper():
+            return word  # a name before another capitalised word ("Al Smith", "Al Ain", "Mel Studio")
         for form in _acronym_forms(word, table):
             if known(form):
                 return form
@@ -227,31 +232,48 @@ def exact_key(resolver) -> Callable[[str], bool]:
     return known
 
 
+def _repair_line(line: str, *, first: bool, table: OcrTable, title_words: Collection[str],
+                 known: Callable[[str], bool], place: Callable[[str], bool] | None,
+                 header: Callable[[str], bool] | None) -> str:
+    text = _repair_bullet(line, table)
+    text = _repair_levels(text, table, title_words)
+    if not first:
+        text = _repair_spaces(text, table, known)
+        text = _repair_acronyms(text, table, known)
+        text = _repair_place(text, table, place)
+        text = _repair_header(text, table, header)
+    return text
+
+
 def repair_lines(lines: Sequence[str], *, table: OcrTable, title_words: Collection[str],
                  known: Callable[[str], bool], place: Callable[[str], bool] | None = None,
-                 header: Callable[[str], bool] | None = None) -> list[str]:
-    """The lines of OCR text, repaired (see the module docstring). Same number of lines."""
+                 header: Callable[[str], bool] | None = None, only: Sequence[bool] | None = None) -> list[str]:
+    """The lines of OCR text, repaired (see the module docstring). Same number of lines. With
+    `only`, a line is repaired only where it is True (the lines OCR read). A repair that fails on
+    a line leaves that line as read (fix round 1, M4)."""
     out: list[str] = []
     first = next((i for i, line in enumerate(lines) if line.strip()), -1)
     for i, line in enumerate(lines):
-        text = _repair_bullet(line, table)
-        text = _repair_levels(text, table, title_words)
-        if i != first:
-            text = _repair_spaces(text, table, known)
-            text = _repair_acronyms(text, table, known)
-            text = _repair_place(text, table, place)
-            text = _repair_header(text, table, header)
-        out.append(text)
+        if only is not None and not only[i]:
+            out.append(line)
+            continue
+        try:
+            out.append(_repair_line(line, first=i == first, table=table, title_words=title_words, known=known,
+                                    place=place, header=header))
+        except Exception:  # an optional repair: the line as OCR read it is still a line
+            _logger.warning("repair_lines: OCR repair failed on a line", exc_info=True)
+            out.append(line)
     return out
 
 
 def repair_ocr(result, *, table: OcrTable, title_words: Collection[str], known: Callable[[str], bool],
                place: Callable[[str], bool] | None = None, header: Callable[[str], bool] | None = None):
-    """An `IngestResult` with its OCR text repaired; unchanged unless it is ok and flagged OCR_USED."""
+    """An `IngestResult` with its OCR text repaired; unchanged unless it is ok and flagged OCR_USED.
+    Only the lines OCR read (`TextLine.ocr`, set per page at ingest) are repaired (fix round 1)."""
     if not result.ok or Flag.OCR_USED not in result.flags or not result.lines:
         return result
     texts = repair_lines([line.text for line in result.lines], table=table, title_words=title_words, known=known,
-                         place=place, header=header)
+                         place=place, header=header, only=[bool(getattr(line, "ocr", False)) for line in result.lines])
     if all(new == line.text for new, line in zip(texts, result.lines)):
         return result
     lines = tuple(line if new == line.text else line.model_copy(update={"text": new})

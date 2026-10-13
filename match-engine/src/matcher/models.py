@@ -300,6 +300,9 @@ class Role(Frozen):
     is_current: bool = False
     is_internship: bool = False
     skills: tuple[SkillRef, ...] = Field(default=(), max_length=1000)
+    # An undated "Title, Employer" line of a functional listing (DECISIONS D-131): title evidence
+    # only, no months, and left out of temporal completeness.
+    listed: bool = False
 
     @model_validator(mode="after")
     def _dates(self) -> "Role":

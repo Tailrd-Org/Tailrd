@@ -797,6 +797,7 @@ class _Assembly:
         self.auth_lines: list[str] = []
         self.flags: set[Flag] = set()
         self.listed = False  # skills or summary content (FUNCTIONAL_RESUME)
+        self.listing = True  # undated, bullet-less listing roles allowed: no dated role anywhere (D-131)
 
     # roles ---------------------------------------------------------------------------------
 
@@ -1110,6 +1111,10 @@ def _parse_text(text: Any, *, as_of: dt.date, resolver: Resolver, config: Engine
     first = next((line.strip() for line in raw if line.strip()), "")
     name = first if _name_shaped(first) and not resolver.extract(first) else ""
     no_sections = Flag.NO_SECTIONS in segment_flags
+    assembly.listing = not any(  # a functional listing is a résumé with no dated role at all (D-131)
+        any(line.ranges for line in _entries.classify(section.lines, as_of=as_of,
+                                                     lang="fr" if _section_language(section, lang) == "fr" else "en"))
+        for section in sections if section.kind in _EXPERIENCE_LIKE)
 
     qualification_words = body_words = 0
     for position, section in enumerate(sections):
@@ -1134,7 +1139,7 @@ def _read_section(assembly: _Assembly, section: Section, *, name: str, contact: 
     as_of = assembly.as_of
     if kind in _EXPERIENCE_LIKE:
         drafts = split_roles(section, as_of=as_of, lang=_section_language(section, assembly.lang),
-                             verbs=assembly.reader.past_verbs)
+                             verbs=assembly.reader.past_verbs, listing=assembly.listing)
         for draft in drafts:
             assembly.add_role(draft)
         if not drafts:  # no entry structure: its text is skills-blob evidence, never a role
@@ -1197,11 +1202,10 @@ def parse_ingested(ingested: IngestResult, *, as_of: dt.date, resolver: Resolver
         ingested = repair_ocr(ingested, table=parse_config.ocr, title_words=_entries.TITLE_NOUNS,
                               known=exact_key(resolver), place=lambda text: bool(_entries.place_of(text)),
                               header=lambda text: header_key(text) in parse_config.sections.header_index)
-    except Exception:
+    except Exception:  # the repair is optional: the text as read is parsed (fix round 1, M4)
         if strict:
             raise
-        _logger.warning("parse_ingested: OCR repair failed", exc_info=True)
-        return _failed(Flag.INTERNAL_ERROR, parse_config)
+        _logger.warning("parse_ingested: OCR repair failed; parsing the text as read", exc_info=True)
     return parse_resume_text(ingested.text, as_of=as_of, resolver=resolver, config=config,
                              parse_config=parse_config, lines=ingested.lines, tier=ingested.tier,
                              language=ingested.language, flags=ingested.flags, resources=resources, strict=strict)

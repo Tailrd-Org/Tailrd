@@ -8,10 +8,11 @@
   I've Been", "My Toolkit"). A header the table does not list whole may still be read through its
   filler words ("Relevant Technical Experience") or as a composite whose parts are all listed
   ("Education & Certifications": the first part decides).
-* Inside a section that is no entry section (skills, a qualifications sidebar, a summary), a listed
-  header word opens a section only in a strong form (ALL CAPS, a trailing colon, a rule under it),
-  or when content follows it that does not continue the list: "Jira / Leadership / Mentoring" is
-  three skills, "Market / Research / Employment History" a wrapped item (Task 5.4, D-133).
+* Inside a skills or summary section, a listed header of no entry kind (not experience, education,
+  projects, certifications or volunteer) opens a section only in a strong form (ALL CAPS, a
+  trailing colon, a rule under it), or when the lines up to the next header do not all continue
+  the list: "Jira / Strengths / Mentoring" is three items, "Presentation / Skills / Employment
+  History" a wrapped item (Task 5.4, D-133, fix round 1).
 * "Label: text" with a listed label ("Languages: English, French") opens a section with the text as
   its first line, except inside an entry section (experience, volunteering, projects, education:
   "Technologies: React" belongs to its role), for the kind already open, and for "Languages:"
@@ -270,6 +271,11 @@ def _styled(text: str, table: SectionsTable) -> bool:
     return sum(1 for ch in core if ch.isalpha()) >= 2
 
 
+# Fix round 1 (C1): the list rule runs only inside these sections, and never holds back a header of
+# an entry kind: a typed résumé's "Experience" after a skills list always opens its section.
+_LIST_KINDS = (SectionKind.SKILLS, SectionKind.SUMMARY)
+_PRIMARY = (SectionKind.EXPERIENCE, SectionKind.EDUCATION, SectionKind.PROJECTS, SectionKind.CERTIFICATIONS,
+            SectionKind.VOLUNTEER)
 _RULE_CHARS = frozenset("-=_~*\u2013\u2014")  # a rule of hyphens, equals signs, ... or en or em dashes
 _LIST_SEPARATORS = re.compile(r"[,;|•·]")
 _MAX_ITEM_WORDS = 4
@@ -283,13 +289,13 @@ def _is_rule(text: str) -> bool:
 def _list_shape(text: str, parse_config: ParseConfig) -> str:
     """How a skills-list line is written: "label" ("Tools: Docker, Git"), "list" (short items
     between separators), "item" (one short item) or "other" (a sentence, a dated line, a job title,
-    a degree or a school)."""
+    a degree, a school, a place or contact details)."""
     core = _BULLET.sub("", text, count=1).strip()
     if _INLINE.match(core) is not None and len(core.split(":", 1)[0].split()) <= _MAX_ITEM_WORDS:
         return "label"
-    if not core or any(ch.isdigit() for ch in core) or core.endswith((".", "!", "?")):
+    if not core or any(ch.isdigit() for ch in core) or core.endswith((".", "!", "?")) or "@" in core:
         return "other"
-    if _entries.title_score(core) or degree_matches(core, parse_config) or _names_school(core, parse_config):
+    if _entries.place_of(core) or _entries.title_score(core) or degree_matches(core, parse_config) or _names_school(core, parse_config):
         return "other"
     if _LIST_SEPARATORS.search(core):
         pieces = [piece.split() for piece in _LIST_SEPARATORS.split(core) if piece.strip()]
@@ -299,23 +305,28 @@ def _list_shape(text: str, parse_config: ParseConfig) -> str:
 
 def _opens_in_list(raw: list[str], nonblank: list[int], position: int, header_at: int,
                    found: dict[int, Optional[tuple[SectionKind, Optional[str]]]], parse_config: ParseConfig) -> bool:
-    """Whether a listed header inside a section that is no entry section (skills, a qualifications
-    sidebar, a summary) opens a section (Task 5.4). A strong form always does: ALL CAPS, a trailing
-    colon, or a rule under it. Otherwise it needs content after it (a header followed by another
-    header is the tail of a wrapped item, "Market / Research") that does not continue the list:
-    the line after it written like the line before it ("Jira / Leadership / Mentoring": an item
-    between items), or like the header line itself when it comes first. Lines and words only,
-    never the layout."""
+    """Whether a listed header of no entry kind, inside a skills or summary section, opens a section
+    (Task 5.4, D-133; fix round 1). A strong form always does: ALL CAPS, a trailing colon, or a rule
+    under it. Otherwise it is judged by its run, the lines up to the next listed header: an empty
+    run (a header followed by another header is the tail of a wrapped item, "Presentation /
+    Skills") opens nothing, and a run whose every line is written like the line before the header
+    ("Jira / Strengths / Mentoring": items between items; the header line itself when it comes
+    first) continues the list. Any other line in the run (a dated line, a title, a degree, a place,
+    a sentence) opens the section. Lines and words only, never the layout."""
     text = raw[nonblank[position]].strip()
     after = nonblank[position + 1] if position + 1 < len(nonblank) else None
     if _caps(text) or text.endswith(":") or (after is not None and _is_rule(raw[after])):
         return True
-    if after is None or found.get(after) is not None:
+    run = []
+    for index in nonblank[position + 1:]:
+        if found.get(index) is not None:
+            break
+        run.append(index)
+    if not run:
         return False
     before = nonblank[position - 1] if position > 0 else None
-    listed = raw[before] if before is not None and before > header_at else text  # the first item: itself
-    shape = _list_shape(raw[after], parse_config)
-    return shape == "other" or shape != _list_shape(listed, parse_config)
+    listed = _list_shape(raw[before] if before is not None and before > header_at else text, parse_config)
+    return listed == "other" or any(_list_shape(raw[index], parse_config) != listed for index in run)
 
 
 def segment(lines: Sequence[str], *, parse_config: ParseConfig,
@@ -337,7 +348,7 @@ def segment(lines: Sequence[str], *, parse_config: ParseConfig,
     for position, i in enumerate(nonblank):
         text = raw[i]
         hit = found.get(i)
-        if hit is not None and current is not None and current not in table.entry_sections and not _opens_in_list(
+        if hit is not None and current in _LIST_KINDS and hit[0] not in _PRIMARY and not _opens_in_list(
                 raw, nonblank, position, headers[-1].index, found, parse_config):
             continue  # a skill ("Leadership") or the tail of a wrapped item ("Market / Research")
         if hit is not None:

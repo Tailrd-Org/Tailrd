@@ -1324,8 +1324,37 @@ between a dates-only line and the head line above it is passed over (a dates col
 place); and "following", "within", "between", "through", "throughout", "during" and "among" end a line
 mid-sentence like the other function words.
 
-**D-135 Header vocabulary.** "Learning" (EDUCATION) and "Badges", "Digital Badges" (CERTIFICATIONS) are
-listed headers. They are creative headers of real designer résumés as much as of the synthetic
-designer template, which used them and lost its education and certifications in every format (an
-across-template spread of about 0.10). This is a vocabulary entry, not a template detector; it is
-flagged for review because the evidence came from the corpus.
+**D-135 Header vocabulary.** "Badges" and "Digital Badges" (CERTIFICATIONS) are listed headers: creative
+headers of real designer résumés as much as of the synthetic designer template. [Fix round 1] "Learning"
+was listed too and is withdrawn: a wrapped "Machine / Learning" bullet opened an EDUCATION section inside
+an experience entry. The designer template's "Learning" section stays unread (a known M6 cost).
+
+**Fix round 1 amendments (review of 8c75b0b..17ea24c; precision on real résumés outranks the M6
+number).**
+- D-130: OCR provenance is per page. Ingest marks each line OCR read (`TextLine.ocr`: every line of
+  an image file, the lines of each PDF page read by OCR) and only those lines are repaired, so a PDF
+  with one scanned page among typed pages leaves the typed lines alone. Finer (per block) provenance
+  does not exist: a page is OCRed whole. Tightened rules: a bullet glyph needs a space after it
+  (".NET Developer" stays); an acronym or doubled-letter repair is skipped when the next word is
+  capitalised (a name: "Al Smith", "Al Ain", "Mel Studio"); a level token needs a title word directly
+  before it (no comma between: "Server, Il Fornaio" stays) and nothing word-like after it (the end, a
+  separator, a spaced dash or a digit; "Ill-health" and "Chef Il Fornaio" stay). A repair that fails
+  leaves its line as read, and a failure of the whole step parses the text as read; neither fails
+  the résumé.
+- D-131: the listing rule applies only when the whole résumé has no dated role (no experience-like
+  section holds a dated line), in experience and volunteer sections alike (the brief named
+  experience; volunteer listings are read the same way). A listing entry needs a title piece that
+  names a job (`title_score`), in at most six words, opening with no pronoun ("Sorted donations" and
+  "I worked as a Software Engineer" are no roles). Its roles carry `Role.listed`; they are evidence
+  only and are left out of temporal completeness (`score/confidence.py`: a résumé whose roles are all
+  listed has none, as with no roles at all). This is the one change under `score/`, by ruling.
+- D-132: past forms that open titles as adjectives (assisted, automated, founded, registered,
+  certified, licensed, chartered, ...) are not bullet openers ("Assisted Living Coordinator").
+- D-133: the list rule runs only inside SKILLS and SUMMARY sections, and never holds back a header of
+  an entry kind (experience, education, projects, certifications, volunteer): "Experience" after a
+  one-per-line skills list always opens its section, so "Leadership" and "Research" in a sidebar open
+  theirs again. A header of another kind is judged by its run up to the next listed header: an empty
+  run opens nothing; any line in the run not written like the line before the header (a dated line,
+  a title, a degree, a school, a place, contact details, a sentence) opens the section.
+- D-134: a wrapped employer tail joins only when it names an organisation itself (an employer word)
+  or starts in lower case or with "&"/"and"; "Payments Analytics" under "Acme Corp" is a team.

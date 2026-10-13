@@ -481,6 +481,7 @@ class Entry:
     body: tuple[int, ...]
     group: bool = False
     pieces: dict[int, HeadParts] = field(default_factory=dict, compare=False)
+    listed: bool = False  # an undated entry of a functional listing (no dates, no bullets): evidence only
 
 
 _DANGLING_WORDS = frozenset({"and", "or", "the", "a", "an", "of", "for", "to", "with", "in", "on", "at", "by",
@@ -503,7 +504,7 @@ def continues(previous: str, line: Line) -> bool:
     return last in _DANGLING_WORDS
 
 
-def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
+def entries(lines: Sequence[Line], *, strict: bool, listing: bool = True) -> list[Entry]:
     """Entries in document order (see the module docstring)."""
     anchors = [line.index for line in lines if line.ranges]
     claimed: set[int] = set(anchors)
@@ -560,7 +561,7 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
                            after=tuple(after), body=(), group=group))
 
     if not strict:
-        bare = not anchors and not any(line.bullet for line in lines)
+        bare = listing and not anchors and not any(line.bullet for line in lines)
         specs.extend(_undated(lines, claimed, parts_of, bare=bare))
     specs.sort(key=lambda entry: entry.start)
 
@@ -572,7 +573,8 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
         body = _body(lines, last_head + 1, limit, strict=strict)
         end = body[-1] if body else last_head
         out.append(Entry(start=spec.start, end=end, anchor=spec.anchor, before=spec.before, after=spec.after,
-                         body=tuple(body), group=spec.group, pieces={i: parts_of(i) for i in heads}))
+                         body=tuple(body), group=spec.group, pieces={i: parts_of(i) for i in heads},
+                         listed=spec.listed))
     return out
 
 
@@ -604,6 +606,9 @@ def _wrapped_tail(lines: Sequence[Line], anchor: int, j: int, claimed: set[int],
     text = tail.text
     if "," in text or len(text.split()) > _MAX_TAIL_WORDS or title_score(text) or not parts_of(anchor).pieces:
         return None
+    first = text.split()[0]
+    if not (employer_score(text) or first[:1].islower() or first.casefold() in ("&", "and", "et")):
+        return None  # fix round 1 (M1): "Payments Analytics" is a team, not the end of "Acme Corp"
     following = lines[j + 1] if j + 1 < len(lines) else None
     if following is not None and not (following.blank or following.bullet or following.place):
         return None
@@ -627,6 +632,17 @@ def _heads_promotions(lines: Sequence[Line], anchors: list[int], position: int, 
     return any(title_score(piece) for piece in parts_of(j).pieces)
 
 
+_MAX_TITLE_WORDS = 6
+_PRONOUNS = frozenset({"i", "we", "my", "our", "je", "nous", "mon", "ma", "mes"})
+
+
+def _titled(piece: str) -> bool:
+    """A listing title: it names a job (`title_score`), in at most six words, and opens with no
+    pronoun ("I worked as a Software Engineer" is a sentence)."""
+    tokens = words(piece)
+    return bool(tokens) and len(tokens) <= _MAX_TITLE_WORDS and tokens[0] not in _PRONOUNS and title_score(piece) > 0
+
+
 def _undated(lines: Sequence[Line], claimed: set[int], parts_of, *, bare: bool) -> list[Entry]:
     """Undated entries. `bare` (a section with no dated line at all, such as a functional
     résumé's "Title, Employer / City" list): an entry needs no bullets, a line naming both a title
@@ -647,13 +663,17 @@ def _undated(lines: Sequence[Line], claimed: set[int], parts_of, *, bare: bool) 
         follows = j < len(lines) and lines[j].bullet
         previous = lines[i - 1] if i > 0 else None
         wrapped = previous is not None and previous.bullet and run and continues(previous.text, lines[run[0]])
+        listed = bare and not follows
+        if listed and not any(_titled(piece) for r in run for piece in parts_of(r).pieces):
+            run = []  # a listing entry needs a title: "Sorted donations" or a sentence is no role
         if run and (follows or bare) and not wrapped and any(names_a_role(lines[r].text) for r in run):
             after: list[int] = []
             while bare and j < len(lines) and j not in claimed and lines[j].place:
                 after.append(j)
                 parts_of(j)
                 j += 1
-            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=tuple(after), body=()))
+            out.append(Entry(start=run[0], end=run[-1], anchor=None, before=tuple(run), after=tuple(after), body=(),
+                             listed=listed))
             claimed.update(after)
             i = j
             continue

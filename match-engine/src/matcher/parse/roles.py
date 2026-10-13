@@ -82,6 +82,7 @@ class RoleDraft(Frozen):
     location: str
     date_range: Optional[DateRange]
     bullets: tuple[str, ...]
+    listed: bool = False  # from a functional listing (D-131): evidence only
 
 
 # ─── split_roles ────────────────────────────────────────────────────────────────────────────
@@ -193,6 +194,13 @@ def _merged(a: RoleDraft, b: RoleDraft) -> RoleDraft:
                      date_range=joined, bullets=tuple(dict.fromkeys(a.bullets + b.bullets)))
 
 
+# Past forms that open titles as adjectives ("Assisted Living Coordinator", "Certified Nursing
+# Assistant"): never read as bullet openers (fix round 1, M2).
+_TITLE_OPENERS = frozenset({"assisted", "automated", "founded", "registered", "licensed", "certified", "chartered",
+                            "accredited", "qualified", "integrated", "applied", "advanced", "experienced",
+                            "distinguished", "contracted", "designated", "seasoned", "skilled", "embedded",
+                            "associated", "united", "published", "funded", "featured", "selected", "elected",
+                            "appointed", "seconded", "retired", "trained", "dedicated", "detailed"})
 _IRREGULAR_PAST = frozenset({"built", "led", "drove", "ran", "wrote", "made", "taught", "grew", "won", "sold",
                              "oversaw", "undertook", "brought", "began", "held", "kept", "met", "spoke"})
 
@@ -206,19 +214,21 @@ def past_verbs(config: EngineConfig) -> frozenset[str]:
     for cls in config.verbs.classes.values():
         for verb in cls.verbs:
             key = verb.strip().lower()
-            if key.endswith("ed") or key in _IRREGULAR_PAST:
+            if (key.endswith("ed") or key in _IRREGULAR_PAST) and key not in _TITLE_OPENERS:
                 out.add(key)
     return frozenset(out)
 
 
 def split_roles(section: Section, *, as_of: dt.date, lang: str = "en",
-                verbs: frozenset[str] = frozenset()) -> tuple[RoleDraft, ...]:
+                verbs: frozenset[str] = frozenset(), listing: bool = True) -> tuple[RoleDraft, ...]:
     """The roles of an experience-like section, in document order (see the module docstring).
-    `verbs` (`past_verbs`) open bullet text, never a head line."""
+    `verbs` (`past_verbs`) open bullet text, never a head line. `listing` allows the undated,
+    bullet-less entries of a functional listing (D-131); the résumé parser allows them only when
+    the résumé has no dated role at all."""
     lines = _entries.classify(section.lines, as_of=as_of, lang="fr" if lang == "fr" else "en", verbs=verbs)
     drafts: list[RoleDraft] = []
     group_employer = ""
-    for entry in _entries.entries(lines, strict=False):
+    for entry in _entries.entries(lines, strict=False, listing=listing):
         if entry.group:
             pieces = _pieces(entry)
             group_employer = pieces[0][0] if pieces else ""
@@ -233,7 +243,7 @@ def split_roles(section: Section, *, as_of: dt.date, lang: str = "en",
         ranges = lines[entry.anchor].ranges if entry.anchor is not None else ()
         for date_range in ([found[2] for found in ranges] or [None]):
             drafts.append(RoleDraft(title_raw=assigned.title, employer=employer, location=assigned.location,
-                                    date_range=date_range, bullets=bullets))
+                                    date_range=date_range, bullets=bullets, listed=entry.listed))
     merged: list[RoleDraft] = []
     for draft in drafts:
         if merged and _chained(merged[-1], draft):
@@ -352,4 +362,5 @@ def build_role(draft: RoleDraft, *, as_of: dt.date, resolver: Resolver, titles: 
         is_current=current,
         is_internship=internship,
         skills=_bounded(refs, config),
+        listed=draft.listed,
     )
