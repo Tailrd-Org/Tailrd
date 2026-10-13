@@ -476,7 +476,9 @@ def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Map
 
 def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
                     material: Optional[str] = None) -> str:
-    """"fit<major>:" + sha256(canonical Resume JSON + combined hash), cut to 64 characters.
+    """"fit<major>:" + sha256(canonical Resume JSON + combined hash + panel version), cut to 64
+    characters. The panel version is in it (final review M-1): a panel rebuild recalibrates
+    every display score, so every banked row goes stale and is rescored, as for a config change.
 
     A résumé that could not be parsed has no canonical JSON: its fingerprint hashes its reasons
     and ``material`` (a digest of the stored input), so a NEEDS_REVIEW row is current until the
@@ -487,7 +489,7 @@ def fingerprint_for(parsed: ParsedResume, *, engine: Optional[FitEngine] = None,
     else:
         body = "review|" + ",".join(flag.value for flag in parsed.reasons) + "|" + (material or "")
     prefix = f"fit{engine.major}:"
-    digest = hashlib.sha256((body + engine.combined_hash).encode("utf-8")).hexdigest()
+    digest = hashlib.sha256((body + engine.combined_hash + engine.panel_version).encode("utf-8")).hexdigest()
     return (prefix + digest)[:_FINGERPRINT_LEN]
 
 
