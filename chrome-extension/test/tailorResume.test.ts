@@ -32,7 +32,7 @@ describe("mapTailorResponse", () => {
     ).toEqual({
       document: doc, originalScore: 60, newScore: 82, atsScore: 78,
       keywordCoverage: 90, matchedKeywords: ["Python"], missingKeywords: ["AWS"],
-      diffSummary: "d", matchLabel: "",
+      diffSummary: "d", matchLabel: "", reasons: [],
     });
   });
 
@@ -41,6 +41,7 @@ describe("mapTailorResponse", () => {
     const out = mapTailorResponse({
       document: doc, original_overall_score: null, new_overall_score: null,
       new_ats_score: null, new_keyword_coverage: null, match_label: "We couldn't score this",
+      reasons: ["We couldn't find any requirements in this job posting."],
       matched_keywords: [], missing_keywords: [], diff_summary: "",
     });
     expect(out.originalScore).toBeNull();
@@ -48,5 +49,6 @@ describe("mapTailorResponse", () => {
     expect(out.atsScore).toBeNull();
     expect(out.keywordCoverage).toBeNull();
     expect(out.matchLabel).toBe("We couldn't score this");
+    expect(out.reasons).toEqual(["We couldn't find any requirements in this job posting."]);
   });
 });

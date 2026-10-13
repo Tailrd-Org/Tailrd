@@ -15,6 +15,7 @@ interface TailorApiResponse {
   new_ats_score: number | null;
   new_keyword_coverage: number | null;
   match_label?: string;
+  reasons?: string[];
   matched_keywords: string[];
   missing_keywords: string[];
   diff_summary: string;
@@ -54,6 +55,7 @@ export function mapTailorResponse(r: TailorApiResponse): TailorResult {
     missingKeywords: r.missing_keywords ?? [],
     diffSummary: r.diff_summary ?? "",
     matchLabel: r.match_label ?? "",
+    reasons: r.reasons ?? [],
   };
 }
 

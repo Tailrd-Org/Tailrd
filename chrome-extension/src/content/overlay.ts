@@ -1130,6 +1130,8 @@ export const STYLES = `
   margin-top: 10px; }
 .ap-tailor-jump { font-weight: 700; font-size: 14px; color: var(--stripe-ink); }
 .ap-tailor-stats { font-size: 11.5px; color: var(--stripe-ink-mute); }
+.ap-tailor-reasons { margin: 8px 0 0; padding-left: 16px; font-size: 11.5px; line-height: 1.4;
+  color: var(--stripe-ink-mute); }
 .ap-kw-label { font-size: 11.5px; color: var(--stripe-ink-mute); margin: 10px 0 5px; }
 .ap-kw-row { display: flex; flex-wrap: wrap; gap: 6px; }
 .ap-kw { font-size: 11.5px; padding: 4px 9px; border-radius: 999px; cursor: pointer;

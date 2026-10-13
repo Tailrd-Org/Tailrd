@@ -522,6 +522,8 @@ export interface TailorResult {
   keywordCoverage: number | null;
   /** The engine's band ("Good match") or "We couldn't score this" / "Not eligible". */
   matchLabel: string;
+  /** Why the tailored result shows no number (plain sentences); empty when it is scored. */
+  reasons: string[];
   matchedKeywords: string[];
   missingKeywords: string[];
   diffSummary: string;

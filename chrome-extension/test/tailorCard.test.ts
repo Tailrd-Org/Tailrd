@@ -5,7 +5,7 @@ import type { TailorResult } from "../src/shared/types";
 const result: TailorResult = {
   document: {}, originalScore: 72, newScore: 85, atsScore: 88,
   keywordCoverage: 92, matchedKeywords: ["react"], missingKeywords: ["aws", "docker"],
-  diffSummary: "", matchLabel: "Good match",
+  diffSummary: "", matchLabel: "Good match", reasons: [],
 };
 
 describe("scoreJumpText", () => {
@@ -18,8 +18,10 @@ describe("scoreJumpText", () => {
   it("shows only the new score when there is no before score", () => {
     expect(scoreJumpText(null, 85)).toBe("Match 8.5");
   });
-  it("shows the engine's label when there is no new score", () => {
-    expect(scoreJumpText(72, null, "Good match")).toBe("Good match");
+  it("keeps the before score and names the band when the new score is withheld", () => {
+    expect(scoreJumpText(72, null, "Good match")).toBe("Match 7.2 → Good match");
+  });
+  it("shows the engine's label when there is no score at all", () => {
     expect(scoreJumpText(null, null, "We couldn't score this")).toBe("We couldn't score this");
     expect(scoreJumpText(null, null)).toBe("");
   });
@@ -53,6 +55,17 @@ describe("buildTailorCardHtml", () => {
     expect(html).toContain("40% coverage");
     expect(html).not.toContain("ATS");
     expect(html).not.toMatch(/null|NaN/);
+  });
+  it("shows why the score went away, escaped", () => {
+    const html = buildTailorCardHtml(
+      { ...result, newScore: null, atsScore: null, reasons: ["Skills listed <only> make us less sure."] },
+      new Set()
+    );
+    expect(html).toContain('class="ap-tailor-reasons"');
+    expect(html).toContain("Skills listed &lt;only&gt; make us less sure.");
+  });
+  it("has no reasons block when there are none", () => {
+    expect(buildTailorCardHtml(result, new Set())).not.toContain("ap-tailor-reasons");
   });
   it("omits the keyword row when there are no missing keywords", () => {
     const html = buildTailorCardHtml({ ...result, missingKeywords: [] }, new Set());
