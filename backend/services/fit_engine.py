@@ -22,6 +22,9 @@ What it does
                                 and the audit trace (match_traces, keyed by an opaque id).
     ``refresh_calibration``     per-family / global references from banked raw scores (D-50).
     ``explain_job``             one full result (explanation, interval, counterfactual).
+    ``build_shadow_engine`` /
+    ``shadow_scores``           EVAL section 6 shadow scoring (FIT_SHADOW_CONFIG, D-150): the same
+                                résumé and postings scored with a candidate config, in memory.
     ``score_order``             the dialect-portable "NULL scores last" ordering (D-86).
     ``score_document``          the tailoring flow (Task 9.3): one résumé document against one
                                 posting (``posting_for_job`` or, for pasted text,
@@ -83,6 +86,7 @@ from matcher.models import (  # noqa: E402
     Location,
     MatchResult,
     Outcome,
+    Polarity,
     Resume,
     ScoreOptions,
     SkillKind,
@@ -327,7 +331,7 @@ _PARSE_CACHE_LOCK = threading.Lock()
 
 
 def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngine] = None,
-                       as_of: Optional[dt.date] = None) -> ParsedResume:
+                       as_of: Optional[dt.date] = None, text_fallback: bool = True) -> ParsedResume:
     """The engine résumé for a stored ``ResumeProfileDB`` and the user's ``UserSettings`` (or None).
 
     D-80: the stored document when it has experience / education / projects / skills content,
@@ -336,6 +340,11 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     what the answers leave unknown. Never raises: an empty profile is a ParsedResume with
     reasons (NOT_A_RESUME) and no résumé. Results are memoised per input (a feed request reads
     the fingerprint on every page).
+
+    D-152 (amends D-80): a stored profile that was never edited after upload
+    (``content_updated_at`` unset) and whose document roles all lost their dates is scored from
+    ``raw_text`` when the text parse has a dated role and covers at least 80 % of the document's
+    skills. ``text_fallback=False`` (the tailoring flow, ``resume_for_document``) never does.
     """
     engine = engine or get_engine()
     day = as_of or fit_as_of()
@@ -343,14 +352,15 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     raw_text = getattr(profile, "raw_text", None)
     fields = profile_fields(profile, settings)
     clearance = _clearance_answer(settings)
+    allow_text = text_fallback and getattr(profile, "content_updated_at", None) is None
     key = _digest([engine.combined_hash, engine.parse_config.version, day.isoformat(), document, raw_text or "",
-                   fields, clearance])
+                   fields, clearance, allow_text])
     with _PARSE_CACHE_LOCK:
         cached = _PARSE_CACHE.get(key)
         if cached is not None:
             _PARSE_CACHE.move_to_end(key)
             return cached
-    parsed = _parse_resume(document, raw_text, fields, clearance, engine, day)
+    parsed = _parse_resume(document, raw_text, fields, clearance, engine, day, text_fallback=allow_text)
     with _PARSE_CACHE_LOCK:
         _PARSE_CACHE[key] = parsed
         while len(_PARSE_CACHE) > _PARSE_CACHE_SIZE:
@@ -358,12 +368,65 @@ def resume_for_profile(profile: Any, settings: Any, *, engine: Optional[FitEngin
     return parsed
 
 
+_ROLE_DATE_KEYS = ("start_date", "end_date")
+_ROLE_CONTENT_KEYS = ("title", "company")
+
+
+def _document_roles_undated(document: Mapping[str, Any]) -> bool:
+    """True when the stored document has at least one experience role and no role has a start or
+    an end date: the shape of a résumé extracted before 2026-07-09 (commit 1062972), whose dates
+    were dropped at ingest although its raw text holds them (D-152)."""
+    roles = [item for item in (document.get("experience") or ()) if isinstance(item, Mapping) and (
+        any(isinstance(item.get(key), str) and item.get(key).strip() for key in _ROLE_CONTENT_KEYS)
+        or any(isinstance(b, str) and b.strip() for b in (item.get("bullets") or ())))]
+    if not roles:
+        return False
+    return not any(isinstance(item.get(key), str) and item.get(key).strip()
+                   for item in roles for key in _ROLE_DATE_KEYS)
+
+
+def _skill_ids(parsed: ParsedResume) -> frozenset[str]:
+    """Every affirmed resolved skill id of a parsed résumé (roles, projects, skills, credentials)."""
+    resume = parsed.resume
+    if resume is None:
+        return frozenset()
+    refs = [*resume.skills_blob, *resume.certifications,
+            *(ref for role in resume.roles for ref in role.skills),
+            *(ref for project in resume.projects for ref in project.skills)]
+    return frozenset(ref.canonical_id for ref in refs if ref.polarity is Polarity.AFFIRMED)
+
+
+#: D-152 guard: the text parse must name at least this share of the document parse's skills.
+_TEXT_SKILL_COVERAGE = 0.8
+
+
+def _text_covers_document(document_parse: ParsedResume, text_parse: ParsedResume) -> bool:
+    """True when the raw-text parse is not thinner than the document: its resolved skills cover at
+    least 80 % of the document parse's (or the document resolves none)."""
+    wanted = _skill_ids(document_parse)
+    if not wanted:
+        return True
+    return len(wanted & _skill_ids(text_parse)) >= _TEXT_SKILL_COVERAGE * len(wanted)
+
+
 def _parse_resume(document: dict[str, Any], raw_text: Optional[str], fields: Mapping[str, str], clearance: str,
-                  engine: FitEngine, as_of: dt.date) -> ParsedResume:
+                  engine: FitEngine, as_of: dt.date, *, text_fallback: bool = True) -> ParsedResume:
     parsed = resume_from_document(document, as_of=as_of, resolver=engine.resolver, config=engine.config,
                                   parse_config=engine.parse_config,
                                   raw_text=raw_text if isinstance(raw_text, str) else None,
                                   resources=engine.resume_resources)
+    if (text_fallback and _document_roles_undated(document) and isinstance(raw_text, str)
+            and raw_text.strip()):
+        # D-80 amended (D-152): a never-edited legacy document that lost every date (pre-2026-07-09
+        # extraction) is scored from the raw text instead, when the engine's text path finds a dated
+        # role there and the text is not thinner than the document (skill coverage). The whole parse
+        # is swapped, never dates copied across, so roles cannot be mismatched.
+        from_text = resume_from_document({}, as_of=as_of, resolver=engine.resolver, config=engine.config,
+                                         parse_config=engine.parse_config, raw_text=raw_text,
+                                         resources=engine.resume_resources)
+        if (from_text.resume is not None and any(role.dated for role in from_text.resume.roles)
+                and _text_covers_document(parsed, from_text)):
+            parsed = from_text
     if parsed.resume is None:
         return parsed
     place = _profile_location(fields)
@@ -752,7 +815,8 @@ def subject_id(user_id: int, salt: bytes) -> str:
 
 
 def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
-                engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> dict[int, MatchResult]:
+                engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None,
+                postings_out: Optional[dict[int, JobPosting]] = None) -> dict[int, MatchResult]:
     """Score every job in ``job_ids`` that has no current row for this résumé and store it.
 
     One parsed résumé, many postings (``ScoreOptions(with_explanation=False)``). Each stored row
@@ -765,7 +829,8 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     overwritten in place. The fingerprint is remembered for these inputs (match_fingerprints,
     D-107), so a request path that never builds the engine can still tell current rows apart.
     Commits the session (the posting cache first, then the scores). Returns {job_id: MatchResult}
-    for the jobs scored now.
+    for the jobs scored now. When ``postings_out`` is a dict, the posting each of those jobs was
+    scored with is put in it (the shadow pass reuses them: ``shadow_scores``).
     Raises FitTraceSaltError before writing anything when FIT_TRACE_SALT is unusable.
     """
     from backend.db.models import JobMatchScore, MatchTrace
@@ -807,6 +872,8 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
             continue
         result = _score_pair(parsed, posting, calibrator, engine, day, _BULK_OPTIONS, job_id)
         results[job_id] = result
+        if postings_out is not None:
+            postings_out[job_id] = posting
         values = {
             "score": stored_score(result),
             "raw_score": result.raw_score,
@@ -839,6 +906,60 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     remember_fingerprint(db, user_id, key, fingerprint, day)
     db.commit()
     return results
+
+
+# ─── Shadow scoring (EVAL section 6, D-150) ─────────────────────────────────────────────────
+
+#: Names a candidate config directory (the layout of match-engine/config). When set, the cron
+#: sweep scores every chunk a second time with it and reports the difference; nothing of the
+#: shadow pass is ever persisted.
+SHADOW_CONFIG_ENV = "FIT_SHADOW_CONFIG"
+
+
+def shadow_config_dir() -> Optional[Path]:
+    """The FIT_SHADOW_CONFIG directory, or None when the variable is unset or blank."""
+    value = os.environ.get(SHADOW_CONFIG_ENV, "").strip()
+    return Path(value) if value else None
+
+
+def build_shadow_engine(config_dir: Path, *, live: Optional[FitEngine] = None) -> FitEngine:
+    """The live engine with its ``EngineConfig`` (weights, gates, bands, verbs, negation, scoring)
+    read from ``config_dir`` instead, and a resolver built for that config.
+
+    Everything else is the live engine's: the skill graph and taxonomy, the parse tables, the
+    title and MOS indexes and the calibration panel (D-150). Raises FitEngineError, never
+    degrades, when the directory or any of its files is missing or invalid."""
+    live = live or get_engine()
+    started = time.perf_counter()
+    root = Path(config_dir)
+    if not root.is_dir():
+        raise FitEngineError(f"{SHADOW_CONFIG_ENV} is not a directory: {root.name or root}")
+    try:
+        config = load_config(root)
+        resolver = load_resolver(TAXONOMY_DIR, config)
+    except Exception as exc:  # ConfigError, ArtifactError, OSError: the shadow is simply unusable
+        raise FitEngineError(f"{type(exc).__name__}: {exc}") from exc
+    elapsed = time.perf_counter() - started
+    logger.info("fit_engine: shadow config %s built in %.2fs", config.content_hash, elapsed)
+    return dataclasses.replace(live, config=config, resolver=resolver,
+                               combined_hash=combined_hash(config, live.graph.version), build_seconds=elapsed)
+
+
+def shadow_scores(db, user_id: int, profile: Any, postings: Mapping[int, JobPosting], *, shadow: FitEngine,
+                  engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> dict[int, MatchResult]:
+    """Score ``postings`` (the ones the live pass just used, ``bank_scores(postings_out=...)``)
+    against this résumé with the shadow engine, in memory. Writes nothing: no score row, no
+    trace, no posting cache, no fingerprint (it only reads the user's settings and the live
+    calibration references, so the shadow and live display scores share one calibrator and their
+    difference is the config's alone). Postings are the live parse; the résumé is parsed again
+    with the shadow config (D-150)."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    settings = _settings_for(db, user_id)
+    parsed = resume_for_profile(profile, settings, engine=shadow, as_of=day)
+    calibrator = _calibrator(db, engine)
+    return {job_id: _score_pair(parsed, posting, calibrator, shadow, day, _BULK_OPTIONS, job_id)
+            for job_id, posting in postings.items()}
 
 
 def delete_user_traces(db, user_id: int) -> int:
@@ -933,8 +1054,12 @@ def resume_for_document(document: Mapping[str, Any], settings: Any, *, raw_text:
     """The engine résumé for a document in the stored-profile shape (``location``, ``summary``,
     ``experience``, ``education``, ``projects``, ``skills``, ``technologies``, ``custom_sections``;
     see ``resume_document.document_to_record``), read exactly as ``resume_for_profile`` reads a
-    stored profile: the same résumé the feed scores when the document is the profile's own."""
-    return resume_for_profile(_document_profile(document, raw_text), settings, engine=engine, as_of=as_of)
+    stored profile: the same résumé the feed scores when the document is the profile's own, except
+    that the D-152 raw-text date fallback never applies: the tailoring flow scores the documents
+    themselves (an original and its rewrite), so ``raw_text`` is read only when a document has no
+    content (D-80)."""
+    return resume_for_profile(_document_profile(document, raw_text), settings, engine=engine, as_of=as_of,
+                              text_fallback=False)
 
 
 def score_document(db, user_id: Optional[int], document: Mapping[str, Any], posting: JobPosting, *,
@@ -1062,6 +1187,7 @@ __all__ = [
     "FitTraceSaltError",
     "bank_scores",
     "build_engine",
+    "build_shadow_engine",
     "commit_posting_cache",
     "current_fingerprints",
     "delete_user_traces",
@@ -1087,6 +1213,8 @@ __all__ = [
     "resume_for_profile",
     "score_document",
     "score_order",
+    "shadow_config_dir",
+    "shadow_scores",
     "stored_score",
     "subject_id",
 ]

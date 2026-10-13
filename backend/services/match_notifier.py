@@ -467,6 +467,112 @@ def _strong_matches(
     return [(job, score, band, outcome) for job, score, band, outcome in rows]
 
 
+class ShadowTally:
+    """What the shadow pass found (EVAL section 6, D-150): live and shadow side by side.
+
+    ``add(live, shadow)`` takes the two results of one job. ``summary()`` gives the outcome and
+    band histograms of each side, the display-score delta (shadow minus live, over jobs SCORED on
+    both sides: n, mean, p50), band agreement (over jobs with a band on both sides) and the jobs
+    that cross the alert bar (a SCORED Strong match) in either direction."""
+
+    def __init__(self, config_hash: Optional[str]) -> None:
+        self.config_hash = config_hash
+        self.error: Optional[str] = None
+        self.jobs = self.errors = self.skipped_deadline = 0
+        self.outcomes: dict[str, Counter] = {"live": Counter(), "shadow": Counter()}
+        self.bands: dict[str, Counter] = {"live": Counter(), "shadow": Counter()}
+        self.deltas: list[float] = []
+        self.band_pairs = self.band_agree = 0
+        self.into_strong = self.out_of_strong = 0
+
+    @staticmethod
+    def _band(result) -> Optional[str]:
+        band = getattr(result, "band", None)
+        return None if band is None else band.value
+
+    @classmethod
+    def _strong(cls, result) -> bool:
+        """The alert bar itself (``fit_reads.is_strong_match``, the twin of the SQL filter alerts use)."""
+        return fit_reads.is_strong_match(result.outcome.value, cls._band(result),
+                                         getattr(result, "display_score", None))
+
+    def add(self, live, shadow) -> None:
+        self.jobs += 1
+        for side, result in (("live", live), ("shadow", shadow)):
+            self.outcomes[side][result.outcome.value] += 1
+            band = self._band(result)
+            if band is not None:
+                self.bands[side][band] += 1
+        scored = fit_reads.OUTCOME_SCORED
+        if (live.outcome.value == scored and shadow.outcome.value == scored
+                and live.display_score is not None and shadow.display_score is not None):
+            self.deltas.append(float(shadow.display_score) - float(live.display_score))
+        live_band, shadow_band = self._band(live), self._band(shadow)
+        if live_band is not None and shadow_band is not None:
+            self.band_pairs += 1
+            self.band_agree += int(live_band == shadow_band)
+        live_strong, shadow_strong = self._strong(live), self._strong(shadow)
+        self.into_strong += int(shadow_strong and not live_strong)
+        self.out_of_strong += int(live_strong and not shadow_strong)
+
+    def summary(self) -> dict[str, Any]:
+        deltas = sorted(self.deltas)
+        mean: Optional[float] = None
+        p50: Optional[float] = None
+        if deltas:
+            middle = len(deltas) // 2
+            p50 = deltas[middle] if len(deltas) % 2 else (deltas[middle - 1] + deltas[middle]) / 2
+            mean = sum(deltas) / len(deltas)
+        return {
+            "status": "error" if self.error else "ok",
+            "error": self.error,
+            "config_hash": self.config_hash,
+            "postings": "live parse",
+            "jobs": self.jobs,
+            "outcomes": {side: dict(counts) for side, counts in self.outcomes.items()},
+            "bands": {side: dict(counts) for side, counts in self.bands.items()},
+            "score_delta": {"n": len(deltas), "mean": mean, "p50": p50},
+            "band_agreement": {"n": self.band_pairs, "agree": self.band_agree,
+                               "rate": self.band_agree / self.band_pairs if self.band_pairs else None},
+            "crossed_strong": {"into": self.into_strong, "out_of": self.out_of_strong,
+                               "total": self.into_strong + self.out_of_strong},
+            "errors": self.errors,
+            "skipped_deadline": self.skipped_deadline,
+        }
+
+
+def _shadow_pass(db: Session, user_id: int, profile, results: dict, postings: dict, shadow_dir,
+                 shadow_engine, tally: ShadowTally, started: float, budget_s: int):
+    """Score one live chunk again with the shadow config and tally it (D-150). Returns the shadow
+    engine (built here on first use). Never raises: a config that fails to load sets
+    ``tally.error`` (no more shadow passes this sweep); any other fault counts as an error."""
+    from backend.services import fit_engine
+
+    if budget_s > 0 and _now() - started >= budget_s:
+        tally.skipped_deadline += len(results)
+        return shadow_engine
+    if shadow_engine is None:
+        try:
+            shadow_engine = fit_engine.build_shadow_engine(shadow_dir)
+        except Exception as exc:
+            tally.error = f"{type(exc).__name__}: {exc}"[:500]
+            logger.error("match-alert sweep: the shadow config could not be loaded: %s", tally.error)
+            return None
+        tally.config_hash = shadow_engine.combined_hash
+    wanted = {job_id: postings[job_id] for job_id in results if job_id in postings}
+    try:
+        shadow_results = fit_engine.shadow_scores(db, user_id, profile, wanted, shadow=shadow_engine)
+    except Exception as exc:
+        db.rollback()  # the live chunk is already committed; the shadow pass holds nothing
+        tally.errors += 1
+        logger.error("match-alert sweep: shadow scoring a chunk failed: %s", type(exc).__name__)
+        return shadow_engine
+    for job_id, shadow_result in shadow_results.items():
+        if job_id in results:
+            tally.add(results[job_id], shadow_result)
+    return shadow_engine
+
+
 async def sweep_match_alerts(
     db: Session,
     max_users: Optional[int] = None,
@@ -488,6 +594,13 @@ async def sweep_match_alerts(
     the calibration references are refreshed and the drift report is computed.
 
     Users are capped per run (CRON_MATCH_MAX_USERS); any truncation is logged.
+
+    Shadow scoring (EVAL section 6, D-150): when FIT_SHADOW_CONFIG names a config directory, each
+    scored chunk is scored again with that config, in memory (``fit_engine.shadow_scores``), and
+    ``summary["shadow"]`` reports the difference (``ShadowTally``). Only the live result is
+    persisted. The shadow pass runs inside the same scoring deadline (it is skipped, and counted,
+    once the deadline has passed). A shadow config that fails to load, or a shadow fault, is
+    reported in the summary and never stops the live sweep.
     """
     from backend.db.models import ResumeProfileDB
     from backend.services import fit_engine
@@ -586,6 +699,9 @@ async def sweep_match_alerts(
     engine_failed: Optional[str] = None
     current_raws: list[float] = []
     current_outcomes: Counter = Counter()
+    shadow_dir = fit_engine.shadow_config_dir()
+    shadow_tally: Optional[ShadowTally] = ShadowTally(config_hash=None) if shadow_dir else None
+    shadow_engine = None
 
     for user, regions_raw in users:
         # Stop once the day's email budget is gone.
@@ -644,8 +760,13 @@ async def sweep_match_alerts(
                                scoring_budget_s)
                 break
             chunk = window_ids[start:start + SWEEP_CHUNK]
+            shadow_on = shadow_tally is not None and shadow_tally.error is None
+            used_postings: dict = {}
             try:
-                results = fit_engine.bank_scores(db, user.id, profile, chunk)
+                if shadow_on:
+                    results = fit_engine.bank_scores(db, user.id, profile, chunk, postings_out=used_postings)
+                else:
+                    results = fit_engine.bank_scores(db, user.id, profile, chunk)
             except fit_engine.FitTraceSaltError:
                 db.rollback()
                 salt_missing = True
@@ -675,6 +796,9 @@ async def sweep_match_alerts(
                 current_outcomes[result.outcome.value] += 1
                 if result.raw_score is not None:
                     current_raws.append(float(result.raw_score))
+            if shadow_on and results:
+                shadow_engine = _shadow_pass(db, user.id, profile, results, used_postings, shadow_dir,
+                                             shadow_engine, shadow_tally, started, scoring_budget_s)
             # Yield between chunks: the cron-poll wall clock can only cut the sweep at an await.
             await asyncio.sleep(0)
 
@@ -704,6 +828,9 @@ async def sweep_match_alerts(
     }
     if engine_failed:
         summary["error"] = engine_failed
+    if shadow_tally is not None:
+        summary["shadow"] = shadow_tally.summary()
+        logger.info("match-alert sweep shadow: %s", summary["shadow"])
 
     # Once per sweep: the live calibration references, then the drift report. A sweep
     # that could not score anything (no salt) skips both rather than build the engine

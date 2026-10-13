@@ -5,10 +5,10 @@
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3383,
-    "1": 0.481,
-    "2": 0.6276,
-    "3": 0.8011
+    "0": 0.3302,
+    "1": 0.4721,
+    "2": 0.6256,
+    "3": 0.7915
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -84,10 +84,10 @@
    "candidates": 56,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.4235,
-    "1": 0.5106,
-    "2": 0.665,
-    "3": 0.8566
+    "0": 0.4123,
+    "1": 0.5202,
+    "2": 0.6435,
+    "3": 0.8649
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -110,10 +110,10 @@
    "candidates": 376,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.4005,
-    "1": 0.4941,
-    "2": 0.6498,
-    "3": 0.8468
+    "0": 0.3935,
+    "1": 0.4947,
+    "2": 0.6453,
+    "3": 0.8412
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -176,9 +176,9 @@
    "candidates": 304,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3956,
-    "1": 0.5023,
-    "2": 0.6099,
+    "0": 0.4052,
+    "1": 0.5017,
+    "2": 0.6003,
     "3": 0.8639
    },
    "meets_min_reference_n": true,
@@ -233,10 +233,10 @@
    "candidates": 280,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3794,
-    "1": 0.492,
-    "2": 0.637,
-    "3": 0.7856
+    "0": 0.35,
+    "1": 0.4793,
+    "2": 0.6174,
+    "3": 0.7815
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -287,10 +287,10 @@
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.4086,
-    "1": 0.5179,
-    "2": 0.6368,
-    "3": 0.852
+    "0": 0.4015,
+    "1": 0.5121,
+    "2": 0.6444,
+    "3": 0.8571
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -329,6 +329,7 @@
     22871,
     26992,
     22724,
+    26069,
     24561,
     23877,
     23821,
@@ -352,24 +353,23 @@
     28050,
     28312,
     26877,
-    22862,
-    25899
+    22862
    ],
    "postings_available": 122,
-   "postings_parsed": 62,
+   "postings_parsed": 61,
    "postings_sampled": 60,
-   "postings_skipped_unscorable": 2,
-   "postings_targeted_on_implied_or_preferred": 45,
+   "postings_skipped_unscorable": 1,
+   "postings_targeted_on_implied_or_preferred": 44,
    "profiles": 480
   },
   "DevOps/Infrastructure": {
    "candidates": 80,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3938,
-    "1": 0.4926,
-    "2": 0.6219,
-    "3": 0.8714
+    "0": 0.374,
+    "1": 0.4861,
+    "2": 0.6113,
+    "3": 0.8734
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -395,10 +395,10 @@
    "candidates": 208,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3911,
-    "1": 0.528,
-    "2": 0.6396,
-    "3": 0.8703
+    "0": 0.394,
+    "1": 0.5205,
+    "2": 0.6427,
+    "3": 0.8746
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -440,10 +440,10 @@
    "candidates": 200,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3887,
-    "1": 0.5233,
-    "2": 0.6717,
-    "3": 0.8733
+    "0": 0.3877,
+    "1": 0.5217,
+    "2": 0.6695,
+    "3": 0.8716
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -486,10 +486,10 @@
     "GATE_FAIL:LICENSE_MISSING": 8
    },
    "mean_raw_by_fit_level": {
-    "0": 0.3871,
-    "1": 0.4577,
-    "2": 0.6264,
-    "3": 0.8513
+    "0": 0.3834,
+    "1": 0.4655,
+    "2": 0.6299,
+    "3": 0.8488
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -565,10 +565,10 @@
    "candidates": 152,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3605,
-    "1": 0.545,
-    "2": 0.6572,
-    "3": 0.8149
+    "0": 0.3427,
+    "1": 0.5404,
+    "2": 0.6454,
+    "3": 0.7939
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -603,10 +603,10 @@
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.4156,
-    "1": 0.5092,
-    "2": 0.665,
-    "3": 0.8515
+    "0": 0.4127,
+    "1": 0.5053,
+    "2": 0.6602,
+    "3": 0.8514
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -684,10 +684,10 @@
     "GATE_FAIL:LICENSE_MISSING": 24
    },
    "mean_raw_by_fit_level": {
-    "0": 0.385,
-    "1": 0.535,
-    "2": 0.6782,
-    "3": 0.8656
+    "0": 0.3805,
+    "1": 0.5399,
+    "2": 0.6704,
+    "3": 0.8647
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -720,6 +720,7 @@
     25522,
     25569,
     26237,
+    26495,
     28300,
     25507,
     28964,
@@ -749,24 +750,23 @@
     25832,
     25625,
     23697,
-    25595,
-    24237
+    25595
    ],
    "postings_available": 331,
-   "postings_parsed": 78,
+   "postings_parsed": 77,
    "postings_sampled": 60,
-   "postings_skipped_unscorable": 18,
-   "postings_targeted_on_implied_or_preferred": 30,
+   "postings_skipped_unscorable": 17,
+   "postings_targeted_on_implied_or_preferred": 31,
    "profiles": 480
   },
   "Other": {
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3983,
-    "1": 0.5441,
-    "2": 0.673,
-    "3": 0.8824
+    "0": 0.3944,
+    "1": 0.5486,
+    "2": 0.6811,
+    "3": 0.8814
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -835,17 +835,17 @@
    "postings_parsed": 72,
    "postings_sampled": 60,
    "postings_skipped_unscorable": 12,
-   "postings_targeted_on_implied_or_preferred": 40,
+   "postings_targeted_on_implied_or_preferred": 39,
    "profiles": 480
   },
   "Product Management": {
    "candidates": 24,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3832,
-    "1": 0.5347,
-    "2": 0.6076,
-    "3": 0.8864
+    "0": 0.3568,
+    "1": 0.4834,
+    "2": 0.5681,
+    "3": 0.8729
    },
    "meets_min_reference_n": false,
    "posting_ids": [
@@ -864,10 +864,10 @@
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.4082,
-    "1": 0.4901,
-    "2": 0.6535,
-    "3": 0.8518
+    "0": 0.4079,
+    "1": 0.4932,
+    "2": 0.6525,
+    "3": 0.8445
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -936,17 +936,17 @@
    "postings_parsed": 61,
    "postings_sampled": 60,
    "postings_skipped_unscorable": 1,
-   "postings_targeted_on_implied_or_preferred": 39,
+   "postings_targeted_on_implied_or_preferred": 38,
    "profiles": 480
   },
   "Software Engineering": {
    "candidates": 480,
    "excluded_without_raw_score": {},
    "mean_raw_by_fit_level": {
-    "0": 0.3858,
-    "1": 0.5088,
-    "2": 0.6391,
-    "3": 0.8476
+    "0": 0.3884,
+    "1": 0.5163,
+    "2": 0.636,
+    "3": 0.8363
    },
    "meets_min_reference_n": true,
    "posting_ids": [
@@ -1021,7 +1021,7 @@
  },
  "format": 1,
  "inputs": {
-  "config_hash": "b44170942753a66f",
+  "config_hash": "48335e3c488c5fe9",
   "corpus": {
    "distinct_descriptions": 3924,
    "file": "postings.jsonl.gz",
@@ -1029,13 +1029,13 @@
    "sha256": "bd943d2d851ee2680124cd6bea3c98cea77e3b73d01c3e784722300f03e30bac"
   },
   "engine_version": "1.0.0",
-  "graph_version": "1c13153c7e3c7a93",
-  "taxonomy_manifest_sha256": "67c7fd77e535a3b6aa4b32005bce6e94cd71f7bb1d5b7c721851c66d302d8d33"
+  "graph_version": "e27a2eda90711e67",
+  "taxonomy_manifest_sha256": "f2cbc406d44874667d9e44c986b2e5e738d578786049445ddda6636a789db18a"
  },
  "panel": {
   "file": "panel.json",
-  "sha256": "1556675f8fc9fb73c2af06b4b107b7b8ce1b1adc8c0b45665e5a5bfda5c27e8e",
-  "version": "panel-6c0ff8f59781"
+  "sha256": "8a647c691ce095225ad210e1dcc900fb2086ab2ba21db3f3db263ffc70daee39",
+  "version": "panel-bed969e57383"
  },
  "parameters": {
   "as_of": "2026-10-01",
@@ -1051,10 +1051,10 @@
   "candidates": 5488,
   "key": "*",
   "mean_raw_by_fit_level": {
-   "0": 0.3907,
-   "1": 0.5064,
-   "2": 0.6471,
-   "3": 0.8487
+   "0": 0.3859,
+   "1": 0.5058,
+   "2": 0.6445,
+   "3": 0.8453
   },
   "pairs": 5488
  },

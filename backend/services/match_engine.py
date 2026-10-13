@@ -111,8 +111,9 @@ class MatchEngine:
                 raw_text: Optional[str] = None, with_suggestions: bool = False) -> JobAnalysisOut:
         """Score one résumé document on ``posting`` (blocking: call from a worker thread).
 
-        ``raw_text`` is read only when the document has no content (D-80), as for a stored
-        profile, so a text-only résumé is still scored."""
+        ``raw_text`` is read only when the document has no content (D-80), so a text-only résumé is
+        still scored. Unlike a stored profile, the D-152 dated-text fallback never applies: the
+        document is scored as written."""
         from backend.services import fit_engine
         from backend.services.resume_document import document_to_record
 

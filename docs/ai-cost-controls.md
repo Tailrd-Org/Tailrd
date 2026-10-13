@@ -1,5 +1,8 @@
 # AI cost controls
 
+How job scoring works now, its settings, the owner actions before deploy and the rollback:
+[fit-engine.md](fit-engine.md).
+
 As of Task 9.2 of the match-engine integration, no job scoring uses AI. Every
 match score, band, breakdown and alert comes from the deterministic fit engine
 (`match-engine/`, through `backend/services/fit_engine.py`). Nothing in the app
@@ -45,14 +48,15 @@ No money per call, but CPU, database writes and some storage:
 | `MATCH_ALERTS_ENABLED` | on | `false` turns the cron sweep off |
 | `CRON_MATCH_JOBS_PER_USER` | `2000` | Newest visible jobs scored per user per run |
 | `CRON_MATCH_MAX_USERS` | `25` | Users per run (least recently scored first) |
-| `CRON_MATCH_BUDGET_S` | `120` | Wall-clock box for the sweep's scoring; `0` disables |
+| `CRON_MATCH_BUDGET_S` | `120` | Wall-clock box for the sweep's scoring (the shadow pass included); `0` disables |
+| `FIT_SHADOW_CONFIG` | unset | A candidate config directory; the sweep also scores with it, in memory, and reports the difference (`summary.shadow`, D-150). Costs CPU only |
 | `JOB_STRUCTURE_AI` | off | `1` re-enables the LLM description parse on job open |
 
 ## Still AI, only on a click
 
 Résumé parsing on upload (once per résumé), résumé analysis/improve, cover
-letter ideas, "Suggest Edits", résumé tailoring (its before/after scores move
-to the engine in Task 9.3), and the autofill fields that rules and the profile
+letter ideas, "Suggest Edits", résumé tailoring (the rewrite only: its
+before/after scores come from the engine, Task 9.3), and the autofill fields that rules and the profile
 can't answer (at most 2 batched calls per form).
 
 ## Monitoring

@@ -911,7 +911,8 @@ sections, because that is what the user sees and edits (`raw_text` is never upda
 When the document has no sections (the upload-time section extraction is an LLM call and fails
 when OpenAI is unavailable), the engine parses `raw_text` with its own deterministic parser.
 Scoring therefore never calls, and never waits on, any AI. Upload-time extraction itself is a
-résumé feature, not job scoring, and is out of scope.
+résumé feature, not job scoring, and is out of scope. *Amended by D-152:* a document whose
+experience roles are all undated is scored from `raw_text` when the text parse finds a dated role.
 
 **D-81 Which résumé.** Unchanged from today: the user's newest résumé with text
 (`jobs_sidebar` / `match_notifier` selection), so this change does not also move users between
@@ -1501,3 +1502,96 @@ Fix round 1 (review of 9.3):
   most 10.
 - *`gaps`.* `gaps` stays LLM prose by decision. It is honest-gap text written with the rewrite, not
   a score, a label or a keyword list, so it can differ from the engine's `missing_keywords`.
+
+## Shadow scoring and the real-data dry run (Task 9.6) [Tailrd]
+
+**D-150 Shadow scoring in the cron sweep (EVAL section 6). [Tailrd]** When `FIT_SHADOW_CONFIG` names
+a config directory (the layout of `match-engine/config`: the six YAML files and
+`engine_version.txt`), the sweep scores every chunk it banked a second time with that config and puts
+`shadow` in its summary: the outcome and band histograms of both sides, the display-score delta
+(shadow minus live, over jobs SCORED on both sides: n, mean, p50), band agreement over jobs with a
+band on both sides, and the jobs that cross the alert bar (a SCORED Strong match) into or out of it.
+- *Only live is persisted.* `fit_engine.shadow_scores` scores in memory: no score row, no trace, no
+  posting cache entry, no remembered fingerprint. It reads only the user's settings and the live
+  calibration references.
+- *What the shadow varies.* Only the `EngineConfig` (weights, gates, bands, verbs, negation, scoring)
+  and a resolver built for it. The skill graph, the parse tables, the title and MOS indexes and the
+  calibration panel are the live ones. The résumé is parsed again with the shadow config (one parse
+  per user, cheap). The postings are the ones the live pass just used (`bank_scores(postings_out=)`),
+  NOT parsed again: a second parse costs about 20 ms a posting plus the description egress, which
+  the 300 s cron cannot afford. So a candidate whose change works through posting parsing (posting
+  negation or verbs) is under-measured; the summary says `"postings": "live parse"`. A candidate of
+  that kind is judged offline (`make eval`), as EVAL section 5 requires anyway.
+- *One calibrator.* Both sides use the live calibrator, so the display delta is the config's alone,
+  not a change of reference group.
+- *Deadline.* The shadow pass runs inside the sweep's scoring budget (`CRON_MATCH_BUDGET_S`): its time
+  counts toward the check before the next live chunk, and once the budget is spent the shadow pass is
+  skipped and its jobs counted (`skipped_deadline`). The shadow engine is built lazily on the first
+  scored chunk (about 3 s: the resolver).
+- *Failures.* A directory that is missing or a config that fails to load sets `status: "error"`
+  with the error class and message, and no further shadow pass runs that sweep; a fault while
+  scoring a chunk counts in `errors`. Neither ever stops or changes the live sweep.
+- *Sample.* The shadow sees only the jobs the sweep newly banks (`bank_scores` returns no current
+  row): in steady state that is the week's job inflow plus the monthly rescore, not the whole served
+  distribution. "Compare a week of distributions" means a week of new scores.
+- *Alert bar.* `crossed_strong` uses `fit_reads.is_strong_match`, the Python twin of the SQL filter
+  alerts use, and a test pins the two together.
+
+**D-151 The calibration panel rebuilt for the merged parser and taxonomy (Task 9.6). [Tailrd]** The
+panel's MANIFEST recorded config hash `b44170942753a66f` and graph `1c13153c7e3c7a93`; after the
+parser and taxonomy work of Tasks 5.4, 6.5 and 7.3 the engine's are `48335e3c488c5fe9` and
+`e27a2eda90711e67`, so `build_engine` was calibrating against references scored by an older engine.
+Rebuilt with `scripts/build_reference_panel.py` on the same corpus (sha256 `bd943d2d...`), seed and
+parameters: version `panel-6c0ff8f59781` became `panel-bed969e57383`. The same postings were sampled
+(two families changed one posting each) and every family kept its candidate count. The shift is
+small: the pooled group's mean raw score by fit level moved by at most 0.005 (level 0 0.3907 to
+0.3859, level 3 0.8487 to 0.8453); the percentile of a fixed raw score (0.3 to 0.9) moved by a median
+of 0.8 points across families, at most 6.2 points in the families that are in charge (DevOps at raw
+0.6); Product Management (24 candidates, under the minimum, so it falls back to the pooled group)
+moved 20.8 at raw 0.5 and is never used. Over the new pooled samples, old-minus-new percentile is
+-0.31 at the median (p05 -0.85, p95 +0.08). No test pins the panel to the current config: a rebuild
+needs the corpus, which is not committed, so a CI check would block every config or taxonomy change
+for contributors without it. The rebuild stays a release step (docs/fit-engine.md).
+
+**D-152 The raw-text fallback for a document that lost its dates (amends D-80; Task 9.6). [Tailrd]**
+Résumé rows extracted before 2026-07-09 (commit 1062972) hold documents whose experience
+`start_date` / `end_date` are all empty although the raw text has the dates: the old prompts returned
+dates under keys pydantic dropped. D-80 prefers the document, so the engine saw no dated role and
+withheld every score (temporal completeness 0, LOW_TEMPORAL_COMPLETENESS; the Task 9.6 dry run's one
+Development résumé was 99.75 % NEEDS_REVIEW for this reason). A read-only aggregate on production,
+run by the build controller on 2026-10-13, found affected legacy rows (all created before 2026-07-09).
+- *Rule* (`fit_engine._parse_resume`): when the stored document has at least one experience role
+  (a title, company or bullet) and no role has a start or an end date (blank or whitespace only), the
+  raw text, if present, is also parsed with the engine's text path. The text parse is scored only
+  when BOTH guards below hold and it has at least one dated role; otherwise the document parse is
+  kept. Undated raw text, no raw text, a document with no experience role, or any dated document
+  role: the document path, exactly as before.
+- *Guard (a): never an edited document.* A profile with `content_updated_at` set was edited in the
+  app after upload, and `raw_text` is never updated on edit (D-80's own reason), so its document is
+  scored as written.
+- *Guard (b): never a thinner text.* The text parse's affirmed resolved skill ids must cover at
+  least 80 % of the document parse's (or the document resolves none). A poor text extraction, or a
+  document that outgrew its upload, keeps the document parse: an honest "we couldn't score this"
+  beats a confident low score from a thin text (review probe P4: SCORED raw 0.154 with no reasons).
+- *Stored profiles only.* The fallback applies on `resume_for_profile` (the feed, the sweep, the
+  breakdown, the upload pre-score). `resume_for_document` (the tailoring flow) never takes it: an
+  original and its rewrite are both undated legacy documents and would otherwise both be scored as
+  the same upload-time text, hiding the rewrite.
+- *Whole parse, never a merge.* Dates are not copied between the two parses: matching document roles
+  to text roles would be a second heuristic, and a wrong match would invent a timeline.
+- *Stable, not always safe.* The choice depends only on the stored inputs (the document, the raw
+  text, whether the profile was edited), so it is deterministic and the parse cache keys on it; the
+  scored `Resume`, and so the fingerprint (D-82), changes only for an affected row (it is rescored
+  once). The swap is still a heuristic: the guards keep it to never-edited rows whose text is at
+  least as rich in skills, and a legacy row that fails them stays NEEDS_REVIEW until it is
+  re-extracted. `fit_reads.input_key` does not include `content_updated_at`: an edit that leaves the
+  document byte-identical keeps its remembered fingerprint until the next sweep rescores it.
+- *Thresholds untouched.* The confidence rules (D-44, SPEC section 17) are the spec's and right for a
+  résumé that truly has no dates; nothing about them changed.
+- *Cost.* One extra text parse (about 0.7 s) per affected résumé per month, memoised by the parse
+  cache.
+- *Still open:* such rows also file Projects as experience roles; re-extracting them is a data task
+  for the owner, not the adapter's.
+- *Dry run, same Development sample (1 résumé x 400 jobs):* before SCORED 0, SCORED_LOW_CONFIDENCE 0,
+  NEEDS_REVIEW 399, GATE_FAIL 1; after SCORED 213, SCORED_LOW_CONFIDENCE 147, NEEDS_REVIEW 39,
+  GATE_FAIL 1.
