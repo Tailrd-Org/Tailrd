@@ -147,6 +147,10 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   that old default. Every reader (autofill, the extension profile sync, the profile and settings
   pages, the engine) falls through to the résumé or shows a blank. Reason: a default value posing
   as a user answer misstates location to employers and to the engine.
+- **Extension tailoring "before" (D-156).** `/api/custom-resume-analysis`, `/api/tailor-resume` and
+  `/api/custom-resume` score the stored profile with `fit_engine.score_profile` (D-152 fallback
+  allowed), so their "before" is the card's; the rewritten side is scored as written, never with the
+  fallback. Reason: one résumé, one "before", wherever it is shown.
 
 ## Costs
 

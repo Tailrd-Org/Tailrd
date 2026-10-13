@@ -8,6 +8,9 @@ POST /api/tailor-resume, tailor a résumé to a *scraped* job (no job_id),
                           so the overlay's chips stay stable across regenerates).
                           Every score and keyword is the deterministic match
                           engine's (Task 9.3, D-83); the LLM only rewrites.
+                          The "before" is the stored profile, scored as the
+                          feed scores it (D-156, D-152 fallback allowed); the
+                          rewrite is scored as written (no fallback).
 POST /api/render-resume, render a structured document to a PDF (base64 JSON).
 
 Used by the Chrome extension on live application pages, where there is no
@@ -59,6 +62,7 @@ async def tailor_resume_endpoint(
             db, original_document, body.job_title, body.company,
             body.job_description, body.sections, body.add_keywords,
             user_id=user_id, raw_text=resume.raw_text,
+            before_profile=resume,  # the stored, unedited profile: the same "before" as the card (D-156)
         )
     except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
@@ -109,12 +113,15 @@ def custom_resume_analysis_endpoint(
     The deterministic match engine's analysis (Task 9.3, D-83): no AI is called, so it
     does not count against the daily AI limit; it has its own per-user rate limit
     (fit_analysis_guard). A plain (sync) route, so the engine
-    (about ten seconds to build cold) runs in a worker thread.
+    (about ten seconds to build cold) runs in a worker thread. The stored profile is scored
+    as the feed scores it (``fit_engine.score_profile``, D-152 fallback allowed), so this
+    "before" is the job card's (D-156).
     """
     resume = _resolve_resume(db, user_id, body.resume_id)  # 400 if none on file
     return MatchEngine(db).analyze_job(
         db_record_to_document(resume), user_id=user_id, job_title=body.job_title,
         company=body.company, job_description=body.job_description, raw_text=resume.raw_text,
+        profile=resume,
     )
 
 
@@ -137,6 +144,7 @@ async def custom_resume_endpoint(
             db, original_document, body.job_title, body.company,
             body.job_description, body.sections, body.add_keywords,
             user_id=user_id, raw_text=resume.raw_text,
+            before_profile=resume,  # the same "before" as /api/custom-resume-analysis (D-156)
         )
     except (ConnectionError, httpx.HTTPError):  # RewriteFailedError is a ConnectionError
         raise HTTPException(status_code=503, detail=LLM_503_DETAIL)
