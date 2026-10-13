@@ -1618,3 +1618,13 @@ grew with every job ever shown, but a trace's audit value ends when the job clos
   user is found through the subject id, so pruning needs `FIT_TRACE_SALT` (skipped with
   `traces_prune_skipped: fit_trace_salt_missing` otherwise). Score rows with no trace (pre-engine
   rows) are left alone. A job that reopens is simply scored again by the next sweep.
+
+**D-154 Shipping with the M6 eval gate red: accepted. [Tailrd]** Rule: the owner ships with
+`make eval-fast` failing its 4 known guardrails (format invariance p99 0.046 within a template, 0.078
+across templates and 0.046 functional against its oracle, over a 0.02 threshold; and an unbounded
+date error on 2 scanned-PDF renderings). The gate stays red and honest and is never loosened. In
+`.github/workflows/match-engine-eval.yml` only the `make eval-fast` step has `continue-on-error`, so a
+pull request is not blocked; `make test` stays blocking, and on `release/**` a following step fails
+the job when the gate is red, so a failing release candidate still does not spend a holdout look.
+Reason: most users are scored from the stored document (D-80), not from file parsing; the remaining
+drift is OCR on scanned PDFs.

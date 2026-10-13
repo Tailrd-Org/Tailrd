@@ -3,7 +3,8 @@
 #
 # make test       unit + property tests (not the slow ones)
 # make eval-fast  tests/eval + EVAL layers 1-2. Exits 1 when any guardrail fails; that failure is the
-#                 true state of the engine and is never skipped or loosened here.
+#                 true state of the engine and is never skipped or loosened here. It does not block a
+#                 pull request (continue-on-error, DECISIONS D-154); on release/** it still blocks.
 # make eval-holdout
 #                 release/** only. Without MATCH_HOLDOUT_KEY it prints "HOLDOUT: skipped (no key)" and
 #                 exits 0. With it, the look is claimed on the shared `holdout-ledger` branch (pushed
@@ -104,9 +105,18 @@ jobs:
           key: ${{ steps.parse-key.outputs.key }}
           restore-keys: |
             match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-
+      # The owner shipped with this gate red (DECISIONS D-154): the step still runs and still shows
+      # its failure, but it does not block a pull request. Never loosen a guardrail to turn it green.
+      # `make test` above stays blocking, and the next step keeps a red gate from reaching a holdout look.
       - name: make eval-fast
         id: eval
+        continue-on-error: true
         run: make eval-fast
+      - name: A release candidate must pass eval-fast before a holdout look (D-154)
+        if: steps.eval.outcome == 'failure' && startsWith(github.ref, 'refs/heads/release/')
+        run: |
+          echo "make eval-fast failed on a release branch; the holdout look is not spent."
+          exit 1
       - name: Save the parse cache (also when a guardrail fails, so the next run is warm)
         if: always() && steps.parse-restore.outputs.cache-hit != 'true'
         uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830  # v4

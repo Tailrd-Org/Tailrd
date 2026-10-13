@@ -116,13 +116,6 @@ This must be revisited before any demographic data is collected (a separate sche
    Task 9.3 saw the same kind of drift in `chrome-extension/`. Run `npm install` once in each,
    check the diff and commit the lock files, so CI and fresh checkouts install cleanly. The drift
    predates the match-engine work.
-6. **Accept (or decline) shipping with `make eval-fast` red.** The engine's own gate
-   (`match-engine/eval`, layers 1-2) fails 4 guardrails: format invariance p99 (0.046 within a
-   template, 0.078 across templates, 0.046 functional vs its oracle, against a 0.02 threshold) and
-   an unbounded date error on 2 scanned-PDF renderings. Every other guardrail passes. The ledger
-   records it as the known red M6 gate. File parsing affects only the raw-text path; most users
-   are scored from the stored document (D-80). Any PR to main that touches `match-engine/**` will
-   show a red `match-engine eval` check. Record the decision here.
 
 ## Decisions
 
@@ -134,6 +127,13 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   its own transaction, inside the sweep deadline, reported as `traces_pruned`. Jobs that can still
   be applied to keep their traces. Reason: storage grows with every job ever shown, but a trace's
   audit value ends when the job closes.
+- **Shipping with the M6 eval gate red: accepted (D-154).** `make eval-fast` still fails 4
+  guardrails (format invariance p99 within and across templates and against the functional
+  oracle, and an unbounded date error on 2 scanned-PDF renderings). The gate stays red and honest
+  and is never loosened; in CI only its step continues on error, so a pull request is not blocked
+  (`make test` still is, and on `release/**` a red gate still stops the holdout look). Reason: most
+  users are scored from the stored document (D-80), not from file parsing; the remaining drift is
+  OCR on scanned PDFs.
 
 ## Costs
 
