@@ -607,6 +607,10 @@ class OpenAIService:
         try:
             response = await self._generate(prompt, op="resume.tailor_structured")
             data = json.loads(_extract_json(response))
+        except (ConnectionError, httpx.ConnectError):
+            # An unreachable LLM is the route's 503, never a silent "rewrite" that is the
+            # original. (Before Task 9.3 the LLM analysis ran first and raised this.)
+            raise
         except Exception as e:  # noqa: BLE001
             logger.warning("Structured tailor failed to parse (%s); returning original", e)
             return TailorStructuredResult(document=document, gaps=[])

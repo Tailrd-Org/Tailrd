@@ -18,10 +18,16 @@ class TailorResumeIn(BaseModel):
 class TailorResumeOut(BaseModel):
     """Tailored document + before/after scores + the stable candidate keyword set."""
     document: ResumeDocument
-    original_overall_score: int
-    new_overall_score: int
-    new_ats_score: int
-    new_keyword_coverage: int
+    # The engine's scores of the original and the tailored document (Task 9.3, D-83, D-123):
+    # None unless that side's outcome is SCORED.
+    original_overall_score: int | None = None
+    new_overall_score: int | None = None
+    new_ats_score: int | None = None
+    new_keyword_coverage: int | None = None
+    original_outcome: str | None = None
+    outcome: str | None = None
+    original_match_label: str = ""
+    match_label: str = ""
     matched_keywords: list[str] = []
     missing_keywords: list[str] = []
     diff_summary: str = ""

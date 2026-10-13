@@ -48,14 +48,19 @@ REWRITE = TailorStructuredResult(
 async def test_pipeline_reorders_adds_summary_rewrites_and_flags_fabrication(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
 
-    async def fake_analyze(self, text, title, company, jd):
-        return JobAnalysisOut(overall_score=72, ats_score=65, match_label="GOOD MATCH",
-                              keyword_coverage=50, matched_keywords=["python"], missing_keywords=["kubernetes"])
+    def fake_posting(self, *, job=None, job_title="", company="", job_description=""):
+        return None
+
+    def fake_analyze(self, document, posting, *, user_id=None, raw_text=None, with_suggestions=False):
+        return JobAnalysisOut(overall_score=72, ats_score=72, match_label="Good match",
+                              keyword_coverage=50, matched_keywords=["Python"], missing_keywords=["Kubernetes"],
+                              outcome="SCORED")
 
     async def fake_structured(self, doc, jd, sections=None, keywords=None):
         return REWRITE
 
-    monkeypatch.setattr("backend.services.match_engine.MatchEngine.analyze_job", fake_analyze)
+    monkeypatch.setattr("backend.services.match_engine.MatchEngine.posting", fake_posting)
+    monkeypatch.setattr("backend.services.match_engine.MatchEngine.analyze", fake_analyze)
     monkeypatch.setattr("backend.services.openai_service.OpenAIService.tailor_resume_structured", fake_structured)
 
     result = await rt.tailor_document(None, ORIGINAL, "Backend Engineer", "Globex",

@@ -1,83 +1,120 @@
-"""Endpoint tests for the extension's /api/tailor-resume + /api/render-resume."""
+"""Endpoint tests for the extension's /api/tailor-resume, /api/custom-resume(-analysis) and
+/api/render-resume.
+
+Every score comes from the deterministic match engine (Task 9.3, D-83); the real engine runs
+here. The LLM (``OpenAIService._generate``) is mocked and is called exactly once per rewrite: for
+the rewrite text. An analysis never calls it.
+"""
 import base64
+import datetime as dt
 from unittest.mock import patch, AsyncMock
 
+import pytest
+
 from backend.db.models import ResumeProfileDB
+from backend.services import fit_engine
 
 TEST_USER_ID = 1
+AS_OF = dt.date(2026, 10, 1)
 
-BEFORE = ('{"overall_score":60,"ats_score":55,"matched_keywords":["Python"],'
-          '"missing_keywords":["AWS","TypeScript"]}')
-EDITED = '{"sections":[{"type":"skills","skills":["Python","AWS","TypeScript"]}]}'
-AFTER = ('{"overall_score":80,"ats_score":78,"matched_keywords":["Python","AWS","TypeScript"],'
-         '"missing_keywords":[]}')
+JD = ("Requirements\n- 2+ years of Python\n- SQL and Docker\n- Kubernetes\n"
+      "Nice to have\n- Go, Terraform")
+# The rewrite adds the two missing required skills to the skills section.
+EDITED = '{"sections":[{"id":"skills","type":"skills","skills":["Python","SQL","Docker","Kubernetes"]}]}'
+
+
+@pytest.fixture(autouse=True)
+def _fixed_month(monkeypatch):
+    monkeypatch.setattr(fit_engine, "fit_as_of", lambda today=None: AS_OF)
 
 
 def _seed_resume(db):
     db.add(ResumeProfileDB(
         user_id=TEST_USER_ID, profile_name="Jane Doe", is_primary=1,
-        skills=["Python"],
-        experience=[{"title": "Engineer", "company": "Acme", "start_date": "2020",
-                     "end_date": "2023", "bullets": ["Built tools"]}],
+        location="Toronto, ON",
+        skills=["Python", "SQL"],
+        experience=[{"title": "Software Engineering Intern", "company": "Acme", "start_date": "May 2025",
+                     "end_date": "Aug 2025", "bullets": ["Built REST APIs in Python and Django"]}],
+        education=[{"school": "Example University", "degree": "BSc Computer Science",
+                    "start_date": "2022", "end_date": "2026"}],
         raw_text="Python engineer.",
     ))
     db.commit()
 
 
+def _tailor_prompt(gen):
+    assert gen.await_count == 1, "the LLM is called once, for the rewrite text only"
+    return gen.call_args_list[0].args[0]
+
+
 class TestTailorResume:
-    def test_auto_weaves_all_missing_keywords(self, client, db_session, monkeypatch):
+    def test_scores_come_from_the_engine_and_the_llm_only_rewrites(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         _seed_resume(db_session)
-        gen = AsyncMock(side_effect=[BEFORE, EDITED, AFTER])
+        gen = AsyncMock(side_effect=[EDITED])
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/tailor-resume", json={
-                "job_title": "Engineer", "company": "Acme",
-                "job_description": "We need Python, AWS and TypeScript.",
+                "job_title": "Software Engineer, New Grad", "company": "Acme", "job_description": JD,
             })
         assert resp.status_code == 200
         data = resp.json()
-        assert data["original_overall_score"] == 60
-        assert data["new_overall_score"] == 80
-        assert data["new_ats_score"] == 78
-        # chip set is the BEFORE candidate set (stable across regenerates)
-        assert data["missing_keywords"] == ["AWS", "TypeScript"]
-        assert data["document"]["sections"][0]["skills"] == ["Python", "AWS", "TypeScript"]
-        # omitted add_keywords -> all missing keywords surfaced in the tailor prompt
-        tailor_prompt = gen.call_args_list[1].args[0]
-        assert "use the job's own words for these terms: AWS, TypeScript." in tailor_prompt
+        assert data["original_outcome"] == "SCORED" and data["outcome"] == "SCORED"
+        before, after = data["original_overall_score"], data["new_overall_score"]
+        assert isinstance(before, int) and isinstance(after, int)
+        assert after > before  # Docker and Kubernetes are now on the résumé
+        assert data["new_ats_score"] == after  # D-123: one engine number
+        assert 0 <= data["new_keyword_coverage"] <= 100
+        assert data["original_match_label"] and data["match_label"]
+        # chip set is the BEFORE candidate set (stable across regenerates), engine display labels
+        assert data["matched_keywords"] == ["Python", "SQL"]
+        assert {"Docker", "Kubernetes"} <= set(data["missing_keywords"])
+        assert data["document"]["sections"][-1]["skills"] == ["Python", "SQL", "Docker", "Kubernetes"]
+        # omitted add_keywords -> all of the engine's missing requirements fed to the rewrite
+        prompt = _tailor_prompt(gen)
+        assert "use the job's own words for these terms: " + ", ".join(data["missing_keywords"]) + "." in prompt
 
     def test_explicit_keywords_used_exactly(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         _seed_resume(db_session)
-        gen = AsyncMock(side_effect=[BEFORE, EDITED, AFTER])
+        gen = AsyncMock(side_effect=[EDITED])
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/tailor-resume", json={
                 "job_title": "Engineer", "company": "Acme",
-                "job_description": "JD", "add_keywords": ["AWS"],
+                "job_description": JD, "add_keywords": ["Docker"],
             })
         assert resp.status_code == 200
-        tailor_prompt = gen.call_args_list[1].args[0]
-        assert "use the job's own words for these terms: AWS." in tailor_prompt
-        assert resp.json()["missing_keywords"] == ["AWS", "TypeScript"]
+        assert "use the job's own words for these terms: Docker." in _tailor_prompt(gen)
+        assert "Kubernetes" in resp.json()["missing_keywords"]
 
     def test_explicit_empty_keywords_skip_weaving(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         _seed_resume(db_session)
-        gen = AsyncMock(side_effect=[BEFORE, EDITED, AFTER])
+        gen = AsyncMock(side_effect=[EDITED])
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/tailor-resume", json={
                 "job_title": "Engineer", "company": "Acme",
-                "job_description": "JD", "add_keywords": [],
+                "job_description": JD, "add_keywords": [],
             })
         assert resp.status_code == 200
-        tailor_prompt = gen.call_args_list[1].args[0]
-        # add_keywords=[] -> nothing is woven in. Neither the JD nor the résumé
-        # mentions AWS or TypeScript, so the keyword instruction is their only
-        # way into the prompt. (This used to assert a phrase that de27f72
-        # reworded, so it passed whatever the code did; term names don't go
-        # stale when the instruction is reworded.)
-        assert "AWS" not in tailor_prompt
-        assert "TypeScript" not in tailor_prompt
+        # add_keywords=[] -> nothing is woven in, though the engine found missing requirements.
+        assert resp.json()["missing_keywords"]
+        assert "these terms" not in _tailor_prompt(gen)
+
+    def test_an_unscorable_posting_returns_null_scores_not_zero(self, client, db_session, monkeypatch):
+        monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+        _seed_resume(db_session)
+        gen = AsyncMock(side_effect=[EDITED])
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
+            resp = client.post("/api/tailor-resume", json={
+                "job_title": "Engineer", "company": "Acme", "job_description": "",
+            })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["outcome"] == "NEEDS_REVIEW" and data["original_outcome"] == "NEEDS_REVIEW"
+        for key in ("original_overall_score", "new_overall_score", "new_ats_score", "new_keyword_coverage"):
+            assert data[key] is None, key
+        assert data["match_label"] == "We couldn't score this"
+        assert data["missing_keywords"] == []
 
     def test_wrapped_contract_surfaces_gaps_changes_and_figures(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -89,10 +126,10 @@ class TestTailorResume:
             ']},"section_order":[],"new_summary":null,'
             '"gaps":["Role wants Kubernetes; not shown"]}'
         )
-        gen = AsyncMock(side_effect=[BEFORE, wrapped, AFTER])
+        gen = AsyncMock(side_effect=[wrapped])
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/tailor-resume", json={
-                "job_title": "Engineer", "company": "Acme", "job_description": "Kubernetes role",
+                "job_title": "Engineer", "company": "Acme", "job_description": JD,
             })
         assert resp.status_code == 200
         data = resp.json()
@@ -107,7 +144,7 @@ class TestTailorResume:
         gen = AsyncMock(side_effect=httpx.ConnectError("boom"))
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/tailor-resume", json={
-                "job_title": "Engineer", "company": "Acme", "job_description": "JD",
+                "job_title": "Engineer", "company": "Acme", "job_description": JD,
             })
         assert resp.status_code == 503
 
@@ -117,29 +154,25 @@ class TestTailorResume:
         assert resp.status_code == 400
 
 
-ANALYSIS = ('{"overall_score":72,"ats_score":68,"match_label":"GOOD MATCH",'
-            '"matched_keywords":["Python"],"missing_keywords":["AWS"],'
-            '"strengths":["Ships fast"],"weaknesses":["No cloud"],'
-            '"suggestions":["Add AWS projects"]}')
-
-
 class TestCustomResumeAnalysis:
-    def test_returns_job_analysis(self, client, db_session, monkeypatch):
+    def test_returns_the_engine_analysis_without_the_llm(self, client, db_session, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         _seed_resume(db_session)
-        gen = AsyncMock(side_effect=[ANALYSIS])
+        gen = AsyncMock(side_effect=AssertionError("the analysis called the LLM"))
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/custom-resume-analysis", json={
-                "job_title": "Engineer", "company": "Acme",
-                "job_description": "We need Python and AWS.",
+                "job_title": "Software Engineer, New Grad", "company": "Acme", "job_description": JD,
             })
         assert resp.status_code == 200
+        assert gen.await_count == 0
         data = resp.json()
-        assert data["overall_score"] == 72
-        assert data["ats_score"] == 68
-        assert data["matched_keywords"] == ["Python"]
-        assert data["missing_keywords"] == ["AWS"]
-        assert data["suggestions"] == ["Add AWS projects"]
+        assert data["outcome"] == "SCORED"
+        assert isinstance(data["overall_score"], int)
+        assert data["ats_score"] == data["overall_score"]
+        assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
+        assert data["matched_keywords"] == ["Python", "SQL"]
+        assert "Kubernetes" in data["missing_keywords"]
+        assert data["suggestions"]  # the engine's counterfactual
 
     def test_400_when_no_resume(self, client, monkeypatch):
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
@@ -154,18 +187,20 @@ class TestCustomResume:
         from backend.db.models import ResumeVersion
         monkeypatch.setenv("OPENAI_API_KEY", "test-key")
         _seed_resume(db_session)
-        gen = AsyncMock(side_effect=[BEFORE, EDITED, AFTER])
+        gen = AsyncMock(side_effect=[EDITED])
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/custom-resume", json={
                 "job_title": "Engineer", "company": "Acme",
-                "job_description": "We need Python, AWS and TypeScript.",
-                "sections": ["Skills"], "add_keywords": ["AWS"],
+                "job_description": JD,
+                "sections": ["Skills"], "add_keywords": ["Docker"],
             })
         assert resp.status_code == 200
+        assert gen.await_count == 1
         data = resp.json()
         assert "document" in data and "original_document" in data
-        assert data["original_overall_score"] == 60
-        assert data["new_overall_score"] == 80
+        assert data["new_overall_score"] > data["original_overall_score"]
+        assert data["new_ats_score"] == data["new_overall_score"]
+        assert data["outcome"] == "SCORED" and data["original_outcome"] == "SCORED"
         assert data["version_id"] is not None
         saved = db_session.query(ResumeVersion).filter_by(id=data["version_id"]).one()
         assert saved.job_id is None
@@ -179,7 +214,7 @@ class TestCustomResume:
         gen = AsyncMock(side_effect=httpx.ConnectError("boom"))
         with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post("/api/custom-resume", json={
-                "job_title": "Engineer", "company": "Acme", "job_description": "JD",
+                "job_title": "Engineer", "company": "Acme", "job_description": JD,
             })
         assert resp.status_code == 503
 

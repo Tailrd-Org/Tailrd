@@ -23,6 +23,10 @@ What it does
     ``refresh_calibration``     per-family / global references from banked raw scores (D-50).
     ``explain_job``             one full result (explanation, interval, counterfactual).
     ``score_order``             the dialect-portable "NULL scores last" ordering (D-86).
+    ``score_document``          the tailoring flow (Task 9.3): one résumé document against one
+                                posting (``posting_for_job`` or, for pasted text,
+                                ``posting_from_text``), on demand and never banked; with
+                                ``requirement_coverage`` and ``reason_sentences`` for display.
     ``engine_ready``            True once this process has built the engine. Request paths read
                                 banked rows through ``fit_reads`` (no engine import, D-107) and
                                 call ``bank_scores`` only when this is True.
@@ -50,6 +54,7 @@ import time
 from collections import OrderedDict, defaultdict
 from collections.abc import Mapping, Sequence
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any, Optional
 
 from sqlalchemy import func
@@ -70,6 +75,7 @@ from matcher.calibrate.reference import (  # noqa: E402
 )
 from matcher.config import EngineConfig, combined_hash, load_config  # noqa: E402
 from matcher.errors import Flag  # noqa: E402
+from matcher.explain.labels import flag_sentence, skill_label  # noqa: E402
 from matcher.graph.loader import load_graph, load_resolver, load_resolver_settings  # noqa: E402
 from matcher.graph.model import SkillGraph  # noqa: E402
 from matcher.models import (  # noqa: E402
@@ -88,6 +94,7 @@ from matcher.parse.config import ParseConfig, load_parse_config  # noqa: E402
 from matcher.parse.posting import PostingMeta, parse_posting  # noqa: E402
 from matcher.parse.resume import ParsedResume, ResumeResources, resume_from_document  # noqa: E402
 from matcher.parse.taxonomy_extras import MosIndex, TitleIndex, load_mos_index, load_title_index  # noqa: E402
+from matcher.score.coverage import REQ_MATCH, REQ_MISS, REQ_PARTIAL  # noqa: E402
 from matcher.score.engine import review_result, score  # noqa: E402
 
 from backend.services import profile_facts  # noqa: E402
@@ -848,6 +855,150 @@ def delete_user_traces(db, user_id: int) -> int:
 # ─── The detail view ─────────────────────────────────────────────────────────────────────────
 
 
+# ─── Tailoring (Task 9.3, D-83, D-123) ───────────────────────────────────────────────────────
+#
+# The tailoring flow scores a résumé DOCUMENT (the original, then the rewrite) against one parsed
+# posting, on demand. Nothing is banked, so no trace is written and FIT_TRACE_SALT is not read.
+
+_TAILOR_OPTIONS = ScoreOptions(with_explanation=True)
+_TAILOR_SUGGEST_OPTIONS = ScoreOptions(with_explanation=True, with_counterfactual=True)
+_COVERAGE_DIMENSIONS = ("required_skills", "preferred_skills")
+
+_TEXT_POSTINGS: "OrderedDict[str, JobPosting]" = OrderedDict()
+_TEXT_POSTING_CACHE_SIZE = 64
+_TEXT_POSTINGS_LOCK = threading.Lock()
+
+
+def reset_text_postings() -> None:
+    """Drop every cached pasted posting (tests, and anything that needs a cold parse)."""
+    with _TEXT_POSTINGS_LOCK:
+        _TEXT_POSTINGS.clear()
+
+
+def posting_from_text(title: str, company: str, description: str, *, engine: Optional[FitEngine] = None,
+                      as_of: Optional[dt.date] = None) -> JobPosting:
+    """A posting given only as pasted text (the extension, on a live application page: no job row).
+
+    Parsed by the engine directly, with the company as its only metadata. Memoised per input
+    (title, company, description, engine and parse version, month): one tailoring journey asks for
+    the same posting two or three times in a minute. A parser fault is an INTERNAL_ERROR review,
+    never cached."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    title, company, description = _text(title, 2000), _text(company, 2000), description or ""
+    key = _digest([engine.posting_version(day), title, company, description])
+    with _TEXT_POSTINGS_LOCK:
+        hit = _TEXT_POSTINGS.get(key)
+        if hit is not None:
+            _TEXT_POSTINGS.move_to_end(key)
+            return hit
+    posting, cacheable = _parse_job(SimpleNamespace(title=title, description=description, company=company),
+                                    engine, day)
+    if cacheable:
+        with _TEXT_POSTINGS_LOCK:
+            _TEXT_POSTINGS[key] = posting
+            while len(_TEXT_POSTINGS) > _TEXT_POSTING_CACHE_SIZE:
+                _TEXT_POSTINGS.popitem(last=False)
+    return posting
+
+
+@dataclasses.dataclass(frozen=True)
+class _DocumentProfile:
+    """A résumé document in the stored-profile shape ``resume_for_profile`` reads (D-80)."""
+
+    location: Any = None
+    summary: Any = None
+    experience: Any = None
+    education: Any = None
+    projects: Any = None
+    skills: Any = None
+    technologies: Any = None
+    custom_sections: Any = None
+    raw_text: Optional[str] = None
+
+
+def _document_profile(document: Mapping[str, Any], raw_text: Optional[str]) -> _DocumentProfile:
+    names = [field.name for field in dataclasses.fields(_DocumentProfile) if field.name != "raw_text"]
+    return _DocumentProfile(**{name: document.get(name) for name in names}, raw_text=raw_text)
+
+
+def resume_for_document(document: Mapping[str, Any], settings: Any, *, raw_text: Optional[str] = None,
+                        engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> ParsedResume:
+    """The engine résumé for a document in the stored-profile shape (``location``, ``summary``,
+    ``experience``, ``education``, ``projects``, ``skills``, ``technologies``, ``custom_sections``;
+    see ``resume_document.document_to_record``), read exactly as ``resume_for_profile`` reads a
+    stored profile: the same résumé the feed scores when the document is the profile's own."""
+    return resume_for_profile(_document_profile(document, raw_text), settings, engine=engine, as_of=as_of)
+
+
+def score_document(db, user_id: Optional[int], document: Mapping[str, Any], posting: JobPosting, *,
+                   raw_text: Optional[str] = None, with_suggestions: bool = False,
+                   engine: Optional[FitEngine] = None, as_of: Optional[dt.date] = None) -> MatchResult:
+    """One résumé document against one posting, with its explanation; never banked (no trace).
+
+    The user's saved answers (work authorisation, location) are read as the feed reads them, and
+    the calibration is the feed's (live references, then the panel), so the tailoring "before"
+    of a stored résumé is the number its job card shows. ``with_suggestions`` adds the engine's
+    counterfactual (``explanation.to_improve``), which costs extra scoring runs."""
+    engine = engine or get_engine()
+    day = as_of or fit_as_of()
+    settings = _settings_for(db, user_id) if db is not None and user_id is not None else None
+    parsed = resume_for_document(document, settings, raw_text=raw_text, engine=engine, as_of=day)
+    calibrator = (_calibrator(db, engine) if db is not None
+                  else PercentileCalibrator(list(engine.panel), min_reference_n=engine.min_reference_n))
+    options = _TAILOR_SUGGEST_OPTIONS if with_suggestions else _TAILOR_OPTIONS
+    return _score_pair(parsed, posting, calibrator, engine, day, options, "tailor")
+
+
+@dataclasses.dataclass(frozen=True)
+class RequirementCoverage:
+    """The skill requirements of a result: display labels, and the engine's coverage as 0-100."""
+
+    matched: tuple[str, ...]
+    missing: tuple[str, ...]
+    percent: Optional[int]
+
+
+def _requirement_label(graph: SkillGraph, fact: Any) -> str:
+    """One requirement group as a person reads it: its best member, "A or B" for an OR-group."""
+    raw = fact.detail.get("members")
+    members = [part for part in raw.split(",") if part] if isinstance(raw, str) else []
+    if len(members) > 1:
+        return " or ".join(skill_label(graph, member) for member in members)
+    return skill_label(graph, fact.subject)
+
+
+def requirement_coverage(result: MatchResult, *, engine: Optional[FitEngine] = None) -> RequirementCoverage:
+    """The required and preferred skill requirements of ``result`` (required first, each in the
+    engine's group order). A requirement the résumé meets (match quality at least 0.5, the
+    engine's REQ_MATCH) is matched; a partial or absent one is missing. ``percent`` is the
+    engine's own coverage over both: sum(idf x weight x m) / sum(idf x weight), as 0-100; None
+    when no requirement carries weight (a review or a failed gate has no dimensions)."""
+    engine = engine or get_engine()
+    matched: list[str] = []
+    missing: list[str] = []
+    numerator = denominator = 0.0
+    for name in _COVERAGE_DIMENSIONS:
+        dimension = result.dimensions.get(name)
+        for fact in dimension.facts if dimension is not None else ():
+            if fact.code not in (REQ_MATCH, REQ_PARTIAL, REQ_MISS):
+                continue  # CRITICAL_MISS repeats a group already listed
+            label = _requirement_label(engine.graph, fact)
+            target = matched if fact.code == REQ_MATCH else missing
+            if label not in matched and label not in missing:
+                target.append(label)
+            weight = float(fact.detail.get("idf") or 0.0) * float(fact.detail.get("weight_multiplier") or 0.0)
+            numerator += weight * float(fact.value or 0.0)
+            denominator += weight
+    percent = max(0, min(100, round(100 * numerator / denominator))) if denominator > 0 else None
+    return RequirementCoverage(matched=tuple(matched), missing=tuple(missing), percent=percent)
+
+
+def reason_sentences(result: MatchResult) -> list[str]:
+    """The candidate-facing sentence of each of ``result``'s reasons (why it is not SCORED)."""
+    return list(dict.fromkeys(flag_sentence(flag) for flag in result.reasons))
+
+
 def _commit_if_cached(db, job: Any) -> None:
     """Persist a posting cache entry ``posting_for_job`` just wrote to an ORM job."""
     try:
@@ -907,8 +1058,15 @@ __all__ = [
     "posting_meta",
     "postings_for",
     "profile_fields",
+    "RequirementCoverage",
+    "posting_from_text",
+    "reason_sentences",
     "refresh_calibration",
+    "requirement_coverage",
+    "reset_text_postings",
+    "resume_for_document",
     "resume_for_profile",
+    "score_document",
     "score_order",
     "stored_score",
     "subject_id",

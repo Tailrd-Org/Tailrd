@@ -4,9 +4,12 @@ Unit tests for the web "Generate Custom Resume" flow endpoints:
   POST /ai/rewrite/{job_id}       (Step 3, tailor + before/after scores)
   POST /ai/cover-letter/{job_id}  (tone option, backward compatible)
 
-The OpenAI call (`OpenAIService._generate`) is mocked, so no network/API key.
+The OpenAI call (`OpenAIService._generate`) is mocked, so no network/API key. Every score is the
+deterministic match engine's (Task 9.3, D-83; the real engine runs here): the LLM only writes the
+rewrite text.
 """
 
+import datetime as dt
 from unittest.mock import patch, AsyncMock
 
 import pytest
@@ -19,6 +22,7 @@ from backend.db.database import Base, get_db
 from backend.db.models import ScrapedJob, ResumeProfileDB
 from backend.auth.dependencies import get_current_user_id, get_verified_user_id
 from backend.routers import ai
+from backend.services import fit_engine
 
 TEST_DATABASE_URL = "sqlite:///./test_ai_web_flow.db"
 test_engine = create_engine(TEST_DATABASE_URL, connect_args={"check_same_thread": False})
@@ -29,36 +33,12 @@ TEST_USER_ID = 1
 ai_app = FastAPI()
 ai_app.include_router(ai.router, prefix="/ai", tags=["ai"])
 
-ANALYSIS_JSON = """
-{
-  "overall_score": 68,
-  "ats_score": 60,
-  "matched_keywords": ["Python", "SQL"],
-  "missing_keywords": ["TypeScript", "AWS"],
-  "strengths": ["Backend"],
-  "weaknesses": ["No cloud"],
-  "suggestions": ["Add a cloud project."]
-}
-"""
-
-ANALYSIS_AFTER_JSON = """
-{
-  "overall_score": 82,
-  "ats_score": 78,
-  "matched_keywords": ["Python", "SQL", "TypeScript"],
-  "missing_keywords": ["AWS"],
-  "strengths": ["Backend"],
-  "weaknesses": [],
-  "suggestions": []
-}
-"""
-
 # What the structured tailor LLM call returns: same shape, rewritten bullets +
 # an added skill. Most fields are omitted and fall back to schema defaults; the
 # merge re-attaches the original structure/facts, so only content is adopted.
 EDITED_DOC_JSON = (
     '{"sections": ['
-    '{"type": "experience", "items": [{"bullets": ["Built internal tools used by 500+ employees"]}]},'
+    '{"type": "experience", "items": [{"bullets": ["Built internal tools in Python, SQL and TypeScript for 200+ engineers", "Designed PostgreSQL schemas and REST APIs"]}]},'
     '{"type": "skills", "skills": ["Python", "SQL", "TypeScript"]}'
     ']}'
 )
@@ -74,6 +54,7 @@ def setup_test_db():
 @pytest.fixture(autouse=True)
 def _openai_key(monkeypatch):
     monkeypatch.setenv("OPENAI_API_KEY", "test-key")
+    monkeypatch.setattr(fit_engine, "fit_as_of", lambda today=None: dt.date(2026, 10, 1))
 
 
 @pytest.fixture
@@ -109,7 +90,7 @@ def _seed(db_session, with_resume=True):
         title="Software Engineer",
         company="TestCo",
         url="https://example.com/job/1",
-        description="We need Python, SQL, TypeScript and AWS.",
+        description="Requirements\n- Python and SQL\n- TypeScript\n- AWS",
     )
     db_session.add(job)
     if with_resume:
@@ -124,9 +105,10 @@ def _seed(db_session, with_resume=True):
                         "title": "Software Engineer",
                         "company": "Acme",
                         "location": "NYC",
-                        "start_date": "2020",
-                        "end_date": "2023",
-                        "bullets": ["Built internal tools"],
+                        "start_date": "Jan 2021",
+                        "end_date": "Dec 2023",
+                        "bullets": ["Built internal tools in Python and SQL used by 200 engineers",
+                                    "Designed PostgreSQL schemas and REST APIs"],
                     }
                 ],
                 raw_text="Python and SQL engineer.",
@@ -137,45 +119,42 @@ def _seed(db_session, with_resume=True):
     return job
 
 
-class TestJobAnalysis:
-    def test_returns_keywords_and_coverage(self, client, db_session):
-        job = _seed(db_session)
-        with patch(
-            "backend.services.openai_service.OpenAIService._generate",
-            new_callable=AsyncMock,
-            return_value=ANALYSIS_JSON,
-        ):
-            resp = client.post(f"/ai/job-analysis/{job.id}", json={})
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["overall_score"] == 68
-        assert data["ats_score"] == 60
-        assert data["match_label"] == "GOOD MATCH"
-        assert data["matched_keywords"] == ["Python", "SQL"]
-        assert data["missing_keywords"] == ["TypeScript", "AWS"]
-        # coverage = round(100 * 2 / 4) = 50
-        assert data["keyword_coverage"] == 50
+NO_LLM = "the analysis called the LLM"
 
-    def test_string_list_fields_are_not_exploded_into_chars(self, client, db_session):
-        """When the model returns a list field as a single string, it must
-        become a one-element list, not one item per character."""
+
+class TestJobAnalysis:
+    def test_returns_the_engine_analysis_without_the_llm(self, client, db_session):
         job = _seed(db_session)
-        json_with_string_suggestions = """
-        {
-          "overall_score": 68, "ats_score": 60,
-          "matched_keywords": ["Python"], "missing_keywords": ["AWS"],
-          "strengths": [], "weaknesses": [],
-          "suggestions": "To improve, add a cloud project."
-        }
-        """
-        with patch(
-            "backend.services.openai_service.OpenAIService._generate",
-            new_callable=AsyncMock,
-            return_value=json_with_string_suggestions,
-        ):
+        gen = AsyncMock(side_effect=AssertionError(NO_LLM))
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post(f"/ai/job-analysis/{job.id}", json={})
         assert resp.status_code == 200
-        assert resp.json()["suggestions"] == ["To improve, add a cloud project."]
+        assert gen.await_count == 0
+        data = resp.json()
+        assert data["outcome"] == "SCORED"
+        assert isinstance(data["overall_score"], int)
+        assert data["ats_score"] == data["overall_score"]
+        assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
+        assert data["matched_keywords"] == ["Python", "SQL"]
+        assert "TypeScript" in data["missing_keywords"]
+        assert isinstance(data["keyword_coverage"], int) and 0 < data["keyword_coverage"] < 100
+
+    def test_the_custom_resume_analysis_alias_is_the_same_analysis(self, client, db_session):
+        job = _seed(db_session)
+        first = client.post(f"/ai/job-analysis/{job.id}", json={}).json()
+        second = client.post(f"/ai/custom-resume-analysis/{job.id}", json={}).json()
+        assert first == second
+
+    def test_the_analysis_is_free_of_the_ai_limit(self, client, db_session, monkeypatch):
+        """No AI is called, so the daily AI limit must not block or count it (D-83)."""
+        from fastapi import HTTPException
+
+        def limited(*args, **kwargs):
+            raise HTTPException(status_code=429, detail="limit")
+
+        monkeypatch.setattr("backend.services.usage_limiter.enforce_llm_limits", limited)
+        job = _seed(db_session)
+        assert client.post(f"/ai/job-analysis/{job.id}", json={}).status_code == 200
 
     def test_404_for_missing_job(self, client):
         resp = client.post("/ai/job-analysis/9999", json={})
@@ -183,47 +162,64 @@ class TestJobAnalysis:
 
     def test_400_when_no_resume(self, client, db_session):
         job = _seed(db_session, with_resume=False)
-        with patch(
-            "backend.services.openai_service.OpenAIService._generate",
-            new_callable=AsyncMock,
-            return_value=ANALYSIS_JSON,
-        ):
-            resp = client.post(f"/ai/job-analysis/{job.id}", json={})
+        resp = client.post(f"/ai/job-analysis/{job.id}", json={})
         assert resp.status_code == 400
 
 
 class TestRewrite:
     def test_returns_structured_document_and_before_after_scores(self, client, db_session):
         job = _seed(db_session)
-        # 3 LLM calls: analyze(before), structured tailor, analyze(after).
-        with patch(
-            "backend.services.openai_service.OpenAIService._generate",
-            new_callable=AsyncMock,
-            side_effect=[ANALYSIS_JSON, EDITED_DOC_JSON, ANALYSIS_AFTER_JSON],
-        ):
+        # ONE LLM call: the structured rewrite. Both scores are the engine's.
+        gen = AsyncMock(side_effect=[EDITED_DOC_JSON])
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
             resp = client.post(
                 f"/ai/rewrite/{job.id}",
                 json={"sections": ["Skills"], "add_keywords": ["TypeScript"]},
             )
         assert resp.status_code == 200
+        assert gen.await_count == 1
+        assert "use the job's own words for these terms: TypeScript." in gen.call_args_list[0].args[0]
         data = resp.json()
 
         # Structured document reflects the AI's bullet rewrite + added skill,
         # merged onto the original structure so facts/sections are preserved.
         sections = data["document"]["sections"]
         assert sections[0]["type"] == "experience"
-        assert sections[0]["items"][0]["bullets"] == ["Built internal tools used by 500+ employees"]
+        assert sections[0]["items"][0]["bullets"] == ["Built internal tools in Python, SQL and TypeScript for 200+ engineers", "Designed PostgreSQL schemas and REST APIs"]
         assert sections[0]["items"][0]["title"] == "Software Engineer"  # fact preserved
         assert sections[1]["skills"] == ["Python", "SQL", "TypeScript"]
 
         # Flattened text (for Copy) + before/after scores still provided.
-        assert "Built internal tools used by 500+ employees" in data["tailored_text"]
+        assert "Built internal tools in Python, SQL and TypeScript for 200+ engineers" in data["tailored_text"]
         assert data["original_document"]["sections"][0]["items"][0]["title"] == "Software Engineer"
         assert data["diff_summary"]  # non-empty unified diff
-        assert data["original_overall_score"] == 68
-        assert data["new_overall_score"] == 82
-        assert data["new_ats_score"] == 78
+        assert data["original_outcome"] == "SCORED" and data["outcome"] == "SCORED"
+        assert data["new_overall_score"] > data["original_overall_score"]  # TypeScript now shown
+        assert data["new_ats_score"] == data["new_overall_score"]
         assert data["version_id"] is not None
+
+        assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
+
+        # The job's posting was parsed once and cached on the row (D-84), like the feed's.
+        db_session.refresh(job)
+        assert job.match_terms and job.match_terms["v"].startswith("pv1-")
+
+
+    def test_a_listed_only_skill_can_leave_the_band_only(self, client, db_session):
+        """A skill added to the list with no evidence lowers the engine's confidence: the result
+        is SCORED_LOW_CONFIDENCE, so the new score is null and only the band is shown."""
+        job = _seed(db_session)
+        listed_only = ('{"sections": [{"type": "experience", "items": []},'
+                       '{"type": "skills", "skills": ["Python", "SQL", "TypeScript"]}]}')
+        gen = AsyncMock(side_effect=[listed_only])
+        with patch("backend.services.openai_service.OpenAIService._generate", gen):
+            resp = client.post(f"/ai/rewrite/{job.id}", json={"add_keywords": ["TypeScript"]})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["original_outcome"] == "SCORED" and isinstance(data["original_overall_score"], int)
+        assert data["outcome"] == "SCORED_LOW_CONFIDENCE"
+        assert data["new_overall_score"] is None and data["new_ats_score"] is None
+        assert data["match_label"] in ("Strong match", "Good match", "Partial match", "Limited match")
 
 
 class TestCoverLetterTone:

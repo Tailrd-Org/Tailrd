@@ -504,3 +504,68 @@ def document_to_text(doc: ResumeDocument) -> str:
                     lines.append(f"- {bullet.strip()}")
 
     return "\n".join(lines).strip()
+
+
+def document_to_record(doc: ResumeDocument) -> dict[str, Any]:
+    """A document in the stored-profile shape the match engine reads (D-80): the inverse of
+    ``db_record_to_document`` for every field the engine uses.
+
+    Keys: ``location`` (the header's), ``summary``, ``experience``, ``education``, ``projects``,
+    ``skills``, ``technologies``, ``custom_sections``. Education bullets are split back into
+    ``achievements`` and the synthesized coursework line, and the GPA detail into ``gpa``; a custom
+    section's untitled bullets item back into its flat ``bullets``. Sections are read by type, so
+    a summary the rewrite added is read like a stored one. Used to score the original and the
+    tailored document the same way (Task 9.3), so the "before" equals the feed's score.
+    """
+    record: dict[str, Any] = {
+        "location": doc.header.location, "summary": "", "experience": [], "education": [], "projects": [],
+        "skills": [], "technologies": {}, "custom_sections": [],
+    }
+    summaries: list[str] = []
+    for section in doc.sections:
+        kind = section.type
+        if kind == "summary":
+            if section.text.strip():
+                summaries.append(section.text.strip())
+        elif kind == "experience":
+            record["experience"] += [
+                {"title": it.title, "company": it.subtitle, "location": it.location, "start_date": it.start_date,
+                 "end_date": it.end_date, "bullets": list(it.bullets)}
+                for it in section.items
+            ]
+        elif kind == "education":
+            for it in section.items:
+                coursework = next((b for b in it.bullets if b.startswith(_COURSEWORK_PREFIX)), "")
+                record["education"].append({
+                    "degree": it.title, "school": it.subtitle, "location": it.location,
+                    "start_date": it.start_date, "end_date": it.end_date,
+                    "gpa": it.detail[len(_GPA_PREFIX):] if it.detail.startswith(_GPA_PREFIX) else "",
+                    "achievements": [b for b in it.bullets if not b.startswith(_COURSEWORK_PREFIX)],
+                    "coursework": [c.strip() for c in coursework[len(_COURSEWORK_PREFIX):].split(",") if c.strip()],
+                })
+        elif kind == "projects":
+            record["projects"] += [
+                {"name": it.title, "organization": it.subtitle, "location": it.location,
+                 "start_date": it.start_date, "end_date": it.end_date, "link": it.link, "bullets": list(it.bullets)}
+                for it in section.items
+            ]
+        elif kind == "skills":
+            record["skills"] += list(section.skills)
+        elif kind == "technologies":
+            for category, values in section.groups.items():
+                record["technologies"].setdefault(category, []).extend(values)
+        else:  # custom / certifications
+            cid = section.id[len(CUSTOM_PREFIX):] if section.id.startswith(CUSTOM_PREFIX) else section.id
+            flat_id = f"{CUSTOM_PREFIX}{cid}-bullets"
+            bullets = [b for it in section.items if it.id == flat_id for b in it.bullets]
+            items = [
+                {"title": it.title, "subtitle": it.subtitle, "location": it.location, "start_date": it.start_date,
+                 "end_date": it.end_date, "detail": it.detail, "link": it.link, "bullets": list(it.bullets)}
+                for it in section.items if it.id != flat_id
+            ]
+            record["custom_sections"].append({
+                "id": cid, "title": section.title, "kind": "certifications" if kind == "certifications" else "custom",
+                "text": section.text, "bullets": bullets, "items": items,
+            })
+    record["summary"] = "\n\n".join(summaries)
+    return record

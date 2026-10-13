@@ -1218,3 +1218,27 @@ identity and by what the parser reads (`synthetic.parser_inputs`): its modules, 
 verbs.yaml, negation.yaml, the curated taxonomy files, the taxonomy manifest and resolver tables,
 and the ingest and taxonomy sections of scoring.yaml. A weights or scoring-module change keeps it
 warm. A cold full `make eval` (24,000 renderings) takes about 6-7 hours.
+
+**D-123 Tailoring scores. [Tailrd]** Task 9.3 completes D-83 for the tailoring flow. Every number,
+band and keyword in `/ai/job-analysis`, `/ai/custom-resume-analysis`, `/ai/rewrite`,
+`/ai/custom-resume` and the extension's `/api/tailor-resume`, `/api/custom-resume-analysis` and
+`/api/custom-resume` comes from scoring a résumé DOCUMENT against one parsed posting with the
+engine (`fit_engine.score_document`). The original and the tailored document are scored against the
+same posting: the job row's cached posting (D-84), or pasted text parsed by the engine
+(`posting_from_text`, memoised per input and posting version). The document is read in the
+stored-profile shape (`resume_document.document_to_record`, the inverse of `db_record_to_document`),
+with the user's saved answers, through the same calibration, so the "before" of a stored résumé
+equals its feed score. Nothing is banked and no trace is written. Field mapping:
+`overall_score` is the displayed (calibrated) score. `ats_score` is the SAME number: the engine has
+no separate ATS model, and the field stays for the clients that read it. `match_label` is the band,
+"We couldn't score this" (NEEDS_REVIEW) or "Not eligible" (GATE_FAIL, with the gate's reason
+leading `weaknesses` and in `reasons`). `keyword_coverage` is the engine's idf-weighted coverage over
+the required and preferred skill requirements. `matched_keywords` are requirements at REQ_MATCH;
+`missing_keywords` are those at REQ_PARTIAL or REQ_MISS, as display labels ("A or B" for an
+OR-group). Only SCORED shows a number: SCORED_LOW_CONFIDENCE shows the band with null scores (D-86).
+An additive `outcome` (and `reasons`) field lets clients key on the outcome. The LLM is called once
+per rewrite, for the rewrite text, and is fed the engine's missing requirements; the LLM analysis
+prompt, its memo and the 80/60 `score_to_label` are removed. The two analysis routes call no AI, so
+they no longer count against the daily AI limit. Consequence: a rewrite that only LISTS a skill (no
+evidence in a role or project) can lower the engine's evidence density, so the "after" can be
+SCORED_LOW_CONFIDENCE (band only) where the "before" had a number.
