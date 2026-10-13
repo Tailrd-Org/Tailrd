@@ -263,6 +263,64 @@ describe("JobDetailView: the engine's result", () => {
   });
 });
 
+describe("JobDetailView: details failure and job-switch race", () => {
+  beforeEach(() => {
+    apiPost.mockReset();
+    apiGet.mockReset();
+    apiGet.mockResolvedValue({ data: [] });
+    resetLiveChecks();
+  });
+
+  it("still runs and renders the breakdown when fetch-details fails", async () => {
+    apiPost.mockImplementation((url: string) => {
+      if (url.endsWith("/fetch-details")) return Promise.reject({ response: { status: 500 } });
+      if (url.includes("/ai/match-breakdown/")) return Promise.resolve({ data: SCORED });
+      if (url.endsWith("/check-live")) return new Promise(() => {});
+      return Promise.resolve({ data: { sections: [], skills: [] } });
+    });
+    renderWithProviders(<JobDetailView job={{ ...job, id: 44, description: "" }} />);
+    expect(await screen.findByText("Fit score 64 · Partial match")).toBeTruthy();
+    const urls = apiPost.mock.calls.map((c) => String(c[0]));
+    expect(urls.indexOf("/jobs/44/fetch-details")).toBeLessThan(urls.indexOf("/ai/match-breakdown/44"));
+  });
+
+  it("a late answer for job A patches only A and never reaches B's view", async () => {
+    let resolveA: (v: unknown) => void = () => {};
+    apiPost.mockImplementation((url: string) => {
+      if (url === "/ai/match-breakdown/81") return new Promise((r) => { resolveA = r; });
+      if (url === "/ai/match-breakdown/82") return Promise.resolve({ data: REAL.NEEDS_REVIEW });
+      if (url.endsWith("/fetch-details")) return Promise.resolve({ data: { description: DESCRIPTION } });
+      if (url.endsWith("/check-live")) return new Promise(() => {});
+      return Promise.resolve({ data: { sections: [], skills: [] } });
+    });
+    const onFitChange = vi.fn();
+    const jobA = { ...job, id: 81, title: "Job A", match_score: 0, match_band: null, match_outcome: null };
+    const jobB = { ...job, id: 82, title: "Job B", match_score: 0, match_band: null, match_outcome: null };
+    const { container, rerender } = renderWithProviders(<JobDetailView job={jobA} onFitChange={onFitChange} />);
+    await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/81"));
+    rerender(
+      <MemoryRouter>
+        <ApplyTrackingProvider>
+          <JobDetailView job={jobB} onFitChange={onFitChange} />
+        </ApplyTrackingProvider>
+      </MemoryRouter>,
+    );
+    expect(await screen.findByText("We couldn't find any requirements in this job posting.")).toBeTruthy();
+    resolveA({ data: SCORED });
+    await waitFor(() =>
+      expect(onFitChange).toHaveBeenCalledWith(81, { match_outcome: "SCORED", match_band: "Partial match", match_score: 64 }),
+    );
+    // B's own result only, and no patch for B carrying A's result.
+    expect(onFitChange.mock.calls.filter(([id]) => id === 82)).toEqual([
+      [82, { match_outcome: "NEEDS_REVIEW", match_band: null, match_score: 0 }],
+    ]);
+    expect(container.querySelector(".job-detail-title")?.textContent).toBe("Job B");
+    const text = fitText(container);
+    expect(text).toContain("We couldn't score this");
+    expect(text).not.toMatch(/Fit score|64|Partial match/);
+  });
+});
+
 describe("Jobs page card", () => {
   beforeEach(() => {
     apiPost.mockReset();
@@ -326,6 +384,39 @@ describe("Jobs page card", () => {
       fireEvent.click(title);
       await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/71"));
       await waitFor(() => expect(card().querySelector(".fit-badge")?.textContent).toBe("Partial match"));
+    },
+    20_000,
+  );
+
+  it(
+    "switching jobs before A's breakdown answers patches A's card only and leaves B's panel alone",
+    async () => {
+      let resolveA: (v: unknown) => void = () => {};
+      apiPost.mockImplementation((url: string) => {
+        if (url === "/ai/match-breakdown/91") return new Promise((r) => { resolveA = r; });
+        if (url === "/ai/match-breakdown/92") return Promise.resolve({ data: REAL.NEEDS_REVIEW });
+        if (url.endsWith("/fetch-details")) return Promise.resolve({ data: { description: DESCRIPTION } });
+        if (url.endsWith("/check-live")) return new Promise(() => {});
+        return Promise.resolve({ data: { sections: [], skills: [] } });
+      });
+      mockFeed([
+        { ...base, id: 91, title: "Job A", match_score: 0, match_band: null, match_outcome: null },
+        { ...base, id: 92, title: "Job B", match_score: 0, match_band: "Limited match", match_outcome: "SCORED_LOW_CONFIDENCE" },
+      ]);
+      const { default: Jobs } = await import("../pages/Jobs");
+      const { container } = renderWithProviders(<Jobs />);
+      fireEvent.click(await screen.findByText("Job A", { selector: ".job-title" }));
+      await waitFor(() => expect(apiPost).toHaveBeenCalledWith("/ai/match-breakdown/91"));
+      fireEvent.click(screen.getByText("Job B", { selector: ".job-title" }));
+      await waitFor(() => expect(container.querySelector(".job-detail-title")?.textContent).toBe("Job B"));
+      await screen.findByText("We couldn't find any requirements in this job posting.");
+      resolveA({ data: SCORED });
+      const cards = () => Array.from(container.querySelectorAll(".jobs-feed .job-card"));
+      await waitFor(() => expect(cards()[0].querySelector(".fit-badge")?.textContent).toBe("Partial match"));
+      // B's card took B's own breakdown; A's answer never touched it or B's panel.
+      expect(cards()[1].querySelector(".fit-badge")?.textContent).toBe("We couldn't score this");
+      expect(container.querySelector(".job-detail-title")?.textContent).toBe("Job B");
+      expect(fitText(container)).not.toMatch(/Fit score|Partial match/);
     },
     20_000,
   );
