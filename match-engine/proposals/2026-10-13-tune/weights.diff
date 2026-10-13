@@ -1,0 +1,23 @@
+# synthetic-only: do not adopt
+# fairness not assessed: proposal cannot be adopted until a grouped labelled set exists
+# verdict: REJECT (report.md, EVAL 5.3); never apply without a signed rationale.md
+--- a/match-engine/config/weights.yaml
++++ b/match-engine/config/weights.yaml
+@@ -3,10 +3,10 @@
+ # Governance (CLAUDE.md): after Milestone 1 this file is never edited directly. A change is a
+ # reviewed proposal under proposals/ with rationale.md and sensitivity.md (EVAL §5).
+ dimensions:
+-  required_skills: 0.35   # §5.1
+-  preferred_skills: 0.10  # §5.2
+-  experience: 0.15        # §5.3
+-  seniority: 0.10         # §5.4
+-  domain: 0.10            # §5.5
+-  education: 0.10         # §5.6
+-  tools: 0.10             # §5.7
++  required_skills: 0.2538   # §5.1
++  preferred_skills: 0.1910  # §5.2
++  experience: 0.2116        # §5.3
++  seniority: 0.0373         # §5.4
++  domain: 0.1898            # §5.5
++  education: 0.0362         # §5.6
++  tools: 0.0803             # §5.7

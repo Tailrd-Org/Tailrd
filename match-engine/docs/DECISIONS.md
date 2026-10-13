@@ -1218,3 +1218,52 @@ identity and by what the parser reads (`synthetic.parser_inputs`): its modules, 
 verbs.yaml, negation.yaml, the curated taxonomy files, the taxonomy manifest and resolver tables,
 and the ingest and taxonomy sections of scoring.yaml. A weights or scoring-module change keeps it
 warm. A cold full `make eval` (24,000 renderings) takes about 6-7 hours.
+
+## Tuning and holdout (Task 8.1) [Tailrd]
+
+**D-119 Fairness that cannot be assessed leaves a tuning trial feasible. [Deviation]** EVAL 5.1
+makes `fairness_ratio >= 0.80` a hard constraint, infeasible if violated, and the Task 8.1 brief
+adds "infeasible otherwise" where fairness is not assessable. Taken literally, every trial on the
+synthetic corpus (whose pairs carry no group) would be infeasible and no proposal could exist.
+Ruling: a trial whose four-fifths guardrail is "not assessed" (D-93) is feasible, and the proposal
+then states prominently "fairness not assessed: proposal cannot be adopted until a grouped labelled
+set exists", with the verdict NOT ADOPTABLE at best. A fairness FAIL is still infeasible, and a FAIL
+on the current weights is terminal: the tuner stops before any trial and exits 1 (CLAUDE.md, EVAL 7).
+
+**D-120 What a tuning trial scores.** Weights reach neither the parser nor the posting parser, so a
+trial re-scores fixed inputs and parses nothing: on the synthetic split, the 500 oracle résumés
+(`corpus_pairs`) against their target postings, the pairs the synthetic layer ranks; on the dev split,
+`eval/corpora/dev/pairs.jsonl` (relevance 3 hired, 2 advanced, 0 otherwise). The sampler draws a
+point in (0, 1]^7; `-log(u)` normalised is a flat Dirichlet draw `d`, and `w = 0.03 + 0.79 d` keeps
+every weight at or above the lower bound. Weights live on a 4-decimal grid summing to exactly 1 as
+decimals (the rounding residual goes to the largest weight); a vector with a weight above 0.45 is
+rejected without scoring. Optuna TPE, seed 0 by default, constraints through `Trial.set_constraint`.
+`make tune BUDGET=50` on the synthetic split takes about one minute (2026-10-13). Sensitivity
+(SPEC 10) runs on the proposed vector; a perturbed vector outside [0.03, 0.45] is still scored
+(an unchecked in-memory config, never persisted) and marked.
+
+**D-121 Holdout format and look budget.** `labels.enc` is AES-256-GCM (`MHO1 | nonce | ciphertext`),
+key 32 bytes, strict base64, in `MATCH_HOLDOUT_KEY`: an environment secret of the `holdout` GitHub
+environment (deployment branches `release/**`, required reviewers, no repository-level copy), visible
+only to the `make eval-holdout` step. The bundle (inputs and `labels.enc`) lives outside the public
+repository and is fetched into the runner from `MATCH_HOLDOUT_BUNDLE_URL`; `eval/corpora/holdout/` is
+git-ignored, and the `holdout-guard` job checks every path touched by any commit of a pull request or
+push (a required status check). `make eval-holdout` decrypts only on `release/**` refs. Each look is
+claimed in a durable ledger before decryption (review I-1, option A): `evaluation_budget.ledger.csv`
+on the `holdout-ledger` branch, which every release branch shares. The claim fetches that branch,
+refuses the 11th look of the calendar quarter (UTC) and a second look at the same commit SHA (EVAL 0:
+once per release candidate), and pushes the `date,ref,sha,purpose` row as a fast-forward commit (a
+concurrent claim is rejected). An unreadable branch or a failed push refuses the run, and nothing is
+decrypted. `docs/evaluation_budget.ledger.csv` is only the format reference. The tool prints aggregates
+only; a malformed input is reported by index and exception type, never by content. Layer 4 inside
+`eval.run` only reports whether the key is present.
+
+**D-122 CI dependency pins.** CI installs `-c constraints-ci-<python>.txt -e ".[ingest,eval,dev]"`. The
+two constraint files are compiled with `uv pip compile` for Linux x86_64 (manylinux_2_28) and Python
+3.11 and 3.12 respectively, so every transitive dependency is pinned for the platform CI runs on.
+numpy 2.5 and scipy 1.18 have no Python 3.11 wheels, so 3.11 gets numpy 2.4.6 and scipy 1.17.1
+(environment markers in pyproject.toml). The OCR (rapidocr-onnxruntime, pymupdf) is pure pip; the
+runner adds only `libgl1` and `libglib2.0-0` for OpenCV. The parse cache is restored by a key built
+from `generator_fingerprint` and `parser_fingerprint` (D-118) and saved even when `make eval-fast`
+fails (split restore and save), so the next run is warm while guardrails are red. Actions are pinned
+by full commit SHA.

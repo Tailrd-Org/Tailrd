@@ -16,6 +16,9 @@ eval/corpora/golden/*
 !eval/corpora/golden/README.md
 eval/corpora/dev/*
 !eval/corpora/dev/README.md
+# The holdout is fetched into CI runners only and never committed (EVAL 0, eval/HOLDOUT.md);
+# scripts/guard_holdout.py also rejects any commit that touches it.
+eval/corpora/holdout/
 
 # Review logs written by the resolver and the title normaliser (SPEC §3.3, §5.4).
 logs/

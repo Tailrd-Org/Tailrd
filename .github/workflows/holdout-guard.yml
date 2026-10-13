@@ -1,0 +1,52 @@
+# EVAL 0: nothing under match-engine/eval/corpora/holdout/ is ever committed. This workflow has no
+# path filter, so it runs on every pull request and every push to main and release/**, and checks
+# every path touched by ANY commit in the range (adding a file in one commit and deleting it in the
+# next is still caught). Its job `holdout-guard` is the required status check (eval/HOLDOUT.md).
+name: holdout guard
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+      - "release/**"
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash  # bash -eo pipefail
+    working-directory: match-engine
+
+jobs:
+  holdout-guard:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Reject any commit that touches eval/corpora/holdout/
+        env:
+          EVENT: ${{ github.event_name }}
+          BASE_REF: ${{ github.base_ref }}
+          BEFORE: ${{ github.event.before }}
+        run: |
+          if [ "$EVENT" = "pull_request" ]; then
+            base="$(git merge-base "origin/$BASE_REF" HEAD)"
+          else
+            base="$BEFORE"
+          fi
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ] \
+             || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            range="HEAD"  # a new branch: every commit it holds
+          else
+            range="$base..HEAD"
+          fi
+          git -C .. log --format= --name-only --no-renames -m "$range" | sed '/^$/d' | sort -u \
+            > "$RUNNER_TEMP/touched.txt"
+          echo "$(wc -l < "$RUNNER_TEMP/touched.txt") paths touched in $range"
+          if [ -s "$RUNNER_TEMP/touched.txt" ]; then
+            xargs -d '\n' python3 scripts/guard_holdout.py < "$RUNNER_TEMP/touched.txt"
+          fi
