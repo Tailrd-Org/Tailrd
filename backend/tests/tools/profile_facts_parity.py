@@ -352,6 +352,10 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "status", "work authorization: no", "US not authorized", "US no", ": no", "I would require sponsorship",
     "would need", "requires sponsorship", "not Canadian", "Plan B. I am", "unknown", "TBD", "but will",
     "in the future", "later", "pending", "in progress", "applied for", "US requires sponsorship",
+    # Per-clause statuses: segment joins, visa eligibility, country lists, dotted abbreviations mid-sentence.
+    "via", "plus", "&", "TN eligible", "eligible for H-1B", "OPT eligible", "Canadian and American citizen",
+    "US resident", "U.S. Citizen", "U.S. I am", "U.S.A. citizen", "Citizen of Canada", "both", "Permanent",
+    "I am", "Work",
 ]
 
 EXOTIC_WORDS = [

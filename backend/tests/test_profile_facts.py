@@ -1138,15 +1138,16 @@ def test_negation_scope_clauses():
     assert negated_country_scope("Canadian citizen, not a US citizen") == ({"US": False}, [], "Canadian citizen,")
 
 
-def test_pin_one_status_is_applied_to_every_named_country():
-    """PINNED TS BEHAVIOUR (probable bug): "Canadian citizen with H-1B in the US" is a citizen of the US too.
+def test_a_status_belongs_to_the_countries_of_its_own_clause():
+    """Was PINNED TS BEHAVIOUR ("one status for every named country"); fixed with the extension.
 
-    The status words are read once for the whole sentence, then stamped on each country found.
+    "Canadian citizen with H-1B in the US" is a Canadian citizen and an H-1B holder in the US.
+    Mirrors chrome-extension/test/workAuthReview.test.ts.
     """
     a = work_auth_facts(profile(workAuthorization="Canadian citizen with H-1B in the US"))
     assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
-    assert a.by_country["US"] == CountryAuth(True, False, "citizen")
-    assert needs_sponsorship_in(a, "US", "CA") == Fact(False, "high", "sponsorship:citizen")
+    assert a.by_country["US"] == CountryAuth(True, True, "work_permit")
+    assert needs_sponsorship_in(a, "US", "CA") == Fact(True, "high", "sponsorship:work_permit")
 
 
 @pytest.mark.parametrize("text", ["N/A", "n/a", "NA", "N.A.", "N / A", "Not applicable", "does not apply"])
@@ -1376,3 +1377,60 @@ def test_pin_a_five_digit_postcode_is_a_us_zip():
     assert loc_shape(f)["country"] == ("US", "high", "address:country")
     stated = location_facts(profile(addressStreet="Torstraße 109, 10119 Berlin", country="Germany"))
     assert loc_shape(stated)["country"] == ("DE", "high", "profile:country")
+
+
+def test_status_probe_tn_eligible_is_not_a_us_status():
+    a = _wa("Canadian citizen; TN eligible for US")
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    us = a.by_country.get("US")
+    assert us is None or (us.basis != "citizen" and us.authorized is not True)
+    assert (authorized_in(a, "US", "CA") or Fact(None, "high", "")).value is not True
+
+
+def test_status_probe_us_citizen_and_canadian_pr():
+    a = _wa("US citizen and Canadian permanent resident")
+    assert a.by_country["US"] == CountryAuth(True, False, "citizen")
+    assert a.by_country["CA"] == CountryAuth(True, False, "permanent_resident")
+
+
+def test_status_probe_citizen_of_canada_h1b_in_the_us():
+    a = _wa("Citizen of Canada, authorized to work in the US via H-1B")
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert a.by_country["US"] == CountryAuth(True, True, "work_permit")
+
+
+def test_status_probe_canadian_and_american_citizen():
+    a = _wa("Canadian and American citizen")
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert a.by_country["US"] == CountryAuth(True, False, "citizen")
+
+
+@pytest.mark.parametrize("text", ["Canadian citizen not requiring sponsorship in the US", "Canadian citizen and US resident"])
+def test_status_probe_no_us_status_borrowed(text):
+    a = _wa(text)
+    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert (a.by_country.get("US") is None) or a.by_country["US"].basis != "citizen"
+
+
+def test_status_probe_shared_statements_reach_every_listed_country():
+    for text in ["Authorized to work in Canada and the U.S.", "Authorized to work in the US and Canada",
+                 "I am a citizen of Canada and the United States"]:
+        a = _wa(text)
+        assert _auth(a, "CA") is True and _auth(a, "US") is True
+    assert _wa("I am a citizen of Canada and the United States").by_country["US"].basis == "citizen"
+
+
+@pytest.mark.parametrize("text", ["U.S. citizen", "U.S. Citizen", "U.S.A. citizen", "U. S. citizen"])
+def test_status_probe_dotted_us_keeps_its_status(text):
+    assert _wa(text).by_country["US"] == CountryAuth(True, False, "citizen")
+
+
+def test_status_probe_f1_opt_eligible_is_still_a_student():
+    assert _wa("F-1 student visa (OPT eligible)").by_country["US"] == CountryAuth(None, None, "student")
+
+
+def test_status_probe_timing():
+    text = "Canadian citizen and US green card holder with H-1B via TN / " * 1000
+    start = time.perf_counter()
+    _wa(text)
+    assert time.perf_counter() - start < 2.0

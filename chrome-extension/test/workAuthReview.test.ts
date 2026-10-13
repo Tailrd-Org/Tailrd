@@ -192,3 +192,65 @@ describe("timing", () => {
     });
   }
 });
+
+describe("a positive status belongs to the countries of its own clause", () => {
+  it("Canadian citizen; TN eligible for US: never a US citizen or authorized", () => {
+    const a = auth("Canadian citizen; TN eligible for US");
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("US")?.basis).not.toBe("citizen");
+    expect(a.byCountry.get("US")?.authorized).not.toBe(true);
+    expect(authorizedIn(a, "US", "CA")?.value).not.toBe(true);
+  });
+  it("US citizen and Canadian permanent resident", () => {
+    const a = auth("US citizen and Canadian permanent resident");
+    expect(a.byCountry.get("US")).toMatchObject({ authorized: true, needsSponsorship: false, basis: "citizen" });
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, needsSponsorship: false, basis: "permanent_resident" });
+  });
+  it("Citizen of Canada, authorized to work in the US via H-1B", () => {
+    const a = auth("Citizen of Canada, authorized to work in the US via H-1B");
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("US")).toMatchObject({ authorized: true, needsSponsorship: true, basis: "work_permit" });
+  });
+  it("Canadian and American citizen", () => {
+    const a = auth("Canadian and American citizen");
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("US")).toMatchObject({ authorized: true, basis: "citizen" });
+  });
+  it("Canadian citizen with H-1B in the US (was the 'one status for every country' pin)", () => {
+    const a = auth("Canadian citizen with H-1B in the US");
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("US")).toMatchObject({ authorized: true, needsSponsorship: true, basis: "work_permit" });
+    expect(needsSponsorshipIn(a, "US", "CA")?.value).toBe(true);
+  });
+  it("Canadian citizen not requiring sponsorship in the US: the US is not a citizenship", () => {
+    expect(auth("Canadian citizen not requiring sponsorship in the US").byCountry.get("US")?.basis).not.toBe("citizen");
+  });
+  it("Canadian citizen and US resident: a bare 'resident' is no US status", () => {
+    const a = auth("Canadian citizen and US resident");
+    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("US")?.basis).not.toBe("citizen");
+  });
+  it("shared statements still reach every country listed with them", () => {
+    for (const text of ["Authorized to work in Canada and the U.S.", "Authorized to work in the US and Canada", "I am a citizen of Canada and the United States"]) {
+      const a = auth(text);
+      expect(a.byCountry.get("CA")?.authorized).toBe(true);
+      expect(a.byCountry.get("US")?.authorized).toBe(true);
+    }
+    expect(auth("I am a citizen of Canada and the United States").byCountry.get("US")?.basis).toBe("citizen");
+  });
+  it("'U.S. citizen' and 'U.S.A. Citizen' keep the status with the country", () => {
+    for (const text of ["U.S. citizen", "U.S. Citizen", "U.S.A. citizen", "U. S. citizen"]) {
+      expect(auth(text).byCountry.get("US")).toMatchObject({ authorized: true, basis: "citizen" });
+    }
+    expect(auth("U.S. permanent resident (green card)").byCountry.get("US")).toMatchObject({ basis: "permanent_resident" });
+  });
+  it("an F-1 student with OPT is still unknown in the US", () => {
+    expect(auth("F-1 student visa (OPT eligible)").byCountry.get("US")).toMatchObject({ authorized: null, basis: "student" });
+  });
+  it("is linear on a long run of statuses and countries", () => {
+    const text = "Canadian citizen and US green card holder with H-1B via TN / ".repeat(1000);
+    const t0 = performance.now();
+    auth(text);
+    expect(performance.now() - t0).toBeLessThan(1000);
+  });
+});

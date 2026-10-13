@@ -387,35 +387,34 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     byCountry.set(code, a);
   };
 
-  const citizen = /\bcitizen(ship)?\b|\bnational\b/.test(lower);
-  const pr = /\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b/.test(lower);
+  const all = statusFlagsOf(lower);
   // "Not a citizen" denies nothing for a permanent resident, who is
   // authorized without being one ("US permanent resident, not a citizen").
   const denied =
     /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b/.test(lower) ||
-    (!pr && /\bnot a (citizen|resident)\b/.test(lower));
-  const student = /\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b/.test(lower);
-  const sponsoredVisa = /\b(h-?1b|l-?1|e-?3|o-?1|tn)\b/.test(lower);
-  const permit = /\b(work permit|open work permit|pgwp|post-graduation work permit|ead|employment authori[sz]ation|work visa|opt|cpt)\b/.test(lower);
-  const affirmative = /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(lower);
+    (!all.pr && /\bnot a (citizen|resident)\b/.test(lower));
   const bareYes = polarityOf(text);
 
   if (countries.length === 0 && scope.negated.size === 0 && scope.sponsored.size === 0) {
     if (denied || bareYes === false) unscopedAuthorized = false;
-    else if (affirmative || bareYes === true || citizen || pr) unscopedAuthorized = true;
+    else if (all.affirmative || bareYes === true || all.citizen || all.pr) unscopedAuthorized = true;
     applyExplicitCountries(profile, byCountry);
     return { byCountry, statedSponsorship, unscopedAuthorized };
   }
 
+  // Each country gets the status of its own clause ("US citizen and Canadian
+  // permanent resident"), never one stated for another country.
+  const statusByCountry = countryStatuses(text);
   for (const c of countries) {
-    const citizenHere = citizen && !scope.negated.has(c.code);
+    const f = statusByCountry.get(c.code) ?? NO_STATUS;
+    const citizenHere = f.citizen && !scope.negated.has(c.code);
     if (denied) set(c.code, { authorized: false, needsSponsorship: null, basis: "denied" });
-    else if (citizenHere && !pr && !student && !permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "citizen" });
-    else if (pr && !student && !permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "permanent_resident" });
-    else if (sponsoredVisa) set(c.code, { authorized: true, needsSponsorship: true, basis: "work_permit" });
-    else if (student) set(c.code, { authorized: null, needsSponsorship: null, basis: "student" });
-    else if (permit) set(c.code, { authorized: true, needsSponsorship: null, basis: "work_permit" });
-    else if (affirmative || bareYes === true || scoped) set(c.code, { authorized: true, needsSponsorship: null, basis: "statement" });
+    else if (citizenHere && !f.pr && !f.student && !f.permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "citizen" });
+    else if (f.pr && !f.student && !f.permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "permanent_resident" });
+    else if (f.sponsoredVisa) set(c.code, { authorized: true, needsSponsorship: true, basis: "work_permit" });
+    else if (f.student) set(c.code, { authorized: null, needsSponsorship: null, basis: "student" });
+    else if (f.permit) set(c.code, { authorized: true, needsSponsorship: null, basis: "work_permit" });
+    else if (f.affirmative || bareYes === true || scoped) set(c.code, { authorized: true, needsSponsorship: null, basis: "statement" });
   }
   // A country the sentence excludes outright ("not in the US", "except the
   // US") is a No. One it only says the applicant is not a citizen of ("not a
@@ -479,10 +478,25 @@ const PENDING = /\b(pending|in progress|applied for|processing)\b/;
  * "u.s.a.", "u.k.") turned into "_", so a period ends a clause only where a
  * sentence does (decide-b review C-1). Same length, so indices still match the
  * original text.
+ *
+ * The last period of a dotted abbreviation ends a sentence only when a new
+ * one starts after it, which the ORIGINAL text shows by a capital: "Not
+ * authorized in the U.S. I am a Canadian citizen" ends there; "U.S. citizen"
+ * and "U.S. Citizen" do not.
  */
-function maskAbbreviations(lower: string): string {
-  return lower.replace(/\b([a-z])\.(?=\s?[a-z]\.)|\bu\.(?=\s?s\b)/g, (m) => m.replace(".", "_"));
+function maskAbbreviations(text: string): string {
+  const lower = text.toLowerCase();
+  const inner = lower.replace(/\b([a-z])\.(?=\s?[a-z]\.)|\bu\.(?=\s?s\b)/g, (m) => m.replace(".", "_"));
+  return inner.replace(/[a-z]_\s?[a-z]\./g, (m, offset: number) => {
+    const end = offset + m.length;
+    const after = text.slice(end, end + 40);
+    const newSentence = /^\s+[A-Z]/.test(after) && !ABBREVIATION_CONTINUES.test(inner.slice(end, end + 40));
+    return newSentence ? m : m.slice(0, -1) + "_";
+  });
 }
+
+/** Words that continue a phrase after "U.S." ("U.S. Citizen", "U.S. Permanent Resident"). */
+const ABBREVIATION_CONTINUES = /^\s+(citizen\w*|national\w*|resident\w*|permanent|green|work\w*|visa|employment|employer\w*|passport|person|government|based|company|companies)\b/;
 
 /**
  * Split a work-authorization statement into the countries it negates and the
@@ -503,7 +517,7 @@ export function negatedCountryScope(text: string): { negated: Map<string, boolea
   };
 
   // Pass 1: a negation word reaches forward to the next clause break.
-  const lower = maskAbbreviations(text.toLowerCase());
+  const lower = maskAbbreviations(text);
   const cuts: Array<[number, number]> = [];
   const matches = [...lower.matchAll(NEGATION)];
   matches.forEach((m, i) => {
@@ -534,7 +548,7 @@ export function negatedCountryScope(text: string): { negated: Map<string, boolea
   // Pass 2: inside each remaining clause, a denial after the country ("US
   // not authorized") or a need for sponsorship ("I would require sponsorship
   // to work in the US") belongs to the countries of that clause only.
-  const plower = maskAbbreviations(positive.toLowerCase());
+  const plower = maskAbbreviations(positive);
   const cuts2: Array<[number, number]> = [];
   const clauseAt = (a: number, b: number): void => {
     const clause = plower.slice(a, b);
@@ -578,6 +592,115 @@ export function negatedCountryScope(text: string): { negated: Map<string, boolea
 }
 
 const CLAUSE_BREAK_ALL = new RegExp(CLAUSE_BREAK.source, "g");
+
+/** The work-right statuses a piece of text states. */
+interface StatusFlags {
+  citizen: boolean;
+  pr: boolean;
+  student: boolean;
+  sponsoredVisa: boolean;
+  permit: boolean;
+  affirmative: boolean;
+}
+const NO_STATUS: StatusFlags = { citizen: false, pr: false, student: false, sponsoredVisa: false, permit: false, affirmative: false };
+
+/** Being eligible for a visa is not holding it ("TN eligible", "eligible for H-1B"). */
+const VISA_ELIGIBLE =
+  /\b(tn|h-?1b|l-?1|e-?3|o-?1|opt|cpt|stem opt|pgwp)\s+eligib\w*|\beligib\w*\s+for\s+(an?\s+)?(tn|h-?1b|l-?1|e-?3|o-?1|opt|cpt|stem opt|pgwp)\b/g;
+
+function statusFlagsOf(lower: string): StatusFlags {
+  const t = lower.replace(VISA_ELIGIBLE, (m) => " ".repeat(m.length));
+  return {
+    citizen: /\bcitizen(ship)?\b|\bnational\b/.test(t),
+    pr: /\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b/.test(t),
+    student: /\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b/.test(t),
+    sponsoredVisa: /\b(h-?1b|l-?1|e-?3|o-?1|tn)\b/.test(t),
+    permit: /\b(work permit|open work permit|pgwp|post-graduation work permit|ead|employment authori[sz]ation|work visa|opt|cpt)\b/.test(t),
+    affirmative: /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(t),
+  };
+}
+
+const hasStatus = (f: StatusFlags): boolean => f.citizen || f.pr || f.student || f.sponsoredVisa || f.permit || f.affirmative;
+
+/** Inside a clause, the joins between statements about different countries
+ *  ("US citizen and Canadian PR", "authorized in the US via H-1B", "Canadian
+ *  citizen not requiring sponsorship in the US"). */
+const SEGMENT_SPLIT = /\b(and|with|via|plus|not|no|without|never)\b|&|\//g;
+/** Words a segment may hold and still be only a list of countries ("Canadian"
+ *  in "Canadian and American citizen", "the United States"). */
+const LIST_WORDS = new Set(["the", "of", "in", "a", "an", "both", "also", "u", "s", "k", "united", "states", "kingdom", "great", "us", "usa", "uk"]);
+
+/** A segment that names countries and nothing else, so it shares the status
+ *  of the statement next to it. */
+function isCountryList(segment: string): boolean {
+  const words = segment.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
+  return words.length > 0 && words.every((w) => LIST_WORDS.has(w) || countriesIn(w).length > 0);
+}
+
+/**
+ * The status each country is given by its own clause. A clause splits into
+ * segments at "and", "with", "via", "/" and the like; a segment's status
+ * belongs to the countries it names. A segment that is only a list of
+ * countries ("Canadian and American citizen", "...in Canada and the U.S.")
+ * shares the status of the next segment that has one, else of the one before,
+ * within the same clause. A country named in several segments gets the union.
+ */
+function countryStatuses(text: string): Map<string, StatusFlags> {
+  const out = new Map<string, StatusFlags>();
+  const add = (codes: string[], f: StatusFlags): void => {
+    for (const code of codes) {
+      const prev = out.get(code) ?? NO_STATUS;
+      out.set(code, {
+        citizen: prev.citizen || f.citizen,
+        pr: prev.pr || f.pr,
+        student: prev.student || f.student,
+        sponsoredVisa: prev.sponsoredVisa || f.sponsoredVisa,
+        permit: prev.permit || f.permit,
+        affirmative: prev.affirmative || f.affirmative,
+      });
+    }
+  };
+  const lower = text.toLowerCase();
+  const masked = maskAbbreviations(text);
+  const clause = (a: number, b: number): void => {
+    const segs: Array<{ codes: string[]; flags: StatusFlags; list: boolean }> = [];
+    let at = a;
+    const push = (x: number, y: number): void => {
+      const original = text.slice(x, y);
+      segs.push({ codes: countriesIn(original).map((c) => c.code), flags: statusFlagsOf(lower.slice(x, y)), list: isCountryList(original) });
+    };
+    for (const m of masked.slice(a, b).matchAll(SEGMENT_SPLIT)) {
+      push(at, a + (m.index ?? 0));
+      at = a + (m.index ?? 0) + m[0].length;
+    }
+    push(at, b);
+    // The next status to the right of each segment, then the one to the left.
+    const next: Array<StatusFlags | null> = new Array(segs.length).fill(null);
+    let seen: StatusFlags | null = null;
+    for (let i = segs.length - 1; i >= 0; i--) {
+      next[i] = seen;
+      if (hasStatus(segs[i].flags)) seen = segs[i].flags;
+    }
+    let prev: StatusFlags | null = null;
+    segs.forEach((s, i) => {
+      if (s.codes.length > 0) {
+        if (hasStatus(s.flags)) add(s.codes, s.flags);
+        else if (s.list) {
+          const shared = next[i] ?? prev;
+          if (shared) add(s.codes, shared);
+        }
+      }
+      if (hasStatus(s.flags)) prev = s.flags;
+    });
+  };
+  let at = 0;
+  for (const m of masked.matchAll(CLAUSE_BREAK_ALL)) {
+    clause(at, m.index ?? 0);
+    at = (m.index ?? 0) + m[0].length;
+  }
+  clause(at, masked.length);
+  return out;
+}
 
 /** `text` without the [start, end) spans in `cuts` (in order, not
  *  overlapping), each replaced by one space, trimmed. */
