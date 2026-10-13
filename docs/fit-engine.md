@@ -156,6 +156,13 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
   (active, stale or no status) first, then direct before aggregator URLs, newest first, inside its
   existing batch size and 75 s description budget. Reason: an open job with no description reads
   "We couldn't score this" until it is filled, while a closed one can wait.
+- **Linkable trace ids are acceptable for now.** No code change. Reason: no demographic data is
+  collected, so nothing sensitive can be joined (see "Privacy"; revisit before collecting any).
+- **Bulk cards stay band-only.** No code change. Reason: a banked card carries no interval, so its
+  number would read as more precise than it is; the number (or range) belongs in the opened job's
+  breakdown, next to its explanation (D-54 addendum).
+- **No bulk re-import of legacy résumés.** No code change. Reason: D-152's dated-text fallback
+  already scores them; re-extracting is a data task with its own risks.
 
 ## Costs
 
