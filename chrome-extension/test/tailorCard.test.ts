@@ -5,7 +5,7 @@ import type { TailorResult } from "../src/shared/types";
 const result: TailorResult = {
   document: {}, originalScore: 72, newScore: 85, atsScore: 88,
   keywordCoverage: 92, matchedKeywords: ["react"], missingKeywords: ["aws", "docker"],
-  diffSummary: "",
+  diffSummary: "", matchLabel: "Good match",
 };
 
 describe("scoreJumpText", () => {
@@ -14,6 +14,14 @@ describe("scoreJumpText", () => {
   });
   it("shows 'held' when unchanged", () => {
     expect(scoreJumpText(80, 80)).toBe("Match held at 8.0");
+  });
+  it("shows only the new score when there is no before score", () => {
+    expect(scoreJumpText(null, 85)).toBe("Match 8.5");
+  });
+  it("shows the engine's label when there is no new score", () => {
+    expect(scoreJumpText(72, null, "Good match")).toBe("Good match");
+    expect(scoreJumpText(null, null, "We couldn't score this")).toBe("We couldn't score this");
+    expect(scoreJumpText(null, null)).toBe("");
   });
 });
 
@@ -27,6 +35,24 @@ describe("buildTailorCardHtml", () => {
     expect(html).toContain("ap-kw on"); // aws is selected
     // Single primary action: open the PDF preview (regen/download/attach live inside it).
     expect(html).toContain('id="ap-tailor-preview"');
+  });
+  it("never renders null or NaN when the engine gives no number", () => {
+    const html = buildTailorCardHtml(
+      { ...result, originalScore: null, newScore: null, atsScore: null, keywordCoverage: null,
+        matchLabel: "We couldn't score this" },
+      new Set()
+    );
+    expect(html).not.toMatch(/null|NaN|undefined/);
+    expect(html).toContain("We couldn't score this");
+    expect(html).not.toContain("ATS");
+    expect(html).not.toContain("coverage");
+  });
+  it("shows coverage alone when only the score is withheld (band only)", () => {
+    const html = buildTailorCardHtml({ ...result, newScore: null, atsScore: null, keywordCoverage: 40 }, new Set());
+    expect(html).toContain("Good match");
+    expect(html).toContain("40% coverage");
+    expect(html).not.toContain("ATS");
+    expect(html).not.toMatch(/null|NaN/);
   });
   it("omits the keyword row when there are no missing keywords", () => {
     const html = buildTailorCardHtml({ ...result, missingKeywords: [] }, new Set());

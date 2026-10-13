@@ -512,13 +512,16 @@ export interface TailorResumeOpts {
   addKeywords?: string[] | null;
 }
 
-/** Normalized tailor result the overlay renders (camelCase). */
+/** Normalized tailor result the overlay renders (camelCase). Scores are the match engine's
+ * and are null when it shows no number (low confidence, needs review, not eligible). */
 export interface TailorResult {
   document: ResumeDoc;
-  originalScore: number;
-  newScore: number;
-  atsScore: number;
-  keywordCoverage: number;
+  originalScore: number | null;
+  newScore: number | null;
+  atsScore: number | null;
+  keywordCoverage: number | null;
+  /** The engine's band ("Good match") or "We couldn't score this" / "Not eligible". */
+  matchLabel: string;
   matchedKeywords: string[];
   missingKeywords: string[];
   diffSummary: string;

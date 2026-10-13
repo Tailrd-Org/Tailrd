@@ -32,7 +32,21 @@ describe("mapTailorResponse", () => {
     ).toEqual({
       document: doc, originalScore: 60, newScore: 82, atsScore: 78,
       keywordCoverage: 90, matchedKeywords: ["Python"], missingKeywords: ["AWS"],
-      diffSummary: "d",
+      diffSummary: "d", matchLabel: "",
     });
+  });
+
+  it("keeps the engine's null scores null and carries its label", () => {
+    const doc = { header: { name: "Jane" }, sections: [], theme: {} };
+    const out = mapTailorResponse({
+      document: doc, original_overall_score: null, new_overall_score: null,
+      new_ats_score: null, new_keyword_coverage: null, match_label: "We couldn't score this",
+      matched_keywords: [], missing_keywords: [], diff_summary: "",
+    });
+    expect(out.originalScore).toBeNull();
+    expect(out.newScore).toBeNull();
+    expect(out.atsScore).toBeNull();
+    expect(out.keywordCoverage).toBeNull();
+    expect(out.matchLabel).toBe("We couldn't score this");
   });
 });
