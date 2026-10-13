@@ -975,8 +975,8 @@ stands. Unknown stays None.
 engine version, the parse-config version, the combined config hash and the year of the scoring
 date (a requirement's years-since-release clamp reads the year). Any of them changing re-parses a
 posting the next time it is read; a parser fault is an INTERNAL_ERROR review and is never cached.
-Until Task 9.2 removes `local_match`, its `{"v": 1, "top", "tags"}` entries and these share the
-column and would overwrite each other, so 9.2 must switch every reader at once. Because the
+Before Task 9.2, `local_match`'s `{"v": 1, "top", "tags"}` entries and these shared the column,
+so 9.2 switched every reader at once and removed `local_match` (done). Because the
 version holds the year, every cached posting is re-parsed in the first sweeps after 1 January
 (about 47k postings at about 20 ms each, roughly 16 minutes of CPU once a year). The same version
 and the description length form `job_match_scores.posting_key`: a banked score is current only
