@@ -18,7 +18,7 @@ from sqlalchemy.orm import Session
 from backend.db.database import get_db
 from backend.db.models import ScrapedJob, ResumeProfileDB, ResumeVersion, CoverLetter
 from backend.auth.dependencies import get_verified_user_id, verify_cron_secret
-from backend.services.usage_limiter import fit_analysis_guard, llm_guard
+from backend.services.usage_limiter import fit_analysis_guard, llm_guard, match_breakdown_guard
 from backend.services.match_notifier import sweep_match_alerts
 from backend.schemas.match import MatchBreakdown, MatchInterval, MatchItem
 from backend.services import fit_reads
@@ -181,12 +181,13 @@ def breakdown_from_result(detail: dict) -> MatchBreakdown:
 @router.post("/match-breakdown/{job_id}", response_model=MatchBreakdown)
 def match_breakdown(
     job_id: int,
-    user_id: int = Depends(get_verified_user_id),
+    user_id: int = Depends(match_breakdown_guard),
     db: Session = Depends(get_db),
 ):
     """The engine's explanation of how the user's résumé fits a job (DECISIONS D-83).
 
     Deterministic and free: no AI is called, so it never counts against the daily AI limit.
+    It has its own per-user rate limit (match_breakdown_guard, I-5).
     A plain (sync) route, so FastAPI runs it in a worker thread: the first breakdown in a
     process builds the engine (about ten seconds) without blocking the event loop. The result
     is also banked, so the job's card shows the same result as the panel."""

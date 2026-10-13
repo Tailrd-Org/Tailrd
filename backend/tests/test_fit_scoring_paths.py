@@ -426,6 +426,27 @@ def test_the_breakdown_needs_a_resume(db_session, app_client, no_llm):
     assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
 
 
+@pytest.mark.parametrize("bucket", ["MATCH_BREAKDOWN_PER_MINUTE", "MATCH_BREAKDOWN_PER_DAY"])
+def test_the_breakdown_has_its_own_per_user_rate_limit(db_session, app_client, no_llm, monkeypatch, bucket):
+    """60 a minute and 2,000 a day by default (I-5), in a bucket of its own: the analysis
+    routes' bucket is not charged, and the AI quota is never touched (no_llm refuses it)."""
+    from backend.services import usage_limiter
+
+    assert usage_limiter.MATCH_BREAKDOWN_PER_MINUTE == 60
+    assert usage_limiter.MATCH_BREAKDOWN_PER_DAY == 2000
+    monkeypatch.setenv("RATE_LIMIT_ENABLED", "true")
+    monkeypatch.setattr(usage_limiter, bucket, 2)
+    monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_MINUTE", 1)
+    monkeypatch.setattr(usage_limiter, "FIT_ANALYSIS_PER_DAY", 1)
+    _user(db_session)
+    job = _job(db_session)  # no résumé: the route answers 400 after the guard, without the engine
+    assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
+    assert app_client.post(f"/ai/match-breakdown/{job.id}").status_code == 400
+    third = app_client.post(f"/ai/match-breakdown/{job.id}")
+    assert third.status_code == 429
+    assert third.headers.get("Retry-After")
+
+
 def test_the_ai_scoring_endpoints_are_gone(db_session, app_client):
     _user(db_session)
     _resume(db_session)
