@@ -48,7 +48,6 @@ from backend.services.profile_facts import (
     country_of,
     location_facts,
     needs_sponsorship_in,
-    negated_country_scope,
     parse_address,
     polarity_of,
     residence_of,
@@ -870,7 +869,7 @@ def test_the_per_country_map_keeps_the_order_the_countries_were_named():
     assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
     assert a.by_country["US"] == CountryAuth(False, True, "stated")
     b = work_auth_facts(profile(workAuthorization="Authorized to work in Canada and the U.S."))
-    assert list(b.by_country) == ["US", "CA"]  # countries_in order: the US patterns are tried first
+    assert list(b.by_country) == ["CA", "US"]  # the order the bound list names them
 
 
 def test_javascript_regex_semantics_survive_the_port():
@@ -918,6 +917,7 @@ def test_the_facts_copy_pickle_serialise_and_hash():
         },
         "stated_sponsorship": None,
         "unscoped_authorized": None,
+        "sponsorship_unclear": False,
     }
     assert dataclasses.asdict(auth) == as_data
     assert json.loads(json.dumps(dataclasses.asdict(auth))) == as_data
@@ -1105,8 +1105,14 @@ def test_a_negated_country_is_never_authorized():
     assert authorized_in(fixed, "CA", "CA") == Fact(True, "high", "work-auth:statement")
 
 
+def test_a_country_only_named_stays_unknown():
+    """Decide-b round 3 (binding model): "Canada" with no status bound to it is unknown."""
+    a = work_auth_facts(profile(workAuthorization="Canada but not in the US"))
+    assert authorized_in(a, "CA", "CA") is None
+    assert authorized_in(a, "US", "CA") == Fact(False, "high", "work-auth:denied")
+
+
 @pytest.mark.parametrize(("text", "us"), [
-    ("Canada but not in the US", False),
     ("Authorized in Canada, not the US", False),
     ("Authorized to work in Canada, except the US", False),
     ("Yes, in Canada but not the United States", False),
@@ -1135,7 +1141,6 @@ def test_negation_scope_clauses():
     weak = work_auth_facts(profile(workAuthorization="Canadian citizen, not a US citizen"))
     assert weak.by_country["CA"] == CountryAuth(True, False, "citizen")
     assert "US" not in weak.by_country
-    assert negated_country_scope("Canadian citizen, not a US citizen") == ({"US": False}, [], "Canadian citizen,")
 
 
 def test_a_status_belongs_to_the_countries_of_its_own_clause():

@@ -25,13 +25,17 @@ describe("a negated country is never authorized", () => {
   const cases: Array<[string, boolean | null]> = [
     // [statement, what the US must read as]
     ["Authorized to work in Canada but not in the US", false],
-    ["Canada but not in the US", false],
     ["Authorized in Canada, not the US", false],
     ["Authorized to work in Canada, except the US", false],
     ["Yes, in Canada but not the United States", false],
     ["Authorized to work only in Canada", null],
     ["Only in Canada", null],
   ];
+  it("a country only named, with no status bound to it, stays unknown (decide-b round 3)", () => {
+    const a = workAuthFacts(profile({ workAuthorization: "Canada but not in the US" }));
+    expect(authorizedIn(a, "CA", "CA")).toBeNull();
+    expect(authorizedIn(a, "US", "CA")).toMatchObject({ value: false, confidence: "high" });
+  });
   for (const [text, us] of cases) {
     it(`"${text}": Canada yes, the US ${us === false ? "no" : "unknown"}`, () => {
       const a = workAuthFacts(profile({ workAuthorization: text }));

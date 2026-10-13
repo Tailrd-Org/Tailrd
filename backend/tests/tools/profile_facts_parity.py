@@ -356,6 +356,11 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "via", "plus", "&", "TN eligible", "eligible for H-1B", "OPT eligible", "Canadian and American citizen",
     "US resident", "U.S. Citizen", "U.S. I am", "U.S.A. citizen", "Citizen of Canada", "both", "Permanent",
     "I am", "Work",
+    # Binding model (decide-b round 3): labelled answers, marks, residence words, visa intent.
+    "Yes for", "no for", "?", chr(0x2705), chr(0x274C), chr(10), "|", " / ", " - ", "living in", "residing in", "based",
+    "US-based", "dual citizen", "PR card", "GC", "perm res", "only", "Canada: Yes", "US: No", "applying for",
+    "waiting on", "starting", "would need sponsorship", "need visa", "for us", "us citizen", "the states",
+    "citizen of", "Latin American", "North American",
 ]
 
 EXOTIC_WORDS = [

@@ -21,10 +21,12 @@
  */
 import type { UserApplicationProfile } from "../shared/types";
 import {
+  COUNTRIES,
   countryByCode,
   countryFromName,
   countryHintForCity,
   findPostalCode,
+  geoNorm,
   regionFromText,
   type Country,
   type Region,
@@ -278,6 +280,9 @@ export interface WorkAuthFacts {
   statedSponsorship: boolean | null;
   /** A statement that named NO country ("Yes", "Authorized to work"). */
   unscopedAuthorized: boolean | null;
+  /** The applicant wrote a sponsorship answer that reads neither Yes nor No
+   *  ("No for Canada, yes for US"): nothing may be inferred in its place. */
+  sponsorshipUnclear?: boolean;
 }
 
 /** "N/A" and its spellings, read against a trimmed, lowercased answer. */
@@ -300,10 +305,13 @@ export function polarityOf(text: string): boolean | null {
   if (/^(no|n|false|non|none|not)\b/.test(t)) {
     // "Not yet", "Not currently, but I will", "Not required now but will be
     // after OPT": a No today that turns into a Yes later, so neither.
-    if (/^not (yet|currently|presently|now|at the moment|right now)\b/.test(t) && FUTURE_WORDS.test(t)) return null;
-    if (/^not yet\b/.test(t)) return null;
-    const contrast = t.search(/\b(but|however|until|though)\b/);
-    if (contrast >= 0 && FUTURE_WORDS.test(t.slice(contrast))) return null;
+    // "Not at the moment", "Not right now": only about today.
+    if (/^not (yet|currently|presently|now|at the moment|right now|at this time|for now)\b/.test(t)) return null;
+    // "No (will need after OPT)", "No, until my OPT ends", "No for Canada,
+    // yes for US": a later need or a later Yes. "No, I will not need it in
+    // the future" stays a No.
+    if (/\buntil\b/.test(t) || /\byes\b/.test(t.slice(2))) return null;
+    if (FUTURE_WORDS.test(t) && !/\b(will not|won't|never)\b/.test(t)) return null;
     return false;
   }
   if (/\b(will not|won't|do not|don't|does not|doesn't|no longer|never)\s+(need|require)/.test(t)) return false;
@@ -363,121 +371,99 @@ export function countriesIn(text: string): Country[] {
  *   "Yes"                                      unscoped: authorized
  */
 export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
-  const fullText = (profile.workAuthorization || "").trim();
+  const text = (profile.workAuthorization || "").trim();
   const byCountry = new Map<string, CountryAuth>();
   const statedSponsorship = polarityOf(profile.requiresSponsorship || "");
-  let unscopedAuthorized: boolean | null = null;
+  const sponsorshipUnclear = (profile.requiresSponsorship || "").trim() !== "" && statedSponsorship === null;
+  const reading = readWorkAuth(text);
 
-  // "Canada but not in the US": the negated clause names countries that are
-  // never authorized, and the rest of the sentence is read without it, so the
-  // status it states belongs only to the countries named positively.
-  const scope = negatedCountryScope(fullText);
-  const text = scope.positiveText;
-  const lower = text.toLowerCase();
-  // An outright exclusion drops the country; "not a US citizen" keeps it when
-  // the rest still names it ("...but have a green card"), only not as a
-  // citizen there. A country that needs sponsorship is set apart below.
-  const countries = countriesIn(text).filter((c) => scope.negated.get(c.code) !== true && !scope.sponsored.has(c.code));
-  // A statement that limits itself ("only in Canada", "but not the US") is an
-  // authorization statement for the countries it keeps, and so is one that
-  // sets a country apart for sponsorship ("Authorized in Canada; US requires
-  // sponsorship").
-  const scoped = scope.negated.size > 0 || scope.sponsored.size > 0 || /\bonly\b/.test(lower);
-  const set = (code: string, a: CountryAuth): void => {
-    byCountry.set(code, a);
-  };
-
-  const all = statusFlagsOf(lower);
-  // "Not a citizen" denies nothing for a permanent resident, who is
-  // authorized without being one ("US permanent resident, not a citizen").
-  const denied =
-    /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b/.test(lower) ||
-    (!all.pr && /\bnot a (citizen|resident)\b/.test(lower));
-  const bareYes = polarityOf(text);
-
-  if (countries.length === 0 && scope.negated.size === 0 && scope.sponsored.size === 0) {
+  if (reading.mentioned.size === 0) {
+    // No country anywhere: the statement is about wherever the applicant is
+    // (a bare "Yes", "Citizen", "Not authorized").
+    const lower = text.toLowerCase();
+    const all = statusFlagsOf(maskVisaIntent(maskAbbreviations(text)));
+    const denied =
+      /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b/.test(lower) ||
+      (!all.pr && /\bnot a (citizen|resident)\b/.test(lower));
+    // "No sponsorship needed" is not a No to being authorized.
+    const bareYes = /\bsponsor/.test(lower) ? null : polarityOf(text);
+    let unscopedAuthorized: boolean | null = null;
     if (denied || bareYes === false) unscopedAuthorized = false;
     else if (all.affirmative || bareYes === true || all.citizen || all.pr) unscopedAuthorized = true;
     applyExplicitCountries(profile, byCountry);
-    return { byCountry, statedSponsorship, unscopedAuthorized };
+    return { byCountry, statedSponsorship, unscopedAuthorized, sponsorshipUnclear };
   }
 
-  // Each country gets the status of its own clause ("US citizen and Canadian
-  // permanent resident"), never one stated for another country.
-  const statusByCountry = countryStatuses(text);
-  for (const c of countries) {
-    const f = statusByCountry.get(c.code) ?? NO_STATUS;
-    const citizenHere = f.citizen && !scope.negated.has(c.code);
-    if (denied) set(c.code, { authorized: false, needsSponsorship: null, basis: "denied" });
-    else if (citizenHere && !f.pr && !f.student && !f.permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "citizen" });
-    else if (f.pr && !f.student && !f.permit) set(c.code, { authorized: true, needsSponsorship: false, basis: "permanent_resident" });
-    else if (f.sponsoredVisa) set(c.code, { authorized: true, needsSponsorship: true, basis: "work_permit" });
-    else if (f.student) set(c.code, { authorized: null, needsSponsorship: null, basis: "student" });
-    else if (f.permit) set(c.code, { authorized: true, needsSponsorship: null, basis: "work_permit" });
-    else if (f.affirmative || bareYes === true || scoped) set(c.code, { authorized: true, needsSponsorship: null, basis: "statement" });
+  for (const [code, f] of reading.bound) {
+    const citizen = f.citizen && !f.notCitizen;
+    let auth: CountryAuth | null = null;
+    if (f.deny) auth = { authorized: false, needsSponsorship: null, basis: "denied" };
+    else if (citizen && !f.pr && !f.student && !f.permit) auth = { authorized: true, needsSponsorship: false, basis: "citizen" };
+    else if (f.pr && !f.student && !f.permit) auth = { authorized: true, needsSponsorship: false, basis: "permanent_resident" };
+    else if (f.sponsoredVisa) auth = { authorized: true, needsSponsorship: true, basis: "work_permit" };
+    else if (f.student) auth = { authorized: null, needsSponsorship: null, basis: "student" };
+    else if (f.permit) auth = { authorized: true, needsSponsorship: null, basis: "work_permit" };
+    else if (f.affirmative) auth = { authorized: true, needsSponsorship: null, basis: "statement" };
+    // "I would require sponsorship to work in the US": sponsorship is needed
+    // there; whether they are authorized today is not said.
+    if (f.sponsored && !(auth && SETTLED.has(auth.basis))) auth = { ...(auth ?? { authorized: null, basis: "statement" }), needsSponsorship: true };
+    if (auth) byCountry.set(code, auth);
   }
-  // A country the sentence excludes outright ("not in the US", "except the
-  // US") is a No. One it only says the applicant is not a citizen of ("not a
-  // US citizen") stays unknown: a green card holder says that too.
-  for (const [code, outright] of scope.negated) {
-    if (outright) set(code, { authorized: false, needsSponsorship: null, basis: "denied" });
-  }
-  // "I would require sponsorship to work in the US": not a citizen there, and
-  // sponsorship is needed; whether they are authorized today is not said.
-  for (const code of scope.sponsored) {
-    if (scope.negated.get(code) !== true) set(code, { authorized: null, needsSponsorship: true, basis: "statement" });
+  // "Would need sponsorship" with no country: never where the applicant is a
+  // citizen or permanent resident; otherwise every country they name.
+  if (reading.sponsorshipNoCountry) {
+    for (const code of reading.mentioned) {
+      const auth = byCountry.get(code);
+      if (auth && SETTLED.has(auth.basis)) continue;
+      byCountry.set(code, { ...(auth ?? { authorized: null, basis: "statement" }), needsSponsorship: true });
+    }
   }
   applyExplicitCountries(profile, byCountry);
-  return { byCountry, statedSponsorship, unscopedAuthorized };
+  return { byCountry, statedSponsorship, unscopedAuthorized: null, sponsorshipUnclear };
 }
 
-/** A negation's reach ends at the next clause. "and" ends it only before a new
- *  statement ("not in the US and authorized in Canada"); between two countries
- *  ("not in the US and the UK") it keeps both negated. */
-const CLAUSE_BREAK =
-  /[,;.!?()]|\b(but|however|whereas|while|although|though|yet)\b|\band\s+(?=(i|am|is|authori[sz]ed|eligible|entitled|permitted|allowed|legally|can|have|hold|a|an)\b)/;
-/**
- * Words that put the countries after them outside the statement, in four
- * kinds (decide-b review I-1, I-5, M-2):
- *   uncertain  "not sure about", "unsure": the country is unknown, never a No
- *   noun       "no", "without", "don't have": only before a work-right noun
- *              ("no US work authorization", not "no restrictions in the US")
- *   verb       "cannot", "can't", "unable": only about working there
- *   plain      "not", "never", "except", "excluding", "other than", "outside",
- *              "ineligible", "unauthorized"; "not only" is no negation
- */
-const NEGATION =
-  /\b(not\s+(?:sure|certain|clear|positive)|unsure|do(?:n['’]?t|\s+not)\s+have|no|without|cannot|can['’]?t|unable|ineligible|unauthori[sz]ed|not(?!\s+only\b)|never|except|excluding|other than|outside(?: of)?)\b/g;
-const UNCERTAIN_NEGATION = /^(not\s+(sure|certain|clear|positive)|unsure)$/;
-const NOUN_NEGATION = /^(no|without)$|^do/;
-const VERB_NEGATION = /^(cannot|unable|can['’]?t)$/;
-const WORK_RIGHT_NOUN = /\b(authori[sz]ation|authori[sz]ed|permit|status|right to work|visa|eligib\w*)\b/;
-const WORK_VERB = /\b(work|employ\w*|be hired|be employed)\b/;
-/** "not yet authorized", "not currently eligible": the adverb is part of the negation. */
-const NEGATION_ADVERB = /^\s*(yet|currently|presently)\b/;
-/** A negated clause about sponsorship ("not requiring sponsorship in the US")
- *  says nothing against the country's authorization. */
-const SPONSORSHIP_WORDS = /\b(sponsor\w*|requir\w*|need\w*)\b/;
-/** A clause that is about a status in the country, not the country itself:
- *  "not a US citizen", "not Canadian". */
-const STATUS_IN_COUNTRY =
-  /\b(citizen\w*|national|resident|canadian|american|british|english|scottish|mexican|german|french|indian|chinese|irish|spanish|italian|swiss|austrian|iranian|polish|dutch|greek|turkish|israeli|pakistani|korean|japanese|australian|brazilian|nigerian|kenyan|egyptian|moroccan|ghanaian)\b/;
-/** A denial inside one clause, after the country ("US not authorized",
- *  "US work authorization: no", "US: no"). */
-const CLAUSE_DENIAL =
-  /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|:\s*(no|none)\b|\b(no|not)\s*$/;
-/** A clause that says sponsorship is needed ("I would require sponsorship to work in the US"). */
-const SPONSORSHIP_NEEDED =
-  /\b(would|will|do|does|shall|i)\s+(need|require)\b|\b(needs?|requires?|requiring)\s+(an?\s+)?(visa\s+|work\s+)?sponsorship\b/;
-const NEGATED_WORDS = /\b(not|no|never|without)\b|n['’]t\b/;
-/** A status still being decided ("US authorization pending"). */
-const PENDING = /\b(pending|in progress|applied for|processing)\b/;
+/** A status that settles sponsorship for the country (none needed), or a No. */
+const SETTLED = new Set<AuthBasis>(["citizen", "permanent_resident", "denied"]);
+
+/** What the text binds to one country. */
+interface Bound {
+  citizen: boolean;
+  notCitizen: boolean;
+  pr: boolean;
+  student: boolean;
+  sponsoredVisa: boolean;
+  permit: boolean;
+  affirmative: boolean;
+  deny: boolean;
+  sponsored: boolean;
+}
+type BoundKey = keyof Bound;
+
+/** The work-right statuses a piece of text states, with no country. */
+interface StatusFlags {
+  citizen: boolean;
+  pr: boolean;
+  student: boolean;
+  sponsoredVisa: boolean;
+  permit: boolean;
+  affirmative: boolean;
+}
+
+function statusFlagsOf(t: string): StatusFlags {
+  return {
+    citizen: /\bcitizen(ship)?\b|\bnational\b/.test(t),
+    pr: /\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b/.test(t),
+    student: /\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b/.test(t),
+    sponsoredVisa: /\b(h-?1b|l-?1|e-?3|o-?1|tn)\b/.test(t),
+    permit: /\b(work permit|open work permit|pgwp|post-graduation work permit|ead|employment authori[sz]ation|work visa|opt|cpt)\b/.test(t),
+    affirmative: /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(t),
+  };
+}
 
 /**
  * The lowercase text with the periods inside an abbreviation ("u.s.", "u. s.",
- * "u.s.a.", "u.k.") turned into "_", so a period ends a clause only where a
- * sentence does (decide-b review C-1). Same length, so indices still match the
- * original text.
+ * "u.s.a.", "u.k.") turned into "_", so a period ends a unit only where a
+ * sentence does. Same length, so indices still match the original text.
  *
  * The last period of a dotted abbreviation ends a sentence only when a new
  * one starts after it, which the ORIGINAL text shows by a capital: "Not
@@ -496,224 +482,340 @@ function maskAbbreviations(text: string): string {
 }
 
 /** Words that continue a phrase after "U.S." ("U.S. Citizen", "U.S. Permanent Resident"). */
-const ABBREVIATION_CONTINUES = /^\s+(citizen\w*|national\w*|resident\w*|permanent|green|work\w*|visa|employment|employer\w*|passport|person|government|based|company|companies)\b/;
+const ABBREVIATION_CONTINUES =
+  /^\s+(citizen\w*|national\w*|resident\w*|permanent|green|work\w*|visa|employment|employer\w*|passport|person|government|based|company|companies)\b/;
 
-/**
- * Split a work-authorization statement into the countries it negates and the
- * text that is left. Each negation word reaches to the next clause break:
- *
- *   "Authorized to work in Canada but not in the US"  negated US (outright)
- *   "Not authorized to work in the US, but in Canada"  negated US (outright)
- *   "Canadian citizen, not a US citizen"               negated US (not outright)
- *
- * "Outright" means the clause excludes the country itself, not a status in it
- * ("not a ... citizen / resident"), so the country is a No and not unknown.
- */
-export function negatedCountryScope(text: string): { negated: Map<string, boolean>; sponsored: Set<string>; positiveText: string } {
-  const negated = new Map<string, boolean>();
-  const sponsored = new Set<string>();
-  const mark = (named: Country[], outright: boolean): void => {
-    for (const c of named) negated.set(c.code, (negated.get(c.code) ?? false) || outright);
-  };
-
-  // Pass 1: a negation word reaches forward to the next clause break.
-  const lower = maskAbbreviations(text);
-  const cuts: Array<[number, number]> = [];
-  const matches = [...lower.matchAll(NEGATION)];
-  matches.forEach((m, i) => {
-    const word = m[0];
-    let from = (m.index ?? 0) + word.length;
-    // A clause also ends at the next negation, which starts its own: the
-    // clauses never overlap, so a long run of negations stays linear.
-    const limit = i + 1 < matches.length ? (matches[i + 1].index ?? lower.length) : lower.length;
-    const adverb = NEGATION_ADVERB.exec(lower.slice(from, limit));
-    if (adverb) from += adverb[0].length;
-    const window = lower.slice(from, limit);
-    const brk = window.search(CLAUSE_BREAK);
-    const to = from + (brk >= 0 ? brk : window.length);
-    const clause = lower.slice(from, to);
-    const uncertain = UNCERTAIN_NEGATION.test(word);
-    if (!uncertain && SPONSORSHIP_WORDS.test(clause)) return;
-    if (NOUN_NEGATION.test(word) && !WORK_RIGHT_NOUN.test(clause)) return;
-    if (VERB_NEGATION.test(word) && !WORK_VERB.test(clause)) return;
-    // Same indices in the original text: countriesIn reads "US" by its capitals.
-    const named = countriesIn(text.slice(from, to));
-    if (named.length === 0) return;
-    const outright = !uncertain && !/^\s*(an?|the applicant an?)\s/.test(clause) && !STATUS_IN_COUNTRY.test(clause);
-    mark(named, outright);
-    cuts.push([m.index ?? 0, to]);
-  });
-  const positive = joinKept(text, cuts);
-
-  // Pass 2: inside each remaining clause, a denial after the country ("US
-  // not authorized") or a need for sponsorship ("I would require sponsorship
-  // to work in the US") belongs to the countries of that clause only.
-  const plower = maskAbbreviations(positive);
-  const cuts2: Array<[number, number]> = [];
-  const clauseAt = (a: number, b: number): void => {
-    const clause = plower.slice(a, b);
-    if (CLAUSE_DENIAL.test(clause)) {
-      const named = countriesIn(positive.slice(a, b));
-      if (named.length === 0) return;
-      mark(named, true);
-      cuts2.push([a, b]);
-      return;
+/** Every key that names a country: names and aliases of four letters or more,
+ *  "us", "usa", "uk", "uae" and "the states", longest first. */
+const COUNTRY_KEYS: string[] = (() => {
+  const keys = new Set<string>();
+  for (const c of COUNTRIES) {
+    for (const k of [c.name, ...c.aliases]) {
+      const n = geoNorm(k);
+      if (n === "states") continue;
+      if (n.length >= 4 || n === "us" || n === "usa" || n === "uk" || n === "uae") keys.add(n);
     }
-    // "US authorization pending": not known yet, so neither Yes nor No there.
-    if (PENDING.test(clause)) {
-      const named = countriesIn(positive.slice(a, b));
-      if (named.length === 0) return;
-      mark(named, false);
-      cuts2.push([a, b]);
-      return;
-    }
-    const need = SPONSORSHIP_NEEDED.exec(clause);
-    if (need && !NEGATED_WORDS.test(clause)) {
-      // The countries after the need ("...to work in the US"), else the
-      // clause's own ("US requires sponsorship").
-      let start = a + need.index;
-      let named = countriesIn(positive.slice(start, b));
-      if (named.length === 0) {
-        start = a;
-        named = countriesIn(positive.slice(a, b));
-      }
-      if (named.length === 0) return;
-      for (const c of named) sponsored.add(c.code);
-      cuts2.push([start, b]);
-    }
-  };
-  let at = 0;
-  for (const m of plower.matchAll(CLAUSE_BREAK_ALL)) {
-    clauseAt(at, m.index ?? 0);
-    at = (m.index ?? 0) + m[0].length;
   }
-  clauseAt(at, plower.length);
-  return { negated, sponsored, positiveText: joinKept(positive, cuts2) };
+  keys.add("the states");
+  return [...keys].sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0));
+})();
+/** A key as a pattern. "America" is the US only when no continent word
+ *  precedes it ("North America", "Latin American"). */
+function keySource(k: string): string {
+  const src = k.replace(/ /g, "\\s+");
+  return k === "america" || k === "american" ? `(?<!north\\s)(?<!south\\s)(?<!latin\\s)(?<!central\\s)${src}` : src;
 }
-
-const CLAUSE_BREAK_ALL = new RegExp(CLAUSE_BREAK.source, "g");
-
-/** The work-right statuses a piece of text states. */
-interface StatusFlags {
-  citizen: boolean;
-  pr: boolean;
-  student: boolean;
-  sponsoredVisa: boolean;
-  permit: boolean;
-  affirmative: boolean;
-}
-const NO_STATUS: StatusFlags = { citizen: false, pr: false, student: false, sponsoredVisa: false, permit: false, affirmative: false };
-
-/** Being eligible for a visa is not holding it ("TN eligible", "eligible for H-1B"). */
-const VISA_ELIGIBLE =
-  /\b(tn|h-?1b|l-?1|e-?3|o-?1|opt|cpt|stem opt|pgwp)\s+eligib\w*|\beligib\w*\s+for\s+(an?\s+)?(tn|h-?1b|l-?1|e-?3|o-?1|opt|cpt|stem opt|pgwp)\b/g;
-
-function statusFlagsOf(lower: string): StatusFlags {
-  const t = lower.replace(VISA_ELIGIBLE, (m) => " ".repeat(m.length));
-  return {
-    citizen: /\bcitizen(ship)?\b|\bnational\b/.test(t),
-    pr: /\bpermanent resident\b|\bgreen card\b|\blanded immigrant\b|\blawful permanent\b|\bpr\b/.test(t),
-    student: /\b(student visa|study permit|f-?1|j-?1|m-?1|international student)\b/.test(t),
-    sponsoredVisa: /\b(h-?1b|l-?1|e-?3|o-?1|tn)\b/.test(t),
-    permit: /\b(work permit|open work permit|pgwp|post-graduation work permit|ead|employment authori[sz]ation|work visa|opt|cpt)\b/.test(t),
-    affirmative: /\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able|right) to work\b|\bcan (legally )?work\b/.test(t),
-  };
-}
-
-const hasStatus = (f: StatusFlags): boolean => f.citizen || f.pr || f.student || f.sponsoredVisa || f.permit || f.affirmative;
-
-/** Inside a clause, the joins between statements about different countries
- *  ("US citizen and Canadian PR", "authorized in the US via H-1B", "Canadian
- *  citizen not requiring sponsorship in the US"). */
-const SEGMENT_SPLIT = /\b(and|with|via|plus|not|no|without|never)\b|&|\//g;
-/** Words a segment may hold and still be only a list of countries ("Canadian"
- *  in "Canadian and American citizen", "the United States"). */
-const LIST_WORDS = new Set(["the", "of", "in", "a", "an", "both", "also", "u", "s", "k", "united", "states", "kingdom", "great", "us", "usa", "uk"]);
-
-/** A segment that names countries and nothing else, so it shares the status
- *  of the statement next to it. */
-function isCountryList(segment: string): boolean {
-  const words = segment.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim().split(" ").filter(Boolean);
-  return words.length > 0 && words.every((w) => LIST_WORDS.has(w) || countriesIn(w).length > 0);
-}
-
-/**
- * The status each country is given by its own clause. A clause splits into
- * segments at "and", "with", "via", "/" and the like; a segment's status
- * belongs to the countries it names. A segment that is only a list of
- * countries ("Canadian and American citizen", "...in Canada and the U.S.")
- * shares the status of the next segment that has one, else of the one before,
- * within the same clause. A country named in several segments gets the union.
- */
-function countryStatuses(text: string): Map<string, StatusFlags> {
-  const out = new Map<string, StatusFlags>();
-  const add = (codes: string[], f: StatusFlags): void => {
-    for (const code of codes) {
-      const prev = out.get(code) ?? NO_STATUS;
-      out.set(code, {
-        citizen: prev.citizen || f.citizen,
-        pr: prev.pr || f.pr,
-        student: prev.student || f.student,
-        sponsoredVisa: prev.sponsoredVisa || f.sponsoredVisa,
-        permit: prev.permit || f.permit,
-        affirmative: prev.affirmative || f.affirmative,
-      });
+const COUNTRY_ALT = `(?:u_\\s?s(?:_\\s?a)?_?|u_\\s?k_?|${COUNTRY_KEYS.map(keySource).join("|")})`;
+/** One country name; LIST is several joined by "and", "or", "&", "/", "+". */
+const C = `\\b${COUNTRY_ALT}\\b`;
+const LIST = `${C}(?:\\s*(?:&|\\/|\\+|\\band\\b|\\bor\\b)\\s*(?:the\\s+)?${C})*`;
+const COUNTRY_RE = new RegExp(C, "g");
+/** In the text the patterns read, every country name is replaced by a run of
+ *  MARK of the same length (so indices still match): the patterns then test
+ *  one character class instead of every name, which keeps them linear. */
+const MARK = "§";
+const M = `${MARK}+`;
+const MLIST = `${M}(?:\\s*(?:&|\\/|\\+|\\band\\b|\\bor\\b)\\s*(?:the\\s+)?${M})*`;
+/** Demonyms ("canadian"): "not Canadian" is about citizenship, not a work denial. */
+const DEMONYMS: Set<string> = (() => {
+  const out = new Set<string>(["swiss", "greek", "filipino", "kiwi"]);
+  for (const c of COUNTRIES) {
+    const name = geoNorm(c.name);
+    for (const a of c.aliases) {
+      const n = geoNorm(a);
+      if (n !== name && /(an|ish|ese|i|ch)$/.test(n)) out.add(n);
     }
-  };
-  const lower = text.toLowerCase();
-  const masked = maskAbbreviations(text);
-  const clause = (a: number, b: number): void => {
-    const segs: Array<{ codes: string[]; flags: StatusFlags; list: boolean }> = [];
-    let at = a;
-    const push = (x: number, y: number): void => {
-      const original = text.slice(x, y);
-      segs.push({ codes: countriesIn(original).map((c) => c.code), flags: statusFlagsOf(lower.slice(x, y)), list: isCountryList(original) });
-    };
-    for (const m of masked.slice(a, b).matchAll(SEGMENT_SPLIT)) {
-      push(at, a + (m.index ?? 0));
-      at = a + (m.index ?? 0) + m[0].length;
-    }
-    push(at, b);
-    // The next status to the right of each segment, then the one to the left.
-    const next: Array<StatusFlags | null> = new Array(segs.length).fill(null);
-    let seen: StatusFlags | null = null;
-    for (let i = segs.length - 1; i >= 0; i--) {
-      next[i] = seen;
-      if (hasStatus(segs[i].flags)) seen = segs[i].flags;
-    }
-    let prev: StatusFlags | null = null;
-    segs.forEach((s, i) => {
-      if (s.codes.length > 0) {
-        if (hasStatus(s.flags)) add(s.codes, s.flags);
-        else if (s.list) {
-          const shared = next[i] ?? prev;
-          if (shared) add(s.codes, shared);
-        }
-      }
-      if (hasStatus(s.flags)) prev = s.flags;
-    });
-  };
-  let at = 0;
-  for (const m of masked.matchAll(CLAUSE_BREAK_ALL)) {
-    clause(at, m.index ?? 0);
-    at = (m.index ?? 0) + m[0].length;
   }
-  clause(at, masked.length);
   return out;
+})();
+
+/** The country a matched key names. */
+function codeOfKey(match: string): string | null {
+  const key = match.replace(/_/g, " ").replace(/\s+/g, " ").trim();
+  if (key === "the states") return "US";
+  return countryFromName(key)?.code ?? null;
 }
 
-/** `text` without the [start, end) spans in `cuts` (in order, not
- *  overlapping), each replaced by one space, trimmed. */
-function joinKept(text: string, cuts: Array<[number, number]>): string {
-  const kept: string[] = [];
-  let at = 0;
-  for (const [a, b] of cuts) {
-    kept.push(text.slice(at, a));
-    at = b;
-  }
-  kept.push(text.slice(at));
-  return kept.join(" ").trim();
+/** Visas and statuses that only exist in one country. */
+const VISA = "h-?1-?b|tn|l-?1a?|e-?3|o-?1|ead|stem\\s+opt|opt|cpt|f-?1|j-?1|m-?1|green\\s*card|gc|pgwp|pr|permanent\\s+residen(?:ce|cy|t)|work\\s+permit|citizenship";
+/** Needing, applying for or waiting on a visa is not holding it ("need TN",
+ *  "applying for OPT", "TN eligible", "OPT starting May", "pending green card
+ *  application"). Masked with spaces before statuses are read. */
+const VISA_INTENT = new RegExp(
+  `\\b(?:need|needs|needed|require|requires|required|would\\s+need|will\\s+need|will\\s+get|will\\s+apply\\s+for|apply\\s+for|applying\\s+for|applied\\s+for|waiting\\s+(?:on|for)|awaiting|hoping\\s+(?:to\\s+get|for)|eligible\\s+for|pending)\\s+(?:an?\\s+|my\\s+|the\\s+)?(?:(?:the\\s+)?${LIST}\\s+)?(?:${VISA})\\b(?:\\s+(?:visa|status|application|approval|petition))?` +
+    `|\\b(?:${VISA})\\s+(?:eligible|eligibility|application|approval|petition|pending|in\\s+progress|processing|starting|begins?|start\\s+date)\\b`,
+  "g"
+);
+
+function maskVisaIntent(norm: string): string {
+  return norm.replace(VISA_INTENT, (m) => " ".repeat(m.length));
 }
+
+/** Ends of a unit. The weak ones (comma, spaced dash, brackets, colon) still
+ *  let a bare answer and a bare country list pair up ("Yes, Canada"). */
+const UNIT_BREAK = /\r\n|\n|\r|;|\||\.(?=\s|$)|!|\?|,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s|\s\/\s|\b(?:but|however|whereas|while|although|though)\b/g;
+const WEAK_BREAK = /^(?:,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s)$/;
+const ANSWER_WORD = /^\s*(?:(yes|y|yeah|yep|oui|si|[\u2705\u2714\u2611\u2713])|(no|n|nope|non|[\u274c\u2717\u2718\u2716]))\s*$/;
+const PURE_LIST = new RegExp(`^\\s*(?:(?:only\\s+)?(?:in|for)\\s+)?(?:the\\s+)?(${MLIST})\\s*(?:only\\s*)?$`, "d");
+const STATUS_ONLY_CITIZEN = /\b(?:dual\s+)?citizen\w*\b|\bnationals?\b/;
+const STATUS_ONLY_PR = /\bpermanent\s+resident\w*|\bperm(?:anent)?\.?\s+res\w*|\bpr\b/;
+const STATUS_ONLY_PERMIT = /\b(?:open\s+)?work\s+(?:permit|visa)\b/;
+const SPONSOR_NEED = /\b(?:need|needs|require|requires|requiring|would\s+need|will\s+need|would\s+require|will\s+require)\s+(?:a\s+|an\s+)?(?:visa\s+|work\s+)?(?:sponsorship|sponsor|visa)\b/;
+const SPONSOR_NEGATED =
+  /\b(?:not|no|never|without|do\s+not|does\s+not|will\s+not|don['\u2019]?t|doesn['\u2019]?t|won['\u2019]?t)\s+(?:\w+\s+){0,2}?(?:need|require|requiring|sponsor)/;
+
+/** Global, with the start and end of every group (the list's countries). */
+const R = (src: string): RegExp => new RegExp(src, "gd");
+const MARK_RUN = new RegExp(M, "g");
+const YES_MARK = "[\\u2705\\u2714\\u2611\\u2713]";
+const NO_MARK = "[\\u274c\\u2717\\u2718\\u2716]";
+const AUTH_ADJ = "(?:authori[sz]ed|eligible|entitled|permitted|allowed|legally\\s+able|able|free|cleared)";
+const AUTH_NOUN = "(?:authori[sz]ation|auth|permit|status|visa|eligibility)";
+
+/** Patterns, in the order they are read. `L` is the list group; `kind` what it binds. */
+const POSTFIX_PATTERNS: Array<[RegExp, BoundKey]> = [
+  // "Canada: yes", "Canada yes", "US work authorization: no", "US \u274c", "US not authorized"
+  [R(`(${MLIST})\\s*(?:work\\s+(?:authori[sz]ation|auth|permit)\\s*)?(?::|-|\\u2013)?\\s*(?:\\b(?:yes|oui)\\b|${YES_MARK})`), "affirmative"],
+  [R(`(${MLIST})\\s*(?:work\\s+(?:authori[sz]ation|auth|permit)\\s*)?(?::|-|\\u2013)?\\s*(?:\\bno\\b|\\bnot\\s+(?:legally\\s+)?(?:authori[sz]ed|eligible|allowed|permitted)\\b|${NO_MARK})`), "deny"],
+];
+const PREFIX_ANSWER_PATTERNS: Array<[RegExp, BoundKey]> = [
+  // "Yes for Canada", "\u2705 Canadian citizen", "no for US", "\u274c US"
+  [R(`(?:\\b(?:yes|oui)\\b|${YES_MARK})\\s*(?:[:\\-\\u2013]\\s*)?(?:(?:for|in)\\s+)?(?:the\\s+)?(${MLIST})`), "affirmative"],
+  [R(`(?:\\bno\\b|${NO_MARK})\\s*(?:[:\\-\\u2013]\\s*)?(?:(?:for|in)\\s+)?(?:the\\s+)?(${MLIST})`), "deny"],
+];
+const PATTERNS: Array<[RegExp, BoundKey]> = [
+  // Denials.
+  [R(`\\b(?:not|never)\\s+(?:(?:yet|currently|presently)\\s+)?(?:legally\\s+)?${AUTH_ADJ}\\s+(?:\\(?yet\\)?\\s+)?(?:to\\s+(?:legally\\s+)?work\\s+)?(?:(?:in|for|within)\\s+)?(?:the\\s+)?(${MLIST})`), "deny"],
+  [R(`\\b(?:except|excluding|other\\s+than|outside(?:\\s+of)?)\\s+(?:for\\s+)?(?:in\\s+)?(?:the\\s+)?(${MLIST})`), "deny"],
+  [R(`(?:\\bcannot|\\bcan['\\u2019]?t|\\bcan\\s+not|\\bunable\\s+to|\\bnot\\s+able\\s+to)\\s+(?:legally\\s+)?work\\s+(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "deny"],
+  [R(`\\b(?:ineligible|unauthori[sz]ed)\\s+(?:to\\s+work\\s+)?(?:(?:in|for)\\s+)?(?:the\\s+)?(${MLIST})`), "deny"],
+  [R(`(?:\\bno|\\bwithout|\\b(?:do|does)\\s+not\\s+have|\\b(?:don|doesn)['\\u2019]?t\\s+have|${NO_MARK})\\s*(?:an?\\s+|any\\s+)?(?:the\\s+)?(${MLIST})\\s+(?:work\\s+)?${AUTH_NOUN}`), "deny"],
+  [R(`(?:\\bno|\\bwithout|\\b(?:do|does)\\s+not\\s+have|\\b(?:don|doesn)['\\u2019]?t\\s+have)\\s+(?:an?\\s+|any\\s+)?(?:work\\s+)?(?:authori[sz]ation|permit|right|status)\\s+(?:to\\s+work\\s+)?(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "deny"],
+  // "not a citizen of the US", "US citizen not"
+  [R(`\\bnot\\s+(?:an?\\s+)?(?:citizen\\w*|nationals?|resident\\w*)\\s+of\\s+(?:the\\s+)?(${MLIST})`), "notCitizen"],
+  [R(`(${MLIST})\\s+citizen\\w*\\s+(?:not|no)\\s*$`), "notCitizen"],
+  // Citizenship.
+  [R(`(${MLIST})\\s+(?:dual\\s+)?(?:citizen\\w*|nationals?)\\b`), "citizen"],
+  [R(`\\b(?:dual\\s+)?(?:citizen\\w*|nationals?)\\s*(?:of|:|-|\\u2013)\\s*(?:the\\s+)?(${MLIST})`), "citizen"],
+  // Permanent residence.
+  [R(`(${MLIST})\\s+(?:permanent\\s+resident\\w*|perm(?:anent)?\\.?\\s+res(?:ident)?\\w*|pr|lpr|landed\\s+immigrant)\\b`), "pr"],
+  [R(`\\b(?:permanent\\s+resident\\w*|perm(?:anent)?\\.?\\s+res(?:ident)?\\w*|pr|lpr)\\s*(?:of|in|:|-|\\u2013)\\s*(?:the\\s+)?(${MLIST})`), "pr"],
+  // Authorized to work there.
+  [R(`\\b${AUTH_ADJ}\\s+(?:to\\s+(?:legally\\s+)?work\\s+)?(?:only\\s+)?(?:in|for|within)\\s+(?:the\\s+)?(${MLIST})`), "affirmative"],
+  [R(`\\bcan\\s+(?:legally\\s+)?work\\s+(?:only\\s+)?(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "affirmative"],
+  [R(`\\bright\\s+to\\s+work\\s+in\\s+(?:the\\s+)?(${MLIST})`), "affirmative"],
+  [R(`\\bonly\\s+(?:(?:in|for)\\s+)?(?:the\\s+)?(${MLIST})`), "affirmative"],
+  [R(`(${MLIST})\\s+only\\b`), "affirmative"],
+  // A permit or student visa named for a country.
+  [R(`(${MLIST})\\s+(?:open\\s+)?(?:work\\s+permit|work\\s+visa)`), "permit"],
+  [R(`\\b(?:open\\s+)?(?:work\\s+permit|work\\s+visa)\\s*(?:in|for|of|:|-)\\s*(?:the\\s+)?(${MLIST})`), "permit"],
+  [R(`(${MLIST})\\s+(?:student\\s+visa|study\\s+permit)`), "student"],
+  [R(`\\b(?:student\\s+visa|international\\s+student)\\s+(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "student"],
+  // Sponsorship needed there.
+  [R(`\\b(?:would\\s+need|will\\s+need|would\\s+require|will\\s+require|need|needs|needed|require|requires|required|requiring)\\s+(?:a\\s+|an\\s+)?(?:visa\\s+|work\\s+)?(?:sponsorship|sponsor|visa)\\s+(?:to\\s+work\\s+)?(?:for|in)\\s+(?:the\\s+)?(${MLIST})`), "sponsored"],
+  [R(`(${MLIST})\\s+(?:\\w+\\s+)?(?:requires?|needs?)\\s+(?:a\\s+)?(?:visa\\s+)?(?:sponsorship|visa)`), "sponsored"],
+];
+/** "not in the US", "not the U.S.", "not a US citizen", "not Canadian". */
+const NOT_PLACE = R(`\\b(?:not|never)\\s+(?:(?:yet|currently|presently)\\s+)?(?:(?:in|for|within)\\s+)?(an?\\s+)?(?:the\\s+)?(${MLIST})(\\s+(?:citizen\\w*|nationals?|person|passport|resident\\w*))?`);
+/** Statuses that belong to one country whatever the text says around them. */
+const INHERENT: Array<[RegExp, string, BoundKey]> = [
+  [/\b(?:h-?1-?b|tn|l-?1a?|e-?3|o-?1)\b/g, "US", "sponsoredVisa"],
+  [/\b(?:ead|stem\s+opt|opt|cpt)\b/g, "US", "permit"],
+  [/\b(?:f-?1|j-?1|m-?1)\b/g, "US", "student"],
+  [/\b(?:green\s*card|gc|lpr)\b/g, "US", "pr"],
+  [/\b(?:pgwp|post[\s-]graduation\s+work\s+permit)\b/g, "CA", "permit"],
+  [/\bstudy\s+permit\b/g, "CA", "student"],
+  [/\b(?:pr\s+card|landed\s+immigrant)\b/g, "CA", "pr"],
+];
+
+interface Unit {
+  start: number;
+  end: number;
+  /** The break after this unit up to the next one. */
+  breakAfter: string;
+}
+
+interface Reading {
+  /** Every country the text binds a status, a Yes or a No to. */
+  bound: Map<string, Bound>;
+  /** Every country the text names at all (bound or not). */
+  mentioned: Set<string>;
+  /** "Would need sponsorship" said with no country. */
+  sponsorshipNoCountry: boolean;
+}
+
+const emptyBound = (): Bound => ({ citizen: false, notCitizen: false, pr: false, student: false, sponsoredVisa: false, permit: false, affirmative: false, deny: false, sponsored: false });
+
+/**
+ * Read a free-text work authorization the binding way (decide-b round 3): a
+ * country gets a status, a Yes or a No only from a pattern bound directly to
+ * it ("US citizen", "citizen of Canada", "authorized to work in the US",
+ * "US: no", "Yes for Canada", "green card"). A country the text only names
+ * ("living in Canada", "US-based") gets nothing, so it stays unknown. The
+ * text splits into units at line breaks, ";", "|", " / ", sentence ends,
+ * commas, brackets, spaced dashes and "but"; a bare answer and a bare country
+ * list next to each other ("Yes, Canada", "Canada - Yes", "PR (Canada)") pair.
+ */
+function readWorkAuth(text: string): Reading {
+  const bound = new Map<string, Bound>();
+  const mentioned = new Set<string>();
+  let sponsorshipNoCountry = false;
+  const bind = (codes: string[], key: BoundKey): void => {
+    for (const code of codes) {
+      const b = bound.get(code) ?? emptyBound();
+      b[key] = true;
+      bound.set(code, b);
+      mentioned.add(code);
+    }
+  };
+  const masked = maskVisaIntent(maskAbbreviations(text));
+
+  // Every country named. The patterns read `norm`, where each name is a run
+  // of MARK; `names` maps the run's start to the country and its key. A
+  // lowercase "us" counts as named only where it reads as the country ("in
+  // us", "us citizen", "us: no"), never "work for us"; the patterns still see
+  // it, and only bind it where a country belongs.
+  const names = new Map<number, { code: string; key: string }>();
+  const pieces: string[] = [];
+  let last = 0;
+  for (const m of masked.matchAll(COUNTRY_RE)) {
+    const at = m.index ?? 0;
+    const code = codeOfKey(m[0]);
+    if (!code) continue;
+    names.set(at, { code, key: m[0].replace(/\s+/g, " ") });
+    pieces.push(masked.slice(last, at), MARK.repeat(m[0].length));
+    last = at + m[0].length;
+    if (m[0] === "us" && text.slice(at, at + 2) !== "US" && !LOWERCASE_US_BEFORE.test(masked.slice(Math.max(0, at - 8), at)) && !LOWERCASE_US_AFTER.test(masked.slice(at + 2, at + 24))) continue;
+    mentioned.add(code);
+  }
+  pieces.push(masked.slice(last));
+  const norm = pieces.join("");
+  const codesAt = (start: number, end: number): string[] => {
+    const out: string[] = [];
+    for (const m of norm.slice(start, end).matchAll(MARK_RUN)) {
+      const name = names.get(start + (m.index ?? 0));
+      if (name && !out.includes(name.code)) out.push(name.code);
+    }
+    return out;
+  };
+  for (const [re, code, key] of INHERENT) {
+    if (masked.search(re) >= 0) bind([code], key);
+  }
+
+  // Units.
+  const units: Unit[] = [];
+  let at = 0;
+  let pending = "";
+  for (const m of norm.matchAll(UNIT_BREAK)) {
+    const idx = m.index ?? 0;
+    if (norm.slice(at, idx).trim()) {
+      if (units.length) units[units.length - 1].breakAfter = pending;
+      units.push({ start: at, end: idx, breakAfter: "" });
+      pending = "";
+    }
+    pending += m[0];
+    at = idx + m[0].length;
+  }
+  if (norm.slice(at).trim()) {
+    if (units.length) units[units.length - 1].breakAfter = pending;
+    units.push({ start: at, end: norm.length, breakAfter: "" });
+  }
+
+  // Bare answers next to bare country lists ("Yes, Canada", "Canada - Yes").
+  const paired = new Set<number>();
+  const answerOf = (u: Unit): BoundKey | null => {
+    const m = ANSWER_WORD.exec(norm.slice(u.start, u.end));
+    return m ? (m[1] ? "affirmative" : "deny") : null;
+  };
+  const statusOnly = (u: Unit): BoundKey[] => {
+    const s = norm.slice(u.start, u.end);
+    if (s.includes(MARK)) return [];
+    const keys: BoundKey[] = [];
+    if (STATUS_ONLY_CITIZEN.test(s)) keys.push("citizen");
+    if (STATUS_ONLY_PR.test(s)) keys.push("pr");
+    if (STATUS_ONLY_PERMIT.test(s)) keys.push("permit");
+    if (SPONSOR_NEED.test(s) && !SPONSOR_NEGATED.test(s)) keys.push("sponsored");
+    return keys;
+  };
+  const listOf = (u: Unit): string[] => {
+    const m = PURE_LIST.exec(norm.slice(u.start, u.end));
+    return m ? codesAt(u.start + m.indices![1][0], u.start + m.indices![1][1]) : [];
+  };
+  for (let i = 0; i + 1 < units.length; i++) {
+    if (paired.has(i) || !WEAK_BREAK.test(units[i].breakAfter)) continue;
+    const a = units[i];
+    const b = units[i + 1];
+    const tryPair = (list: Unit, other: Unit): boolean => {
+      const codes = listOf(list);
+      if (!codes.length) return false;
+      const answer = answerOf(other);
+      const keys = answer ? [answer] : statusOnly(other);
+      if (!keys.length) return false;
+      for (const k of keys) bind(codes, k);
+      return true;
+    };
+    if (tryPair(b, a) || tryPair(a, b)) {
+      paired.add(i);
+      paired.add(i + 1);
+    }
+  }
+
+  units.forEach((u, i) => {
+    if (paired.has(i)) return;
+    const s = norm.slice(u.start, u.end);
+    const listCodes = (m: RegExpMatchArray, group: number): string[] => codesAt(u.start + m.indices![group][0], u.start + m.indices![group][1]);
+    // "Authorized to work in the US? No.": the answer flips the question.
+    const next = units[i + 1];
+    const answeredNo = /\?/.test(u.breakAfter) && next !== undefined && answerOf(next) === "deny";
+    const used: Array<[number, number]> = [];
+    const overlaps = (x: number, y: number): boolean => used.some(([p, q]) => x < q && p < y);
+    for (const [re, key] of POSTFIX_PATTERNS) {
+      for (const m of s.matchAll(re)) {
+        const end = (m.index ?? 0) + m[0].length;
+        used.push([(m.index ?? 0) + m[1].length, end]);
+        bind(listCodes(m, 1), key);
+      }
+    }
+    for (const [re, key] of PREFIX_ANSWER_PATTERNS) {
+      for (const m of s.matchAll(re)) {
+        const start = m.index ?? 0;
+        const answerEnd = start + m[0].length - m[1].length;
+        if (overlaps(start, answerEnd)) continue;
+        bind(listCodes(m, 1), key);
+      }
+    }
+    const negatedSponsor = SPONSOR_NEGATED.test(s);
+    let sponsorBound = false;
+    for (const [re, key] of PATTERNS) {
+      if (key === "sponsored" && negatedSponsor) continue;
+      for (const m of s.matchAll(re)) {
+        // "PR in Canada", but not "US permanent resident in Canada": the
+        // status already has its country before it.
+        if (key === "pr" && PR_AFTER.test(m[0]) && LIST_AT_END.test(s.slice(Math.max(0, (m.index ?? 0) - 40), m.index ?? 0))) continue;
+        const flipped: BoundKey = answeredNo && key === "affirmative" ? "deny" : key;
+        if (key === "sponsored") sponsorBound = true;
+        bind(listCodes(m, 1), flipped);
+      }
+    }
+    for (const m of s.matchAll(NOT_PLACE)) {
+      const codes = listCodes(m, 2);
+      const first = names.get(u.start + m.indices![2][0])?.key ?? "";
+      const aboutCitizenship = Boolean(m[1]) || Boolean(m[3]) || DEMONYMS.has(first);
+      bind(codes, aboutCitizenship ? "notCitizen" : "deny");
+    }
+    if (!sponsorBound && !negatedSponsor && SPONSOR_NEED.test(s)) sponsorshipNoCountry = true;
+  });
+  return { bound, mentioned, sponsorshipNoCountry };
+}
+
+/** The "PR in/of <country>" pattern, and a country right before a match. */
+const PR_AFTER = /^(?:permanent|perm|pr|lpr)/;
+const LIST_AT_END = new RegExp(`${M}\\s+$`);
+/** Before a lowercase "us" that is the country: "in us", "for the us". */
+const LOWERCASE_US_BEFORE = /\b(?:in|for|the|to|from|of)\s+$/;
+/** After a lowercase "us" that is the country: "us citizen", "us: no", "us-based". */
+const LOWERCASE_US_AFTER =
+  /^\s*(?:citizen|national|pr\b|permanent|green|gc\b|person|work|employment|jobs?\b|roles?\b|visa|passport|based|-|resident|:|yes\b|no\b|only\b|requires?\b|needs?\b|[\u2705\u2714\u2611\u2713\u274c\u2717\u2718\u2716])/;
 
 /**
  * The applicant's explicit Yes/No per country (profile "Authorized to work in
@@ -798,6 +900,9 @@ export function needsSponsorshipIn(auth: WorkAuthFacts, countryCode: string | nu
     // it (GitLab, question bank 2026-10-05).
     if (c && (c.basis === "citizen" || c.basis === "permanent_resident")) return fact(false, "high", `sponsorship:${c.basis}`);
     if (!c && freeMovementCitizen(auth, countryCode)) return fact(false, "high", "sponsorship:free-movement");
+    // Every US work visa and student status is temporary: a "No" beside OPT
+    // or H-1B is not believed, and not contradicted either.
+    if (stated === false && c && countryCode === "US" && (c.basis === "work_permit" || c.basis === "student")) return null;
     // The applicant's own answer wins for any country their status covers.
     if (stated !== null && (c || (auth.byCountry.size === 0 && (!residence || residence === countryCode)))) {
       return fact(stated, "high", "sponsorship:stated");
@@ -817,7 +922,7 @@ export function needsSponsorshipIn(auth: WorkAuthFacts, countryCode: string | nu
     }
     return fact(stated, "medium", "sponsorship:stated-multi-country");
   }
-  if (auth.byCountry.size === 1) {
+  if (auth.byCountry.size === 1 && !auth.sponsorshipUnclear) {
     const [only] = [...auth.byCountry.values()];
     if (only.needsSponsorship === false) return fact(false, "medium", `sponsorship:${only.basis}-unscoped`);
   }
