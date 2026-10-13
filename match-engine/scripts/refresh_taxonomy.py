@@ -7,10 +7,14 @@ The parser reports, per posting, the requirement tokens it found (`requirement_t
 distinct ids in REQUIRED and PREFERRED clauses plus the tokens there that resolved to nothing) and
 the unresolved ones (`unresolved_requirement_tokens`). From those:
 
-* Coverage: resolved requirement tokens over all requirement tokens, summed over the postings first
-  seen in the window (the `auto_promote_window_days` days ending at `as_of`). Printed, written to
-  `reports/taxonomy/<as_of>.json`, and the exit code is 1 below `coverage_alert_threshold` (0.92),
-  or when no posting in the window has a requirement token; 0 otherwise.
+* Coverage, two figures over the postings first seen in the window (the `auto_promote_window_days`
+  days ending at `as_of`): raw, resolved requirement tokens over all of them; and recurring, the
+  same with the unresolved tokens found in fewer than RECURRING_MIN_POSTINGS (2) distinct postings
+  of the window left out (a one-off is a typo, a fragment or a name more often than a missing
+  skill; every resolved token is kept, since the parser does not expose the resolved id set). Both
+  are printed and written to `reports/taxonomy/<as_of>.json` with the per-posting mean; the alert
+  and the exit code follow the recurring figure: 1 below `coverage_alert_threshold` (0.92) or when
+  no posting in the window has a requirement token, 0 otherwise.
 * Ranking: an unresolved token (keyed by `normalize_surface`) scores `recent x growth`, where
   `recent` is the distinct postings naming it in the window and `growth = (recent + 1) /
   (earlier + 1)` against the window before it: frequency times growth, a token that is new this
@@ -20,15 +24,18 @@ the unresolved ones (`unresolved_requirement_tokens`). From those:
   `skill.<slug>`, label its most common spelling, kind its parent's) whose parent is the existing
   node with the highest NPMI (DECISIONS D-22) against the token over the window's postings, among
   the ids its postings require in at least `pmi_min_cooccurrence` (5) of them and named by at least
-  `--min-parent-df` (20) postings: PMI rewards rarity, and a node in a handful of postings would
-  otherwise win on chance (the low-df tail of Task 2.3). A SOFT node, or one under a SOFT node,
-  never qualifies (a soft skill co-occurs with everything and places nothing). A token with no such neighbour is queued with the
-  note "no parent", never promoted parentless.
-* The committed taxonomy changes only with `--apply`: the promoted nodes are written through
-  `write_artifacts` (a one-word name with a capital becomes a `cased` resolver key, as the builder
-  does for nodes that are not curated, D-26); IDF and edges are kept, so `compute_idf.py` and
-  `compute_pmi.py` must run afterwards (compute_pmi refuses a stale IDF). Without it the promotions
-  are reported only.
+  `parent_min_df` (20, config/scoring.yaml) postings: PMI rewards rarity, and a node in a handful of
+  postings would otherwise win on chance (the low-df tail of Task 2.3). A SOFT node, or one under a
+  SOFT node, never qualifies (a soft skill co-occurs with everything and places nothing). A token
+  with no such neighbour is queued with the note "no parent", never promoted parentless; a
+  capitalised word that is not skill-shaped (`skill_shaped`: "SpaceX", "OpenAI") is queued with the
+  note "possible employer or product", never promoted.
+* The committed taxonomy changes only with `--apply --approve <file>`, and then only for the
+  promoted tokens the file lists (one token per line, `#` comments; a human accepted each): they
+  are written through `write_artifacts` (a one-word name with a capital becomes a `cased` resolver
+  key, as the builder does for nodes that are not curated, D-26); IDF and edges are kept, so
+  `compute_idf.py` and `compute_pmi.py` must run afterwards (compute_pmi refuses a stale IDF).
+  `--apply` without `--approve` is refused (exit 2). Otherwise the promotions are reported only.
 * Review queue: the top `review_queue_size` (50) tokens not promoted, written to
   `data/taxonomy/review_queue.csv`: the token (at most MAX_SURFACE characters), its counts, score
   and suggested parent. Short phrases and counts only, never posting text (D-04).
@@ -69,13 +76,18 @@ from matcher.parse.taxonomy_extras import load_title_index  # noqa: E402
 
 DEFAULT_QUEUE = DEFAULT_TAXONOMY / "review_queue.csv"
 DEFAULT_REPORTS = ROOT / "reports" / "taxonomy"
-MIN_PARENT_DF = 20  # a parent must be required by this many postings of the window (see the docstring)
+RECURRING_MIN_POSTINGS = 2  # the recurring coverage figure keeps unresolved tokens in this many postings
+EMPLOYER_NOTE = "possible employer or product"
 SOFT_DEPTH = 10  # parent links searched upwards for a SOFT ancestor
 MAX_SURFACE = 80  # characters of a token written to the queue
 PARSE_AS_OF = dt.date(2026, 10, 1)  # the parser's clock: dates in a posting never decide its tokens
 QUEUE_COLUMNS = ("rank", "token", "key", "postings_30d", "postings_prior_30d", "score", "suggested_parent",
                  "parent_npmi", "note")
 _SLUG = re.compile(r"[^a-z0-9]+")
+# A capitalised one-word token is skill-shaped only with a technical suffix or form ("SaaS", "MLOps",
+# "GraphQL", "GraphDB", "Vue.js", "C++", "F#"); "SpaceX", "OpenAI" or "LangChain" may be an employer or
+# a product, which no frequency rule can tell from a skill.
+_SKILL_FORM = re.compile(r"(?:aaS|Ops|QL|DB|\+\+|#)$|\.")
 
 
 # ─── parsing ───────────────────────────────────────────────────────────────────────────────
@@ -162,12 +174,25 @@ class Coverage:
     ratio: Optional[float]  # None when there is no requirement token at all
 
 
-def coverage(parsed: Sequence[ParsedPosting], *, as_of: dt.date, window_days: int) -> Coverage:
-    """SPEC §16's metric: % of posting requirement tokens resolved, over the window's postings."""
+def coverage(parsed: Sequence[ParsedPosting], *, as_of: dt.date, window_days: int,
+             min_postings: int = 1) -> Coverage:
+    """SPEC §16's metric: % of posting requirement tokens resolved, over the window's postings. With
+    `min_postings` > 1, an unresolved token found in fewer distinct postings of the window is left
+    out of the count (the recurring figure)."""
     window = [p for p in parsed if in_window(p, as_of, window_days)]
-    total = sum(p.token_count for p in window)
-    resolved = total - sum(len(p.unresolved) for p in window)
+    df: Counter[str] = Counter(key for p in window for key in p.unresolved)
+    resolved = sum(p.token_count - len(p.unresolved) for p in window)
+    unresolved = sum(1 for p in window for key in p.unresolved if df[key] >= min_postings)
+    total = resolved + unresolved
     return Coverage(resolved, total, resolved / total if total else None)
+
+
+def posting_mean(parsed: Sequence[ParsedPosting], *, as_of: dt.date, window_days: int) -> Optional[float]:
+    """The mean of each window posting's own coverage, over the postings with a requirement token
+    (what the confidence component `taxonomy_coverage` sees, SPEC §17.1)."""
+    shares = [(p.token_count - len(p.unresolved)) / p.token_count for p in parsed
+              if in_window(p, as_of, window_days) and p.token_count]
+    return sum(shares) / len(shares) if shares else None
 
 
 def exit_code(result: Coverage, threshold: float) -> int:
@@ -244,6 +269,15 @@ def _can_parent(graph: SkillGraph, skill: str) -> bool:
     return all(graph.nodes[up].kind is not SkillKind.SOFT for up in ancestors(graph, skill, SOFT_DEPTH))
 
 
+def skill_shaped(token: str) -> bool:
+    """A phrase, a lower-case word, a word in capitals, or a capitalised word with a technical
+    suffix or form; a capitalised or camel-case word without one may be an employer or product."""
+    token = token.strip()
+    if " " in token or token == token.lower() or token == token.upper():
+        return True
+    return bool(_SKILL_FORM.search(token))
+
+
 @dataclass(frozen=True)
 class Candidate:
     rank: TokenRank
@@ -260,10 +294,10 @@ class Plan:
     ranked: int  # distinct unresolved tokens in the window
 
 
-def plan(parsed: Sequence[ParsedPosting], graph: SkillGraph, *, as_of: dt.date, settings: Any,
-         min_parent_df: int = MIN_PARENT_DF) -> Plan:
+def plan(parsed: Sequence[ParsedPosting], graph: SkillGraph, *, as_of: dt.date, settings: Any) -> Plan:
     """Promotions and the review queue under the `taxonomy` settings of config/scoring.yaml."""
     window_days = settings.auto_promote_window_days
+    min_parent_df = settings.parent_min_df
     ranked = rank_tokens(parsed, as_of=as_of, window_days=window_days)
     promoted, queue = [], []
     for rank in ranked:
@@ -277,13 +311,14 @@ def plan(parsed: Sequence[ParsedPosting], graph: SkillGraph, *, as_of: dt.date, 
                                      min_cooccurrence=settings.pmi_min_cooccurrence, min_df=1, graph=graph)
             parent, value = found if found is not None else (None, None)
             loose = unguarded[0] if unguarded is not None else None
-        if rank.recent > settings.auto_promote_min_postings:
+        shaped = skill_shaped(rank.surface)
+        if rank.recent > settings.auto_promote_min_postings and shaped:
             if parent is not None:
                 promoted.append(Candidate(rank, parent, value, loose))
                 continue
             note = "no parent"
         else:
-            note = ""
+            note = "" if shaped else EMPLOYER_NOTE
         if len(queue) < settings.review_queue_size:
             queue.append(Candidate(rank, parent, value, loose, note))
     return Plan(tuple(promoted), tuple(queue), len(ranked))
@@ -315,10 +350,24 @@ def cased_key(label: str) -> Optional[tuple[str, str]]:
     return normalize_surface(label), label
 
 
-def apply_provisional(taxonomy_dir: str | Path, promoted: Sequence[Candidate]) -> list[SkillNode]:
-    """Write the promoted tokens as provisional nodes into the taxonomy (IDF and edges kept; every
-    other artifact written back as it was). A token that resolves already, or whose id exists, is
-    skipped. Returns the nodes written."""
+def read_approvals(path: str | Path) -> frozenset[str]:
+    """The token keys a reviewer accepted: one token per line; blank lines and `#` comments skipped."""
+    keys = set()
+    for line in Path(path).read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line and not line.startswith("#"):
+            keys.add(token_key(line))
+    return frozenset(keys - {""})
+
+
+def apply_provisional(taxonomy_dir: str | Path, promoted: Sequence[Candidate],
+                      approved: frozenset[str]) -> list[SkillNode]:
+    """Write the promoted tokens a human approved (their keys in `approved`) as provisional nodes
+    into the taxonomy (IDF and edges kept; every other artifact written back as it was). A token
+    that resolves already, or whose id exists, is skipped. Returns the nodes written."""
+    promoted = [c for c in promoted if c.rank.key in approved]
+    if not promoted:
+        return []
     root = Path(taxonomy_dir)
     config = load_config()
     graph = load_graph(root)
@@ -384,21 +433,27 @@ def _candidate_doc(c: Candidate, graph: SkillGraph) -> dict[str, Any]:
             "parent_without_df_floor": c.parent_without_df_floor}
 
 
-def report_document(*, as_of: dt.date, settings: Any, result: Coverage, result_plan: Plan, graph: SkillGraph,
-                    read: int, distinct: int, window: int, min_parent_df: int, applied: Sequence[SkillNode],
-                    queue_path: str) -> dict[str, Any]:
+def _ratio(value: Optional[float]) -> Optional[float]:
+    return None if value is None else round(value, 6)
+
+
+def report_document(*, as_of: dt.date, settings: Any, result: Coverage, recurring: Coverage,
+                    mean: Optional[float], result_plan: Plan, graph: SkillGraph, read: int, distinct: int,
+                    window: int, applied: Sequence[SkillNode], queue_path: str) -> dict[str, Any]:
     threshold = settings.coverage_alert_threshold
     return {
         "format": 1,
         "as_of": as_of.isoformat(),
         "window_days": settings.auto_promote_window_days,
         "corpus": {"postings_read": read, "postings_distinct": distinct, "postings_in_window": window},
-        "coverage": {"resolved": result.resolved, "total": result.total,
-                     "ratio": None if result.ratio is None else round(result.ratio, 6),
-                     "threshold": threshold, "alert": exit_code(result, threshold) != 0},
+        "coverage": {"resolved": result.resolved, "total": result.total, "ratio": _ratio(result.ratio),
+                     "recurring_min_postings": RECURRING_MIN_POSTINGS, "recurring_total": recurring.total,
+                     "recurring_ratio": _ratio(recurring.ratio), "posting_mean": _ratio(mean),
+                     "threshold": threshold, "alert": exit_code(recurring, threshold) != 0},
         "unresolved_tokens": result_plan.ranked,
         "promotion_rule": {"min_postings_exclusive": settings.auto_promote_min_postings,
-                           "min_cooccurrence": settings.pmi_min_cooccurrence, "min_parent_df": min_parent_df},
+                           "min_cooccurrence": settings.pmi_min_cooccurrence,
+                           "min_parent_df": settings.parent_min_df, "needs_approval": True},
         "promoted": [_candidate_doc(c, graph) for c in result_plan.promoted],
         "applied": [node.id for node in applied],
         "review_queue": {"path": queue_path, "size": len(result_plan.queue)},
@@ -413,10 +468,15 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     parser.add_argument("--reports", type=Path, default=DEFAULT_REPORTS)
     parser.add_argument("--as-of", type=dt.date.fromisoformat, default=None,
                         help="the window's last day (default: the corpus's latest first_seen_at)")
-    parser.add_argument("--min-parent-df", type=int, default=MIN_PARENT_DF)
     parser.add_argument("--apply", action="store_true",
-                        help="write the promoted tokens into the taxonomy as provisional nodes")
+                        help="write the approved promoted tokens into the taxonomy as provisional nodes")
+    parser.add_argument("--approve", type=Path, default=None,
+                        help="a file of tokens a human accepted, one per line (needed by --apply)")
     args = parser.parse_args(argv)
+    if args.apply and (args.approve is None or not args.approve.exists()):
+        print("refresh_taxonomy: --apply writes only the tokens a human accepted; pass --approve <file>",
+              file=sys.stderr)
+        return 2
     if not args.corpus.exists():
         print(f"refresh_taxonomy: no corpus at {args.corpus}", file=sys.stderr)
         return 2
@@ -429,28 +489,36 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     as_of = args.as_of or (max(dates) if dates else dt.date.today())
     window_days = settings.auto_promote_window_days
     result = coverage(parsed, as_of=as_of, window_days=window_days)
-    result_plan = plan(parsed, env["graph"], as_of=as_of, settings=settings, min_parent_df=args.min_parent_df)
-    applied = apply_provisional(args.taxonomy, result_plan.promoted) if args.apply else []
+    recurring = coverage(parsed, as_of=as_of, window_days=window_days, min_postings=RECURRING_MIN_POSTINGS)
+    mean = posting_mean(parsed, as_of=as_of, window_days=window_days)
+    result_plan = plan(parsed, env["graph"], as_of=as_of, settings=settings)
+    applied = (apply_provisional(args.taxonomy, result_plan.promoted, read_approvals(args.approve))
+               if args.apply else [])
     write_queue(args.queue, result_plan.queue)
     window = sum(1 for p in parsed if in_window(p, as_of, window_days))
-    document = report_document(as_of=as_of, settings=settings, result=result, result_plan=result_plan,
-                               graph=env["graph"], read=len(postings), distinct=len(parsed), window=window,
-                               min_parent_df=args.min_parent_df, applied=applied, queue_path=args.queue.name)
+    document = report_document(as_of=as_of, settings=settings, result=result, recurring=recurring, mean=mean,
+                               result_plan=result_plan, graph=env["graph"], read=len(postings),
+                               distinct=len(parsed), window=window, applied=applied,
+                               queue_path=args.queue.name)
     args.reports.mkdir(parents=True, exist_ok=True)
     report_path = args.reports / f"{as_of.isoformat()}.json"
     report_path.write_bytes((json.dumps(document, indent=1, sort_keys=True, ensure_ascii=False) + "\n").encode("utf-8"))
 
-    shown = "n/a" if result.ratio is None else f"{result.ratio:.2%}"
-    print(f"coverage {shown} ({result.resolved:,} of {result.total:,} requirement tokens resolved; "
-          f"{window:,} postings first seen in the {window_days} days to {as_of}); alert below "
-          f"{settings.coverage_alert_threshold:.0%}")
+    def shown(value: Optional[float]) -> str:
+        return "n/a" if value is None else f"{value:.2%}"
+
+    print(f"coverage {shown(recurring.ratio)} over tokens in {RECURRING_MIN_POSTINGS}+ postings "
+          f"({recurring.resolved:,} of {recurring.total:,}; alert below {settings.coverage_alert_threshold:.0%}); "
+          f"raw {shown(result.ratio)} ({result.resolved:,} of {result.total:,}); per-posting mean {shown(mean)}; "
+          f"{window:,} postings first seen in the {window_days} days to {as_of}")
     for c in result_plan.promoted:
-        verb = "added" if provisional_id(c.rank.key) in {n.id for n in applied} else "proposed (rerun with --apply)"
+        verb = ("added" if provisional_id(c.rank.key) in {n.id for n in applied}
+                else "proposed (a reviewer approves it: --apply --approve <file>)")
         print(f"provisional {verb}: {_short(c.rank.surface)!r} in {c.rank.recent} postings, parent {c.parent}")
     if applied:
         print("now run scripts/compute_idf.py and scripts/compute_pmi.py, then the gate (tests/test_surface_forms.py)")
     print(f"review queue: {len(result_plan.queue)} tokens -> {args.queue}; report -> {report_path}")
-    return exit_code(result, settings.coverage_alert_threshold)
+    return exit_code(recurring, settings.coverage_alert_threshold)
 
 
 if __name__ == "__main__":

@@ -57,6 +57,19 @@ def test_coverage_is_resolved_requirement_tokens_over_all_of_them(rt) -> None:
     assert result.ratio == pytest.approx(0.5)
 
 
+def test_recurring_coverage_leaves_out_unresolved_tokens_of_one_posting(rt) -> None:
+    parsed = [
+        _p(rt, 1, ids=("skill.python", "skill.sql"), unresolved=("Zorblax", "Oneoff")),  # 2 resolved
+        _p(rt, 2, ids=("skill.python",), unresolved=("Zorblax",)),  # 1 resolved
+        _p(rt, 400, unresolved=("Oneoff",)),  # outside the window: Oneoff is in one posting of it
+    ]
+    raw = rt.coverage(parsed, as_of=AS_OF, window_days=30)
+    assert (raw.resolved, raw.total) == (3, 6)
+    recurring = rt.coverage(parsed, as_of=AS_OF, window_days=30, min_postings=2)
+    assert (recurring.resolved, recurring.total) == (3, 5)  # Zorblax (2 postings) stays, Oneoff goes
+    assert recurring.ratio == pytest.approx(0.6)
+
+
 def test_coverage_of_no_tokens_is_undefined(rt) -> None:
     result = rt.coverage([_p(rt, 1)], as_of=AS_OF, window_days=30)
     assert (result.resolved, result.total, result.ratio) == (0, 0, None)
@@ -161,43 +174,60 @@ def _settings(**over):
 
 def test_more_than_the_minimum_postings_promotes_exactly_at_it_queues(rt) -> None:
     graph = load_graph(TAXONOMY)
-    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("Promoteme",)) for _ in range(51)]
-    parsed += [_p(rt, 1, ids=("skill.python",), unresolved=("Stayqueued",)) for _ in range(50)]
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("promote me",)) for _ in range(51)]
+    parsed += [_p(rt, 1, ids=("skill.python",), unresolved=("stay queued",)) for _ in range(50)]
     parsed += [_p(rt, 1, ids=("skill.python", "skill.sql")) for _ in range(100)]
-    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(), min_parent_df=1)
-    assert [c.rank.surface for c in plan.promoted] == ["Promoteme"]
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1))
+    assert [c.rank.surface for c in plan.promoted] == ["promote me"]
     assert plan.promoted[0].parent == "skill.python"
-    assert [c.rank.surface for c in plan.queue] == ["Stayqueued"]
+    assert [c.rank.surface for c in plan.queue] == ["stay queued"]
 
 
 def test_a_candidate_with_no_parent_is_queued_not_promoted(rt) -> None:
     graph = load_graph(TAXONOMY)
-    parsed = [_p(rt, 1, unresolved=("Orphanword",)) for _ in range(60)] + [_p(rt, 1, ids=("skill.sql",))]
-    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(), min_parent_df=1)
+    parsed = [_p(rt, 1, unresolved=("orphan word",)) for _ in range(60)] + [_p(rt, 1, ids=("skill.sql",))]
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1))
     assert plan.promoted == ()
-    assert [(c.rank.surface, c.note) for c in plan.queue] == [("Orphanword", "no parent")]
+    assert [(c.rank.surface, c.note) for c in plan.queue] == [("orphan word", "no parent")]
 
 
 def test_the_queue_holds_the_top_review_queue_size(rt) -> None:
     graph = load_graph(TAXONOMY)
     parsed = [_p(rt, 1, unresolved=(f"Tok{chr(97 + i)}{chr(97 + j)}",)) for i in range(8) for j in range(8)
               for _ in range(1 + (i * 8 + j) % 3)]
-    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(review_queue_size=5), min_parent_df=1)
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(review_queue_size=5, parent_min_df=1))
     assert len(plan.queue) == 5
     assert all(c.rank.recent == 3 for c in plan.queue)
 
 
+def test_a_capitalised_word_that_is_not_skill_shaped_is_queued_as_a_possible_employer(rt) -> None:
+    graph = load_graph(TAXONOMY)
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("Spacezorp", "ZorbQL")) for _ in range(51)]
+    parsed += [_p(rt, 1, ids=("skill.sql",)) for _ in range(10)]
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1))
+    assert [c.rank.surface for c in plan.promoted] == ["ZorbQL"]  # a QL suffix is skill-shaped
+    assert [(c.rank.surface, c.note) for c in plan.queue] == [("Spacezorp", "possible employer or product")]
+
+
+@pytest.mark.parametrize("token, shaped", [("SaaS", True), ("MLOps", True), ("ZorbQL", True), ("GraphDB", True),
+                                           ("Vue.js", True), ("NDT", True), ("rim repair", True), ("pcb", True),
+                                           ("SpaceX", False), ("OpenAI", False), ("Zorblax", False),
+                                           ("LangChain", False)])
+def test_skill_shape(rt, token: str, shaped: bool) -> None:
+    assert rt.skill_shaped(token) is shaped
+
+
 def test_provisional_node_shape(rt) -> None:
     graph = load_graph(TAXONOMY)
-    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("Zorblax",)) for _ in range(51)]
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("ZorbQL",)) for _ in range(51)]
     parsed += [_p(rt, 1, ids=("skill.sql",)) for _ in range(10)]
-    (candidate,) = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(), min_parent_df=1).promoted
+    (candidate,) = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1)).promoted
     node = rt.provisional_node(candidate, graph)
-    assert node.id == "skill.zorblax"
-    assert (node.label, node.parents, node.provisional, node.source) == ("Zorblax", ("skill.python",), True,
+    assert node.id == "skill.zorbql"
+    assert (node.label, node.parents, node.provisional, node.source) == ("ZorbQL", ("skill.python",), True,
                                                                           "provisional")
     assert node.kind is graph.nodes["skill.python"].kind
-    assert rt.cased_key(node.label) == ("zorblax", "Zorblax")
+    assert rt.cased_key(node.label) == ("zorbql", "ZorbQL")
     assert rt.cased_key("distributed ledgers") is None
     assert rt.cased_key("ledger") is None
 
@@ -206,7 +236,7 @@ def test_queue_csv_has_short_phrases_and_counts_only(rt, tmp_path: Path) -> None
     graph = load_graph(TAXONOMY)
     long_surface = "very long phrase " * 10
     parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("Zorblax", long_surface)) for _ in range(3)]
-    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(), min_parent_df=1)
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1))
     path = tmp_path / "review_queue.csv"
     rt.write_queue(path, plan.queue)
     with path.open(encoding="utf-8", newline="") as fh:
@@ -258,11 +288,45 @@ def test_main_writes_the_queue_and_report_and_fails_below_the_threshold(rt, tmp_
     assert code == 1  # Zorblax and Quuxdb unresolved: coverage 2/4 or so, under 0.92
     report = json.loads((tmp_path / "reports" / "2026-05-20.json").read_text(encoding="utf-8"))
     assert report["coverage"]["ratio"] < 0.92 and report["coverage"]["alert"] is True
+    assert report["coverage"]["recurring_ratio"] == report["coverage"]["ratio"]  # both tokens in 3 postings
+    assert report["coverage"]["recurring_min_postings"] == 2
     assert report["as_of"] == "2026-05-20" and report["promoted"] == []
     assert "coverage" in capsys.readouterr().out
     rows = list(csv.DictReader((tmp_path / "q.csv").open(encoding="utf-8", newline="")))
     assert {row["token"] for row in rows} == {"Zorblax", "Quuxdb"}
     assert {p.name: p.read_bytes() for p in TAXONOMY.iterdir() if p.is_file()} == before  # no --apply: untouched
+
+
+def test_the_alert_follows_the_recurring_figure(rt) -> None:
+    # 40 postings: python resolved in each; "oneoff0".."oneoff39" each unresolved in one posting,
+    # so raw coverage is 0.5 and recurring coverage 1.0: no alert.
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=(f"oneoff{i}",)) for i in range(40)]
+    raw = rt.coverage(parsed, as_of=AS_OF, window_days=30)
+    recurring = rt.coverage(parsed, as_of=AS_OF, window_days=30, min_postings=2)
+    assert raw.ratio == pytest.approx(0.5) and recurring.ratio == pytest.approx(1.0)
+    assert rt.exit_code(recurring, 0.92) == 0
+
+
+def test_main_alerts_on_the_recurring_figure_not_the_raw_one(rt, tmp_path: Path) -> None:
+    corpus = tmp_path / "postings.jsonl"
+    with corpus.open("w", encoding="utf-8") as fh:
+        for i, name in enumerate(("Zorbaa", "Zorbab", "Zorbac")):  # each unresolved in one posting only
+            text = f"Requirements:\n- Experience with {name} and Python.\n- Proficiency in SQL.\n"
+            fh.write(json.dumps({"id": i, "title": "Software Developer", "description": text,
+                                 "first_seen_at": "2026-05-20"}) + "\n")
+    code = rt.main(["--corpus", str(corpus), "--taxonomy", str(TAXONOMY), "--queue", str(tmp_path / "q.csv"),
+                    "--reports", str(tmp_path / "reports")])
+    report = json.loads((tmp_path / "reports" / "2026-05-20.json").read_text(encoding="utf-8"))["coverage"]
+    assert report["ratio"] < 0.92 and report["recurring_ratio"] == 1.0
+    assert (code, report["alert"]) == (0, False)
+
+
+def test_the_parent_floor_comes_from_the_config(rt) -> None:
+    graph = load_graph(TAXONOMY)
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("flux tuning",)) for _ in range(51)]
+    parsed += [_p(rt, 1, ids=("skill.sql",)) for _ in range(10)]
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1000))
+    assert plan.promoted == () and [c.note for c in plan.queue] == ["no parent"]
 
 
 def test_exit_code_at_the_threshold_is_zero(rt) -> None:
@@ -275,15 +339,33 @@ def test_apply_writes_provisional_nodes_the_resolver_then_reads(rt, tmp_path: Pa
     resolver_doc = {"format": 1, "ambiguous": {}}
     write_artifacts(tmp_path, NODES, {}, EDGES, n_postings=0, sources=SOURCES, extra={"resolver.json": resolver_doc})
     graph = load_graph(tmp_path)
-    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("Zorblax",)) for _ in range(51)]
+    parsed = [_p(rt, 1, ids=("skill.python",), unresolved=("ZorbQL", "flux tuning")) for _ in range(51)]
     parsed += [_p(rt, 1, ids=("skill.sql",)) for _ in range(10)]
-    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(), min_parent_df=1)
-    written = rt.apply_provisional(tmp_path, plan.promoted)
-    assert [node.id for node in written] == ["skill.zorblax"]
+    plan = rt.plan(parsed, graph, as_of=AS_OF, settings=_settings(parent_min_df=1))
+    assert {c.rank.surface for c in plan.promoted} == {"ZorbQL", "flux tuning"}
+    before = {p.name: p.read_bytes() for p in tmp_path.iterdir()}
+    assert rt.apply_provisional(tmp_path, plan.promoted, approved=frozenset()) == []  # nobody approved
+    assert {p.name: p.read_bytes() for p in tmp_path.iterdir()} == before
+    written = rt.apply_provisional(tmp_path, plan.promoted, approved=frozenset({"zorbql"}))
+    assert [node.id for node in written] == ["skill.zorbql"]  # only the approved token
     resolver = load_resolver(tmp_path, load_config())
-    assert resolver.resolve("Zorblax").canonical_id == "skill.zorblax"
-    assert load_resolver_settings(tmp_path)["cased"] == {"zorblax": "Zorblax"}  # one word, capitalised (D-26)
-    node = load_graph(tmp_path).nodes["skill.zorblax"]
+    assert resolver.resolve("ZorbQL").canonical_id == "skill.zorbql"
+    assert load_resolver_settings(tmp_path)["cased"] == {"zorbql": "ZorbQL"}  # one word, capitalised (D-26)
+    node = load_graph(tmp_path).nodes["skill.zorbql"]
     assert node.provisional and node.kind is SkillKind.TECHNOLOGY
     # a second apply adds nothing (the token now resolves; the id exists)
-    assert rt.apply_provisional(tmp_path, plan.promoted) == []
+    assert rt.apply_provisional(tmp_path, plan.promoted, approved=frozenset({"zorbql"})) == []
+
+
+def test_read_approvals_keys_each_listed_token(rt, tmp_path: Path) -> None:
+    path = tmp_path / "approved.txt"
+    path.write_text("# accepted by a reviewer\nZorbQL\n\n  flux   Tuning \n", encoding="utf-8")
+    assert rt.read_approvals(path) == frozenset({"zorbql", "flux tuning"})
+
+
+def test_apply_without_an_approval_file_writes_nothing(rt, tmp_path: Path, capsys) -> None:
+    corpus = tmp_path / "postings.jsonl"
+    _write_corpus(corpus, 3)
+    code = rt.main(["--corpus", str(corpus), "--taxonomy", str(TAXONOMY), "--queue", str(tmp_path / "q.csv"),
+                    "--reports", str(tmp_path / "reports"), "--apply"])
+    assert code == 2 and "--approve" in capsys.readouterr().err

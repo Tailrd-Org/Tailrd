@@ -315,6 +315,11 @@ class Resolver:
 
     # ─── one surface ──────────────────────────────────────────────────────────────────────
 
+    def is_common_word(self, word: str) -> bool:
+        """Whether `word`, normalised, is a common word of the posting corpus (`common_words.json`):
+        the posting parser reads such a word in capitals ("HIRING") as shouting, not an acronym."""
+        return normalize_surface(word) in self._common_words
+
     def resolve(self, surface: str, *, prefer_fields: bool = False) -> Resolution:
         """Exact or alias match over the surface's variants, a skill before a field of study (the
         field first with `prefer_fields`, for an education line's field: "Statistics"); else a
