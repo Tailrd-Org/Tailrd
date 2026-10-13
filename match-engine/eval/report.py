@@ -25,12 +25,11 @@ from pathlib import Path
 from typing import Any, Optional
 
 from eval.baseline import Baseline, metric_deltas, regressions
-from eval.metrics import FOUR_FIFTHS_THRESHOLD, four_fifths
+from eval.metrics import FOUR_FIFTHS_THRESHOLD
 from eval.suites import SuiteResult
 from eval.suites.synthetic import RANKING_METRICS
 
 TOP_REGRESSIONS = 20
-SHORTLIST = 0.70  # four-fifths "selected": the Good band or better (bands.yaml, D-52)
 
 
 @dataclass
@@ -124,9 +123,9 @@ def metric_table(run: RunRecord, deltas: dict[str, dict[str, Any]]) -> list[str]
             interval = fmt_ci(current.get("low"), current.get("high"), percent=spec.percent, signed=False)
         lines.append(f"| {spec.label} | {base} | {fmt_value(current.get('point'), percent=spec.percent)} | "
                      f"{change} | {interval} | {verdict_text(delta)} |")
-    fairness = four_fifths(synthetic.pairs, lambda p: p.score is not None and p.score >= SHORTLIST) \
-        if synthetic else None
-    ratio = fairness.min_ratio if fairness else None
+    # The lowest assessed four-fifths ratio of any suite (each suite's own guardrail, kind "fairness").
+    assessed = [g.value for g in _guardrails(run) if g.kind == "fairness" and g.value is not None]
+    ratio = min(assessed) if assessed else None
     lines.append(f"| Four-fifths (min) | - | {fmt_value(ratio, percent=False)} | - |  | {fairness_status(ratio)} |")
     return lines
 
@@ -185,6 +184,7 @@ def summary_markdown(run: RunRecord, deltas: dict[str, dict[str, Any]], found: l
             out.append(f"- Layer {suite.layer} {suite.name}: ran in {suite.seconds:.1f} s")
         out += [f"  - {note}" for note in suite.notes]
     out.append("")
+    out += _golden_table(run)
     synthetic = run.suite("synthetic")
     parser = synthetic.metrics.get("parser") if synthetic else None
     if isinstance(parser, dict):
@@ -208,6 +208,27 @@ def summary_markdown(run: RunRecord, deltas: dict[str, dict[str, Any]], found: l
         out.append("None.")
     out += [f"{i}. {r.line()}" for i, r in enumerate(found[:TOP_REGRESSIONS], start=1)]
     return "\n".join(out) + "\n"
+
+
+_GOLDEN_ROWS = (("kendall_tau", "Kendall tau", False), ("band_exact", "Band exact", True),
+                ("band_off_by_one", "Band off-by-one", True), ("band_off_by_two", "Band off-by-two", True),
+                ("rater_weighted_kappa", "Inter-rater kappa (quadratic)", False))
+
+
+def _golden_table(run: RunRecord) -> list[str]:
+    golden = run.suite("golden")
+    summary = golden.metrics.get("summary") if golden else None
+    if not summary:
+        return []
+    out = ["## Golden set", "", "| Metric | Value | 95% CI |", "|---|---:|---|"]
+    for key, label, percent in _GOLDEN_ROWS:
+        if key in summary:
+            ci = summary[key]
+            out.append(f"| {label} | {fmt_value(ci.get('point'), percent=percent)} | "
+                       f"{fmt_ci(ci.get('low'), ci.get('high'), percent=percent, signed=False)} |")
+    out += ["", "CIs: 1,000 bootstrap resamples over postings. Off-by-two is a metric, not a guardrail: "
+            "EVAL.md names it the one to alarm on but sets no threshold.", ""]
+    return out
 
 
 def _jsonable(value: Any) -> Any:

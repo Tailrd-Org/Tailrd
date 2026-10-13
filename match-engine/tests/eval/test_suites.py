@@ -360,7 +360,8 @@ def test_synthetic_suite_reports_the_parser_skipped_when_none_is_injected(small_
     assert result.metrics["parser"] == "skipped: parser not available"
     assert any(n.startswith("PARSER: skipped: parser not available") for n in result.notes)
     assert len(result.pairs) == 12 and result.metrics["ranking"]["ndcg@10"]["point"] is not None
-    assert all(g.passed for g in result.guardrails), result.guardrails
+    assert all(g.passed is not False for g in result.guardrails), result.guardrails
+    assert next(g for g in result.guardrails if g.kind == "fairness").passed is None  # no groups: not a pass
 
 
 # ─── golden and holdout ────────────────────────────────────────────────────────────────────
@@ -399,3 +400,118 @@ def test_weighted_kappa_on_textbook_cases() -> None:
 def test_holdout_is_skipped_without_a_key() -> None:
     result = golden.run_holdout()
     assert result.status == "skipped" and golden.HOLDOUT_SKIPPED in result.notes
+
+
+# ─── fix round 1 ───────────────────────────────────────────────────────────────────────────
+
+
+def _grouped(group: str, n: int, selected: int, posting: str = "post0") -> list[PairScore]:
+    return [PairScore(posting_id=posting, pair_id=f"{group}-{i}", score=0.9 if i < selected else 0.1,
+                      relevance=2, group=group) for i in range(n)]
+
+
+def test_four_fifths_is_a_guardrail_that_fails_and_is_not_assessed_without_groups() -> None:
+    from eval.suites import fairness_guardrail
+
+    failing = fairness_guardrail(_grouped("a", 100, 100) + _grouped("b", 100, 50))
+    assert failing.passed is False and failing.value == pytest.approx(0.5) and failing.kind == "fairness"
+    assert fairness_guardrail(_grouped("a", 100, 90) + _grouped("b", 100, 80)).passed is True
+    ungrouped = fairness_guardrail([p.model_copy(update={"group": None}) for p in _grouped("a", 100, 50)])
+    assert ungrouped.passed is None and ungrouped.value is None
+
+
+def test_golden_pairs_carry_their_group_and_the_four_fifths_guardrail(tmp_path, cf_engine) -> None:
+    pairs = closed_form.constructed_pairs(4, seed=5)
+    rows = [json.dumps({"pair_id": f"g{i}", "posting_id": "post0", "group": "x" if i % 2 else "y",
+                        "resume": p.resume.model_dump(mode="json"), "posting": p.posting.model_dump(mode="json"),
+                        "labels": [{"rater": "r1", "band": i % 4}]}) for i, p in enumerate(pairs)]
+    labels = tmp_path / "labels.jsonl"
+    labels.write_text("\n".join(rows) + "\n", encoding="utf-8")
+    result = golden.run_golden(cf_engine, CF_AS_OF, labels=labels, n_resamples=20)
+    assert {p.group for p in result.pairs} == {"x", "y"}
+    four = next(g for g in result.guardrails if g.kind == "fairness")
+    assert four.passed is None  # groups under 100 pairs: not assessed, never a pass
+
+
+def test_a_gated_pair_counts_as_band_limited(cf_engine) -> None:
+    from eval.suites import pair_record
+    from matcher.models import LicenseGate, Outcome
+
+    pair = closed_form.constructed_pairs(1, seed=2)[0]
+    gated = pair.posting.model_copy(update={"gates": (LicenseGate(credential_ids=("cred.registered_nurse",)),)})
+    result = cf_engine.score(pair.resume, gated, as_of=CF_AS_OF)
+    assert Outcome(result.outcome) is Outcome.GATE_FAIL
+    record = pair_record("post", "p1", result, 3)
+    assert record.score == 0.0 and record.band_pred == 0
+
+
+def test_recovery_over_every_skill_and_taxonomy_coverage_report_the_unnameable(small_corpus, config) -> None:
+    from matcher.graph.model import SkillGraph
+
+    engine = Engine(config, SkillGraph({}, {}, {}, "empty"))
+    id_map = _identity_map(small_corpus)
+    hidden = frozenset(sorted(id_map.skills)[::5])  # a fifth of the vocabulary "unknown to the taxonomy"
+    partial = IdMap(skills={k: v for k, v in id_map.skills.items() if k not in hidden}, unknown=hidden)
+    perfect = _oracle_parser(small_corpus, partial)
+    templates, formats = ("chronological",), ("txt",)
+    profiles = small_corpus.profiles[:4]
+    rendered, _ = synthetic.parse_renderings(profiles, small_corpus.seed, templates, formats, parse=perfect)
+    postings = {pid: partial.posting(p) for pid, p in small_corpus.by_id.items()}
+    report = synthetic.fidelity(small_corpus, partial, engine, profiles, rendered, templates, formats, postings)
+    assert report.metrics["recovered_skills"] == pytest.approx(1.0)
+    assert report.metrics["recovered_skills_all"] < 1.0
+    names = {g.name: g for g in report.guardrails}
+    assert names["Parser fidelity: recovered skills (all vocabulary)"].passed is False
+    coverage = synthetic.taxonomy_coverage(postings.values())
+    assert 0.0 < coverage < 1.0
+    guard = synthetic.coverage_guardrail(postings.values())
+    assert guard.passed is (coverage >= 0.92) and guard.threshold == ">= 0.92"
+
+
+def test_parser_fingerprint_follows_only_what_the_parser_reads(tmp_path) -> None:
+    import shutil
+
+    from eval.suites import ROOT
+
+    for sub in ("config", "src/matcher"):
+        shutil.copytree(ROOT / sub, tmp_path / sub, ignore=shutil.ignore_patterns("__pycache__"))
+    (tmp_path / "data" / "taxonomy").mkdir(parents=True)
+    for name in ("MANIFEST.json", "resolver.json"):
+        shutil.copy(ROOT / "data" / "taxonomy" / name, tmp_path / "data" / "taxonomy" / name)
+    before = synthetic.parser_fingerprint(tmp_path)
+    weights = tmp_path / "config" / "weights.yaml"
+    weights.write_text(weights.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+    (tmp_path / "src" / "matcher" / "score" / "aggregate.py").write_text("# changed\n", encoding="utf-8")
+    assert synthetic.parser_fingerprint(tmp_path) == before
+    sections = tmp_path / "config" / "parse" / "sections.yaml"
+    sections.write_text(sections.read_text(encoding="utf-8") + "\n# changed\n", encoding="utf-8")
+    assert synthetic.parser_fingerprint(tmp_path) != before
+
+
+def test_an_empty_parser_sample_says_it_was_skipped(small_corpus, config, cf_engine) -> None:
+    from eval.suites import corpus_pairs
+    from matcher.graph.model import SkillGraph
+
+    engine = Engine(config, SkillGraph({}, {}, {}, "empty"))
+    id_map = _identity_map(small_corpus)
+    result = synthetic.run_synthetic(engine, cf_engine, small_corpus, id_map, corpus_pairs(small_corpus, id_map),
+                                     closed_form_n=5, n_resamples=10, parse_profiles=(),
+                                     parse=_oracle_parser(small_corpus, id_map))
+    parser_guards = [g for g in result.guardrails if g.name.startswith(("Format invariance", "Parser fidelity"))]
+    assert parser_guards and all(g.passed is None and "skipped by --sample 0" in g.detail for g in parser_guards)
+    assert result.metrics["parser"] == "skipped by --sample 0"
+
+
+def test_invariance_failures_state_the_true_count_and_dimensions(small_corpus, config) -> None:
+    from matcher.graph.model import SkillGraph
+
+    engine = Engine(config, SkillGraph({}, {}, {}, "empty"))
+    perfect = _oracle_parser(small_corpus, _identity_map(small_corpus))
+
+    def lossy(data: bytes, filename: str):
+        return Resume() if filename.endswith(".docx") else perfect(data, filename)
+
+    report, _ = _fidelity(small_corpus, engine, lossy, ("txt", "docx"))
+    within = [f for f in report.failures if f.kind == "invariance within"]
+    assert within[0].detail["failing_total"] >= len(within)
+    assert "written" in within[0].detail and set(within[0].detail["dimensions"]) == {"txt", "docx"}

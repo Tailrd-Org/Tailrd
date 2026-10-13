@@ -48,7 +48,12 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--jobs", type=int, default=None, help="parser worker processes")
     parser.add_argument("--no-cache", action="store_true", help="re-parse every rendering")
     parser.add_argument("--out", default=str(_ROOT / "reports"), help="report root")
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if args.sample is not None and args.sample < 0:
+        parser.error("--sample must be 0 or more")
+    if args.sample == 0 and 3 in args.layers:
+        parser.error("--sample 0 skips the parser pass; a full run (layer 3) must run it")
+    return args
 
 
 def full_mode(args: argparse.Namespace) -> bool:

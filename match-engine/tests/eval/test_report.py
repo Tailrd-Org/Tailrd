@@ -164,3 +164,33 @@ def test_cli_arguments() -> None:
     assert run.settings(run.parse_args(["--layers", "1,2"]))["parser_profiles"] == 10
     with pytest.raises(SystemExit):
         run.parse_args(["--layers", "1,5"])
+
+
+# ─── fix round 1 ───────────────────────────────────────────────────────────────────────────
+
+
+def test_a_grouped_run_that_fails_four_fifths_exits_one(tmp_path) -> None:
+    from eval.suites import fairness_guardrail
+
+    grouped = [PairScore(posting_id=f"post{i % 5}", pair_id=f"{g}-{i}", score=0.9 if (g == "a" or i % 2) else 0.1,
+                         relevance=2, group=g) for g in ("a", "b") for i in range(100)]
+    suite = SuiteResult(name="golden", layer=3, pairs=grouped, guardrails=[fairness_guardrail(grouped)])
+    folder, code = report.write_report(_record([_synthetic(_pairs()), suite]), tmp_path)
+    summary = (folder / "summary.md").read_text(encoding="utf-8")
+    assert code == 1 and "## FAIL: Four-fifths (min ratio)" in summary
+    assert "| Four-fifths (min) | - | 0.500 |" in summary
+
+
+def test_golden_gets_a_summary_table_with_intervals(tmp_path) -> None:
+    golden = SuiteResult(name="golden", layer=3)
+    golden.metrics["summary"] = {"kendall_tau": {"point": 0.5, "low": 0.4, "high": 0.6},
+                                 "band_exact": {"point": 0.5, "low": 0.4, "high": 0.6}}
+    folder, _ = report.write_report(_record([_synthetic(_pairs()), golden]), tmp_path)
+    summary = (folder / "summary.md").read_text(encoding="utf-8")
+    assert "## Golden set" in summary and "| Kendall tau | 0.500 | [0.400, 0.600] |" in summary
+
+
+def test_cli_refuses_an_empty_parser_sample_in_a_full_run() -> None:
+    with pytest.raises(SystemExit):
+        run.parse_args(["--layers", "1,2,3", "--sample", "0"])
+    assert run.parse_args(["--layers", "2", "--sample", "0"]).sample == 0

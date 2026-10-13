@@ -62,6 +62,7 @@ from eval.suites import (
     IdMap,
     SuiteResult,
     Timer,
+    fairness_guardrail,
     pair_record,
     percentile,
 )
@@ -127,10 +128,10 @@ def score_corpus(engine: Any, pairs: Sequence[CorpusPair], as_of: date) -> list[
 # ─── (c) Parsing: cache, workers ───────────────────────────────────────────────────────────
 
 
-def _hash_files(paths: Sequence[Path]) -> str:
-    digest = hashlib.sha256()
+def _hash_files(paths: Sequence[Path], root: Path = ROOT, extra: bytes = b"") -> str:
+    digest = hashlib.sha256(extra)
     for path in sorted(paths):
-        digest.update(path.relative_to(ROOT).as_posix().encode())
+        digest.update(path.relative_to(root).as_posix().encode())
         digest.update(path.read_bytes())
     return digest.hexdigest()
 
@@ -141,15 +142,37 @@ def generator_fingerprint() -> str:
     return _hash_files([p for p in folder.rglob("*") if p.is_file() and p.suffix in (".py", ".j2")])[:16]
 
 
-def parser_fingerprint() -> str:
-    """The parser's code, its configuration and the taxonomy it resolves against."""
-    src = ROOT / "src" / "matcher"
+_PARSER_CONFIG = ("verbs.yaml", "negation.yaml", "curated_taxonomy.yaml", "curated_edges.yaml",
+                  "engine_version.txt")
+_PARSER_SCORING_SECTIONS = ("ingest", "taxonomy")  # the parts of scoring.yaml ingest and resolution read
+
+
+def parser_inputs(root: Path = ROOT) -> list[Path]:
+    """What the résumé parser reads: its modules (ingest, parse, normalize, graph, the verb and
+    negation classifier in score/evidence.py, models, config, errors), config/parse/**, the verb,
+    negation and curated taxonomy files, and the taxonomy's manifest and resolver tables. Weights,
+    bands, gates and every other scoring module are not inputs (DECISIONS D-118)."""
+    src = root / "src" / "matcher"
     files = [p for sub in ("ingest", "parse", "normalize", "graph") for p in (src / sub).rglob("*.py")]
-    files += [p for p in (ROOT / "config").rglob("*") if p.is_file()]
-    files += [p for p in (src / "score").rglob("evidence.py")] + [src / "models.py", src / "config.py",
-                                                                  src / "errors.py"]
-    files += [TAXONOMY_DIR / "MANIFEST.json"]
-    return _hash_files([p for p in files if p.exists()])[:16]
+    files += [src / "score" / "evidence.py", src / "models.py", src / "config.py", src / "errors.py"]
+    files += [p for p in (root / "config" / "parse").rglob("*") if p.is_file()]
+    files += [root / "config" / name for name in _PARSER_CONFIG]
+    files += [root / "data" / "taxonomy" / name for name in ("MANIFEST.json", "resolver.json")]
+    return [p for p in files if p.exists()]
+
+
+def parser_fingerprint(root: Path = ROOT) -> str:
+    """The parse cache's key part: `parser_inputs` plus the ingest and taxonomy sections of
+    scoring.yaml (read as data, so a change elsewhere in that file keeps the cache warm)."""
+    import yaml
+
+    scoring = root / "config" / "scoring.yaml"
+    sections = {}
+    if scoring.exists():
+        loaded = yaml.safe_load(scoring.read_text(encoding="utf-8")) or {}
+        sections = {k: loaded.get(k) for k in _PARSER_SCORING_SECTIONS}
+    extra = json.dumps(sections, sort_keys=True, default=str).encode("utf-8")
+    return _hash_files(parser_inputs(root), root, extra)[:16]
 
 
 class ParseCache:
@@ -397,6 +420,41 @@ def date_error(oracle: Resume, parsed: Optional[Resume], as_of: date) -> tuple[f
     return worst, notes
 
 
+_WRITTEN = 10  # failure files written per guardrail (the worst first); each states the true count
+
+
+def unknown_ids(profile: Any, corpus: Corpus, id_map: IdMap, template: str) -> set[str]:
+    """The vocabulary ids this rendering shows that the taxonomy cannot name."""
+    from eval.generate.profiles import expected_resume
+
+    oracle = expected_resume(profile, corpus.vocab, corpus.as_of,
+                             template="functional" if template == "functional" else None)
+    return {i for i in skill_ids(oracle) if not id_map.known(i)}
+
+
+COVERAGE_MIN = 0.92  # SPEC 16 coverage alert threshold (scoring.yaml taxonomy.coverage_alert_threshold)
+
+
+def taxonomy_coverage(postings: Any) -> Optional[float]:
+    """SPEC 16 coverage over the postings' requirement tokens: resolved / all, pooled."""
+    total = resolved = 0
+    for posting in postings:
+        tokens = posting.requirement_token_count or (len(posting.requirements)
+                                                     + len(posting.unresolved_requirement_tokens))
+        total += tokens
+        resolved += max(0, tokens - len(posting.unresolved_requirement_tokens))
+    return resolved / total if total else None
+
+
+def coverage_guardrail(postings: Any) -> Guardrail:
+    postings = list(postings)
+    value = taxonomy_coverage(postings)
+    unresolved = sorted({t for p in postings for t in p.unresolved_requirement_tokens})
+    return Guardrail("Taxonomy coverage (posting requirement tokens)",
+                     None if value is None else value >= COVERAGE_MIN, value, f">= {COVERAGE_MIN}",
+                     f"{len(postings)} postings; {len(unresolved)} distinct unresolved tokens", "coverage")
+
+
 def _without_industry(resume: Resume) -> Resume:
     return resume.model_copy(update={"roles": tuple(r.model_copy(update={"industry_codes": ()})
                                                     for r in resume.roles)})
@@ -433,6 +491,7 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
     report = FidelityReport()
     as_of = corpus.as_of
     found = wanted = 0
+    wanted_all = 0  # every vocabulary skill the rendering shows, those the taxonomy cannot name included
     extra = 0
     no_resume = 0
     date_errors: list[tuple[float, str, list[str]]] = []
@@ -447,9 +506,11 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
         comparable = _without_industry(oracle)  # no page prints the oracle's NAICS codes (Task 5.1)
         oracle_raw = engine.score(comparable, posting, as_of=as_of, options=BULK).raw_score
         raws: dict[tuple[str, str], Optional[float]] = {}
+        dims: dict[tuple[str, str], dict[str, Optional[float]]] = {}
         stripped: dict[tuple[str, str], Optional[float]] = {}  # domain left out on both sides
         for template in templates:
             expected = expected_ids(profile, corpus, id_map, template)
+            unnameable = len(unknown_ids(profile, corpus, id_map, template))
             for fmt in formats:
                 parsed = rendered[(profile.profile_id, template, fmt)]
                 name = f"{profile.profile_id}/{template}__{fmt}"
@@ -457,13 +518,16 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
                     no_resume += 1
                     raws[(template, fmt)] = stripped[(template, fmt)] = None
                 else:
-                    raws[(template, fmt)] = engine.score(parsed, posting, as_of=as_of, options=BULK).raw_score
+                    scored = engine.score(parsed, posting, as_of=as_of, options=BULK)
+                    raws[(template, fmt)] = scored.raw_score
+                    dims[(template, fmt)] = {k: d.value for k, d in scored.dimensions.items()}
                     stripped[(template, fmt)] = engine.score(_without_industry(parsed), posting, as_of=as_of,
                                                              options=BULK).raw_score
                 got = skill_ids(parsed) if parsed is not None else set()
                 hit = expected & got
                 found += len(hit)
                 wanted += len(expected)
+                wanted_all += len(expected) + unnameable
                 extra += len(got - expected)
                 if expected:
                     recoveries.append((len(hit) / len(expected), name, sorted(expected - got)))
@@ -475,12 +539,14 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
         for template in templates:
             values = [raws[(template, f)] for f in formats]
             within.append((_spread(values), f"{profile.profile_id}/{template}",
-                           {f: raws[(template, f)] for f in formats}))
+                           {"raws": {f: raws[(template, f)] for f in formats},
+                            "dimensions": {f: dims.get((template, f)) for f in formats}}))
         equivalent = [t for t in templates if t != "functional"]
         if equivalent:
             values = [raws[(t, f)] for t in equivalent for f in formats]
             across.append((_spread(values), profile.profile_id,
-                           {f"{t}__{f}": raws[(t, f)] for t in equivalent for f in formats}))
+                           {"raws": {f"{t}__{f}": raws[(t, f)] for t in equivalent for f in formats},
+                            "dimensions": {f"{t}__{f}": dims.get((t, f)) for t in equivalent for f in formats}}))
         if "functional" in templates:
             functional_oracle = _without_industry(
                 id_map.resume(expected_resume(profile, corpus.vocab, as_of, template="functional")))
@@ -489,15 +555,18 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
                 got_raw = stripped[("functional", fmt)]
                 dev = UNBOUNDED if got_raw is None or target is None else abs(got_raw - target)
                 functional_dev.append((dev, f"{profile.profile_id}/functional__{fmt}",
-                                       {"parsed": got_raw, "oracle": target}))
+                                       {"parsed": got_raw, "oracle": target,
+                                        "dimensions": {fmt: dims.get(("functional", fmt))}}))
 
     recovery = found / wanted if wanted else None
+    recovery_all = found / wanted_all if wanted_all else None
     dates = [e for e, _, _ in date_errors]
     report.metrics.update({
         "parser_profiles": len(profiles),
         "parser_renderings": len(profiles) * len(templates) * len(formats),
         "parser_no_resume": no_resume,
         "recovered_skills": recovery,
+        "recovered_skills_all": recovery_all,
         "extra_skills_per_rendering": extra / max(1, len(profiles) * len(templates) * len(formats)),
         "date_error_max_months": max(dates) if dates else None,
         "date_error_p99_months": _p99(dates),
@@ -511,7 +580,8 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
         "taxonomy_unknown_skills": len(id_map.unknown),
     })
     report.worst = {
-        "within_template": [{"case": c, "spread": s, "raws": r} for s, c, r in sorted(within, key=lambda x: -x[0])[:15]],
+        "within_template": [{"case": c, "spread": s, "raws": r["raws"]}
+                            for s, c, r in sorted(within, key=lambda x: -x[0])[:15]],
         "across_templates": [{"case": c, "spread": s} for s, c, _ in sorted(across, key=lambda x: -x[0])[:15]],
         "functional": [{"case": c, "deviation": d, **r} for d, c, r in sorted(functional_dev, key=lambda x: -x[0])[:15]],
         "date_error": [{"case": c, "error": e, "notes": n} for e, c, n in sorted(date_errors, key=lambda x: -x[0])[:15]],
@@ -531,9 +601,11 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
                   f"{len(formats)} formats", "invariance across"),
         p99_guard("Format invariance: functional vs its oracle", functional_dev, f"{len(functional_dev)} renderings",
                   "invariance functional"),
-        Guardrail("Parser fidelity: recovered skills", None if recovery is None else recovery >= RECOVERY_MIN,
-                  recovery, f">= {RECOVERY_MIN:.0%}", f"{found}/{wanted} taxonomy-known skills; "
-                  f"{len(id_map.unknown)} vocabulary skills the taxonomy cannot name are left out", "recovery"),
+        Guardrail("Parser fidelity: recovered skills (all vocabulary)",
+                  None if recovery_all is None else recovery_all >= RECOVERY_MIN, recovery_all,
+                  f">= {RECOVERY_MIN:.0%}", f"{found}/{wanted_all} skills shown, the {len(id_map.unknown)} the "
+                  f"taxonomy cannot name included (taxonomy-known only: {_fmt(recovery)}, a diagnostic)",
+                  "recovery"),
         Guardrail("Parser fidelity: date error (months)", None if not dates else max(dates) <= DATE_ERROR_MAX,
                   max(dates) if dates else None, f"max <= {DATE_ERROR_MAX}",
                   f"{len(dates)} dated renderings; p99 {_fmt(report.metrics['date_error_p99_months'])}, "
@@ -551,24 +623,45 @@ def fidelity(corpus: Corpus, id_map: IdMap, engine: Any, profiles: Sequence[Any]
     def bounded(value: float) -> Any:
         return value if math.isfinite(value) else "unbounded"
 
-    for rows, kind, label in ((within, "invariance within", "spread"), (across, "invariance across", "spread"),
-                              (functional_dev, "invariance functional", "deviation")):
-        for value, case, extra_info in sorted(rows, key=lambda x: -x[0])[:10]:
+    def counts(failing: int, unit: str) -> dict[str, Any]:
+        written = min(failing, _WRITTEN)
+        return {"failing_total": failing, "written": written,
+                "summary": f"{failing:,} failing {unit}, {written} worst written"}
+
+    for rows, kind, label, unit in ((within, "invariance within", "spread", "(profile, template) groups"),
+                                    (across, "invariance across", "spread", "profiles"),
+                                    (functional_dev, "invariance functional", "deviation", "renderings")):
+        failing = sum(1 for row in rows if row[0] > INVARIANCE_MAX)
+        for value, case, info in sorted(rows, key=lambda x: -x[0])[:_WRITTEN]:
             if value > INVARIANCE_MAX:
                 report.failures.append(Failure(f"{kind.replace(' ', '_')}__{case.replace('/', '__')}", kind,
-                                               {**replay(case), label: bounded(value), "raws": extra_info}))
-    for error, case, notes in sorted(date_errors, key=lambda x: -x[0])[:10]:
+                                               {**replay(case), **counts(failing, unit), label: bounded(value),
+                                                **info}))
+    failing = sum(1 for row in date_errors if row[0] > DATE_ERROR_MAX)
+    for error, case, notes in sorted(date_errors, key=lambda x: -x[0])[:_WRITTEN]:
         if error > DATE_ERROR_MAX:
             report.failures.append(Failure(f"date_error__{case.replace('/', '__')}", "date error",
-                                           {**replay(case), "error_months": bounded(error), "notes": notes}))
-    for share, case, missing in sorted(recoveries, key=lambda x: x[0])[:10]:
+                                           {**replay(case), **counts(failing, "renderings"),
+                                            "error_months": bounded(error), "notes": notes}))
+    failing = sum(1 for row in recoveries if row[0] < RECOVERY_MIN)
+    for share, case, missing in sorted(recoveries, key=lambda x: x[0])[:_WRITTEN]:
         if share < RECOVERY_MIN:
             report.failures.append(Failure(f"recovery__{case.replace('/', '__')}", "recovery",
-                                           {**replay(case), "recovered": share, "missing": missing}))
+                                           {**replay(case), **counts(failing, "renderings"), "recovered": share,
+                                            "missing": missing}))
     return report
 
 
 # ─── The suite ─────────────────────────────────────────────────────────────────────────────
+
+
+_PARSER_GUARDRAILS = (
+    ("Format invariance: formats within a template", f"p99 <= {INVARIANCE_MAX}", "invariance within"),
+    ("Format invariance: across equivalent templates", f"p99 <= {INVARIANCE_MAX}", "invariance across"),
+    ("Format invariance: functional vs its oracle", f"p99 <= {INVARIANCE_MAX}", "invariance functional"),
+    ("Parser fidelity: recovered skills (all vocabulary)", f">= {RECOVERY_MIN:.0%}", "recovery"),
+    ("Parser fidelity: date error (months)", f"max <= {DATE_ERROR_MAX}", "date error"),
+)
 
 
 def default_jobs() -> int:
@@ -616,10 +709,21 @@ def run_synthetic(engine: Any, cf_engine: Any, corpus: Corpus, id_map: IdMap, pa
         result.metrics["ranking"] = ranking_metrics(result.pairs, n_resamples=n_resamples)
         result.metrics["ranking_pairs"] = len(result.pairs)
         result.metrics["ranking_postings"] = len({p.posting_id for p in result.pairs})
+        result.guardrails.append(fairness_guardrail(result.pairs))
+        translated = [id_map.posting(p) for p in corpus.by_id.values()]
+        result.guardrails.append(coverage_guardrail(translated))
+        result.metrics["taxonomy_coverage"] = taxonomy_coverage(translated)
+        labels = {s.id: s.label for s in (*corpus.vocab.skills, *corpus.vocab.fields)}
+        result.metrics["taxonomy_unknown_labels"] = sorted(labels.get(i, i) for i in id_map.unknown)
         # (c) parser fidelity and format invariance
         if parse is None and parse_factory is None:
             result.notes.append(f"PARSER: skipped: parser not available{': ' + parser_reason if parser_reason else ''}")
             result.metrics["parser"] = "skipped: parser not available"
+        elif not parse_profiles:
+            result.notes.append("PARSER: skipped by --sample 0")
+            result.metrics["parser"] = "skipped by --sample 0"
+            result.guardrails += [Guardrail(name, None, None, threshold, "skipped by --sample 0", kind)
+                                  for name, threshold, kind in _PARSER_GUARDRAILS]
         else:
             templates = tuple(templates or TEMPLATES)
             formats = tuple(formats or FORMATS)

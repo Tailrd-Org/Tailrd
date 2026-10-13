@@ -215,6 +215,13 @@ _STRENGTH = {Necessity.REQUIRED: 0, Necessity.PREFERRED: 1, Necessity.IMPLIED: 2
 
 @dataclass(frozen=True)
 class IdMap:
+    """Vocabulary ids -> taxonomy ids (DECISIONS D-111). Two vocabulary skills may resolve to one
+    taxonomy id (on the default vocabulary: Market Research and Competitive Analysis -> market
+    research, User Research and Usability Testing -> user research, Visual Design and Graphic Design
+    -> graphic design): their mentions then count as one skill, and two posting requirements that land on one
+    id merge into one requirement with the stronger necessity, as `parse_posting` would emit it.
+    Skills in `unknown` are dropped from résumés and become unresolved tokens of postings."""
+
     skills: dict[str, str]  # vocabulary id -> taxonomy id, for every vocabulary skill and field
     unknown: frozenset[str]  # vocabulary ids no spelling of which resolves
 
@@ -326,6 +333,24 @@ def corpus_pairs(corpus: Corpus, id_map: IdMap, *, template: Optional[str] = Non
     )
 
 
+SHORTLIST = 0.70  # four-fifths "selected": the Good band or better (bands.yaml, D-52)
+
+
+def fairness_guardrail(pairs: Sequence[PairScore], *, name: str = "Four-fifths (min ratio)") -> Guardrail:
+    """EVAL 3: selection-rate ratio >= 0.80 for every group with n >= 100, selected = raw >= 0.70.
+    No eligible group is "not assessed" (passed None), never a pass (D-93)."""
+    from eval.metrics import FOUR_FIFTHS_THRESHOLD, four_fifths
+
+    result = four_fifths(pairs, lambda p: p.score is not None and p.score >= SHORTLIST)
+    if result.min_ratio is None:
+        groups = len({p.group for p in pairs if p.group is not None})
+        detail = "no group with n >= 100" + (f" ({groups} smaller groups)" if groups else " (pairs carry no group)")
+        return Guardrail(name, None, None, f">= {FOUR_FIFTHS_THRESHOLD:.2f}", detail, "fairness")
+    worst = min(result.per_group, key=lambda g: result.per_group[g].ratio)
+    return Guardrail(name, result.passed, result.min_ratio, f">= {FOUR_FIFTHS_THRESHOLD:.2f}",
+                     f"{len(result.per_group)} groups; lowest {worst}", "fairness")
+
+
 # ─── Results as metric records ─────────────────────────────────────────────────────────────
 
 
@@ -343,8 +368,12 @@ def score_for_ranking(result: MatchResult) -> Optional[float]:
 def pair_record(posting_id: str, pair_id: str, result: MatchResult, fit_level: int) -> PairScore:
     """A synthetic pair as a `PairScore`. relevance and band_true are the constructed fit level,
     `advanced` is fit >= 2; `hard` marks the middle levels 1 and 2, the borderline candidates an
-    abstention should concentrate on."""
-    band = BAND_INDEX.get(Band(result.band)) if result.band is not None else None
+    abstention should concentrate on (DECISIONS D-113). A GATE_FAIL pair is ineligible: it ranks last
+    and its band counts as Limited (0), so a gate never hides a pair from band accuracy."""
+    if Outcome(result.outcome) is Outcome.GATE_FAIL:
+        band: Optional[int] = BAND_INDEX[Band.LIMITED]
+    else:
+        band = BAND_INDEX.get(Band(result.band)) if result.band is not None else None
     return PairScore(
         posting_id=posting_id,
         pair_id=pair_id,

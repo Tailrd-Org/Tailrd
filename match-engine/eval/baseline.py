@@ -8,9 +8,9 @@ The diff has two parts:
 
 * metric deltas: `bootstrap_delta` per ranking metric on the postings both runs share, with the
   metric's own `min_effect` (0.01 for NDCG and the other shares, 0.005 for band off-by-two);
-* per-pair regressions: pairs whose score moved away from their label by more than
-  `REGRESSION_EPS` (a drop for an advanced pair, fit >= 2; a rise for one that is not), or that
-  newly abstain, worst first. They feed `regressions.md`.
+* per-pair regressions (DECISIONS D-115): a move against the advanced direction by more than
+  `REGRESSION_EPS` (0.005), that is a drop for an advanced pair (fit >= 2) or a rise for a pair that
+  is not, or a new abstention; worst first. They feed `regressions.md`.
 """
 
 from __future__ import annotations

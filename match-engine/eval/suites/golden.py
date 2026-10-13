@@ -1,10 +1,13 @@
 """Layer 3, golden (EVAL section 1) and layer 4, holdout.
 
-Layer 3 runs when `eval/corpora/golden/labels.jsonl` exists (format: that folder's README.md):
+Layer 3 runs when `eval/corpora/golden/labels.jsonl` exists (format: that folder's README.md; an
+optional `group` per pair feeds the four-fifths guardrail, which is "not assessed" below n = 100):
 Kendall's tau-b between the engine's raw score and the human band within each posting, averaged
 over postings with at least two pairs; band accuracy (exact, off by one, off by two or more: the one
 to alarm on) of the engine's band against the consensus band; inter-rater agreement (exact share and
-quadratic-weighted Cohen's kappa over the first two raters) when pairs carry two labels. Without the
+quadratic-weighted Cohen's kappa over the first two raters) when pairs carry two labels. Each has a
+bootstrap CI over postings (`metrics["summary"]`). Off-by-two stays a metric: EVAL.md calls it the
+one to alarm on but gives no threshold. Without the
 file it reports `GOLDEN: skipped (no labels)`.
 
 Layer 4 never reads `eval/corpora/holdout/`. It asks Task 8.1's tooling (`eval.holdout.find_key`)
@@ -21,9 +24,9 @@ from pathlib import Path
 from statistics import median
 from typing import Any, Optional
 
-from eval.metrics import PairScore, band_accuracy, kendall_tau_b
-from eval.suites import BAND_INDEX, BULK, ROOT, SuiteResult, Timer, score_for_ranking, skipped
-from matcher.models import Band, JobPosting, Resume
+from eval.metrics import PairScore, band_accuracy, bootstrap_ci, group_by_posting, kendall_tau_b
+from eval.suites import BULK, ROOT, SuiteResult, Timer, fairness_guardrail, pair_record, skipped
+from matcher.models import JobPosting, Resume
 
 GOLDEN_LABELS = ROOT / "eval" / "corpora" / "golden" / "labels.jsonl"
 GOLDEN_SKIPPED = "GOLDEN: skipped (no labels)"
@@ -53,11 +56,26 @@ def weighted_kappa(a: Sequence[int], b: Sequence[int], categories: int = 4) -> O
     return None if chance == 0 else 1.0 - disagree / chance
 
 
+def _tau(group: Sequence[PairScore]) -> Optional[float]:
+    scored = [p for p in group if p.score is not None]
+    if len(scored) < 2:
+        return None
+    return kendall_tau_b([p.score for p in scored], [float(p.relevance) for p in scored])
+
+
+def kendall_by_posting(pairs: Sequence[PairScore]) -> Optional[float]:
+    """Kendall's tau-b between raw score and the consensus band within each posting, averaged over
+    the postings where it is defined (two scored pairs and neither side constant)."""
+    taus = [t for t in (_tau(g) for g in group_by_posting(pairs).values()) if t is not None]
+    return math.fsum(taus) / len(taus) if taus else None
+
+
 def _load(path: Path) -> list[dict[str, Any]]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
-def run_golden(engine: Any, as_of: date, labels: Path = GOLDEN_LABELS, parse: Optional[ParseFn] = None) -> SuiteResult:
+def run_golden(engine: Any, as_of: date, labels: Path = GOLDEN_LABELS, parse: Optional[ParseFn] = None, *,
+               n_resamples: int = 1000) -> SuiteResult:
     if not labels.exists():
         result = skipped("golden", 3, "no labels")
         result.notes.append(GOLDEN_SKIPPED)
@@ -66,13 +84,12 @@ def run_golden(engine: Any, as_of: date, labels: Path = GOLDEN_LABELS, parse: Op
     with Timer() as timer:
         rows = _load(labels)
         pairs: list[PairScore] = []
-        rater_pairs: list[tuple[int, int]] = []
-        by_posting: dict[str, list[tuple[float, float]]] = {}
+        raters: dict[str, tuple[int, int]] = {}  # pair id -> the first two raters' bands
         unscorable = 0
         for row in rows:
             bands = [int(label["band"]) for label in row["labels"]]
             if len(bands) >= 2:
-                rater_pairs.append((bands[0], bands[1]))
+                raters[row["pair_id"]] = (bands[0], bands[1])
             truth = consensus(bands)
             resume: Optional[Resume]
             if "resume" in row:
@@ -88,30 +105,41 @@ def run_golden(engine: Any, as_of: date, labels: Path = GOLDEN_LABELS, parse: Op
             posting = JobPosting.model_validate(row["posting"])
             scored = engine.score(resume, posting, as_of=date.fromisoformat(row.get("as_of", as_of.isoformat())),
                                   options=BULK)
-            score = score_for_ranking(scored)
-            band = BAND_INDEX.get(Band(scored.band)) if scored.band is not None else None
-            pairs.append(PairScore(posting_id=row["posting_id"], pair_id=row["pair_id"], score=score,
-                                   relevance=truth, band_pred=band, band_true=truth,
-                                   advanced=row.get("advanced")))
-            if score is not None:
-                by_posting.setdefault(row["posting_id"], []).append((score, float(truth)))
-        taus = [t for t in (kendall_tau_b([s for s, _ in v], [h for _, h in v]) for v in by_posting.values()
-                            if len(v) >= 2) if t is not None]
+            record = pair_record(row["posting_id"], row["pair_id"], scored, truth)
+            pairs.append(record.model_copy(update={"advanced": row.get("advanced"), "hard": False,
+                                                   "group": row.get("group")}))
         bands = band_accuracy(pairs)
         result.pairs = pairs
         result.metrics.update({
             "golden_pairs": len(rows),
             "golden_unscorable": unscorable,
-            "kendall_tau": (math.fsum(taus) / len(taus)) if taus else None,
-            "kendall_postings": len(taus),
+            "kendall_tau": kendall_by_posting(pairs),
+            "kendall_postings": len([g for g in group_by_posting(pairs).values() if _tau(g) is not None]),
             "band_exact": bands["exact"],
             "band_off_by_one": bands["off_by_one"],
             "band_off_by_two": bands["off_by_two_plus"],
         })
-        if rater_pairs:
-            result.metrics["rater_exact_agreement"] = sum(1 for a, b in rater_pairs if a == b) / len(rater_pairs)
-            result.metrics["rater_weighted_kappa"] = weighted_kappa([a for a, _ in rater_pairs],
-                                                                    [b for _, b in rater_pairs])
+
+        def kappa(sample: Sequence[PairScore]) -> Optional[float]:
+            both = [raters[p.pair_id] for p in sample if p.pair_id in raters]
+            return weighted_kappa([a for a, _ in both], [b for _, b in both])
+
+        metrics = {"kendall_tau": kendall_by_posting,
+                   "band_exact": lambda ps: band_accuracy(ps)["exact"],
+                   "band_off_by_one": lambda ps: band_accuracy(ps)["off_by_one"],
+                   "band_off_by_two": lambda ps: band_accuracy(ps)["off_by_two_plus"]}
+        if raters:
+            metrics["rater_weighted_kappa"] = kappa
+        summary = {}
+        for key, fn in metrics.items():
+            ci = bootstrap_ci(pairs, fn, n_resamples=n_resamples, seed=0)
+            summary[key] = {"point": ci.point, "low": ci.low, "high": ci.high}
+        result.metrics["summary"] = summary
+        result.guardrails.append(fairness_guardrail(pairs))
+        if raters:
+            both = list(raters.values())
+            result.metrics["rater_exact_agreement"] = sum(1 for a, b in both if a == b) / len(both)
+            result.metrics["rater_weighted_kappa"] = weighted_kappa([a for a, _ in both], [b for _, b in both])
         else:
             result.notes.append("GOLDEN: inter-rater agreement not assessed (no dual labels)")
         off_two = [p.pair_id for p in pairs if p.band_pred is not None and abs(p.band_pred - p.band_true) >= 2]

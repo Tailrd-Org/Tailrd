@@ -32,6 +32,10 @@ One JSON object per line:
 * `labels`: one entry per rater. `band` is 0 Limited, 1 Partial, 2 Good, 3 Strong, the four bands
   the product shows (DECISIONS D-52). `note` is optional free text.
 * `advanced`: the real outcome when known (true / false), else null.
+* `group` (optional): an opaque fairness group id (for example "g1"), never a demographic label in
+  clear text and never read by the engine. Pairs with a group feed the four-fifths guardrail
+  (selected = raw >= 0.70, ratio >= 0.80 over groups with at least 100 pairs); with no eligible group
+  it reads "not assessed", never a pass (DECISIONS D-93, D-110).
 
 ## Labelling protocol (dual labelling)
 
