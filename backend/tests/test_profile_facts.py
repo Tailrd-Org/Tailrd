@@ -48,6 +48,7 @@ from backend.services.profile_facts import (
     country_of,
     location_facts,
     needs_sponsorship_in,
+    negated_country_scope,
     parse_address,
     polarity_of,
     residence_of,
@@ -1081,26 +1082,60 @@ def test_pin_a_french_canadian_statement_reads_as_nothing_at_all():
     assert authorized_in(a, "CA", "CA") is None
 
 
-def test_pin_a_negation_is_not_attributed_to_one_country():
-    """PINNED TS BEHAVIOUR (probable bug): one reading is applied to EVERY country the sentence names.
+def test_a_negated_country_is_never_authorized():
+    """Owner decisions 2026-10-13 (was a PINNED TS BEHAVIOUR): a negation belongs to the countries in its clause.
 
-    "...Canada but not in the US" has no "not authorized" phrase, so it is a plain affirmative
-    for both countries: authorized in the US. "...Canada, not authorized in the US" matches the
-    denial pattern, so it is a denial for both: NOT authorized in Canada. The per-country
-    answers (authorizedUS / authorizedCanada) repair either, see the last assertions.
+    "...Canada but not in the US" excludes the US outright: a No there, and Canada keeps the
+    statement. "...Canada, not authorized in the US" denies the US only, not Canada. An explicit
+    per-country answer that agrees with the text keeps the text's basis. Mirrors
+    chrome-extension/test/workAuthScope.test.ts.
     """
     but = work_auth_facts(profile(workAuthorization="Authorized to work in Canada but not in the US"))
-    assert authorized_in(but, "US", "CA") == Fact(True, "high", "work-auth:statement")
+    assert authorized_in(but, "US", "CA") == Fact(False, "high", "work-auth:denied")
     assert authorized_in(but, "CA", "CA") == Fact(True, "high", "work-auth:statement")
 
     comma = work_auth_facts(profile(workAuthorization="Authorized to work in Canada, not authorized in the US"))
-    assert authorized_in(comma, "CA", "CA") == Fact(False, "high", "work-auth:denied")
-    assert needs_sponsorship_in(comma, "CA", "CA") == Fact(True, "high", "sponsorship:not-authorized-denied")
+    assert authorized_in(comma, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    assert authorized_in(comma, "US", "CA") == Fact(False, "high", "work-auth:denied")
+    assert needs_sponsorship_in(comma, "US", "CA") == Fact(True, "high", "sponsorship:not-authorized-denied")
 
     fixed = work_auth_facts(profile(
         workAuthorization="Authorized to work in Canada but not in the US", authorizedUS="No", authorizedCanada="Yes"))
-    assert authorized_in(fixed, "US", "CA") == Fact(False, "high", "work-auth:stated")
+    assert authorized_in(fixed, "US", "CA") == Fact(False, "high", "work-auth:denied")
     assert authorized_in(fixed, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+
+
+@pytest.mark.parametrize(("text", "us"), [
+    ("Canada but not in the US", False),
+    ("Authorized in Canada, not the US", False),
+    ("Authorized to work in Canada, except the US", False),
+    ("Yes, in Canada but not the United States", False),
+    ("Only in Canada", None),
+])
+def test_a_scoped_statement_counts_only_its_positive_countries(text, us):
+    a = work_auth_facts(profile(workAuthorization=text))
+    assert authorized_in(a, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    if us is None:
+        assert authorized_in(a, "US", "CA") is None
+    else:
+        assert authorized_in(a, "US", "CA") == Fact(False, "high", "work-auth:denied")
+
+
+def test_negation_scope_clauses():
+    """"and" between two countries keeps both negated; "and" before a new statement ends it;
+    a negated sponsorship clause and "not a ... citizen" never make a No."""
+    both = work_auth_facts(profile(workAuthorization="Authorized to work in Canada, not in the US and the UK"))
+    assert both.by_country["US"] == CountryAuth(False, None, "denied")
+    assert both.by_country["GB"] == CountryAuth(False, None, "denied")
+    split = work_auth_facts(profile(workAuthorization="Not authorized in the US and authorized to work in Canada"))
+    assert split.by_country["US"] == CountryAuth(False, None, "denied")
+    assert split.by_country["CA"] == CountryAuth(True, None, "statement")
+    sponsor = work_auth_facts(profile(workAuthorization="US citizen, not requiring sponsorship in the US"))
+    assert sponsor.by_country["US"] == CountryAuth(True, False, "citizen")
+    weak = work_auth_facts(profile(workAuthorization="Canadian citizen, not a US citizen"))
+    assert weak.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert "US" not in weak.by_country
+    assert negated_country_scope("Canadian citizen, not a US citizen") == ({"US": False}, "Canadian citizen,")
 
 
 def test_pin_one_status_is_applied_to_every_named_country():
@@ -1114,21 +1149,27 @@ def test_pin_one_status_is_applied_to_every_named_country():
     assert needs_sponsorship_in(a, "US", "CA") == Fact(False, "high", "sponsorship:citizen")
 
 
-@pytest.mark.parametrize("text", ["N/A", "n/a", "Not sure", "Not applicable"])
-def test_pin_a_non_answer_that_starts_with_n_reads_as_no(text):
-    """PINNED TS BEHAVIOUR (probable bug): /^(no|n|false|non|none|not)\\b/ takes the "N" of "N/A" for a No."""
+@pytest.mark.parametrize("text", ["N/A", "n/a", "NA", "N.A.", "N / A", "Not applicable", "does not apply"])
+def test_not_applicable_is_unanswered(text):
+    """Owner decisions 2026-10-13 (was a PINNED TS BEHAVIOUR): "N/A" is unanswered, never a No."""
+    assert polarity_of(text) is None
+
+
+@pytest.mark.parametrize("text", ["Not sure", "No", "n", "None required"])
+def test_pin_other_n_words_still_read_as_no(text):
+    """PINNED TS BEHAVIOUR: /^(no|n|false|non|none|not)\b/ still takes these for a No."""
     assert polarity_of(text) is False
 
 
-def test_pin_na_in_a_saved_answer_becomes_a_high_confidence_no():
-    """PINNED TS BEHAVIOUR (probable bug): the consequence of the pin above for the two saved answers."""
-    unauthorised = work_auth_facts(profile(workAuthorization="N/A"))
-    assert unauthorised.unscoped_authorized is False
-    assert authorized_in(unauthorised, "CA", "CA") == Fact(False, "high", "work-auth:unscoped-residence")
+def test_na_in_a_saved_answer_states_nothing():
+    """The consequence of the N/A rule for the two saved answers."""
+    unanswered = work_auth_facts(profile(workAuthorization="N/A"))
+    assert unanswered.unscoped_authorized is None
+    assert authorized_in(unanswered, "CA", "CA") is None
 
     no_sponsorship = work_auth_facts(profile(workAuthorization="Yes", requiresSponsorship="N/A"))
-    assert no_sponsorship.stated_sponsorship is False
-    assert needs_sponsorship_in(no_sponsorship, "CA", "CA") == Fact(False, "high", "sponsorship:stated")
+    assert no_sponsorship.stated_sponsorship is None
+    assert needs_sponsorship_in(no_sponsorship, "CA", "CA") is None
 
 
 def test_pin_a_leading_yes_wins_over_a_later_negation():

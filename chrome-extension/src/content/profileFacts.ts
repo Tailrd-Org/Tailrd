@@ -429,23 +429,32 @@ export function negatedCountryScope(text: string): { negated: Map<string, boolea
   const negated = new Map<string, boolean>();
   const lower = text.toLowerCase();
   const cuts: Array<[number, number]> = [];
-  for (const m of lower.matchAll(NEGATION)) {
+  const matches = [...lower.matchAll(NEGATION)];
+  matches.forEach((m, i) => {
     const from = (m.index ?? 0) + m[0].length;
-    const rest = lower.slice(from);
-    const brk = rest.search(CLAUSE_BREAK);
-    const to = from + (brk >= 0 ? brk : rest.length);
+    // A clause also ends at the next negation, which starts its own: the
+    // clauses never overlap, so a long run of negations stays linear.
+    const limit = i + 1 < matches.length ? (matches[i + 1].index ?? lower.length) : lower.length;
+    const window = lower.slice(from, limit);
+    const brk = window.search(CLAUSE_BREAK);
+    const to = from + (brk >= 0 ? brk : window.length);
     const clause = lower.slice(from, to);
-    if (SPONSORSHIP_WORDS.test(clause)) continue;
+    if (SPONSORSHIP_WORDS.test(clause)) return;
     // Same indices in the original text: countriesIn reads "US" by its capitals.
     const named = countriesIn(text.slice(from, to));
-    if (named.length === 0) continue;
+    if (named.length === 0) return;
     const outright = !/^\s*(an?|the applicant an?)\s/.test(clause) && !/\b(citizen|national|resident)\b/.test(clause);
     for (const c of named) negated.set(c.code, (negated.get(c.code) ?? false) || outright);
     cuts.push([m.index ?? 0, to]);
+  });
+  const kept: string[] = [];
+  let at = 0;
+  for (const [a, b] of cuts) {
+    kept.push(text.slice(at, a));
+    at = b;
   }
-  let positiveText = text;
-  for (const [a, b] of cuts.reverse()) positiveText = positiveText.slice(0, a) + " " + positiveText.slice(b);
-  return { negated, positiveText: positiveText.trim() };
+  kept.push(text.slice(at));
+  return { negated, positiveText: kept.join(" ").trim() };
 }
 
 /**

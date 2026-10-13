@@ -80,6 +80,14 @@ describe("a negated country is never authorized", () => {
     expect(a.byCountry.get("US")?.authorized).not.toBe(true);
   });
 
+  it("is linear on a long run of negations (no clause runs past the next negation)", () => {
+    const text = "Not authorized in the US ".repeat(2000);
+    const t0 = performance.now();
+    const a = workAuthFacts(profile({ workAuthorization: text }));
+    expect(performance.now() - t0).toBeLessThan(1000);
+    expect(a.byCountry.get("US")?.authorized).toBe(false);
+  });
+
   it("existing readings are unchanged", () => {
     expect(authorizedIn(workAuthFacts(profile({ workAuthorization: "Not authorized to work in the US" })), "US", "CA")?.value).toBe(false);
     const both = workAuthFacts(profile({ workAuthorization: "Authorized to work in Canada and the U.S." }));

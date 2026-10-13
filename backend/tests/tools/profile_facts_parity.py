@@ -341,6 +341,10 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "central american", "in US", "the US", "for us", "in the U.S.", "work for us", "in America", "Americas",
     "H-1B visa", "green-card", "U.S. citizen", "Canadian citizen", "permanent resident of Canada",
     "Authorized to work in", "not authorized", "no longer", "do not require",
+    # Negation scope and N/A (owner decisions 2026-10-13).
+    "but not in the US", "but not the", "except the US", "excluding", "other than", "outside of", "only in",
+    "not in the US and the UK", "and authorized", "not a US citizen", "not requiring sponsorship", "NA", "n/a",
+    "N.A.", "not applicable", "does not apply", "however", "whereas", "yet",
 ]
 
 EXOTIC_WORDS = [
@@ -378,7 +382,7 @@ COUNTRY_NAMES = ["Canada", "CA", "US", "USA", "U.S.", "United States", "United S
 POSTAL_CODES = ["V6E 3P3", "V6E3P3", "v6e 3p3", "M5V 2T6", "K1A 0B1", "02139", "62701", "62701-1234", "SE1 3TQ",
                 "sw1a 1aa", "10119", "H2J 2L3", f"M5V{NBSP}2T6", "M5V-2T6", "D1A 0B1", "12345", "9021", "K1A  0B1"]
 SEPARATORS_IN_ADDRESS = [", "] * 8 + [",", " , ", ";", "\n", " ", ",,", "; ", ",\n", NBSP + "," + NBSP]
-YES_NO = ["Yes", "No", "", "", "", " ", "yes ", "n", "N/A", "Y", "maybe", "None", "Not sure", "TRUE", "false", "Oui",
+YES_NO = ["Yes", "No", "", "", "", " ", "yes ", "n", "N/A", "NA", "n / a", "Not applicable", "Y", "maybe", "None", "Not sure", "TRUE", "false", "Oui",
           "Non", "yes.", NBSP + "Yes", BOM + "No"]
 COUNTRY_QUERIES = [None, "", "US", "CA", "GB", "DE", "AT", "FR", "CH", "IN", "MX", "NO", "ES", "IE"]
 RESIDENCE_QUERIES = [None, "US", "CA", "DE", "GB", "IN"]
