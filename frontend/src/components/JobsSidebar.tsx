@@ -18,6 +18,7 @@ import CompanyLogo from "./CompanyLogo";
 import { pingExtension, type ExtensionState } from "../lib/extensionBridge";
 import { CHROME_STORE_URL } from "../lib/extensionStore";
 import { skillLabel } from "../lib/skillLabel";
+import { bandFor, FIT_BANDS, STRONG_MIN } from "../lib/fit";
 import "./jobs-sidebar.css";
 
 export interface SidebarData {
@@ -79,6 +80,8 @@ interface Props {
 
 const GOAL_KEY = "tailrd.jobs.weeklyGoal";
 const DEFAULT_GOAL = 10;
+// Alerts go out for confident Strong matches only (D-85), named by the engine's band.
+const STRONG_LABEL = `${FIT_BANDS[0].band} (fit score ${STRONG_MIN} or higher)`;
 
 function readGoal(): number {
   try {
@@ -131,10 +134,10 @@ function ResumeCard({ data }: { data: SidebarData }) {
       <p className="rail-resume-name" title={resume.name}>{resume.name}</p>
       {resume.scored_jobs > 0 && resume.avg_match !== null ? (
         <div className="rail-stat-row">
-          <Ring value={resume.avg_match} max={100} label={`Average match ${resume.avg_match}%`} />
+          <Ring value={resume.avg_match} max={100} label={`Average fit score ${resume.avg_match}`} />
           <p className="rail-stat-copy">
-            <strong>{resume.avg_match}% average</strong> across {resume.scored_jobs} scored{" "}
-            {resume.scored_jobs === 1 ? "job" : "jobs"}
+            <strong>{resume.avg_match} average fit score</strong> ({bandFor(resume.avg_match)}) across{" "}
+            {resume.scored_jobs} scored {resume.scored_jobs === 1 ? "job" : "jobs"}
             {resume.strong_matches > 0 && <>, {resume.strong_matches} strong</>}
           </p>
         </div>
@@ -448,8 +451,8 @@ function AlertsCard({ enabled, onChange }: { enabled: boolean; onChange: (v: boo
       </div>
       <p className="rail-muted">
         {enabled
-          ? "We'll email you when a new job scores 80% or higher against your résumé."
-          : "Turn on to get an email when a new job scores 80% or higher."}
+          ? `We'll email you when a new job is a ${STRONG_LABEL} against your résumé.`
+          : `Turn on to get an email when a new job is a ${STRONG_LABEL}.`}
       </p>
       {error && <p className="rail-error" role="alert">Couldn't update. Try again.</p>}
     </section>
@@ -491,7 +494,7 @@ export default function JobsSidebar({
         <AlertsCard enabled={data.alerts_enabled} onChange={onAlertsChange} />
       )}
       <p className="rail-footnote">
-        <Sparkle size={12} weight="fill" /> Match scores compare your résumé with each posting. Use them as a guide, not a verdict.
+        <Sparkle size={12} weight="fill" /> Fit scores compare your résumé with each posting. Use them as a guide, not a verdict.
       </p>
     </aside>
   );

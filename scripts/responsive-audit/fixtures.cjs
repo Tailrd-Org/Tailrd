@@ -25,6 +25,13 @@ const user = {
   created_at: "2026-01-04T12:00:00Z",
 };
 
+const FIT_OUTCOMES = [
+  { match_score: 0, match_band: "Limited match", match_outcome: "SCORED_LOW_CONFIDENCE" },
+  { match_score: 0, match_band: null, match_outcome: "NEEDS_REVIEW" },
+  { match_score: 0, match_band: null, match_outcome: "GATE_FAIL" },
+  { match_score: 88, match_band: "Strong match", match_outcome: "SCORED" },
+];
+
 function job(i, overrides = {}) {
   return {
     id: i,
@@ -39,7 +46,10 @@ function job(i, overrides = {}) {
       "- Experience with Kubernetes, Terraform, PostgreSQL\n\nSupercalifragilisticexpialidocious" +
       "AntidisestablishmentarianismPneumonoultramicroscopicsilicovolcanoconiosis\n\n" +
       LONG_URL,
-    match_score: 92 - i,
+    // The fit engine's card fields (Task 9.4): every outcome appears, so the
+    // longest words-only badges ("We couldn't score this", "Not eligible" + "See why")
+    // are measured too.
+    ...FIT_OUTCOMES[i % FIT_OUTCOMES.length],
     match_summary:
       "Strong match on backend systems, Python and cloud infrastructure; light on Kubernetes.",
     match_label: "Strong Match",
@@ -69,7 +79,30 @@ function job(i, overrides = {}) {
 
 const jobs = Array.from({ length: 12 }, (_, i) => job(i + 1));
 
-const stats = { total: 1284, applied: 37, new: 412, avg_match_score: 78.4, saved_count: 19 };
+/* ---- POST /ai/match-breakdown/<id>: the fit engine's result for the detail view.
+   Worst case: a displayed interval in the ring, long strength and gap labels and notes. ---- */
+const matchBreakdown = {
+  overall_score: 74, experience_score: 70, skill_score: 81, industry_score: 40,
+  match_label: "Good match", strengths: [], weaknesses: [],
+  outcome: "SCORED",
+  band: "Good match",
+  display_score: 74,
+  headline: "Fit score 68–79 · Good match",
+  basis: "Better fit than 74% of candidates scored for similar roles",
+  strength_items: [
+    { label: "4 of 5 required skills", impact: "+0.39", note: "Python, PostgreSQL, Kubernetes and Terraform (through your AWS CloudFormation experience)", code: "REQUIRED_SKILLS" },
+    { label: "3.5 yrs relevant vs 3 required", impact: "+0.21", note: "", code: "EXPERIENCE" },
+  ],
+  gaps: [
+    { label: "Missing: Apache Flink stream processing (required)", impact: "-0.18", note: "Partly covered by your Kafka Streams and Spark Structured Streaming work", code: "GAP" },
+    { label: "This role is one level above your current one", impact: "-0.04", note: "", code: "SENIORITY_GAP" },
+  ],
+  to_improve: ["Add a project that uses Apache Flink, or describe the stream processing you did with Kafka Streams"],
+  notes: ["Docker is only listed in your skills section; showing it in a project or role would count for more."],
+  interval: { low: 68, high: 79, display: true },
+};
+
+const stats = { total: 1284, applied: 37, new: 412, avg_match_score: 78, saved_count: 19 };
 
 const SKILLS = [
   "Python", "TypeScript", "React", "FastAPI", "PostgreSQL", "Kubernetes", "Terraform",
@@ -519,6 +552,7 @@ const sidebar = {
 };
 
 module.exports = {
+  matchBreakdown,
   user,
   feedback,
   sidebar,

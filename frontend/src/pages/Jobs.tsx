@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from "react";
 import JobFilterBar, { JobFilters, normalizeExperienceLevels } from "../components/JobFilterBar";
-import JobDetailView from "../components/JobDetailView";
+import JobDetailView, { type FitChange } from "../components/JobDetailView";
 import CustomResumeModal, { type AIJob } from "../components/CustomResumeModal";
 import CoverLetterModal from "../components/CoverLetterModal";
 import JobsSidebar, { type SidebarData } from "../components/JobsSidebar";
@@ -11,6 +11,7 @@ import CompanyLogo from "../components/CompanyLogo";
 import { cleanCompanyName } from "../lib/companyLogo";
 import { displayLocation } from "../lib/jobLocation";
 import { handleApplyLinkClick, isListingClosed, postedAgo } from "../lib/jobListing";
+import FitBadge from "../components/FitBadge";
 import {
   MagnifyingGlass,
   Sliders,
@@ -42,7 +43,10 @@ interface Job {
   location: string;
   url: string;
   description: string;
+  // The engine's result for this user: a number only when match_outcome is SCORED.
   match_score: number;
+  match_band?: string | null;
+  match_outcome?: string | null;
   match_summary: string;
   match_label: string;
   salary_range: string;
@@ -77,7 +81,7 @@ interface Stats {
   total: number;
   applied: number;
   new: number;
-  avg_match_score: number;
+  avg_match_score: number | null;
   saved_count: number;
 }
 
@@ -110,7 +114,7 @@ function readLastVisit(): string | null {
 
 export default function Jobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
-  const [stats, setStats] = useState<Stats>({ total: 0, applied: 0, new: 0, avg_match_score: 0, saved_count: 0 });
+  const [stats, setStats] = useState<Stats>({ total: 0, applied: 0, new: 0, avg_match_score: null, saved_count: 0 });
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("All");
   const [page, setPage] = useState(1);
@@ -346,6 +350,14 @@ export default function Jobs() {
   // listing's status changed. Verdicts can land after the user has moved on to
   // another job or tab, so this reads the current ones through refs, never
   // from the render that started the check.
+  // The detail view's breakdown is the engine's current result (and is banked), so the
+  // card and the open panel take it at once instead of waiting for a feed reload.
+  function handleFitChange(jobId: number, fit: FitChange) {
+    const patch = (j: Job): Job => (j.id === jobId ? { ...j, ...fit } : j);
+    setJobs((prev) => prev.map(patch));
+    setSelectedJob((s) => (s ? patch(s) : s));
+  }
+
   function handleListingStatusChange(
     jobId: number,
     listingStatus: string,
@@ -648,25 +660,8 @@ export default function Jobs() {
                 </div>
               </div>
 
-              {/* Match Score Badge */}
-              {job.match_score > 0 && (
-                <div className="match-score-badge">
-                  <div className="match-circle-sm">
-                    <svg viewBox="0 0 100 100">
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="#e3e8ee" strokeWidth="8" />
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="#533afd" strokeWidth="8"
-                        strokeDasharray={`${job.match_score * 2.51} 251`}
-                        strokeLinecap="round"
-                        style={{ transform: "rotate(-90deg)", transformOrigin: "center" }}
-                      />
-                    </svg>
-                    <span className="match-pct">{job.match_score}<small>%</small></span>
-                  </div>
-                  <span className="match-label-sm">
-                    {job.match_score >= 80 ? "STRONG" : job.match_score >= 60 ? "GOOD" : "FAIR"} MATCH
-                  </span>
-                </div>
-              )}
+              {/* Fit badge: the engine's result (lib/fit.ts) */}
+              <FitBadge job={job} />
             </div>
           ))}
 
@@ -718,6 +713,7 @@ export default function Jobs() {
               job={selectedJob}
               onClose={() => setSelectedJob(null)}
               onListingStatusChange={handleListingStatusChange}
+              onFitChange={handleFitChange}
             />
           </div>
         )}

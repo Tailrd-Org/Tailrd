@@ -52,7 +52,9 @@ const mockJob = {
   description:
     "We are looking for an engineer to build planning models and support EPM applications for finance teams.",
   match_score: 85,
-  match_label: "STRONG MATCH",
+  match_band: "Strong match",
+  match_outcome: "SCORED",
+  match_label: "Strong match",
   experience_score: 90,
   skill_score: 80,
   industry_score: 85,
@@ -82,7 +84,9 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Senior Software Engineer")).toBeInTheDocument();
     expect(screen.getByText("TechCorp")).toBeInTheDocument();
     expect(screen.getByText("San Francisco, CA")).toBeInTheDocument();
-    expect(screen.getByText("STRONG MATCH")).toBeInTheDocument();
+    // The card's band shows until the breakdown answers; never its number (D-54) or "85%".
+    expect(screen.getByText("Strong match")).toBeInTheDocument();
+    expect(screen.queryByText(/85/)).toBeNull();
   });
 
   it("upgrades to the server-side structured sections", async () => {
@@ -105,9 +109,8 @@ describe("JobDetailView", () => {
     expect(screen.getByText("Hyperion Planning").className).not.toContain("skill-tag-matched");
   });
 
-  // Every prod job has match_score 0, so every open asks /ai/match-breakdown,
-  // and while the OpenAI account is down every one of those answers 503. The
-  // old copy told users to "Connect Gemini or Ollama", which no user can do.
+  // Every open asks /ai/match-breakdown. The old copy told users to "Connect
+  // Gemini or Ollama" on a 503, which no user can do.
   it("says match scoring is temporarily unavailable on a 503", async () => {
     apiPost.mockImplementation((url: string) => {
       if (url.includes("/ai/match-breakdown/")) {

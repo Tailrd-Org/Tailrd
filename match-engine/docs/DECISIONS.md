@@ -707,6 +707,16 @@ eligible: <sentence of the first failing gate>", no strengths or gaps, the other
 and a line that the profile facts can be updated. NEEDS_REVIEW: "We couldn't score this" and one
 sentence per reason, no strengths or gaps.
 
+*Addendum (Task 9.4, web display) [Tailrd].* The engine still emits the signed raw-scale impacts;
+the web app does not print them. It shows each impact as a word with a small bar sized against the
+largest |impact| shown on the page: at least 2/3 of it is "Big plus" / "Big gap", at least 1/3 is
+"Plus" / "Gap", below that "Small plus" / "Small gap". The raw value ("+0.31") stays in the item's
+`title` and `aria-label` for traceability. A raw figure on an unlabelled scale read as points or
+percent; the words keep the order and relative size without inventing a scale. Because the jobs list
+carries no interval (it is not banked), a job card shows the band only, never the number; the
+number, or the range when the interval is displayed, appears only in the detail view, which also
+hides the basis sentence when the range replaces the number (the basis names the point).
+
 **D-55 Truthful names.** A matched requirement is named as held only when the résumé shows it (or
 one of its OR-group members); credit earned through a related skill reads "Terraform (through your
 Amazon Web Services experience)". The required-skills line ("k of n required skills") is always
