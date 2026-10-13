@@ -463,8 +463,9 @@ def build_application_profile(user: User, db: Session) -> tuple[ApplicationProfi
         location=_first_non_empty(
             settings.city if settings else "",
             # The mirror of addressCity's fallback below. ``settings.location``
-            # is the LinkedIn bot's SEARCH region and defaults to "United
-            # States", so it must never outrank a city the user actually typed:
+            # is the LinkedIn bot's SEARCH region, and rows created before
+            # 2026-10-13 hold its old default "United States" (new rows start
+            # empty), so it must never outrank a city the user actually typed:
             # while the two shared a column that was impossible, and now that
             # they don't, a user who fills only City would otherwise be told
             # they live in the United States, and the LLM would be told so too.

@@ -142,6 +142,11 @@ recorded in full in `match-engine/docs/DECISIONS.md`.
 - **Over-qualification stays unpenalised (D-39 confirmed).** Being above a posting's level costs
   nothing (it raises an `OVERQUALIFIED` flag only). Reason: penalising surplus experience proxies
   for age, a protected attribute.
+- **No default location.** A new `user_settings` row starts with an empty `location` instead of
+  "United States"; existing rows are untouched (no data migration), and the engine still ignores
+  that old default. Every reader (autofill, the extension profile sync, the profile and settings
+  pages, the engine) falls through to the résumé or shows a blank. Reason: a default value posing
+  as a user answer misstates location to employers and to the engine.
 
 ## Costs
 
