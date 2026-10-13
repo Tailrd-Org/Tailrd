@@ -76,6 +76,8 @@ def _sample(profiles: Sequence[Any], n: int | None) -> list[Any]:
     """`n` profiles spread evenly over the corpus (every fit level and family), or all of them."""
     if n is None or n >= len(profiles):
         return list(profiles)
+    if n <= 0:
+        return []  # --sample 0: no parser pass (ranking and closed form only)
     step = len(profiles) / n
     return [profiles[int(i * step)] for i in range(n)]
 
