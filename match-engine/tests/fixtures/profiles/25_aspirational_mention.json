@@ -1,0 +1,169 @@
+{
+ "name": "aspirational_mention",
+ "description": "'Seeking to transition into machine learning' on a data-science posting that requires it.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Data Analyst",
+    "employer": "Silverline Insurance",
+    "industry_codes": [
+     "5415"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.pandas",
+      "surface_form": "pandas",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "EXECUTION",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.excel",
+      "surface_form": "Excel",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.git",
+      "surface_form": "Git",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "NO_VERB",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.machine_learning",
+      "surface_form": "machine learning",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "NO_VERB",
+      "polarity": "ASPIRATIONAL",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.data_analyst",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2022-01-10",
+     "earliest": "2022-01-10",
+     "latest": "2022-01-10",
+     "precision": "DAY"
+    }
+   }
+  ],
+  "education": [
+   {
+    "level": "BACHELOR",
+    "field_ids": [
+     "field.computer_science"
+    ],
+    "field_raw": "BSc Computer Science",
+    "in_progress": false
+   }
+  ]
+ },
+ "posting": {
+  "title_raw": "Data Scientist",
+  "title_canonical": "title.data_scientist",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 2.0,
+  "industry_codes": [
+   "5415"
+  ],
+  "education_requirement": {
+   "min_level": "BACHELOR",
+   "field_ids": [
+    "field.computer_science"
+   ]
+  },
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.pandas",
+    "necessity": "REQUIRED",
+    "surface_form": "pandas"
+   },
+   {
+    "skill_id": "skill.machine_learning",
+    "necessity": "REQUIRED",
+    "surface_form": "machine learning"
+   },
+   {
+    "skill_id": "skill.scikit_learn",
+    "necessity": "PREFERRED",
+    "surface_form": "scikit-learn"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   },
+   {
+    "skill_id": "skill.excel",
+    "necessity": "IMPLIED",
+    "surface_form": "Excel"
+   }
+  ],
+  "requirement_token_count": 7
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.7,
+  "dimensions": {
+   "required_skills": 0.656002,
+   "preferred_skills": 0.4,
+   "experience": 1.0,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.844056
+  },
+  "confidence": 0.959435,
+  "caps": [
+   {
+    "reason": "CRITICAL_MISS",
+    "cap": 0.7,
+    "requirement_ids": [
+     "skill.machine_learning"
+    ]
+   }
+  ],
+  "derivation": "Interest is not experience (§15.2): the aspirational machine-learning mention is worth min(0.70, 0.15) = 0.15 < 0.2 with idf 0.855026 > 0.7, a critical miss. Required = (0.326779 + 0.396012 + 0.948491 x 0.85 + 0.855026 x 0.15) / 2.526308 = 0.656002. Preferred: scikit-learn (unseen, idf 0.75) only through its parent python: 0.40. Tools: git no-verb 0.70, excel 1: 0.844056. Experience: the aspirational mention is left out of the role vector (D-35): relevance(python, sql, pandas, git, excel 1, scikit-learn 0.40) = 0.787122, 56.9 months x relevance >= 24 -> 1.0. Seniority, domain, education 1.0. Uncapped raw = 0.804006 > 0.70 -> capped at 0.70. Confidence: 6 of 7 matched groups shown (machine learning matches only through the aspirational mention, which shows nothing), requirement count 7 -> 0.91: (6/7 x 0.91)^(1/6) = 0.959435."
+ }
+}

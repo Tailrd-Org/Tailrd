@@ -5,6 +5,7 @@ import { useAuth } from "../auth/useAuth";
 import { GoogleSignInButton } from "../auth/GoogleSignInButton";
 import { LinkedInSignInButton } from "../auth/LinkedInSignInButton";
 import { safeNextPath } from "../auth/nextRedirect";
+import { Logo } from "../components/brand";
 
 export default function SignUpPage() {
   const navigate = useNavigate();
@@ -71,7 +72,7 @@ export default function SignUpPage() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+          <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
         </div>
 
         <div className="auth-head">

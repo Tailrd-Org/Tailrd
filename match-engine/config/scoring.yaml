@@ -139,6 +139,7 @@ taxonomy:            # SPEC §3.2, §3.3, §16
   auto_promote_min_postings: 50
   auto_promote_window_days: 30
   review_queue_size: 50
+  parent_min_df: 20           # a provisional node's parent is required by this many postings of the window (D-98)
 
 ingest:              # SPEC §14.1
   max_experience_tokens: 40000

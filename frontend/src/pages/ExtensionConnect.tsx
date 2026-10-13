@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams, Link } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import api from "../auth/api";
+import { Logo } from "../components/brand";
 
 /**
  * Extension connect / handshake page.
@@ -96,7 +97,7 @@ export default function ExtensionConnect() {
     <div className="auth-page">
       <div className="auth-card" style={{ textAlign: "center" }}>
         <div className="auth-brand">
-          <img src="/logo-icon.png" alt="Tailrd" className="auth-brand-logo" />
+          <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
         </div>
 
         {(status === "checking" || status === "authorizing") && (

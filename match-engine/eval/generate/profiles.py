@@ -344,7 +344,11 @@ def _plan_skills(
         covered_required = rng.sample(required, max(1, round(_LEVEL_FRACTION[level][0] * len(required))))
     stuffed: list[VocabSkill] = []  # a required skill claimed on the skills line only (keyword stuffing)
     if level in (1, 2) and rng.random() < 0.3:
-        stuffed = rng.sample([s for s in required if s not in covered_required], 1)
+        # A one-skill posting leaves nothing to stuff (level 1 and 2 cover at least one skill). The
+        # draw above still happens, so every profile that generated before keeps its random stream.
+        uncovered = [s for s in required if s not in covered_required]
+        if uncovered:
+            stuffed = rng.sample(uncovered, 1)
 
     lo, hi = _PREFERRED_COVERAGE[level]
     pref_take = round(len(preferred) * rng.uniform(lo, hi)) if level else 0

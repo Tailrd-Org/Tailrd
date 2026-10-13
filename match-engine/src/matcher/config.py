@@ -187,6 +187,8 @@ class VerbsConfig(Frozen):
     noun_entry_followers: tuple[str, ...]
     # Lower-case product names whose following number is a version, not a quantity ("react 18").
     version_names: tuple[str, ...]
+    # Nouns that make "<number ≥ 2> ... <noun>" a quantified outcome ("40 projects", "3 servers").
+    counting_nouns: tuple[str, ...]
 
     @model_validator(mode="after")
     def _valid(self) -> "VerbsConfig":
@@ -399,6 +401,7 @@ class TaxonomyConfig(Frozen):
     auto_promote_min_postings: int = Field(ge=1)
     auto_promote_window_days: int = Field(ge=1)
     review_queue_size: int = Field(ge=1)
+    parent_min_df: int = Field(ge=1)  # D-98: PMI rewards rarity; a parent needs this many postings
 
 
 class IngestConfig(Frozen):

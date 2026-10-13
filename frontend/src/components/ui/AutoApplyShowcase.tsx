@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { motion, useInView, AnimatePresence } from "framer-motion";
+import { Logo } from "../brand";
 import "./AutoApplyShowcase.css";
 
 const JOBS = [
@@ -168,7 +169,7 @@ export default function AutoApplyShowcase() {
       {/* Right: Processing panel */}
       <div className="showcase-process-panel">
         <div className="spp-header">
-          <img src="/logo-icon.png" alt="Tailrd" className="spp-logo" />
+          <Logo variant="mark" theme="light" size={32} className="spp-logo" />
           <div className="spp-header-info">
             <div className="spp-company">{JOBS[activeJobIndex].company}</div>
             <div className="spp-role">{JOBS[activeJobIndex].title}</div>

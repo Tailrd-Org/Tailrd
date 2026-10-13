@@ -1,0 +1,85 @@
+/* ===== Tailrd brand tokens (mirrors BRAND_COLORS in logo.constants.ts) ===== */
+:root {
+  --brand-primary: #6247e5;
+  --brand-primary-dark-mode: #8b7bf0;
+  --brand-ink: #09090b;
+  --brand-ink-inverse: #fafafa;
+  --brand-on-primary: #ffffff; /* the mark on the brand purple: app icon, favicon, mono-white */
+  --brand-surface: #ffffff;
+  --brand-surface-dark: #0b0b10;
+}
+
+/* Explicit themes set these two inline on the <svg>; "auto" takes them from here,
+   so it resolves in CSS alone: no media-query listener, no flash, no SSR mismatch. */
+.tailrd-logo {
+  --tailrd-logo-mark: var(--brand-primary);
+  --tailrd-logo-ink: var(--brand-ink);
+}
+
+@media (prefers-color-scheme: dark) {
+  .tailrd-logo[data-theme="auto"] {
+    --tailrd-logo-mark: var(--brand-primary-dark-mode);
+    --tailrd-logo-ink: var(--brand-ink-inverse);
+  }
+}
+
+/* ===== Draw-on intro (<Logo animate />): the ring, then the plane, 600ms ===== */
+.tailrd-logo--animate .tailrd-logo__draw {
+  stroke-dasharray: 1 2;
+  stroke-dashoffset: 1.001;
+  animation: tailrd-logo-draw 300ms ease-out forwards;
+}
+
+.tailrd-logo--animate .tailrd-logo__draw--late {
+  animation-delay: 300ms;
+}
+
+.tailrd-logo--animate .tailrd-logo__fade {
+  opacity: 0;
+  animation: tailrd-logo-fade 300ms ease-out 300ms forwards;
+}
+
+@keyframes tailrd-logo-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes tailrd-logo-fade {
+  to {
+    opacity: 1;
+  }
+}
+
+/* ===== Loading mark (<LogoSpinner />): the trail dashes pulse left to right ===== */
+.tailrd-logo-spinner__dash {
+  animation: tailrd-logo-pulse 1.2s ease-in-out infinite;
+}
+
+@keyframes tailrd-logo-pulse {
+  0%,
+  100% {
+    opacity: 0.2;
+  }
+  25% {
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.2;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tailrd-logo--animate .tailrd-logo__draw,
+  .tailrd-logo--animate .tailrd-logo__fade {
+    animation: none;
+    stroke-dasharray: none;
+    stroke-dashoffset: 0;
+    opacity: 1;
+  }
+
+  .tailrd-logo-spinner__dash {
+    animation: none;
+    opacity: 1;
+  }
+}

@@ -1,4 +1,5 @@
 import { Link } from "react-router-dom";
+import { Logo } from "../brand";
 
 /** Shared marketing footer. Section links use hash routes to the home page so
  *  they work from any marketing page (Landing hosts the scroll-to-hash effect). */
@@ -8,7 +9,7 @@ export default function SiteFooter() {
       <div className="footer-inner">
         <div className="footer-col">
           <div className="footer-brand">
-            <img src="/logo-full.png" alt="Tailrd" className="landing-logo-full" />
+            <Logo theme="light" size={32} className="landing-logo-full" />
           </div>
           <p className="footer-tagline">Job applications, with AI used responsibly.<br />You stay the author.</p>
         </div>

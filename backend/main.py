@@ -44,6 +44,7 @@ from backend.migrations.add_listing_probe_columns import run_migration as run_li
 from backend.migrations.add_company_logos import run_migration as run_company_logos_migration
 from backend.migrations.add_match_alerts_opt_out import run_migration as run_match_alerts_opt_out_migration
 from backend.migrations.add_job_match_terms import run_migration as run_job_match_terms_migration
+from backend.migrations.add_fit_engine import run_migration as run_fit_engine_migration
 from backend.routers import health, resumes, jobs, settings, fill, ai, apply, connections, github_sources, profile, autofill
 from backend.routers import auth, auth_extension, extension, tailor, cover_letter, auth_linkedin
 from backend.routers.feedback import router as feedback_router
@@ -114,6 +115,9 @@ async def lifespan(app: FastAPI):
     # included, so an instance without the column must not serve either.
     run_match_alerts_opt_out_migration()
     run_job_match_terms_migration()
+    # job_match_scores.score turns nullable and gains the engine columns; every
+    # score query selects them once the producers switch (Task 9.2).
+    run_fit_engine_migration()
     yield
 
 

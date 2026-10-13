@@ -52,7 +52,7 @@ pythonpath = ["src", "."]
 testpaths = ["tests"]
 addopts = "-p no:cacheprovider"
 markers = [
-  "slow: long-running checks (50k-input totality, 1,000-run determinism); `make eval-fast` runs them",
+  "slow: long-running checks (1,000-run determinism); `make gate` runs them with the 50,000-example totality",
 ]
 filterwarnings = [
   # reportlab 4.2.5 probes `ast.NameConstant` when it is imported (removed in Python 3.14): noise

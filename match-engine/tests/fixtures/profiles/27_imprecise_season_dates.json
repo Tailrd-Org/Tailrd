@@ -1,0 +1,134 @@
+{
+ "name": "imprecise_season_dates",
+ "description": "A role that started 'Summer 2023'.",
+ "as_of": "2026-10-08",
+ "resume": {
+  "roles": [
+   {
+    "title_raw": "Data Engineer",
+    "employer": "Kestrel Freight",
+    "industry_codes": [
+     "5182"
+    ],
+    "skills": [
+     {
+      "canonical_id": "skill.python",
+      "surface_form": "Python",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.sql",
+      "surface_form": "SQL",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     },
+     {
+      "canonical_id": "skill.aws",
+      "surface_form": "AWS",
+      "evidence": "ROLE_BULLET",
+      "verb_class": "OWNERSHIP",
+      "polarity": "AFFIRMED",
+      "source": "ROLE"
+     }
+    ],
+    "is_current": true,
+    "is_internship": false,
+    "title_canonical": "title.data_engineer",
+    "seniority": {
+     "track": "IC",
+     "level": 2
+    },
+    "start": {
+     "value": "2023-08-16",
+     "earliest": "2023-07-01",
+     "latest": "2023-09-30",
+     "precision": "SEASON"
+    }
+   }
+  ],
+  "skills_blob": [
+   {
+    "canonical_id": "skill.docker",
+    "surface_form": "Docker",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   },
+   {
+    "canonical_id": "skill.git",
+    "surface_form": "Git",
+    "evidence": "SKILLS_BLOB",
+    "verb_class": "NO_VERB",
+    "polarity": "AFFIRMED",
+    "source": "SKILLS_SECTION"
+   }
+  ],
+  "flags": [
+   "IMPRECISE_DATE"
+  ]
+ },
+ "posting": {
+  "title_raw": "Data Engineer",
+  "title_canonical": "title.data_engineer",
+  "seniority": {
+   "track": "IC",
+   "level": 2
+  },
+  "min_years_total": 3.0,
+  "industry_codes": [
+   "5182"
+  ],
+  "requirements": [
+   {
+    "skill_id": "skill.python",
+    "necessity": "REQUIRED",
+    "surface_form": "Python"
+   },
+   {
+    "skill_id": "skill.sql",
+    "necessity": "REQUIRED",
+    "surface_form": "SQL"
+   },
+   {
+    "skill_id": "skill.aws",
+    "necessity": "REQUIRED",
+    "surface_form": "AWS"
+   },
+   {
+    "skill_id": "skill.docker",
+    "necessity": "PREFERRED",
+    "surface_form": "Docker"
+   },
+   {
+    "skill_id": "skill.git",
+    "necessity": "IMPLIED",
+    "surface_form": "Git"
+   }
+  ],
+  "requirement_token_count": 5
+ },
+ "expected": {
+  "outcome": "SCORED",
+  "raw_score": 0.891259,
+  "dimensions": {
+   "required_skills": 1.0,
+   "preferred_skills": 0.65,
+   "experience": 0.741725,
+   "seniority": 1.0,
+   "domain": 1.0,
+   "education": 1.0,
+   "tools": 0.65
+  },
+  "confidence": 0.893844,
+  "flags": [
+   "IMPRECISE_DATE"
+  ],
+  "derivation": "'Summer 2023' maps to the quarter midpoint 2023-08-16 (bounds 2023-07-01..2023-09-30, §14.2), and the base score uses the point value (only the §17.3 interval moves it). Required 1 (ownership bullets, current role), preferred docker and tools git listed: 0.65. Experience: relevance relevance(python, sql, aws) = 0.645773; months = 1149 x 0.645773 / 30.4375 = 24.3776; ratio vs 36 = 0.6772 -> 0.741725. Seniority IC2 = IC2, domain 5182, no education requirement: 1.0. Raw = 0.35 + 0.10 x 0.65 + 0.15 x 0.741725 + 0.30 + 0.10 x 0.65 = 0.891259. Confidence: 3 of 5 shown, requirement count 5 -> 0.85: (0.6 x 0.85)^(1/6) = 0.893844."
+ }
+}

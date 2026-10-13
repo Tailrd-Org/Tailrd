@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 78.62 79.9" role="img">
+  <title>Tailrd</title>
+  <!-- Tailrd stacked lockup, dark. Cap top sits 0.18 S below the icon box. -->
+  <!-- Mark: centred over the wordmark. -->
+  <g transform="translate(15.31 0)">
+    <g fill="none" stroke="#8B7BF0" stroke-linecap="round" stroke-linejoin="round">
+      <!-- 1. Ring: r = 21.5 about (24, 24), broken by a 31.9 deg gap at the lower
+           left where the trail exits. Heavier than the plane, as in the source art. -->
+      <path stroke-width="1.73" d="M4.92 33.91A21.5 21.5 0 1 1 13.05 42.5"/>
+      <g stroke-width="1.1">
+        <!-- 2. Plane silhouette: wing tip, nose, tail tip, keel junction, keel tip, wing root. -->
+        <path d="M9.61 22.65L37.97 12.83L29.99 35.94L23.48 31.59L18.23 36.08L16.41 27.5Z"/>
+        <!-- 3. Folds: the wing's inner edge, the centre crease running down the keel,
+             and the tail panel's lower edge. -->
+        <path d="M16.41 27.5L37.97 12.83"/>
+        <path d="M37.97 12.83L20.41 29.53L18.23 36.08"/>
+        <path d="M20.41 29.53L23.48 31.59"/>
+        <!-- 4. Trail: four dashes on two parallel speed lines at 37 deg; the outer
+             pair exits through the gap in the ring. -->
+        <path d="M8.34 36.17L5.69 38.17"/>
+        <path d="M10.01 39.72L5.96 42.78"/>
+        <path d="M13.44 32.33L10.53 34.52"/>
+        <path d="M15.06 35.91L12.01 38.22"/>
+      </g>
+    </g>
+  </g>
+
+  <!-- Wordmark: the custom "Tailrd" lettering as outlines, so it renders without any font. -->
+  <g fill="#FAFAFA" transform="translate(1.64 56.64)">
+    <!-- T -->
+    <path d="M0 0L18.93 0L18.93 3.64L11.27 3.64L11.27 21.62L7.52 21.62L7.52 3.64L0 3.64Z"/>
+    <!-- a -->
+    <path d="M18.76 5.85L27.87 5.85A5.22 5.22 0 0 1 33.09 11.06L33.09 16.4A5.22 5.22 0 0 1 27.87 21.62L21.24 21.62A4.9 4.9 0 0 1 16.34 16.72L16.34 16.3A4.36 4.36 0 0 1 20.7 11.94L29.41 11.94L29.41 11.06A1.86 1.86 0 0 0 27.55 9.2L18.76 9.2ZM29.41 16.78A1.55 1.55 0 0 0 27.86 15.22L21.55 15.22A1.55 1.55 0 0 0 19.99 16.78A1.55 1.55 0 0 0 21.55 18.33L27.86 18.33A1.55 1.55 0 0 0 29.41 16.78Z"/>
+    <!-- i -->
+    <path d="M35.78 0L39.45 0L39.45 3.77L35.78 3.77ZM35.78 5.85L39.45 5.85L39.45 21.62L35.78 21.62Z"/>
+    <!-- l -->
+    <path d="M42.83 0L46.51 0L46.51 21.62L42.83 21.62Z"/>
+    <!-- r -->
+    <path d="M49.72 21.62L49.72 10.41A4.56 4.56 0 0 1 54.28 5.85L58.68 5.85L58.68 9.13L55.25 9.13A1.86 1.86 0 0 0 53.39 11L53.39 21.62Z"/>
+    <!-- d -->
+    <path d="M71.67 0L75.34 0L75.34 16.53A5.08 5.08 0 0 1 70.26 21.62L65.99 21.62A6.96 6.96 0 0 1 59.03 14.65L59.03 12.81A6.96 6.96 0 0 1 65.99 5.85L71.67 5.85ZM71.67 9.13L66.46 9.13A3.67 3.67 0 0 0 62.79 12.81L62.79 14.65A3.67 3.67 0 0 0 66.46 18.33L69.52 18.33A2.15 2.15 0 0 0 71.67 16.18Z"/>
+  </g>
+</svg>

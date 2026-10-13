@@ -58,7 +58,6 @@ __all__ = [
     "ABBREVIATIONS",
     "ARTICLES",
     "CHAIN_LINKS",
-    "COUNTING_NOUNS",
     "LIST_CONJUNCTIONS",
     "LIST_WORDS",
     "OUTCOME_VERBS",
@@ -92,21 +91,6 @@ POLARITY_BARRIERS: frozenset[str] = SENTENCE_ENDS | {"but", "yet"}
 ABBREVIATIONS: frozenset[str] = frozenset({
     "approx", "co", "corp", "dept", "dr", "est", "etc", "govt", "inc", "intl", "jr", "ltd", "mr", "mrs",
     "ms", "prof", "sr", "st", "univ", "vs",
-})
-
-# Nouns that make "<number ≥ 2> ... <noun>" a quantified outcome ("40 projects", "3 production
-# servers"). Durations of experience ("years", "months") are deliberately absent.
-COUNTING_NOUNS: frozenset[str] = frozenset({
-    "accounts", "applications", "apps", "attendees", "bugs", "calls", "campaigns", "cases", "classes",
-    "clients", "clinics", "clusters", "countries", "courses", "customers", "dashboards", "days",
-    "deployments", "developers", "devices", "documents", "downloads", "emails", "employees",
-    "endpoints", "engineers", "events", "features", "files", "hospitals", "hours", "incidents",
-    "interns", "issues", "jobs", "leads", "locations", "machines", "members", "messages",
-    "microservices", "minutes", "models", "orders", "participants", "partners", "patients", "people",
-    "pipelines", "products", "projects", "queries", "records", "releases", "reports", "repositories",
-    "requests", "rows", "schools", "servers", "services", "sessions", "sites", "staff",
-    "stakeholders", "stores", "students", "subscribers", "tables", "teams", "tests", "tickets",
-    "transactions", "users", "vendors", "visitors", "volunteers", "websites", "weeks", "workshops",
 })
 
 # Verbs after which "by <number>" / "to <number>" states an outcome ("reduced latency by 120ms").
@@ -187,6 +171,7 @@ class _Lexicons(NamedTuple):
     aspirational: _Lexicon
     listing: _Lexicon
     version_names: frozenset[str]  # lower-case names before a version number (is_quantified)
+    counting_nouns: frozenset[str]  # nouns that make "<number> ... <noun>" a quantity (is_quantified)
 
 
 def _normalised(entry: str) -> str:
@@ -234,6 +219,7 @@ def _build_lexicons(config: EngineConfig) -> _Lexicons:
         aspirational=_lexicon((term, None) for term in negation.aspirational.terms),
         listing=_lexicon((word, None) for word in LIST_WORDS + ARTICLES),
         version_names=frozenset(_normalised(name) for name in verbs.version_names),
+        counting_nouns=frozenset(_normalised(noun) for noun in verbs.counting_nouns),
     )
 
 
@@ -689,7 +675,9 @@ def _next_words(tokens: Sequence[_QToken], i: int, text: str, limit: int = 2) ->
         j += 2 if paired else 1
 
 
-def _is_quantity(tokens: Sequence[_QToken], i: int, text: str, names: frozenset[str]) -> bool:
+def _is_quantity(
+    tokens: Sequence[_QToken], i: int, text: str, names: frozenset[str], nouns: frozenset[str]
+) -> bool:
     token = tokens[i]
     if _currency_before(tokens, i, text):  # $120K, €50k
         return True
@@ -714,7 +702,7 @@ def _is_quantity(tokens: Sequence[_QToken], i: int, text: str, names: frozenset[
     if _after_name(tokens, i, text, names):
         return False
     for distance, word in enumerate(_next_words(tokens, i, text), start=1):
-        if word in COUNTING_NOUNS:
+        if word in nouns:
             # a year is "on its own" unless the noun follows it directly ("2000 employees")
             return distance == 1 or not _is_year(token)
     return False
@@ -737,12 +725,13 @@ def is_quantified(text: str, config: EngineConfig) -> bool:
 
     True for a number followed by "%" / "percent", preceded by a currency sign, followed by
     k/K/M/B/x/X/×/+ or by "times" / "thousand" / "million" / "billion"; "1000s of"; "team of N"
-    (N ≥ 2); a number ≥ 2 followed within two tokens by a counting noun ("15 Grade 9 students":
+    (N ≥ 2); a number ≥ 2 followed within two tokens by a counting noun (`verbs.counting_nouns`) ("15 Grade 9 students":
     a name with its number is one token); or a number after "by"/"to" following an outcome verb
     in the same sentence. Never for a year on its own or a version right after a tech name
     ("React 18", "Python 3", "ES6"; in lower case only after `verbs.version_names`: "react 18").
     """
-    names = _lexicons(config).version_names
+    lexicons = _lexicons(config)
+    names, nouns = lexicons.version_names, lexicons.counting_nouns
     tokens = _qtokens(text)
     after_outcome_verb = False
     for i, token in enumerate(tokens):
@@ -755,7 +744,7 @@ def is_quantified(text: str, config: EngineConfig) -> bool:
                 after_outcome_verb = True
             elif after_outcome_verb and word in ("by", "to") and _amount_follows(tokens, i):
                 return True
-        elif _is_quantity(tokens, i, text, names):
+        elif _is_quantity(tokens, i, text, names, nouns):
             return True
     return False
 

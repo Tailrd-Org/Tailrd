@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import api from "../auth/api";
+import { Logo } from "../components/brand";
 
 type VerifyState = "pending" | "verifying" | "success" | "expired" | "error";
 
@@ -173,7 +174,7 @@ export default function VerifyEmailPage() {
       <div className="auth-page">
         <div className="auth-card" style={{ textAlign: "center" }}>
           <div className="auth-brand">
-            <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+            <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
           </div>
           <div className="auth-head">
             <h1 className="auth-title">Verifying your email</h1>
@@ -190,7 +191,7 @@ export default function VerifyEmailPage() {
       <div className="auth-page">
         <div className="auth-card" style={{ textAlign: "center" }}>
           <div className="auth-brand">
-            <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+            <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
           </div>
           <div className="auth-head">
             <h1 className="auth-title">Email verified!</h1>
@@ -209,7 +210,7 @@ export default function VerifyEmailPage() {
       <div className="auth-page">
         <div className="auth-card" style={{ textAlign: "center" }}>
           <div className="auth-brand">
-            <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+            <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
           </div>
           <div className="auth-head">
             <h1 className="auth-title">Link expired</h1>
@@ -247,7 +248,7 @@ export default function VerifyEmailPage() {
       <div className="auth-page">
         <div className="auth-card" style={{ textAlign: "center" }}>
           <div className="auth-brand">
-            <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+            <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
           </div>
           <div className="auth-head">
             <h1 className="auth-title">Verification failed</h1>
@@ -284,7 +285,7 @@ export default function VerifyEmailPage() {
     <div className="auth-page">
       <div className="auth-card">
         <div className="auth-brand">
-          <img src="/logo-icon.png" alt="Resumate" className="auth-brand-logo" />
+          <Logo variant="mark" theme="light" size={44} className="auth-brand-logo" />
         </div>
         <div className="auth-head">
           <h1 className="auth-title">Check your inbox</h1>

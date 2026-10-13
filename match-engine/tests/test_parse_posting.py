@@ -23,8 +23,10 @@ from matcher.models import (
     WorkAuthGate,
     canonical_json,
 )
-from matcher.parse.posting import PostingMeta, clean_description
-from tests.posting_helpers import SEATTLE, TORONTO, env, necessities, parse, reqs
+from matcher.graph.loader import load_resolver_settings
+from matcher.normalize.resolver import Resolver
+from matcher.parse.posting import PostingMeta, clean_description, parse_posting
+from tests.posting_helpers import AS_OF, SEATTLE, TAXONOMY, TORONTO, env, necessities, parse, reqs
 
 R, P, IM = "REQUIRED", "PREFERRED", "IMPLIED"
 
@@ -573,8 +575,85 @@ def test_unresolved_requirement_tokens() -> None:
 
 
 def test_tech_shaped_tokens_count_but_common_acronyms_do_not() -> None:
-    posting = parse("Requirements\n- Python, GraphZap and ZXQ\n- Based in the USA, report to the CEO")
-    assert set(posting.unresolved_requirement_tokens) == {"GraphZap", "ZXQ"}
+    posting = parse("Requirements\n- Python, GraphZap and ZXQW\n- Based in the USA, report to the CEO")
+    assert set(posting.unresolved_requirement_tokens) == {"GraphZap", "ZXQW"}
+
+
+# Task 7.2B fix round 1: noise tokens (English words in capitals, short capitals, shouting, phrase
+# fragments) are no requirement tokens; each rule below is pinned on its own.
+
+
+@pytest.mark.parametrize("word", ["LOCAL", "MUST", "LIVE", "TEAM", "REMOTE", "PERKS", "SKILLS", "NEXT", "RAPID"])
+def test_an_english_word_in_capitals_is_no_token(word: str) -> None:
+    posting = parse(f"Requirements\n- Python and {word} support")
+    assert posting.unresolved_requirement_tokens == ()
+
+
+def test_a_capitalised_common_corpus_word_is_no_token() -> None:
+    # "hiring" and "today" are no configured stop words; they are common words of the posting corpus
+    # (common_words.json), so in capitals they are shouted English words, not acronyms.
+    posting = parse("Requirements\n- Python and HIRING support, TODAY")
+    assert posting.unresolved_requirement_tokens == ()
+
+
+@pytest.mark.parametrize("word", ["HQ", "JD", "LI", "ET", "EM"])
+def test_configured_stop_words_are_no_token(word: str) -> None:
+    posting = parse(f"Requirements\n- Python, reporting to {word} daily")
+    assert posting.unresolved_requirement_tokens == ()
+
+
+def test_short_capitals_need_the_allow_list_or_a_tech_context() -> None:
+    assert parse("Requirements\n- Python and ZXQ").unresolved_requirement_tokens == ()
+    assert parse("Requirements\n- Python and ZQ").unresolved_requirement_tokens == ()
+    assert parse("Requirements\n- Python and RAG pipelines").unresolved_requirement_tokens == ("RAG",)
+    assert parse("Requirements\n- Python and ZXQ/ZXW").unresolved_requirement_tokens == ("ZXQ/ZXW",)
+    assert parse("Requirements\n- Python and ZXQW").unresolved_requirement_tokens == ("ZXQW",)
+    assert parse("Requirements\n- Python and XYZ+ tooling").unresolved_requirement_tokens == ("XYZ",)  # "+" after
+    assert parse("Requirements\n- Python and web/XQ tooling").unresolved_requirement_tokens == ("XQ",)  # "/" before
+
+
+def _parse_without_common_words(description: str):
+    """`parse` with a resolver that has no corpus common words, so the configured lists act alone."""
+    e = env()
+    settings = load_resolver_settings(TAXONOMY)
+    resolver = Resolver(e["graph"], e["config"], ambiguous=settings["ambiguous"], cased=settings.get("cased", {}),
+                        blocked_phrases=settings.get("blocked_phrases", ()), in_progress=settings.get("in_progress", {}),
+                        currency_skill_nouns=settings.get("currency_skill_nouns", ()))
+    assert not resolver.is_common_word("local")
+    return parse_posting("Software Developer", description, meta=PostingMeta(locations=(TORONTO,)), as_of=AS_OF,
+                         resolver=resolver, graph=e["graph"], config=e["config"], parse_config=e["parse_config"],
+                         titles=e["titles"])
+
+
+@pytest.mark.parametrize("word", ["LOCAL", "MUST", "PERKS", "RAPID", "TOOLS", "TEAMS"])
+def test_the_configured_stop_and_generic_words_act_without_the_corpus_list(word: str) -> None:
+    assert _parse_without_common_words(f"Requirements\n- Python and {word} support").unresolved_requirement_tokens == ()
+
+
+def test_a_trigger_phrase_of_a_stop_word_is_no_token() -> None:
+    assert parse("Requirements\n- Experience with technical").unresolved_requirement_tokens == ()
+
+
+def test_shouting_is_judged_per_statement_counting_two_letter_words() -> None:
+    # the last clause alone ("ZXQW") is calm; the statement around it shouts
+    assert parse("Requirements\n- PLEASE APPLY TODAY WITH RESUME, ZXQW").unresolved_requirement_tokens == ()
+    # two-letter capitals count towards shouting: ET, DR, UT and ZXQW are 4 of 5 words
+    assert parse("Requirements\n- ET DR UT ZXQW required").unresolved_requirement_tokens == ()
+
+
+@pytest.mark.parametrize("line, expected", [
+    ("Experience with rim repair to join our crew", ("rim repair",)),
+    ("Knowledge of languages is considered a plus", ()),
+    ("Experience with Zorblax through internships", ("Zorblax",)),
+    ("Familiarity with Quuxdb is a plus", ("Quuxdb",)),
+    ("Experience with flux capacitor tuning for the fleet", ("flux capacitor tuning",)),
+])
+def test_a_trigger_phrase_stops_at_the_first_function_word(line: str, expected: tuple[str, ...]) -> None:
+    assert parse(f"Requirements\n- {line}").unresolved_requirement_tokens == expected
+
+
+def test_a_phrase_of_generic_nouns_only_is_no_token() -> None:
+    assert parse("Requirements\n- Experience with large teams and complex systems").unresolved_requirement_tokens == ()
 
 
 def test_coverage_counts_only_required_and_preferred_clauses() -> None:

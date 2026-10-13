@@ -13,6 +13,7 @@ import AnimatedSection, {
 import AutoApplyShowcase from "../components/ui/AutoApplyShowcase";
 import { TiltCard } from "../components/ui/tilt-card";
 import PricingTiers from "../components/PricingTiers";
+import { Logo } from "../components/brand";
 import "./Landing.css";
 
 const SUCCESS_STORIES = [
@@ -461,7 +462,7 @@ export default function Landing() {
             <AnimatedSection className="showcase-visual" animation="fadeLeft" delay={0.3}>
               <div className="showcase-card autofill-card">
                 <div className="autofill-header">
-                  <img src="/logo-icon.png" alt="Tailrd" className="autofill-logo" />
+                  <Logo variant="mark" theme="light" size={28} className="autofill-logo" />
                   <span className="autofill-brand">Tailrd</span>
                 </div>
                 <div className="autofill-job">

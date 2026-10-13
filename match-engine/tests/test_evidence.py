@@ -519,6 +519,16 @@ def test_version_names_come_from_config(config) -> None:
     assert is_quantified(text, _replace(config, verbs=VerbsConfig(**data))) is True
 
 
+def test_counting_nouns_come_from_config(config) -> None:
+    # The counting-noun lexicon is config (SPEC §15: lexicons are config, not code), like version_names.
+    text = "Taught 15 students"
+    assert is_quantified(text, config) is True
+    data = config.verbs.model_dump()
+    assert {"students", "locations", "servers", "clients"} <= set(data["counting_nouns"])
+    data["counting_nouns"] = tuple(noun for noun in data["counting_nouns"] if noun != "students")
+    assert is_quantified(text, _replace(config, verbs=VerbsConfig(**data))) is False
+
+
 @pytest.mark.parametrize("text", [
     "Built a dashboard in React 18",
     "Migrated services to Python 3",

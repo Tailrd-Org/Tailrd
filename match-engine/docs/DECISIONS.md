@@ -353,6 +353,51 @@ only to military-specific occupations (SOC 55) or to civilian "All Other" catch-
 publishes no skill data for (counts in `data/taxonomy/SOURCES.md`). SPEC §14.3 calls veterans a
 legally sensitive population: an empty list with its reason is honest, an inferred one is not.
 
+**D-98 Taxonomy freshness (SPEC §16). [Spec: growth rate, parent rule and write path unspecified]**
+`scripts/refresh_taxonomy.py` parses the corpus with the posting parser, each exact duplicate and
+each repeated blurb line counted once (D-21), over the postings first seen in the
+`auto_promote_window_days` days ending at `as_of` (default: the corpus's latest `first_seen_at`, so
+a rerun on the same file gives the same report). Coverage has two figures (fix round 1): raw,
+resolved requirement tokens over all of them (`requirement_token_count`,
+`unresolved_requirement_tokens`); and recurring, the same with the unresolved tokens found in fewer
+than 2 distinct postings left out (a one-off is more often a typo, a fragment or a name than a
+missing skill; resolved tokens all stay, since the parser exposes their count, not their set). The
+alert and the exit code (1 below 0.92 or with no token) follow the recurring figure; the report
+also gives the per-posting mean (what the `taxonomy_coverage` confidence input sees). A token's
+rank is `recent x (recent + 1) / (earlier + 1)`: distinct postings in the window times growth
+against the window before it. Promotion needs more than 50 distinct postings in the window
+(strictly, as §16 says), a skill-shaped token (a phrase, a word in lower case or in capitals, or a
+capitalised word with a technical suffix or form: SaaS, MLOps, GraphQL, GraphDB, Vue.js; "SpaceX",
+"OpenAI" or "LangChain" go to the queue noted "possible employer or product", since no frequency
+rule tells an employer from a skill) and a parent: the node with the highest NPMI (D-22) against
+the token over the window, among the ids required in at least `pmi_min_cooccurrence` of its
+postings and by at least `taxonomy.parent_min_df` (20) postings in all (PMI rewards rarity: the
+low-df tail Task 2.3 parked), never a SOFT node or one under a SOFT node (ESCO's "perform services
+in a flexible manner" sits under adaptability); no parent means the queue noted "no parent". The
+committed taxonomy changes only with `--apply --approve <file>`, and only for the promoted tokens
+the file lists (a person accepted each); `--apply` alone is refused. Then `compute_idf.py` and
+`compute_pmi.py` must run, as after a build. The queue (`data/taxonomy/review_queue.csv`, top 50
+not promoted) holds short tokens and counts only (D-04). On Tailrd's corpus (2026-05-14) after the
+parser fix below: recurring 86.80 %, raw 78.71 %, per-posting mean 79.61 % (before: 83.28 %,
+73.98 %, 73.28 %); the alert still fires, which is a real vocabulary gap, not noise; SaaS is the
+one promotion proposed.
+
+**D-98a Posting noise tokens (Task 7.2B fix round 1). [Tailrd]** The posting parser's unresolved
+requirement tokens (SPEC §16, §17.1) leave out: a token whose folded form is a configured stop word
+(`posting.unresolved.stop_words`: local, must, live, team, remote, perks, skills, hq, jd, li, et, ...)
+or a generic word; a word in capitals whose lower case is a common word of the posting corpus
+(`common_words.json`: "HIRING", "TODAY"), unless allow-listed; a two- or three-letter word in
+capitals unless it is in `acronym_allowlist` (RAG, IAM, GPU, SDK, PCB, NDT, ...) or written in a
+technical form ("/" before it; "#", "+", "/" or ".js" after it); every tech-shaped word of a
+statement in capitals (more than half, and more than two, of its words outside resolved mentions
+are capitals of two letters or more, judged per statement, not per clause). A trigger phrase ends
+before its first function word (`phrase_stop_words`: is, are, to, through, join, considered, a,
+the, of, for, with, ...), at most 4 words remain, and a phrase of generic, lead or stop words only
+is dropped: "rim repair to join our crew" gives "rim repair", "languages is considered a plus"
+nothing. Each unresolved token is an IDF 0.5 pseudo-requirement in the score interval and lowers
+`taxonomy_coverage`, so noise cost every posting confidence; the token count falls by the same
+amount as the unresolved list.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores
@@ -436,11 +481,17 @@ Skills-blob and certification mentions take the résumé's latest activity date 
 or `as_of` if a role is current); a résumé with no dates gets `R = 1.0` (we do not penalise what
 we cannot date).
 
-**D-35 Role relevance (§5.3). [Deviation: cosine space]** Cosine is computed in the posting's
-requirement space: `v_job[r] = idf(r)`, `v_role[r] = idf(r) × max credit of the role's mentions
-for r` (negated/aspirational mentions excluded). A plain cosine over the union of skills would
-lower a role's relevance for every unrelated skill the person also used there, i.e. it
-penalises breadth. Role titles that resolve to skills enter as `ROLE_TITLE` mentions.
+**D-35 Role relevance (§5.3). [Deviation: requirement space; norm ratio, not cosine]** Relevance is
+computed in the posting's requirement space: `v_job[r] = idf(r)`, `v_role[r] = idf(r) × max credit of
+the role's mentions for r` (negated/aspirational mentions excluded), and relevance = `|v_role| /
+|v_job| = sqrt(Σ idf² c² / Σ idf²)`. A plain cosine over the union of skills would lower a role's
+relevance for every unrelated skill the person also used there, i.e. it penalises breadth. Role
+titles that resolve to skills enter as `ROLE_TITLE` mentions. Why not §5.3's cosine (Task 3.6 fix
+round 1): a cosine is not monotone in one component, so adding a matching skill to a role could
+lower the score (SPEC §10; a verified pair lost raw 0.356657 -> 0.356106), and it is scale-invariant
+(uniform parent credits of 0.40 scored 1.0). The norm ratio equals the cosine whenever every credit is
+0 or 1, is monotone in every credit and bounded by [0, 1]; on that pair relevance rises 0.1848 ->
+0.1977. The D-36 sweep is unchanged.
 
 **D-36 Relevant months.** Interval sweep over all dated roles: each elementary segment counts
 once, weighted by the max `relevance × (0.5 if internship else 1.0)` among roles active in it.
@@ -582,6 +633,17 @@ mode. Details of `score/engine.py`:
 - The seven scorers are one registry (`score.dimensions.SCORERS`), used by the base run and by the
   interval readings alike.
 
+**D-47 Zero skill overlap (§14.5 read with §5.6).** §14.5's "zero skill overlap → raw = 0.0" cannot
+hold literally while §5.6 never abstains (no requirement 1.00; floor 0.20 × 0.70 = 0.14). It is read
+as: the skill dimensions (§5.1, §5.2, §5.7) and §5.3 score valid zeros, never abstentions, the output
+is a valid score and the band is Limited. The minimum case (tests/fixtures/profiles/02_zero_overlap)
+scores raw 0.0175 (education 0.14 over the scored weight 0.80), calibrated 2, Limited.
+
+**D-48 Totality example counts. [Deviation from the Task 3.6 brief's 2,000]** `tests/test_totality.py`
+runs 300 Hypothesis examples per test by default (env `TOTALITY_EXAMPLES`), on every commit and never
+skipped (§13), so `make eval-fast` stays inside its budget. The Milestone 3 gate is `make gate`, which
+runs `TOTALITY_EXAMPLES=50000` and the slow tests (1,000-run determinism); it passed in 51 min.
+
 ## Calibration and display
 
 **D-50 Phase-1 reference. [Tailrd]** "Applicants to that posting" becomes "candidates scored
@@ -593,6 +655,29 @@ rule counts DISTINCT candidates (people), not (candidate, posting) pairs: "appli
 and five users × 2,000 jobs would otherwise pass the threshold while really comparing a user
 mostly with themselves. With Tailrd's current handful of résumés, every score therefore uses the
 panel until 30 people have scored résumés.
+
+**D-50 addendum (Task 9.1). [Tailrd]** Live references are per job family (key = the posting's
+`role_category`, always passed as a `str`: a non-str key would silently skip the family tiers) and
+global (key `*`), rebuilt by `fit_engine.refresh_calibration` from the banked raw scores of the
+current config hash (every outcome that produced a raw score, the panel builder's rule) and stored
+in `match_calibration`; a candidate is a distinct person (see the note below). The committed panel is checked
+against its MANIFEST (sha256 and version) when the engine is built, and a mismatch stops the build.
+Known limits, accepted for now: small families ride on synthetic counts (Product Management has 24
+panel candidates and falls through to the pooled panel; Business Analyst has 56); live pairs (every
+user against every job, most of them unrelated) will skew lower than the panel's median raw score
+of about 0.57, where each synthetic profile was scored only against its own target posting, so a
+live family reference, once in charge, reads the same raw score as a higher percentile than the
+panel did. Recheck the panel against the live distribution when any family reaches 30 real
+candidates. A stored score is calibrated when it is banked and is not re-read when the references
+change; a refresh moves scores only as rows are re-banked.
+
+**D-50 note: "fingerprints" means people (Task 9.1 fix round 1). [Tailrd]** The plan's "distinct
+résumé fingerprints count as candidates" is read as distinct people: a user who edits a résumé
+gets a new fingerprint, and rows under the old one survive on jobs not re-banked since, so
+counting fingerprints let one person count several times and opened the 30-candidate gate early.
+`refresh_calibration` keys each candidate by a sha256 of the user id (counted, never stored),
+samples only the rows under each user's newest fingerprint (latest `scored_at`), and only on
+active jobs (listing status not hidden from the feed).
 
 **D-51 Phase 2** (isotonic, pure-Python PAVA at runtime, fitted offline) is built and versioned
 but stays off until `calibration.isotonic.min_labels` (500) outcome labels exist. Today there are
@@ -754,6 +839,54 @@ transferred) differs, which fixes today's never-invalidated terms.
 **D-85 Thresholds.** Every hard-coded 80/60 in the backend and web app is replaced by the band
 from the engine (85/70/55). Alerts go out for confident (`SCORED`) Strong matches only.
 
+**D-86 A missing score is not a low score. [Tailrd]** `job_match_scores.score` holds the displayed
+integer of a `SCORED` result and is NULL for every other outcome: `GATE_FAIL` and `NEEDS_REVIEW` show
+no number, and `SCORED_LOW_CONFIDENCE` shows only its band (D-54; its calibrated integer is audit-only
+and is never sorted). Never a numeric sentinel (0, -1), which could leak into a display, an average
+or a threshold. The row keeps the raw score, band, outcome, confidence, engine version and config
+hash for audit. Match-sorted queries put NULL after every scored row with an explicit, portable
+ordering (`fit_engine.score_order`: a `CASE` on NULL, then the score descending; NULLS LAST is spelt
+and defaulted differently in SQLite and Postgres). The UI labels them ("We couldn't score this" /
+"Not eligible", compliance.md section 2), and no count, alert or "strong" filter treats them as
+low or as matches. The migration makes the column nullable (catalog-only on Postgres).
+
+**D-87 The scoring date. [Tailrd]** Every score is as of the first day of the current UTC month
+(`fit_engine.fit_as_of`), for parsing the résumé, parsing postings and scoring. The parsed résumé
+depends on the date ("Present", months of experience), so a daily date would change every
+fingerprint (D-82), and so re-score every user against every job, every day. Months are the
+precision résumé dates have. A résumé whose only dates start later in the month than the first is
+NEEDS_REVIEW INVALID_AS_OF until the next month; accepted as rare.
+
+**D-88 Profile facts to the engine. [Tailrd]** Work authorisation and location are read from the
+saved answers through `backend/services/profile_facts.py` (the port of the extension's reading),
+each of its ten text fields cut to 2,000 characters first. A `settings.location` equal to the
+column default "United States" is dropped before the facts are read: it is the bot's search region,
+never a residence. `authorized_countries`: US, CA, the residence and any country the answer names,
+where `authorized_in` says True. `needs_sponsorship`: `needs_sponsorship_in` over US, CA and the
+residence minus the authorised ones; True when any says True, False when all say False, else None
+(so a general "I need sponsorship" beside a Canada-scoped status stays unknown for the US: a
+warning, never a fail, exactly as the extension reads it). Citizenships are never inferred from
+the profile (a stated citizenship that misses a posting's country fails a citizenship gate, D-61,
+and the profile cannot say "only"). "Active clearance" is
+`gates.security_clearance.unknown_level_token`, never a literal. The candidate's place is the
+profile's country only at high confidence, with its region and city. The résumé's own statements
+fill what the profile leaves unknown (authorised countries are united, the profile's sponsorship
+answer wins, the résumé's citizenships are kept); with no profile place the résumé's contact place
+stands. Unknown stays None.
+
+**D-89 Posting cache version. [Tailrd]** The `v` of D-84 is `"pv1-"` + 16 hex of sha256 over the
+engine version, the parse-config version, the combined config hash and the year of the scoring
+date (a requirement's years-since-release clamp reads the year). Any of them changing re-parses a
+posting the next time it is read; a parser fault is an INTERNAL_ERROR review and is never cached.
+Until Task 9.2 removes `local_match`, its `{"v": 1, "top", "tags"}` entries and these share the
+column and would overwrite each other, so 9.2 must switch every reader at once. Because the
+version holds the year, every cached posting is re-parsed in the first sweeps after 1 January
+(about 47k postings at about 20 ms each, roughly 16 minutes of CPU once a year). The same version
+and the description length form `job_match_scores.posting_key`: a banked score is current only
+while both its fingerprint and its posting key match, so a description backfill or edit, a
+parse-table change or a year change rescores it, and an INTERNAL_ERROR result is stored with a
+NULL key and retried by the next sweep.
+
 ## Posting parser (Task 6.5) [Tailrd]
 
 The guiding rule for every entry below: a phantom requirement lowers every candidate's score on
@@ -882,7 +1015,10 @@ first 24 hex characters. Demographic data is joined to traces on this id only (S
 a user id: `scripts/bias_audit.py` refuses any key that is not 24 lowercase hex. Tailrd's user ids
 are small integers, so a short or guessable salt would make every id enumerable: `opaque_id`
 raises ValueError for a salt under 16 bytes. The salt is a secret kept outside the repository and
-outside the scorer's environment; rotating it severs every earlier link.
+outside the scorer's environment; rotating it severs every earlier link. On Vercel the trace
+writer (`fit_engine.bank_scores`, `delete_user_traces`) and the scorer share one serving process,
+so that separation is procedural: only the two writers read `FIT_TRACE_SALT`, and `score()` never
+receives it.
 
 **D-92 Four-fifths counts people; rates count pairs. [Deviation from eval/metrics/fairness.py]**
 The runtime monitor `audit.four_fifths(records)` takes `(opaque_id, group, selected)` records. A

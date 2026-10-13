@@ -270,10 +270,25 @@ class UnresolvedTable(Frozen):
     lead_words: tuple[str, ...] = ()
     generic_words: tuple[str, ...] = ()
     acronym_stoplist: tuple[str, ...] = ()
+    acronym_allowlist: tuple[str, ...] = ()
+    stop_words: tuple[str, ...] = ()
+    phrase_stop_words: tuple[str, ...] = ()
 
     @cached_property
     def trigger_tuples(self) -> tuple[tuple[str, ...], ...]:
         return _phrases(self.triggers)
+
+    @cached_property
+    def allow_set(self) -> frozenset[str]:
+        return frozenset(v.upper() for v in self.acronym_allowlist)
+
+    @cached_property
+    def stop_set(self) -> frozenset[str]:
+        return frozenset(w for v in self.stop_words for w in phrase_words(v))
+
+    @cached_property
+    def phrase_stop_set(self) -> frozenset[str]:
+        return frozenset(w for v in self.phrase_stop_words for w in phrase_words(v))
 
     @cached_property
     def lead_set(self) -> frozenset[str]:

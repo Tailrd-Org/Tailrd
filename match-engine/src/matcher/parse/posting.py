@@ -65,7 +65,10 @@ softer one is taken (IMPLIED rather than REQUIRED, a warning gate rather than a 
 * Coverage (§16, §17.1): `requirement_token_count` is the distinct ids mentioned in REQUIRED and
   PREFERRED clauses plus the unresolved tokens there: the noun phrases after "experience
   with/in", "knowledge of", "proficiency in", "familiarity with", ... and the tech-shaped words
-  (inner capitals, ".js"/".NET", "C++"-like, unlisted acronyms) that resolved to nothing.
+  (inner capitals, ".js"/".NET", "C++"-like, unlisted acronyms) that resolved to nothing. Noise is
+  left out (DECISIONS D-98a): stop and generic words, capitalised common corpus words ("HIRING"),
+  two- or three-letter capitals outside `acronym_allowlist` with no technical form, statements in
+  capitals; a trigger phrase ends before its first function word.
 * Scalars: seniority `title_seniority(title, meta_level=meta.experience_level)`; internship from
   the metadata or the title; family `meta.job_family`, else the titles index; industry
   `classify_industry(company, company_description)` (a "{"-led description is junk and the
@@ -109,7 +112,7 @@ from matcher.parse._text import Token, fold, tokens, words
 from matcher.parse.config import ParseConfig
 from matcher.parse.education import degree_matches
 from matcher.parse.industry import classify_industry
-from matcher.parse.posting_config import PostingTable
+from matcher.parse.posting_config import PostingTable, UnresolvedTable
 from matcher.parse.seniority import is_internship_text, title_seniority
 from matcher.parse.taxonomy_extras import TitleIndex
 
@@ -719,12 +722,35 @@ def _record_unresolved(state: _State, surface: str) -> None:
         state.unresolved[key] = surface
 
 
+def _shouting(stmt: str, spans: Sequence[tuple[int, int]]) -> bool:
+    """Whether the statement is written in capitals: more than half (and more than two) of its words
+    outside resolved mentions are capitals of two letters or more (Task 7.2B: judged per statement,
+    not per clause, so "PLEASE APPLY TODAY, ZXQW" shouts although its last clause is one word)."""
+    free = [t for t in tokens(stmt) if not _masked(t, spans)]
+    return sum(1 for t in free if t.raw.isupper() and len(t.raw) >= 2) > max(2, len(free) // 2)
+
+
+def _tech_context(stmt: str, a: int, b: int) -> bool:
+    """A short capital word written in a technical form: after "/", or before "#", "+", "/", ".js"."""
+    return stmt[a - 1:a] == "/" or stmt[b:b + 1] in ("#", "+", "/") or stmt[b:b + 3].lower() == ".js"
+
+
+def _noise_word(token: str, rules: UnresolvedTable, resolver: Resolver) -> bool:
+    """An English word, office or place rather than a technology (Task 7.2B fix round 1)."""
+    folded = fold(token)
+    if folded in rules.stop_set or folded in rules.generic_set:
+        return True
+    letters = token.isalpha() and token.isupper()
+    if letters and token not in rules.allow_set and resolver.is_common_word(token):
+        return True  # "HIRING", "TODAY": shouted English, not an acronym
+    return False
+
+
 def _unresolved_in_clause(stmt: str, clause: _Clause, spans: Sequence[tuple[int, int]], state: _State,
-                          table: PostingTable) -> None:
+                          table: PostingTable, resolver: Resolver, shouting: bool) -> None:
     rules = table.unresolved
     free = clause.toks
     ws = [t.word for t in free]
-    shouting = sum(1 for t in free if t.raw.isupper() and len(t.raw) > 2) > max(2, len(free) // 2)
     # (a) the noun phrase after a trigger
     for phrase in rules.trigger_tuples:
         n = len(phrase)
@@ -749,9 +775,13 @@ def _unresolved_in_clause(stmt: str, clause: _Clause, spans: Sequence[tuple[int,
                     kept = list(item_toks)
                     while kept and kept[0].word in rules.lead_set:
                         kept.pop(0)
+                    for j, t in enumerate(kept):  # the phrase ends before its first function word
+                        if t.word in rules.phrase_stop_set:
+                            kept = kept[:j]
+                            break
                     kept = kept[:4]
                     if not kept or all(t.word in rules.generic_set or t.word in rules.lead_set or t.word.isdigit()
-                                       for t in kept):
+                                       or t.word in rules.stop_set for t in kept):
                         continue
                     _record_unresolved(state, part[kept[0].start:kept[-1].end])
             break
@@ -770,6 +800,11 @@ def _unresolved_in_clause(stmt: str, clause: _Clause, spans: Sequence[tuple[int,
             continue
         if token.replace("/", "").isupper() and token.upper() in rules.acronym_set:
             continue
+        if _noise_word(token, rules, resolver):
+            continue
+        if (token.isalpha() and token.isupper() and len(token) <= 3 and token not in rules.allow_set
+                and not _tech_context(stmt, a, b)):
+            continue  # "HQ", "DR": short capitals need the allow-list or a technical form
         _record_unresolved(state, token)
 
 
@@ -965,9 +1000,10 @@ def _read_statement(stmt: str, section: str, state: _State, *, resolver: Resolve
             state.education.append(_EduHit(min(found, key=lambda lv: lv.rank), necessity, field_ids, equivalent))
 
     # unresolved requirement tokens
+    shouting = _shouting(stmt, spans)
     for clause in clauses:
         if clause.necessity in (Necessity.REQUIRED, Necessity.PREFERRED):
-            _unresolved_in_clause(stmt, clause, spans, state, table)
+            _unresolved_in_clause(stmt, clause, spans, state, table, resolver, shouting)
 
 
 # ─── gates ────────────────────────────────────────────────────────────────────────────────
