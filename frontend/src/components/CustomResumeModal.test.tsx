@@ -254,4 +254,69 @@ describe("CustomResumeModal", () => {
     await screen.findByText(/your fit score goes from 60 to 75/);
     expect(container.querySelector(".ai-side-stats")?.textContent ?? "").not.toMatch(/ATS|null/);
   });
+
+  // Task 9.3 fix round 1: a result without a number says why (compliance.md section 2).
+  it("shows the reasons under the step 1 gauge when the result is not SCORED", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue({
+      ...analysis, overall_score: null, ats_score: null, outcome: "NEEDS_REVIEW", match_label: "We couldn't score this",
+      reasons: ["We couldn't find any requirements in this job posting."],
+    });
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={vi.fn()} jobId={null} />);
+    await screen.findByRole("button", { name: /Suggest Edits for This Job/i });
+    const reasons = container.querySelector(".ai-reasons");
+    expect(reasons?.textContent).toContain("We couldn't find any requirements in this job posting.");
+  });
+
+  it("does not show reasons for a SCORED result", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue({ ...analysis, reasons: ["should not appear"] });
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={vi.fn()} jobId={null} />);
+    await screen.findByRole("button", { name: /Suggest Edits for This Job/i });
+    expect(container.querySelector(".ai-reasons")).toBeNull();
+    expect(container.textContent).not.toContain("should not appear");
+  });
+
+  it("shows why the review score went away (low confidence after a SCORED before)", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const why = "Skills listed without an example where you used them make us less sure, so we show the band instead of a number. Add a bullet that shows the skill to get a score.";
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: null, new_ats_score: null, new_keyword_coverage: 80,
+      original_outcome: "SCORED", outcome: "SCORED_LOW_CONFIDENCE",
+      original_match_label: "Partial match", match_label: "Good match",
+      reasons: [why, "Several parts of the match couldn't be assessed."],
+      version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    await screen.findByText(/Suggestions ready/);
+    const reasons = container.querySelector(".ai-side .ai-reasons");
+    expect(reasons?.textContent).toContain(why);
+    expect(reasons?.textContent).toContain("Several parts of the match couldn't be assessed.");
+    expect(container.querySelector(".ai-side-gauge")?.textContent).toBe("Good match");
+  });
+
+  it("does not show review reasons when the tailored result is SCORED", async () => {
+    get.mockResolvedValue({ data: [{ id: 3, name: "CV", is_primary: true }] });
+    const analyze = vi.fn().mockResolvedValue(analysis);
+    const rewrite = {
+      document: { header: {}, sections: [], theme: {} },
+      original_document: { header: {}, sections: [], theme: {} },
+      tailored_text: "t", original_text: "o", diff_summary: "",
+      original_overall_score: 60, new_overall_score: 75, new_ats_score: 75, new_keyword_coverage: 80,
+      outcome: "SCORED", match_label: "Good match", reasons: [], version_id: null,
+    };
+    const generate = vi.fn().mockResolvedValue(rewrite);
+    const { container } = render(<CustomResumeModal job={{ title: "SWE", company: "Acme", url: "u" }} onClose={() => {}} analyze={analyze} generate={generate} jobId={null} />);
+    fireEvent.click(await screen.findByRole("button", { name: /Suggest Edits for This Job/i }));
+    fireEvent.click(await screen.findByRole("button", { name: /Get Suggestions/i }));
+    await screen.findByText(/your fit score goes from 60 to 75/);
+    expect(container.querySelector(".ai-reasons")).toBeNull();
+  });
 });
