@@ -1,0 +1,36 @@
+{
+  "budget": 50,
+  "changed": true,
+  "current": {
+    "domain": 0.1,
+    "education": 0.1,
+    "experience": 0.15,
+    "preferred_skills": 0.1,
+    "required_skills": 0.35,
+    "seniority": 0.1,
+    "tools": 0.1
+  },
+  "date": "2026-10-13",
+  "dev_gain": {
+    "baseline": 0.9914632629250917,
+    "high": 0.008553436349090535,
+    "low": -0.001957311436959902,
+    "point": 0.0021130779757339013,
+    "verdict": "NOISE"
+  },
+  "fairness_assessed": false,
+  "over_leveraged": [],
+  "proposed": {
+    "domain": 0.1898,
+    "education": 0.0362,
+    "experience": 0.2116,
+    "preferred_skills": 0.191,
+    "required_skills": 0.2538,
+    "seniority": 0.0373,
+    "tools": 0.0803
+  },
+  "seed": 0,
+  "split": "synthetic",
+  "synthetic_only": true,
+  "verdict": "REJECT"
+}

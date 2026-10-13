@@ -25,7 +25,9 @@ ingest = [
 ]
 # Offline evaluation, corpus statistics and tuning (EVAL.md). Never imported by score/.
 eval = [
-  "numpy==2.5.3",
+  # numpy 2.5 and scipy 1.18 need Python >= 3.12; CI also runs 3.11 (constraints-ci.txt pins the rest).
+  "numpy==2.5.3; python_version >= '3.12'",
+  "numpy==2.4.6; python_version < '3.12'",
   "scikit-learn==1.9.1",
   "optuna==5.0.0",
   "reportlab==4.2.5",

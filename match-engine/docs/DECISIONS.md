@@ -1159,3 +1159,42 @@ identity and by what the parser reads (`synthetic.parser_inputs`): its modules, 
 verbs.yaml, negation.yaml, the curated taxonomy files, the taxonomy manifest and resolver tables,
 and the ingest and taxonomy sections of scoring.yaml. A weights or scoring-module change keeps it
 warm. A cold full `make eval` (24,000 renderings) takes about 6-7 hours.
+
+## Tuning and holdout (Task 8.1) [Tailrd]
+
+**D-119 Fairness that cannot be assessed leaves a tuning trial feasible. [Deviation]** EVAL 5.1
+makes `fairness_ratio >= 0.80` a hard constraint, infeasible if violated, and the Task 8.1 brief
+adds "infeasible otherwise" where fairness is not assessable. Taken literally, every trial on the
+synthetic corpus (whose pairs carry no group) would be infeasible and no proposal could exist.
+Ruling: a trial whose four-fifths guardrail is "not assessed" (D-93) is feasible, and the proposal
+then states prominently "fairness not assessed: proposal cannot be adopted until a grouped labelled
+set exists", with the verdict NOT ADOPTABLE at best. A fairness FAIL is still infeasible, and a FAIL
+on the current weights is terminal: the tuner stops before any trial and exits 1 (CLAUDE.md, EVAL 7).
+
+**D-120 What a tuning trial scores.** Weights reach neither the parser nor the posting parser, so a
+trial re-scores fixed inputs and parses nothing: on the synthetic split, the 500 oracle résumés
+(`corpus_pairs`) against their target postings, the pairs the synthetic layer ranks; on the dev split,
+`eval/corpora/dev/pairs.jsonl` (relevance 3 hired, 2 advanced, 0 otherwise). The sampler draws a
+point in (0, 1]^7; `-log(u)` normalised is a flat Dirichlet draw `d`, and `w = 0.03 + 0.79 d` keeps
+every weight at or above the lower bound. Weights live on a 4-decimal grid summing to exactly 1 as
+decimals (the rounding residual goes to the largest weight); a vector with a weight above 0.45 is
+rejected without scoring. Optuna TPE, seed 0 by default, constraints through `Trial.set_constraint`.
+`make tune BUDGET=50` on the synthetic split takes about one minute (2026-10-13). Sensitivity
+(SPEC 10) runs on the proposed vector; a perturbed vector outside [0.03, 0.45] is still scored
+(an unchecked in-memory config, never persisted) and marked.
+
+**D-121 Holdout format and look budget.** `labels.enc` is AES-256-GCM (`MHO1 | nonce | ciphertext`),
+key 32 bytes base64 in `MATCH_HOLDOUT_KEY` (CI secret only). The bundle (inputs and `labels.enc`)
+lives outside the public repository and is fetched into the CI runner from `MATCH_HOLDOUT_BUNDLE_URL`;
+`eval/corpora/holdout/` is git-ignored and guarded. `make eval-holdout` decrypts only on `release/**`
+refs, refuses the 11th look of a calendar quarter before decrypting, appends `date,ref,purpose` to
+`docs/evaluation_budget.ledger.csv` before decrypting, and prints aggregates only. The CI copy of the
+ledger is uploaded as an artifact and its row committed by hand (docs/evaluation_budget.md). Layer 4
+inside `eval.run` only reports whether the key is present; every look goes through `make eval-holdout`.
+
+**D-122 CI dependency pins.** CI installs `-c constraints-ci.txt -e ".[ingest,eval,dev]"`, the
+development venv's exact versions. numpy 2.5 and scipy 1.18 have no Python 3.11 wheels, so 3.11
+gets numpy 2.4.6 and scipy 1.17.1 (environment markers in pyproject.toml and the constraints file).
+The OCR (rapidocr-onnxruntime, pymupdf) is pure pip; the runner adds only `libgl1` and
+`libglib2.0-0` for OpenCV. The parse cache is restored by a key built from `generator_fingerprint`
+and `parser_fingerprint` (D-118), so warm CI runs skip OCR.

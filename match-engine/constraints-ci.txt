@@ -1,0 +1,60 @@
+# Exact versions of every package the match-engine dev, eval and ingest extras pull in, for CI
+# (pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"). Frozen from the development venv
+# 2026-10-13; numpy 2.5 and scipy 1.18 need Python >= 3.12, so 3.11 gets the previous minors.
+alembic==1.20.0
+annotated-types==0.8.0
+asn1crypto==1.5.1
+cffi==2.1.1
+chardet==7.6.0
+charset-normalizer==3.5.2
+cloudpickle==3.1.2
+colorama==0.4.6
+colorlog==6.12.0
+cryptography==50.0.2
+flatbuffers==25.12.19
+hypothesis==6.168.5
+iniconfig==2.3.1
+Jinja2==3.1.6
+joblib==1.6.0
+lxml==6.1.3
+Mako==1.4.3
+MarkupSafe==3.0.4
+narwhals==2.26.0
+onnxruntime==1.30.0
+opencv-python==5.0.0.93
+optuna==5.0.0
+packaging==26.3
+pdfminer.six==20260107
+pdfplumber==0.11.10
+pg8000==1.31.2
+pillow==12.3.0
+pluggy==1.6.0
+protobuf==7.36.2
+pyclipper==1.4.0
+pycparser==3.1
+pydantic==2.11.7
+pydantic_core==2.33.2
+Pygments==2.21.0
+pymupdf==1.28.2
+pypdfium2==5.14.0
+pytest==9.1.1
+python-dateutil==2.9.0.post0
+python-docx==1.2.0
+PyYAML==6.0.2
+rapidocr-onnxruntime==1.2.3
+reportlab==4.2.5
+ruff==0.15.0
+scikit-learn==1.9.1
+scramp==1.4.17
+shapely==2.2.0
+six==1.17.0
+sortedcontainers==2.4.0
+SQLAlchemy==2.1.4
+threadpoolctl==3.7.0
+tqdm==4.70.1
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+numpy==2.5.3; python_version >= '3.12'
+numpy==2.4.6; python_version < '3.12'
+scipy==1.18.1; python_version >= '3.12'
+scipy==1.17.1; python_version < '3.12'

@@ -5,8 +5,11 @@
 #   make gate                 milestone gate: the slow tests and 50,000-example totality (about an hour)
 #   make eval                 EVAL layers 1-3, report under reports/<timestamp>/
 #   make eval BASELINE=main   ... diffed against a saved baseline
-#   make eval-holdout         layer 4 (CI on release branches only; needs the CI key)
-#   make tune BUDGET=200      propose weights under proposals/ (never edits config/)
+#   make eval-holdout         layer 4 (CI on release branches only; needs MATCH_HOLDOUT_KEY; prints
+#                             `HOLDOUT: skipped (no key)` without it). PROPOSAL=proposals/<date>-tune
+#                             also checks that proposal (EVAL 5.3 rule 4). Every look is logged, 10/quarter.
+#   make tune BUDGET=200      propose weights under proposals/ (never edits config/); SPLIT=dev falls
+#                             back to synthetic (marked do-not-adopt) while no dev labels exist
 #   make lint
 
 ifeq ($(OS),Windows_NT)
@@ -40,7 +43,7 @@ gate:
 	TOTALITY_EXAMPLES=50000 $(PY) -m pytest -q tests/test_totality.py
 
 eval-holdout:
-	$(PY) -m eval.run --layers 4
+	$(PY) -m eval.holdout evaluate $(if $(PROPOSAL),--proposal $(PROPOSAL),)
 
 tune:
 	$(PY) -m eval.tune.search --budget $(BUDGET) --objective $(OBJECTIVE) --split $(SPLIT)

@@ -1,0 +1,178 @@
+# Match engine: unit tests and the fast evaluation on every pull request that touches match-engine/,
+# plus the encrypted holdout (EVAL.md layer 4) on release branches only.
+#
+# make test       unit + property tests (not the slow ones)
+# make eval-fast  tests/eval + EVAL layers 1-2. Exits 1 when any guardrail fails; that failure is the
+#                 true state of the engine and is never skipped or loosened here.
+# make eval-holdout
+#                 release/** only, with MATCH_HOLDOUT_KEY from secrets. Without the key it prints
+#                 "HOLDOUT: skipped (no key)" and exits 0. Every look is logged in
+#                 docs/evaluation_budget.ledger.csv (10 per quarter, docs/evaluation_budget.md).
+name: match-engine eval
+
+on:
+  pull_request:
+    paths:
+      - "match-engine/**"
+      - ".github/workflows/match-engine-eval.yml"
+  push:
+    branches:
+      - "release/**"
+    paths:
+      - "match-engine/**"
+      - ".github/workflows/match-engine-eval.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: match-engine-eval-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: match-engine
+
+jobs:
+  holdout-guard:
+    # EVAL 0: nothing under eval/corpora/holdout/ is ever committed (scripts/guard_holdout.py).
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Reject changes under eval/corpora/holdout/
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            base="origin/${{ github.base_ref }}"
+          else
+            base="${{ github.event.before }}"
+          fi
+          if [ -z "$base" ] || [ "$base" = "0000000000000000000000000000000000000000" ]; then
+            base="$(git rev-list --max-parents=0 HEAD | tail -n 1)"
+          fi
+          git -C .. diff --name-only "$base"...HEAD > "$RUNNER_TEMP/changed.txt"
+          if [ -s "$RUNNER_TEMP/changed.txt" ]; then
+            xargs -d '\n' python3 scripts/guard_holdout.py < "$RUNNER_TEMP/changed.txt"
+          fi
+
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            match-engine/pyproject.toml
+            match-engine/constraints-ci.txt
+      - name: System packages (OpenCV runtime for the OCR used by ingest)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip==25.2
+          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+      - name: make test
+        run: make test
+
+  eval-fast:
+    runs-on: ubuntu-24.04
+    # A cold parse cache OCRs the scanned renderings (about 8.5 minutes on the development machine,
+    # DECISIONS D-118); a warm one runs in about a minute.
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        python: ["3.11", "3.12"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python }}
+          cache: pip
+          cache-dependency-path: |
+            match-engine/pyproject.toml
+            match-engine/constraints-ci.txt
+      - name: System packages (OpenCV runtime for the OCR used by ingest)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip==25.2
+          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+      - name: Parse-cache key (what the parser reads, synthetic.parser_inputs, and the generator)
+        id: parse-key
+        run: |
+          key="$(.venv/bin/python -c 'import sys; sys.path.insert(0, "src"); from eval.suites.synthetic import generator_fingerprint, parser_fingerprint; print(generator_fingerprint()[:16] + "-" + parser_fingerprint())')"
+          echo "key=$key" >> "$GITHUB_OUTPUT"
+      - name: Restore the parse cache
+        uses: actions/cache@v4
+        with:
+          path: match-engine/.cache/eval/parse
+          key: match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-${{ steps.parse-key.outputs.key }}
+          restore-keys: |
+            match-engine-parse-${{ runner.os }}-py${{ matrix.python }}-
+      - name: make eval-fast
+        run: make eval-fast
+      - name: Upload the report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-fast-report-py${{ matrix.python }}
+          path: match-engine/reports/
+          if-no-files-found: ignore
+          retention-days: 14
+
+  holdout:
+    # Layer 4: release branches only, after the unit tests and the fast evaluation pass (a release
+    # candidate with a failing guardrail does not spend a holdout look).
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/release/')
+    needs: [holdout-guard, test, eval-fast]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: holdout
+    env:
+      MATCH_HOLDOUT_KEY: ${{ secrets.MATCH_HOLDOUT_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: |
+            match-engine/pyproject.toml
+            match-engine/constraints-ci.txt
+      - name: System packages (OpenCV runtime for the OCR used by ingest)
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libgl1 libglib2.0-0
+      - name: Install pinned dependencies
+        run: |
+          python -m venv .venv
+          .venv/bin/python -m pip install --upgrade pip==25.2
+          .venv/bin/python -m pip install -c constraints-ci.txt -e ".[ingest,eval,dev]"
+      - name: Fetch the holdout bundle into the runner (never committed, eval/HOLDOUT.md)
+        if: env.MATCH_HOLDOUT_KEY != ''
+        env:
+          BUNDLE_URL: ${{ secrets.MATCH_HOLDOUT_BUNDLE_URL }}
+        run: |
+          if [ -n "$BUNDLE_URL" ]; then
+            mkdir -p eval/corpora/holdout
+            curl -fsSL "$BUNDLE_URL" | tar -xz -C eval/corpora/holdout
+          fi
+      - name: make eval-holdout
+        run: make eval-holdout
+        env:
+          GITHUB_REF_NAME: ${{ github.ref_name }}
+      - name: Upload the ledger (commit its new row back to the release branch)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: evaluation-budget-ledger
+          path: match-engine/docs/evaluation_budget.ledger.csv
+          retention-days: 90
