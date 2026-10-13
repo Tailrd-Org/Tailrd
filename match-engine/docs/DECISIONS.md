@@ -1267,3 +1267,65 @@ runner adds only `libgl1` and `libglib2.0-0` for OpenCV. The parse cache is rest
 from `generator_fingerprint` and `parser_fingerprint` (D-118) and saved even when `make eval-fast`
 fails (split restore and save), so the next run is warm while guardrails are red. Actions are pinned
 by full commit SHA.
+
+## Format invariance (Task 5.4) [Tailrd]
+
+**D-130 OCR text repair.** Scanned résumés are repaired after ingest and before parsing
+(`parse.resume.parse_ingested` runs `ingest.ocr_repair.repair_ocr`), only when ingest flagged
+OCR_USED; typed text is never touched. The rules are tables in `config/parse/ocr.yaml` (a fifth parse
+config file, part of the parse-config version): a misread roman level right after a title word of the
+role parser ("Analyst Ill," -> "III"; "Il" reads as II, never guessed up to III), a misread bullet glyph
+at a line start (": ", ". ", ";", "。", or "e"/"o" and a space, then a capital or a digit; a stray quote
+after it is the same speck), a dot read for a space before a capitalised word ("to.Present") and a dot
+touching a range dash ("2024. - Present"), a region code read in lower case at a line end ("Denver, co",
+only when the capitals make the line a place), a speck read as a final period after a line that is
+exactly a listed header ("Education."), and misread acronyms ("Bl" -> "BI", "Cl/CD" -> "CI/CD") or a
+lost letter of a pair ("Ilustrator"). An acronym or letter repair applies only when the repaired word is
+an exact key of the resolver (EXACT or ALIAS, one list-context mention spanning the whole word, never a
+fuzzy match, so the check has no side effect) and the word as read is not. [Deviation] The brief says
+"resolves EXACT"; most acronyms the taxonomy knows are aliases of a longer label (BI, IaC, GCP), so EXACT
+alone would repair almost nothing; ALIAS is still an exact key. The first line (the person's name, "Al")
+is never repaired. Nothing is ever added: every rule restores a spelling the page shows.
+
+**D-131 Undated entries of a functional résumé are roles.** In an experience-like section with no dated
+line and no bullet at all, a head line naming a job or an organisation is an undated entry without
+bullets; a line naming a title and an employer is a whole entry, and the place lines below it join it
+("Title, Employer / City"). The role has no dates: its title is evidence (ROLE_TITLE, undated
+`first_used`/`last_used`), it adds no months (`total_experience_months` stays the union of dated roles,
+None when none is dated), as undated roles already were (D-34). A section with bullets keeps the old rule
+(an undated entry needs bullets under it), so a bullet whose glyph a scan lost is not a role. The
+FUNCTIONAL_RESUME qualifications share counts words, not lines (a paragraph wrapped over four PDF lines
+weighs what it weighs on one line), and a résumé with undated roles and listed skills is functional
+whatever its layout.
+
+**D-132 A line opening with a past-tense action verb is no head line.** The verb lexicon's forms ending
+in "ed" and its irregular past forms (`roles.past_verbs`: built, led, ...) open bullet text ("Optimized
+audience segments ..."), so such a line never names a role, even when a scan lost its bullet glyph. Base
+forms are left out because titles open with them ("Lead Data Analyst", "Engineer").
+
+**D-133 A header word inside a list.** Inside a section that is no entry section (skills, a
+"Qualifications" sidebar, a summary), a listed header opens a section only in a strong form (ALL CAPS, a
+trailing colon, a rule under it), or when a line follows it that is not another header (an empty
+section is the tail of a wrapped item: "Market / Research / Employment History") and that does not
+continue the list. A line continues the list when it is written like the line before the header (or,
+for the first item, like the header line itself): a "Label: items" line, items between separators, or
+one short item (at most four words, no digit, no final period, no job title, degree or school). Lines
+and words only, never the layout. [Deviation] The brief names SKILLS blocks; the same sidebar list is
+also written under "Other Qualifications" (a SUMMARY header), where "Leadership" opened a VOLUNTEER
+section, so the rule covers every non-entry section.
+
+**D-134 Lines a narrow column wrapped.** Read as the unwrapped line, layout-independent: a skills-list
+line that is no bullet and no label carries on the list line before it when that line does not end with
+a separator ("Methods: A/B" / "Testing, Agile"); a field of study that runs over a degree line's end into
+the next line is read over both ("in Business" / "Administration, ..."); a short line naming no job
+right below a complete header line that ends with its dates, followed by a place, a bullet or nothing,
+is the end of that line's last piece ("Redwood    Sep 2025 – Present" / "Creative"); a place line
+between a dates-only line and the head line above it is passed over (a dates column read after the
+place); and "following", "within", "between", "through", "throughout", "during" and "among" end a line
+mid-sentence like the other function words.
+
+**D-135 Header vocabulary.** "Learning" (EDUCATION) and "Badges", "Digital Badges" (CERTIFICATIONS) are
+listed headers. They are creative headers of real designer résumés as much as of the synthetic
+designer template, which used them and lost its education and certifications in every format (an
+across-template spread of about 0.10). This is a vocabulary entry, not a template detector; it is
+flagged for review because the evidence came from the corpus.

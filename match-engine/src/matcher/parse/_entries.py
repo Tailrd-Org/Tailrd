@@ -16,8 +16,13 @@ Shared by the section fallback (`sections.segment` when no header exists anywher
 
 An entry is an anchor plus the head lines it needs: a header line holds two pieces at most (title
 and employer), so an anchor with fewer pieces takes the head lines right above it, then right
-below it ("Employer / Title / dates", "Title  dates / Employer  Location"); places and employment
-types right below always join ("Ottawa, ON", "Full-time"). A dated line whose only piece names no
+below it ("Employer / Title / dates", "Title  dates / Employer  Location"; a place line between a
+dates-only line and the head line above it is passed over: a dates column read after the place,
+"Title, Employer / City / dates", Task 5.4); places and employment
+types right below always join ("Ottawa, ON", "Full-time"); so does a short line naming no job
+right below a complete header line that ends with its dates, followed by a place, a bullet or
+nothing: a narrow column wrapped the last piece ("Redwood    Sep 2025 – Present" / "Creative").
+A dated line whose only piece names no
 job, directly followed by another anchor, is an employer heading its promotions (`group`). Without
 an anchor, a run of head lines naming a job or an organisation and followed by bullets is an
 undated entry (role parsing only). In a section with no dated line and no bullet at all (a
@@ -480,7 +485,8 @@ class Entry:
 
 _DANGLING_WORDS = frozenset({"and", "or", "the", "a", "an", "of", "for", "to", "with", "in", "on", "at", "by",
                              "from", "using", "via", "into", "across", "over", "under", "as", "including",
-                             "such", "plus", "et", "de", "des", "du", "la", "le", "les", "pour", "avec"})
+                             "such", "plus", "following", "within", "between", "through", "throughout",
+                             "during", "among", "et", "de", "des", "du", "la", "le", "les", "pour", "avec"})
 
 
 def continues(previous: str, line: Line) -> bool:
@@ -516,10 +522,13 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
         i = anchor - 1
         while need > 0 and i >= 0:
             line = lines[i]
-            if i in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head or line.place:
+            if i in claimed or line.blank or line.bullet or line.ranges or line.label or not line.head:
+                break
+            if line.place and not (need == 2 and _head_above(lines, i, claimed)):
                 break
             before.append(i)
-            need -= max(1, len(parts_of(i).pieces))
+            if not line.place:  # a dates column read after the place line: "Title, Employer" / "City" / dates
+                need -= max(1, len(parts_of(i).pieces))
             i -= 1
         before.reverse()
         after: list[int] = []
@@ -536,6 +545,14 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
             else:
                 break
             j += 1
+        if need <= 0:
+            tail = _wrapped_tail(lines, anchor, j, claimed, parts_of, pieces)
+            if tail is not None:
+                after.append(tail)
+                j = tail + 1
+                while j < len(lines) and j not in claimed and lines[j].place and not lines[j].ranges:
+                    after.append(j)
+                    j += 1
         claimed.update(before)
         claimed.update(after)
         group = _heads_promotions(lines, anchors, position, parts_of)
@@ -557,6 +574,43 @@ def entries(lines: Sequence[Line], *, strict: bool) -> list[Entry]:
         out.append(Entry(start=spec.start, end=end, anchor=spec.anchor, before=spec.before, after=spec.after,
                          body=tuple(body), group=spec.group, pieces={i: parts_of(i) for i in heads}))
     return out
+
+
+def _head_above(lines: Sequence[Line], i: int, claimed: set[int]) -> bool:
+    """Whether a head line that is no place and is not claimed stands right above line `i`."""
+    k = i - 1
+    if k < 0 or k in claimed:
+        return False
+    line = lines[k]
+    return not (line.blank or line.bullet or line.ranges or line.label or line.place) and line.head
+
+
+_MAX_TAIL_WORDS = 3
+
+
+def _wrapped_tail(lines: Sequence[Line], anchor: int, j: int, claimed: set[int], parts_of,
+                  pieces: dict[int, HeadParts]) -> Optional[int]:
+    """The line right after a complete header line that holds the end of its last piece, wrapped
+    by a narrow column before the dates ("Specialist, Redwood    Sep 2025 – Present" / "Creative" /
+    "Halifax, NS"): the dates end the header line, and the tail is a short piece naming no job,
+    followed by a place line, a bullet, a blank line or nothing. The tail joins that last piece
+    (Task 5.4). None otherwise."""
+    line = lines[anchor]
+    if j >= len(lines) or j in claimed or not line.ranges or max(end for _, end, _ in line.ranges) < len(line.text):
+        return None
+    tail = lines[j]
+    if tail.blank or tail.bullet or tail.ranges or tail.label or tail.place or not tail.head:
+        return None
+    text = tail.text
+    if "," in text or len(text.split()) > _MAX_TAIL_WORDS or title_score(text) or not parts_of(anchor).pieces:
+        return None
+    following = lines[j + 1] if j + 1 < len(lines) else None
+    if following is not None and not (following.blank or following.bullet or following.place):
+        return None
+    own = parts_of(anchor)
+    pieces[anchor] = HeadParts(own.pieces[:-1] + (f"{own.pieces[-1]} {text}",), own.place, own.kinds)
+    pieces[j] = HeadParts((), "", ())  # its text now belongs to the anchor's last piece
+    return j
 
 
 def _heads_promotions(lines: Sequence[Line], anchors: list[int], position: int, parts_of) -> bool:

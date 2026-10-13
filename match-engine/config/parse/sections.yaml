@@ -41,7 +41,7 @@ headers:
   EDUCATION:
     en: [education, academic background, academics, academic history, educational background,
          education history, schooling, academic qualifications, degrees, where i studied,
-         where i've studied, education and training]
+         where i've studied, education and training, learning]
     fr: [formation, formations, éducation, études, scolarité, diplômes, formation académique,
          formation universitaire, parcours académique, parcours scolaire, formation scolaire]
   SKILLS:
@@ -63,7 +63,7 @@ headers:
     en: [certifications, certificates, certification, licenses, licences, license, licence,
          licenses and certifications, licences and certifications, certifications and licenses,
          accreditations, credentials, professional development, training, courses and certifications,
-         online courses]
+         online courses, badges, digital badges]
     fr: [certifications, certificats, permis, attestations, perfectionnement, formation continue,
          perfectionnement professionnel]
   COURSEWORK:

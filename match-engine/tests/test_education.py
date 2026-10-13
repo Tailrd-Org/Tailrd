@@ -210,3 +210,18 @@ def test_an_institution_line_with_its_own_field_is_its_own_entry(deps) -> None:
              "Honours Bachelor of Science in Statistics — McGill University (2019-2023)"]
     assert _summary(_parse(lines, deps)) == [(L.BACHELOR, ("field.computer_science",), False),
                                              (L.BACHELOR, ("field.statistics",), False)]
+
+
+@pytest.mark.parametrize("lines", [
+    ["Bachelor of Science in Business", "Administration, Ridgemont", "University", "2021"],  # a narrow sidebar
+    ["Bachelor of Science in Business Administration, Ridgemont University 2021"],
+])
+def test_a_field_wrapped_over_two_lines_is_one_field(deps, lines: list[str]) -> None:
+    """Task 5.4 (M6): a narrow column wraps the field of study ("Business" / "Administration");
+    a field mention that spans the break is read over the degree line and the line after it."""
+    assert _summary(_parse(lines, deps)) == [(L.BACHELOR, ("field.business_admin",), False)]
+
+
+def test_a_second_line_that_completes_no_field_adds_nothing(deps) -> None:
+    lines = ["Bachelor of Science in Computer Science", "Minor in Economics, University of Ottawa"]
+    assert _summary(_parse(lines, deps)) == [(L.BACHELOR, ("field.computer_science",), False)]

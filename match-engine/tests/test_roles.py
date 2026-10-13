@@ -129,6 +129,30 @@ SPLIT_CASES = [
         ["Software Developer, Shopify | 2022 – 2024", "- Built the admin portal", "Mentor, Code Club"],
         [_draft("Software Developer", "Shopify", "", "2022 – 2024", "Built the admin portal", "Mentor, Code Club")],
     ),
+    (  # Task 5.4: a narrow column wraps the employer before the dates; its tail line joins it
+        ["Junior Marketing Specialist, Redwood    September 2025 – Present", "Creative", "Halifax, NS",
+         "- Ran launch campaigns"],
+        [_draft("Junior Marketing Specialist", "Redwood Creative", "Halifax, NS", "September 2025 – Present",
+                "Ran launch campaigns")],
+    ),
+    (  # a line naming a job after a complete header line is no wrapped tail
+        ["Data Analyst, Acme Corp | 2022 – 2024", "Team Lead", "- Ran a team of 3 analysts"],
+        [_draft("Data Analyst", "Acme Corp", "", "2022 – 2024"),
+         _draft("Team Lead", "", "", None, "Ran a team of 3 analysts")],
+    ),
+    (  # Task 5.4: a right-hand date column read after the place line: the head lines are above it
+        ["Marketing Specialist I, Pinecrest Media", "Montreal, QC", "November 2025 – Present",
+         "- Ran newsletter programs"],
+        [_draft("Marketing Specialist I", "Pinecrest Media", "Montreal, QC", "November 2025 – Present",
+                "Ran newsletter programs")],
+    ),
+    (  # Task 5.4: a bullet wrapped after "following" carries on, even with a capital after it
+        ["Financial Analyst, Copperleaf Trust | 2023 – 2026", "- Shadowed colleagues on reports following",
+         "Financial Modeling practices, lowering errors by 8%", "- Built budget reviews"],
+        [_draft("Financial Analyst", "Copperleaf Trust", "", "2023 – 2026",
+                "Shadowed colleagues on reports following Financial Modeling practices, lowering errors by 8%",
+                "Built budget reviews")],
+    ),
     (  # a year inside a bullet is never a role's date
         ["IT Support Assistant, Carleton University | Sep 2021 – Apr 2022",
          "- Rolled out Microsoft Office 2019 to 120 staff laptops"],

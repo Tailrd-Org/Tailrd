@@ -81,6 +81,9 @@ def _kinds(sections: tuple[Section, ...]) -> list[SectionKind]:
         ("Langues", K.LANGUAGES),
         ("Centres d'intérêt", K.INTERESTS),
         ("Profil", K.SUMMARY),
+        ("Learning", K.EDUCATION),  # Task 5.4: creative headers of a designer's résumé
+        ("Badges", K.CERTIFICATIONS),
+        ("Digital Badges", K.CERTIFICATIONS),
     ],
 )
 def test_classify_header(pc, line: str, kind: SectionKind) -> None:
