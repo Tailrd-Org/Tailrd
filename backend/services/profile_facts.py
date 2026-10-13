@@ -1122,7 +1122,7 @@ _VISA_INTENT = _js_regex(
     r"(?:\s+(?:visa|status|application|approval|petition))?"
     r"|\b(?:relocat\w*|mov(?:e|es|ed|ing))\s+to\s+(?:the\s+)?" + _LIST + r"\s+(?:on|with|via|using|through|under)\s+"
     r"(?:an?\s+|the\s+)?(?:" + _VISA + r")\b(?:\s+(?:visa|status))?"
-    r"|\b(?:" + _VISA + r")\b(?:\s(?:visa|status|application|card))?(?:\s?[-–—:(\[]\s?|\s|-)"
+    r"|\b(?:" + _VISA + r")\b(?:\s(?:visa|status|application|card))?(?:\s?[-\u2013\u2014:(\[]\s?|\s|-)"
     r"(?:eligible|eligibility|application|approval|petition|pending|in\s+progress|in\s+process|processing|starting"
     r"|begins?|start\s+date|lottery|applied|submitted)\b"
 )
