@@ -392,15 +392,18 @@ def test_banking_writes_scores_and_traces(db_session):
         assert row.engine_version == engine.config.engine_version
         assert row.config_hash == engine.combined_hash
         assert row.raw_score == result.raw_score
-        if result.outcome.value == "SCORED":
-            assert row.score == result.display_score and row.band == result.band.value
-        else:
-            assert row.score is None
+        assert result.explanation is None  # bulk sweeps never build explanations
+        assert row.score == fit_engine.stored_score(result)
         trace = db_session.query(MatchTrace).filter_by(subject_id=subject, job_id=job.id).one()
         assert trace.trace_digest == trace_digest(trace.trace)
         assert trace.trace["outcome"] == result.outcome.value
         assert trace.config_hash == engine.combined_hash
     assert "user_id" not in {c.name for c in MatchTrace.__table__.columns}
+    scored = [job.id for job in jobs if results[job.id].outcome.value == "SCORED"]
+    assert scored  # the invented résumé and postings are meant to score
+    for job_id in scored:
+        row = db_session.query(JobMatchScore).filter_by(user_id=USER, job_id=job_id).one()
+        assert row.score == results[job_id].display_score and row.band == results[job_id].band.value
 
     assert bank_scores(db_session, USER, profile, [job.id for job in jobs]) == {}  # all current
 
@@ -507,7 +510,7 @@ def _bank_raw(db, job, fingerprint, raw, config_hash=None, user_id=None):
                          config_hash=config_hash or engine.combined_hash, outcome="SCORED"))
 
 
-def test_refresh_counts_distinct_resumes_as_candidates(db_session):
+def test_refresh_counts_distinct_people_as_candidates(db_session):
     data = [_job(db_session, n, family="Data Analysis") for n in range(3)]
     design = _job(db_session, 9, family="Design")
     for job in data:
@@ -579,6 +582,7 @@ def test_explain_job_gives_one_full_result(db_session):
     if detail["outcome"] == "SCORED":
         assert detail["interval"] is not None
     assert detail["fingerprint"].startswith("fit")
+    assert "improvements" in detail  # the counterfactual was asked for (a Strong result may list none)
 
 
 def test_explain_job_without_a_resume_is_none(db_session):
@@ -605,7 +609,8 @@ def _legacy_engine():
     return engine
 
 
-NEW_COLUMNS = {"raw_score", "band", "outcome", "confidence", "engine_version", "config_hash"}
+NEW_COLUMNS = {"raw_score", "band", "outcome", "confidence", "engine_version", "config_hash",
+               "posting_key"}
 
 
 def test_the_migration_adds_columns_and_makes_score_nullable_keeping_rows():
@@ -707,6 +712,7 @@ def test_the_postgres_migration_caps_lock_waits_and_tolerates_a_lost_race(monkey
         "ALTER TABLE job_match_scores ADD COLUMN IF NOT EXISTS confidence FLOAT",
         "ALTER TABLE job_match_scores ADD COLUMN IF NOT EXISTS engine_version VARCHAR(20)",
         "ALTER TABLE job_match_scores ADD COLUMN IF NOT EXISTS config_hash VARCHAR(20)",
+        "ALTER TABLE job_match_scores ADD COLUMN IF NOT EXISTS posting_key VARCHAR(40)",
         "ALTER TABLE job_match_scores ALTER COLUMN score DROP NOT NULL",
     ]
     assert not any(word in sql.upper() for sql in engine.sql for word in ("DROP TABLE", "DELETE", "UPDATE "))
@@ -749,3 +755,159 @@ def test_live_references_follow_each_refresh(db_session):
     refresh_calibration(db_session)
     pooled = {ref.key: ref for ref in live_references(db_session)}["*"]
     assert (pooled.n_candidates, pooled.n_pairs) == (2, 2)
+
+
+# ─── fix round 1 ────────────────────────────────────────────────────────────────────────────
+
+
+def test_a_description_backfill_rescores_the_job(db_session):
+    # I-1: about 1,100 postings a month arrive with no description; cron-backfill fills it later.
+    _user(db_session)
+    profile = _profile(db_session)
+    job = _job(db_session, 1, "")
+    assert bank_scores(db_session, USER, profile, [job.id])[job.id].outcome.value == "NEEDS_REVIEW"
+    job.description = SOFTWARE
+    db_session.commit()
+    again = bank_scores(db_session, USER, profile, [job.id])
+    assert again[job.id].outcome.value == "SCORED"
+    row = db_session.query(JobMatchScore).filter_by(user_id=USER, job_id=job.id).one()
+    assert row.score == again[job.id].display_score
+    assert row.posting_key == f"{get_engine().posting_version(AS_OF)}:{len(SOFTWARE)}"
+    assert bank_scores(db_session, USER, profile, [job.id]) == {}
+
+
+def test_a_description_edit_rescores_the_job(db_session):
+    _user(db_session)
+    profile = _profile(db_session)
+    job = _job(db_session, 1)
+    bank_scores(db_session, USER, profile, [job.id])
+    job.description = SOFTWARE + "\n- Kafka"
+    db_session.commit()
+    assert set(bank_scores(db_session, USER, profile, [job.id])) == {job.id}
+
+
+def test_a_parse_config_change_rescores_the_job(db_session):
+    _user(db_session)
+    profile = _profile(db_session)
+    job = _job(db_session, 1)
+    bank_scores(db_session, USER, profile, [job.id])
+    engine = get_engine()
+    changed = dataclasses.replace(engine, parse_config=engine.parse_config.model_copy(update={"version": "other"}))
+    assert set(bank_scores(db_session, USER, profile, [job.id], engine=changed)) == {job.id}
+
+
+def _internal_error_score(monkeypatch, secret="secret posting text"):
+    from matcher.errors import Flag
+    from matcher.score.engine import review_result
+
+    calls = []
+
+    def fake(resume, posting, *, as_of, config, graph, calibration, options):
+        calls.append(options.strict)
+        if options.strict:
+            raise KeyError(secret)
+        return review_result([Flag.INTERNAL_ERROR], config=config, graph=graph, as_of=as_of)
+
+    monkeypatch.setattr(fit_engine, "score", fake)
+    return calls
+
+
+def test_an_internal_error_row_is_retried(db_session, monkeypatch):
+    _user(db_session)
+    profile = _profile(db_session)
+    job = _job(db_session, 1)
+    real = fit_engine.score
+    _internal_error_score(monkeypatch)
+    assert bank_scores(db_session, USER, profile, [job.id])[job.id].outcome.value == "NEEDS_REVIEW"
+    assert db_session.query(JobMatchScore).filter_by(job_id=job.id).one().posting_key is None
+    monkeypatch.setattr(fit_engine, "score", real)
+    assert bank_scores(db_session, USER, profile, [job.id])[job.id].outcome.value == "SCORED"
+
+
+def test_an_internal_error_is_replayed_strictly_and_logs_only_the_class(db_session, monkeypatch, caplog):
+    import logging
+
+    _user(db_session)
+    profile = _profile(db_session)
+    job = _job(db_session, 1)
+    calls = _internal_error_score(monkeypatch)
+    with caplog.at_level(logging.ERROR, logger="backend.services.fit_engine"):
+        bank_scores(db_session, USER, profile, [job.id])
+    assert calls == [False, True]
+    errors = [record for record in caplog.records if record.levelno >= logging.ERROR]
+    assert len(errors) == 1
+    assert "KeyError" in errors[0].getMessage()
+    assert "secret posting text" not in errors[0].getMessage()
+
+
+def test_a_low_confidence_result_stores_no_score():
+    from matcher.models import Band, CalibrationInfo, GateStatus, MatchResult, Outcome
+
+    result = MatchResult(outcome=Outcome.SCORED_LOW_CONFIDENCE, gate_status=GateStatus.PASS, raw_score=0.6,
+                         calibrated_score=72, display_score=None, band=Band.GOOD,
+                         calibration=CalibrationInfo(method="percentile", scope="panel", n=480, version="panel-x"),
+                         engine_version="1.0.0", config_hash="abc", as_of=AS_OF)
+    assert fit_engine.stored_score(result) is None
+
+
+def test_one_person_with_two_resumes_is_one_candidate_sampled_on_the_newest(db_session):
+    # I-2: candidates are people; only the user's newest fingerprint's scores are sampled.
+    jobs = [_job(db_session, n, family="Data Analysis") for n in range(3)]
+    old, new = dt.datetime(2026, 9, 1), dt.datetime(2026, 10, 2)
+    current = get_engine().combined_hash
+    for job, raw, fp, when in ((jobs[0], 0.2, "fit1:old", old), (jobs[1], 0.8, "fit1:new", new),
+                               (jobs[2], 0.7, "fit1:new", new)):
+        db_session.add(JobMatchScore(user_id=11, job_id=job.id, raw_score=raw, resume_fingerprint=fp,
+                                     config_hash=current, outcome="SCORED", scored_at=when))
+    db_session.commit()
+    refresh_calibration(db_session)
+    rows = {(row.scope, row.key): row for row in db_session.query(MatchCalibration).all()}
+    ref = rows[("family", "Data Analysis")]
+    assert (ref.n_candidates, ref.n_pairs) == (1, 2)
+    assert sorted(ref.samples) == [0.7, 0.8]
+
+
+def test_inactive_jobs_are_left_out_of_the_references(db_session):
+    live = _job(db_session, 1, family="Data Analysis")
+    gone = _job(db_session, 2, family="Data Analysis")
+    gone.listing_status = "removed"
+    _bank_raw(db_session, live, "fit1:aaa", 0.5)
+    _bank_raw(db_session, gone, "fit1:aaa", 0.9)
+    db_session.commit()
+    refresh_calibration(db_session)
+    rows = {(row.scope, row.key): row for row in db_session.query(MatchCalibration).all()}
+    assert rows[("family", "Data Analysis")].samples == [0.5]
+
+
+def test_a_failing_sqlite_rebuild_leaves_the_original_table_intact():
+    from backend.migrations.add_fit_engine import run_migration
+
+    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    with engine.begin() as conn:  # no UNIQUE (user_id, job_id): the duplicate below breaks the copy
+        conn.execute(text("CREATE TABLE job_match_scores (id INTEGER PRIMARY KEY, user_id INTEGER NOT NULL,"
+                          " job_id INTEGER NOT NULL, score INTEGER NOT NULL,"
+                          " resume_fingerprint VARCHAR(64) NOT NULL, scored_at DATETIME)"))
+        conn.execute(text("CREATE INDEX ix_job_match_scores_user_id ON job_match_scores (user_id)"))
+        for n in (1, 2):
+            conn.execute(text("INSERT INTO job_match_scores (user_id, job_id, score, resume_fingerprint)"
+                              f" VALUES (1, 2, {n}, 'local1:x')"))
+    with pytest.raises(Exception):
+        run_migration(engine)
+    assert set(inspect(engine).get_table_names()) == {"job_match_scores"}
+    columns = {c["name"]: c for c in inspect(engine).get_columns("job_match_scores")}
+    assert columns["score"]["nullable"] is False and "raw_score" not in columns
+    assert "ix_job_match_scores_user_id" in {ix["name"] for ix in inspect(engine).get_indexes("job_match_scores")}
+    with engine.begin() as conn:
+        assert conn.execute(text("SELECT COUNT(*) FROM job_match_scores")).scalar() == 2
+
+
+def test_two_people_with_the_same_resume_are_two_candidates(db_session):
+    # Identical résumé and profile facts give one fingerprint; they are still two people.
+    job = _job(db_session, 1, family="Data Analysis")
+    for user_id, raw in ((21, 0.4), (22, 0.6)):
+        db_session.add(JobMatchScore(user_id=user_id, job_id=job.id, raw_score=raw, resume_fingerprint="fit1:same",
+                                     config_hash=get_engine().combined_hash, outcome="SCORED"))
+    db_session.commit()
+    refresh_calibration(db_session)
+    rows = {(row.scope, row.key): row for row in db_session.query(MatchCalibration).all()}
+    assert (rows[("family", "Data Analysis")].n_candidates, rows[("family", "Data Analysis")].n_pairs) == (2, 2)

@@ -1,8 +1,9 @@
 """
 Migration: storage for the deterministic fit engine (services/fit_engine.py, Task 9.1).
 
-1. ``job_match_scores`` gains six nullable columns: raw_score FLOAT, band VARCHAR(20),
-   outcome VARCHAR(30), confidence FLOAT, engine_version VARCHAR(20), config_hash VARCHAR(20).
+1. ``job_match_scores`` gains seven nullable columns: raw_score FLOAT, band VARCHAR(20),
+   outcome VARCHAR(30), confidence FLOAT, engine_version VARCHAR(20), config_hash VARCHAR(20),
+   posting_key VARCHAR(40) (the posting a score was computed from; fix round 1, I-1).
 2. ``job_match_scores.score`` becomes nullable: an engine result that shows no number
    (GATE_FAIL, NEEDS_REVIEW, a low-confidence band) stores NULL, never a numeric sentinel that
    could leak into a display, an average or a threshold (DECISIONS D-86).
@@ -15,8 +16,10 @@ Additive and idempotent: every step checks first, no row is changed or lost. On 
 catalog-only DDL (nullable ADD COLUMN, DROP NOT NULL) under the same first-deploy guard as the
 other cold-start migrations: a capped lock wait, an advisory lock across concurrent cold starts,
 IF NOT EXISTS. SQLite (tests and CI only) cannot drop a NOT NULL constraint in place, so the
-table is rebuilt there in one transaction with every row copied, which is the documented SQLite
-procedure; nothing references job_match_scores, so no foreign key is affected.
+table is rebuilt there with every row copied, which is the documented SQLite procedure, inside
+an explicit BEGIN ... COMMIT on the raw connection (pysqlite's legacy mode would otherwise
+autocommit the DDL, so a failed copy would leave a half-built table): any failure rolls back to
+the original table. Nothing references job_match_scores, so no foreign key is affected.
 """
 
 import logging
@@ -35,6 +38,7 @@ COLUMNS = {
     "confidence": "FLOAT",
     "engine_version": "VARCHAR(20)",
     "config_hash": "VARCHAR(20)",
+    "posting_key": "VARCHAR(40)",
 }
 
 LOCK_TIMEOUT = "5s"
@@ -67,20 +71,42 @@ def _postgres(engine, columns: dict[str, dict]) -> None:
 
 def _sqlite_rebuild(engine) -> None:
     """Rebuild job_match_scores from the model (score nullable, the new columns present) and copy
-    every row. One transaction: a failure leaves the old table as it was."""
+    every row, atomically: an explicit BEGIN on the raw DBAPI connection, ROLLBACK on any error."""
+    from sqlalchemy.schema import CreateIndex, CreateTable
+
     from backend.db.models import JobMatchScore
 
+    table = JobMatchScore.__table__
     old_columns = list(_columns(engine))
     indexes = [ix["name"] for ix in inspect(engine).get_indexes(TABLE) if ix.get("name")]
-    with engine.begin() as conn:
-        conn.execute(text(f"ALTER TABLE {TABLE} RENAME TO {_SQLITE_OLD}"))
-        for name in indexes:  # index names are global in SQLite; the new table recreates them
-            conn.execute(text(f'DROP INDEX IF EXISTS "{name}"'))
-        JobMatchScore.__table__.create(bind=conn)
-        new_columns = {col.name for col in JobMatchScore.__table__.columns}
-        shared = ", ".join(name for name in old_columns if name in new_columns)
-        conn.execute(text(f"INSERT INTO {TABLE} ({shared}) SELECT {shared} FROM {_SQLITE_OLD}"))
-        conn.execute(text(f"DROP TABLE {_SQLITE_OLD}"))
+    new_columns = {col.name for col in table.columns}
+    shared = ", ".join(name for name in old_columns if name in new_columns)
+    statements = [f"ALTER TABLE {TABLE} RENAME TO {_SQLITE_OLD}"]
+    statements += [f'DROP INDEX IF EXISTS "{name}"' for name in indexes]  # names are global in SQLite
+    statements.append(str(CreateTable(table).compile(dialect=engine.dialect)))
+    statements += [str(CreateIndex(index).compile(dialect=engine.dialect)) for index in table.indexes]
+    statements.append(f"INSERT INTO {TABLE} ({shared}) SELECT {shared} FROM {_SQLITE_OLD}")
+    statements.append(f"DROP TABLE {_SQLITE_OLD}")
+
+    raw = engine.raw_connection()
+    try:
+        dbapi = raw.driver_connection
+        previous = dbapi.isolation_level
+        dbapi.isolation_level = None  # manual transactions: nothing autocommits behind our back
+        cursor = dbapi.cursor()
+        try:
+            cursor.execute("BEGIN")
+            for statement in statements:
+                cursor.execute(statement)
+            cursor.execute("COMMIT")
+        except Exception:
+            cursor.execute("ROLLBACK")
+            raise
+        finally:
+            cursor.close()
+            dbapi.isolation_level = previous
+    finally:
+        raw.close()
 
 
 def _sqlite(engine, columns: dict[str, dict]) -> None:

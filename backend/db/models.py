@@ -332,6 +332,10 @@ class JobMatchScore(Base):
     confidence = Column(Float, nullable=True)
     engine_version = Column(String(20), nullable=True)
     config_hash = Column(String(20), nullable=True)
+    # The posting the score was computed from: the posting cache version and the
+    # description length ("pv1-...:1234"). A row is current only when this and the
+    # fingerprint both match; NULL (an INTERNAL_ERROR result) is never current.
+    posting_key = Column(String(40), nullable=True)
 
     __table_args__ = (
         UniqueConstraint("user_id", "job_id", name="uq_job_match_score_user_job"),

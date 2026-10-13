@@ -660,7 +660,7 @@ panel until 30 people have scored résumés.
 `role_category`, always passed as a `str`: a non-str key would silently skip the family tiers) and
 global (key `*`), rebuilt by `fit_engine.refresh_calibration` from the banked raw scores of the
 current config hash (every outcome that produced a raw score, the panel builder's rule) and stored
-in `match_calibration`; a candidate is a distinct résumé fingerprint. The committed panel is checked
+in `match_calibration`; a candidate is a distinct person (see the note below). The committed panel is checked
 against its MANIFEST (sha256 and version) when the engine is built, and a mismatch stops the build.
 Known limits, accepted for now: small families ride on synthetic counts (Product Management has 24
 panel candidates and falls through to the pooled panel; Business Analyst has 56); live pairs (every
@@ -670,6 +670,14 @@ live family reference, once in charge, reads the same raw score as a higher perc
 panel did. Recheck the panel against the live distribution when any family reaches 30 real
 candidates. A stored score is calibrated when it is banked and is not re-read when the references
 change; a refresh moves scores only as rows are re-banked.
+
+**D-50 note: "fingerprints" means people (Task 9.1 fix round 1). [Tailrd]** The plan's "distinct
+résumé fingerprints count as candidates" is read as distinct people: a user who edits a résumé
+gets a new fingerprint, and rows under the old one survive on jobs not re-banked since, so
+counting fingerprints let one person count several times and opened the 30-candidate gate early.
+`refresh_calibration` keys each candidate by a sha256 of the user id (counted, never stored),
+samples only the rows under each user's newest fingerprint (latest `scored_at`), and only on
+active jobs (listing status not hidden from the feed).
 
 **D-51 Phase 2** (isotonic, pure-Python PAVA at runtime, fitted offline) is built and versioned
 but stays off until `calibration.isotonic.min_labels` (500) outcome labels exist. Today there are
@@ -871,7 +879,13 @@ engine version, the parse-config version, the combined config hash and the year 
 date (a requirement's years-since-release clamp reads the year). Any of them changing re-parses a
 posting the next time it is read; a parser fault is an INTERNAL_ERROR review and is never cached.
 Until Task 9.2 removes `local_match`, its `{"v": 1, "top", "tags"}` entries and these share the
-column and would overwrite each other, so 9.2 must switch every reader at once.
+column and would overwrite each other, so 9.2 must switch every reader at once. Because the
+version holds the year, every cached posting is re-parsed in the first sweeps after 1 January
+(about 47k postings at about 20 ms each, roughly 16 minutes of CPU once a year). The same version
+and the description length form `job_match_scores.posting_key`: a banked score is current only
+while both its fingerprint and its posting key match, so a description backfill or edit, a
+parse-table change or a year change rescores it, and an INTERNAL_ERROR result is stored with a
+NULL key and retried by the next sweep.
 
 ## Posting parser (Task 6.5) [Tailrd]
 
@@ -1001,7 +1015,10 @@ first 24 hex characters. Demographic data is joined to traces on this id only (S
 a user id: `scripts/bias_audit.py` refuses any key that is not 24 lowercase hex. Tailrd's user ids
 are small integers, so a short or guessable salt would make every id enumerable: `opaque_id`
 raises ValueError for a salt under 16 bytes. The salt is a secret kept outside the repository and
-outside the scorer's environment; rotating it severs every earlier link.
+outside the scorer's environment; rotating it severs every earlier link. On Vercel the trace
+writer (`fit_engine.bank_scores`, `delete_user_traces`) and the scorer share one serving process,
+so that separation is procedural: only the two writers read `FIT_TRACE_SALT`, and `score()` never
+receives it.
 
 **D-92 Four-fifths counts people; rates count pairs. [Deviation from eval/metrics/fairness.py]**
 The runtime monitor `audit.four_fifths(records)` takes `(opaque_id, group, selected)` records. A

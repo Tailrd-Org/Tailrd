@@ -572,11 +572,31 @@ def posting_for_job(job: Any, *, engine: Optional[FitEngine] = None,
     return posting
 
 
+def posting_keys(db, job_ids: Sequence[int], *, engine: Optional[FitEngine] = None,
+                 as_of: Optional[dt.date] = None) -> dict[int, str]:
+    """{job_id: "<posting cache version>:<description length>"}: which posting a banked score was
+    computed from (``job_match_scores.posting_key``). The length is read in SQL; no description
+    is transferred. The version covers the engine, the parse tables and the config (D-89)."""
+    from backend.db.models import ScrapedJob
+
+    engine = engine or get_engine()
+    version = engine.posting_version(as_of or fit_as_of())
+    ids = list(dict.fromkeys(int(job_id) for job_id in job_ids))
+    out: dict[int, str] = {}
+    for start in range(0, len(ids), _POSTING_BATCH):
+        chunk = ids[start:start + _POSTING_BATCH]
+        for job_id, length in (db.query(ScrapedJob.id, func.coalesce(func.length(ScrapedJob.description), 0))
+                               .filter(ScrapedJob.id.in_(chunk)).all()):
+            out[job_id] = f"{version}:{int(length or 0)}"
+    return out
+
+
 def postings_for(db, job_ids: Sequence[int], *, engine: Optional[FitEngine] = None,
                  as_of: Optional[dt.date] = None) -> dict[int, JobPosting]:
     """Postings for these jobs. The cache check reads ``match_terms`` and ``length(description)``
     in SQL; a description is transferred only for a job that must be parsed again. Recomputed
-    entries are written to ``match_terms`` and committed. Unknown ids are left out."""
+    entries are written to ``match_terms`` and the caller's session is COMMITTED (any pending
+    change the caller holds is committed with them). Unknown ids are left out."""
     from backend.db.models import ScrapedJob
 
     engine = engine or get_engine()
@@ -674,16 +694,21 @@ def refresh_calibration(db, *, engine: Optional[FitEngine] = None,
     """Rebuild the per-family and global references from banked raw scores (D-50).
 
     Reads every current-engine row with a raw score (the panel builder's rule: every outcome that
-    produced one). A candidate is a DISTINCT résumé fingerprint, never a (candidate, posting)
-    pair. Every group is stored; the calibrator uses one only from 30 candidates up, so until
-    then the shipped panel stays in charge. Returns {key: {n_candidates, n_pairs}} per scope.
+    produced one) on an active job. A candidate is a PERSON (D-50 note): keyed by a sha256 of the
+    user id, counted and never stored, and each user contributes only the rows under their newest
+    fingerprint (the one with the latest ``scored_at``), so an edited résumé neither counts twice
+    nor leaves its old scores in the samples. Every group is stored; the calibrator uses one only
+    from 30 candidates up, so until then the shipped panel stays in charge. Returns a summary of
+    {n_candidates, n_pairs, in_charge} per family and for the global group.
     """
     from backend.db.models import JobMatchScore, MatchCalibration, ScrapedJob
+    from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES
 
     engine = engine or get_engine()
     when = now or dt.datetime.utcnow()
     rows = (
-        db.query(JobMatchScore.raw_score, JobMatchScore.resume_fingerprint, ScrapedJob.role_category)
+        db.query(JobMatchScore.user_id, JobMatchScore.raw_score, JobMatchScore.resume_fingerprint,
+                 JobMatchScore.scored_at, ScrapedJob.role_category, ScrapedJob.listing_status)
         .join(ScrapedJob, ScrapedJob.id == JobMatchScore.job_id)
         .filter(
             JobMatchScore.raw_score.isnot(None),
@@ -692,14 +717,22 @@ def refresh_calibration(db, *, engine: Optional[FitEngine] = None,
         )
         .all()
     )
+    newest: dict[int, tuple[dt.datetime, str]] = {}
+    for user_id, _, fingerprint, scored_at, _, _ in rows:
+        mark = (scored_at or dt.datetime.min, fingerprint)
+        if user_id not in newest or mark > newest[user_id]:
+            newest[user_id] = mark
     groups: dict[tuple[str, str], tuple[list[float], list[str]]] = defaultdict(lambda: ([], []))
-    for raw, fingerprint, family in rows:
+    for user_id, raw, fingerprint, _, family, status in rows:
+        if fingerprint != newest[user_id][1] or status in HIDDEN_LISTING_STATUSES:
+            continue
+        person = hashlib.sha256(str(user_id).encode("utf-8")).hexdigest()
         keys = [("global", GLOBAL_KEY)]
         if isinstance(family, str) and family.strip():
             keys.append(("family", family.strip()[:200]))
         for key in keys:
             groups[key][0].append(float(raw))
-            groups[key][1].append(fingerprint)
+            groups[key][1].append(person)
     version = _live_version(engine, when, groups)
     references = [build_reference(scope, key, raws, fps, version)
                   for (scope, key), (raws, fps) in sorted(groups.items())]
@@ -781,8 +814,11 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     One parsed résumé, many postings (``ScoreOptions(with_explanation=False)``). Each stored row
     carries the score (``stored_score``: NULL unless SCORED), the raw score, band, outcome,
     confidence, engine version and config hash; its trace goes to ``match_traces`` under the
-    user's opaque id. A stale row (an older résumé, config, or an AI / local score) is
-    overwritten in place. Returns {job_id: MatchResult} for the jobs scored now.
+    user's opaque id. A row is current only when both its fingerprint and its ``posting_key``
+    (``posting_keys``: the posting cache version and the description length) match, so a
+    description backfill or edit, a parse-table change and an engine fault (stored with a NULL
+    key) all rescore. A stale row (an older résumé, config, posting, or an AI / local score) is
+    overwritten in place. Commits the session (the posting cache first, then the scores). Returns {job_id: MatchResult} for the jobs scored now.
     Raises FitTraceSaltError before writing anything when FIT_TRACE_SALT is unusable.
     """
     from backend.db.models import JobMatchScore, MatchTrace
@@ -797,10 +833,14 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
     parsed = resume_for_profile(profile, settings, engine=engine, as_of=day)
     fingerprint = _fingerprint(profile, settings, parsed, engine)
 
+    keys = posting_keys(db, ids, engine=engine, as_of=day)
     existing = {row.job_id: row for row in
                 db.query(JobMatchScore).filter(JobMatchScore.user_id == user_id, JobMatchScore.job_id.in_(ids)).all()}
-    todo = [job_id for job_id in ids
-            if job_id not in existing or existing[job_id].resume_fingerprint != fingerprint]
+    todo = [job_id for job_id in ids if job_id in keys and not (
+        job_id in existing
+        and existing[job_id].resume_fingerprint == fingerprint
+        and existing[job_id].posting_key == keys[job_id]
+    )]
     if not todo:
         return {}
     postings = postings_for(db, todo, engine=engine, as_of=day)
@@ -825,6 +865,8 @@ def bank_scores(db, user_id: int, profile: Any, job_ids: Sequence[int], *,
             "engine_version": result.engine_version[:20],
             "config_hash": result.config_hash[:20],
             "resume_fingerprint": fingerprint,
+            # NULL for an engine fault, so the row is never current and the next sweep retries it.
+            "posting_key": None if Flag.INTERNAL_ERROR in result.reasons else keys[job_id],
             "scored_at": now,
         }
         row = existing.get(job_id)
@@ -883,7 +925,8 @@ def explain_job(db, user: Any, job: Any, *, engine: Optional[FitEngine] = None,
     """One full result for the job detail view: explanation, interval and counterfactual, as JSON.
 
     ``user`` is a User or a user id; the résumé is the one the sweep scores (D-81, the newest with
-    text). None when the user has no such résumé. Nothing is stored. The keys are
+    text). None when the user has no such résumé. No score is stored, but a fresh posting cache
+    entry is, and the caller's session is COMMITTED for it. The keys are
     ``MatchResult``'s plus ``fingerprint``; consumers key on ``outcome`` (compliance.md section 2:
     only SCORED shows a number)."""
     from backend.services.jobs_sidebar import scoring_resume
@@ -921,6 +964,7 @@ __all__ = [
     "live_references",
     "load_verified_panel",
     "posting_for_job",
+    "posting_keys",
     "posting_meta",
     "postings_for",
     "profile_fields",
