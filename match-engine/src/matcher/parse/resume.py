@@ -648,6 +648,27 @@ def _paragraphs(lines: Sequence[str]) -> list[str]:
     return out
 
 
+_LIST_SEPARATOR = re.compile(r"[,;|•·]")
+
+
+def _list_lines(lines: Sequence[str]) -> list[str]:
+    """Skills-list lines with their wrapped parts joined back (Task 5.4): a line that is no bullet,
+    no "Label:" line and no blank one carries on the list line before it ("Label: items" or items
+    between separators) when that line does not end with a separator, so "Methods: A/B" /
+    "Testing, Agile" is "Methods: A/B Testing, Agile" wherever the PDF wrapped it."""
+    out: list[str] = []
+    for line in lines:
+        text = line.strip()
+        previous = out[-1].rstrip() if out else ""
+        if (text and previous and not _is_bullet(text) and not _label(text)[0]
+                and (_label(previous)[0] or _LIST_SEPARATOR.search(_unbulleted(previous)))
+                and not previous.endswith((",", ";", "|", "•", "·", ":"))):
+            out[-1] = f"{previous} {text}"
+        else:
+            out.append(line)
+    return out
+
+
 def _nonblank(lines: Iterable[str]) -> int:
     """Lines with text: a rule of dashes or equals signs under a header is decoration, not content
     (a plain-text rendering would otherwise read as less functional than its PDF, Task 5.3)."""
@@ -1124,7 +1145,7 @@ def _read_section(assembly: _Assembly, section: Section, *, name: str, contact: 
             header, date_range = _split_header(" | ".join(name_lines), as_of, lang)
             assembly.add_project(header, date_range, bullets)
     elif kind in (SectionKind.SKILLS, SectionKind.LANGUAGES):
-        for line in section.lines:
+        for line in _list_lines(section.lines):
             assembly.add_skill_line(line)
     elif kind is SectionKind.CERTIFICATIONS:
         assembly.add_certification_entries(section.lines)

@@ -200,6 +200,63 @@ def test_inline_labels_open_a_section_only_outside_entries(pc) -> None:
     assert sections[2].lines == tuple(lines[4:7])
 
 
+def test_a_header_word_inside_a_sidebar_skills_list_is_an_item(pc) -> None:
+    """Task 5.4 (M6): one skill per line (a sidebar). "Leadership" is a listed header, but the line
+    after it continues the list, so it is an item; "Education" is followed by a degree line."""
+    lines = ["Jordan Sample", "Core Skills", "Jira", "Leadership", "Mentoring", "Education",
+             "Bachelor of Arts in Marketing,", "Fairmont State University"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.CONTACT, K.SKILLS, K.EDUCATION]
+    assert sections[1].lines == ("Jira", "Leadership", "Mentoring")
+
+
+def test_a_header_word_first_in_a_sidebar_list_is_an_item(pc) -> None:
+    """The list's first item: the line after it is written like it, so it continues the list."""
+    lines = ["Skills", "Leadership", "Redis", "Git", "Noel Sample", "Junior DevOps Engineer", "Professional Summary",
+             "DevOps engineer with a year of experience."]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.SUMMARY]
+    assert sections[0].lines[0] == "Leadership"
+
+
+def test_a_header_word_inside_any_listed_sidebar_is_an_item(pc) -> None:
+    """Not only under "Skills": a "Qualifications" sidebar lists skills one per line too."""
+    lines = ["Other Qualifications", "Problem Solving", "Leadership", "Excel", "Work Experience",
+             "Data Analyst, Harborview Data 07/2023 to Present"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SUMMARY, K.EXPERIENCE]
+    assert sections[0].lines == ("Problem Solving", "Leadership", "Excel")
+
+
+def test_a_wrapped_skills_item_never_opens_a_section(pc) -> None:
+    """Task 5.4 (M6): a PDF wraps "Market Research" so that "Research" stands alone; followed by
+    another header it would open an empty section, so it stays in the list."""
+    lines = ["Areas of Expertise", "Technical Skills: Python, SQL", "Professional Strengths: Mentoring, Market",
+             "Research", "Employment History", "Data Analyst, Acme Corp"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.EXPERIENCE]
+    assert sections[0].lines == tuple(lines[1:4])
+
+
+@pytest.mark.parametrize("header, after", [
+    ("LEADERSHIP", []),  # all capitals
+    ("Leadership:", []),  # a colon
+    ("Leadership", ["------------"]),  # a rule under it
+])
+def test_a_strong_header_inside_a_skills_list_opens_a_section(pc, header: str, after: list[str]) -> None:
+    lines = ["Skills", "Jira", header, *after, "Mentoring", "Peer Tutor"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.VOLUNTEER]
+    assert sections[0].lines == ("Jira",)
+
+
+def test_a_header_after_a_skills_list_still_opens_its_section(pc) -> None:
+    lines = ["Skills", "Jira", "Mentoring", "Experience", "Data Analyst, Acme Corp | 2022 – 2024",
+             "- Built dashboards", "Leadership", "President, Debate Club | 2021 – 2022"]
+    sections, _ = segment(lines, parse_config=pc)
+    assert _kinds(sections) == [K.SKILLS, K.EXPERIENCE, K.VOLUNTEER]
+
+
 def test_unknown_all_caps_lines(pc) -> None:
     lines = [
         "EXPERIENCE",

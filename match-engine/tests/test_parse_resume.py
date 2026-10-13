@@ -379,6 +379,24 @@ def test_the_functional_reading_does_not_depend_on_line_wrapping(deps) -> None:
     assert Flag.FUNCTIONAL_RESUME in one_line.flags
 
 
+_EXPERTISE = ("Jordan Sample\nAreas of Expertise\n"
+              "Methods and Practices: A/B Testing, Go-to-Market Strategy, User Stories\n"
+              "Domain Expertise: Pricing Strategy, Product Analytics\n"
+              "Professional Strengths: Time Management, Presentation Skills\n")
+_EXPERTISE_WRAPPED = ("Jordan Sample\nAreas of Expertise\n"
+                      "Methods and Practices: A/B\nTesting, Go-to-Market Strategy, User\nStories\n"
+                      "Domain Expertise: Pricing\nStrategy, Product Analytics\n"
+                      "Professional Strengths: Time\nManagement, Presentation\nSkills\n")
+
+
+def test_a_wrapped_skills_list_reads_like_the_unwrapped_one(deps) -> None:
+    """Task 5.4 (M6): a narrow PDF column wraps a skills list inside its items ("A/B" / "Testing");
+    a line that carries on a list line not ending in a separator is the rest of that line."""
+    flat, wrapped = parse(_EXPERTISE, deps).resume, parse(_EXPERTISE_WRAPPED, deps).resume
+    assert {"skill.ab_testing", "skill.time_management", "skill.public_speaking"} <= ids(flat.skills_blob)
+    assert ids(wrapped.skills_blob) == ids(flat.skills_blob)
+
+
 def test_a_dated_resume_is_not_functional(student: ParsedResume) -> None:
     assert Flag.FUNCTIONAL_RESUME not in student.flags
 
