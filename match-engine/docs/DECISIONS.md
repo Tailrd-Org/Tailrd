@@ -398,6 +398,92 @@ nothing. Each unresolved token is an IDF 0.5 pseudo-requirement in the score int
 `taxonomy_coverage`, so noise cost every posting confidence; the token count falls by the same
 amount as the unresolved list.
 
+**D-140 Measured taxonomy gaps closed in the curated layer (Task 7.3). [Tailrd]** Gaps measured on
+the eval vocabulary (31 common skills with no spelling that resolves), parked by earlier tasks
+(SaaS, B2B, "CNO registration", "GN", AWS certification names, "patients"), and on Tailrd's
+posting corpus (`review_queue.csv`) are closed as curated nodes and aliases in
+`config/curated_taxonomy.yaml`, with reviewed parents, so every rebuild keeps them; generated
+artifacts are rebuilt with `build_taxonomy.py`, `compute_idf.py` and `compute_pmi.py`, never edited.
+Where an ESCO concept or O*NET example names the same thing, its name is a curated alias and it
+merges (D-26): apply case management, conduct ICT code review, perform cost accounting activities,
+manage the general ledger, develop plans related to client discharge, distributed computing,
+non-destructive testing, printed circuit boards, OpenAI ChatGPT, Platform as a service PaaS, Time
+series modeling TSM software. A new name that is also an ordinary word keeps to its sense:
+Amplitude, HTTP, HTTPS and RAG are curated ambiguous keys (their casing; a URL's "https" or a
+cleaning rag is no skill), and a blocked phrase keeps "RAG status" out. Fix round 1: a name whose
+bare form has another common sense is kept only in its qualified forms. Reconciliation resolves only
+as account, bank, balance sheet, GL or intercompany reconciliation ("equity, diversity, inclusion and
+reconciliation" names no accounting skill), so the eval label "Reconciliation" stays unresolved.
+The nursing node is cardiac telemetry monitoring (cardiac telemetry, telemetry nursing, telemetry
+unit); bare "telemetry monitoring" is as often software observability and stays unresolved, so the
+eval label "Telemetry Monitoring" does too. "RL" is no alias of reinforcement learning ("RL
+circuits"). Bare "ASNT" (the society) names non-destructive testing, the domain; only certification
+wording ("ASNT Level II", "ASNT certified") is the credential. "Miro" is list-only (D-144). Time
+series analysis is its own node, the parent of time series forecasting, and case management has no
+parent (social work, insurance and healthcare alike). Bare "Go-to-market"
+stays blocked (D-27), so only "Go-to-market strategy" and its spellings are the skill and bare
+"GTM" is not one. "CNO registration" names no credential (fix round 1): the College of Nurses of
+Ontario registers RNs, RPNs and NPs, so reading it as the RN licence gated RPN postings on RN and let
+an RPN résumé pass RN gates; the RN and RPN names themselves remain the only source of nursing gates.
+"Graduate Nurse"
+is a name of the formal in-progress node `cred.nursing_student` (D-28, D-62), so it never reaches
+the licence. Bare "GN" is not an alias yet: in "RN or Graduate Nurse (GN) status" the posting parser
+gives the restated designation in brackets a second gate of its own (it does the same today for "P.Eng.
+or EIT (Engineer in Training)"), and it already reads "RN or GN" by phrase (D-103); "GN" can become an
+alias once the parser folds a bracketed restatement into its group. "Identity & Access Management"
+is no alias of identity and access management (a team name in a job title, pinned in
+tests/test_extract_precision.py); the "and" spelling is. An AWS certification is named only with certification wording ("AWS
+Solutions Architect certification"), never by the job title "AWS Solutions Architect", which D-62
+would read as a held credential in a role title. `fuzzy_exclusions` (curated, written to
+`resolver.json`) are ordinary words `resolve` never fuzzy-matches, where the posting corpus is too
+small to make them common words (Task 2.3): patient, patients, parents, analyse, analysed,
+supervisors, heating, tenants, seniors; each reached an unrelated node by edit distance
+("patients" -> patents, "supervisors" -> hypervisors, "heating" -> betting).
+
+**D-141 A sentence-initial name in a skill list or about languages (Task 7.3). [Tailrd]** An
+ambiguous or cased key never opens a prose sentence (D-25: "Go above and beyond"). The keys listed
+under `sentence_initial` (Go, French, English) may, when the sentence lists skills: right after
+the key comes ",", "/", "&", "and" or "or", and a skill starts there ("Go, Python and Rust",
+"Go/Python services"); and a listed language may also open a sentence that speaks of languages: a
+cue word (fluent, bilingual, proficiency, language, spoken, written, asset, required, ...) or
+another listed language stands in it ("English and French required", "French is an asset"). The
+casing rule still holds ("go, Python" opens nothing), skills lists and `resolve` are unchanged,
+and "English Bay" or "French doors" stay words unless the sentence has a cue: the cues include
+general requirement words, so "French doors required." reads French (a capitalised "French" in mid
+sentence resolved before this rule too). Other languages (Spanish, Mandarin) are not listed:
+the rule widens only for the names the posting parser lane found missed.
+
+**D-142 PhD is a degree level, not a node (Task 7.3). [Tailrd]** "PhD" (21 postings in the queue)
+gets no taxonomy node: a node would make it a skill requirement or a field of study, and the
+education parser already reads it as DOCTORATE (`config/parse/sections.yaml`). That the posting
+parser still records "PhD" as an unresolved requirement token is a parser rule
+(`posting.unresolved` checks its acronym stop list only for words in capitals), left to the
+posting parser's lane.
+
+**D-143 Review-queue approvals (Task 7.3). [Tailrd]** The tokens approved from `review_queue.csv`
+are listed in `data/taxonomy/approvals/<date>-<who>.txt`, whose header says who approved them; the
+2026-10-13 list was approved by the build controller on the owner's standing instruction and is for
+the owner to audit. An approved token becomes a curated label or alias with a reviewed parent, not
+a provisional node: `refresh_taxonomy.py --apply` writes provisional nodes only for tokens in more
+than 50 postings (D-98), and a later `build_taxonomy.py` run would drop them. Rejected: employers
+and organisations (SpaceX, DoD); job titles (CIO/CTO, HRBP); generic words and phrases (analytics,
+automation, factory, manufacturing, monitoring, operations, production environment, technical
+project delivery, full-cycle quota-carrying, LOB, SDK, scripting); acronyms with several common
+senses (CI, DSS, FP, IPC, NAS, RT, SOC, UT, GTM, networking, and in fix round 1 RL), whose unambiguous long forms are
+aliases instead (ultrasonic testing, radiographic testing, NAS 410, FP&A); STEM (an umbrella of
+fields); a phrase whose skill already resolves ("building data processing pipelines"); PhD (D-142).
+SparkTM was withdrawn in fix round 1: it was "Spark™" spelled out by NFKC, and the ingest
+normaliser now drops the trademark, service-mark and registered signs before NFKC.
+
+**D-144 List-only names (Task 7.3 fix round 1). [Tailrd]** A key listed under `list_only` (Miro) is
+also a given name. In prose it stands only inside a skill list in its sentence: ",", "/", "&",
+"and" or "or" joins it to another skill before or after it ("Ran workshops in Figma and Miro",
+"Miro, Figma and Jira"), or (fix round 2) right after a tool cue ("with", "in", "using", "via",
+"on": "Experience with Miro", "Facilitated workshops in Miro") or a tools label ("Tools: Miro",
+"Tooling: Miro"); never when a capitalised word that is no skill follows it, which makes it a name.
+"Worked with Miro Kovac" and the résumé name line "Miro Petrov" name no tool. Longer keys ("Miro
+board") are unrestricted, and skills lists and `resolve` are unchanged.
+
 ## Scoring
 
 **D-30 Requirement partition. [Spec: "tools & secondary keywords" undefined]** §5.1 scores

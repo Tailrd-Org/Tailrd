@@ -40,6 +40,15 @@ blocked_phrases: [American Express, "Building [A-Z]"]
 
 currency_skill_nouns: [drawings, Licences]
 
+fuzzy_exclusions: [Patients, patient]
+
+list_only: [Confluence]
+
+sentence_initial:
+  keys: [Go]
+  languages: []
+  cues: [fluent, Spoken]
+
 generic_titles: [intern, co-op]
 
 in_progress:

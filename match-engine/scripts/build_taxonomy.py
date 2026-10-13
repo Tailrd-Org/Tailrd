@@ -427,6 +427,10 @@ class Curated:
     in_progress: dict[str, str] = field(default_factory=dict)
     licence_probes: tuple[tuple[str, tuple[str, ...]], ...] = ()  # (posting line, its exact credential ids)
     currency_skill_nouns: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-27)
+    fuzzy_exclusions: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-140)
+    # {"keys", "languages", "cues"} -> normalised, sorted (resolver.json; D-141)
+    sentence_initial: dict[str, tuple[str, ...]] = field(default_factory=dict)
+    list_only: tuple[str, ...] = ()  # normalised, sorted (resolver.json; D-144)
 
 
 def content_tokens(surface: str) -> frozenset[str]:
@@ -550,6 +554,8 @@ def load_curated(path: Path) -> Curated:
                                                           f"{path.name}: currency_skill_nouns")}
     if any(not noun or " " in noun for noun in nouns):
         raise BuildError(f"{path.name}: currency_skill_nouns are single words (the word after a currency code)")
+    exclusions = _strings(doc.get("fuzzy_exclusions"), f"{path.name}: fuzzy_exclusions")
+    initial = _sentence_initial(doc.get("sentence_initial"), f"{path.name}: sentence_initial")
     return Curated(
         nodes=nodes,
         ambiguous={normalize_surface(key): normalize_keep_case(casing) for key, casing in ambiguous.items()},
@@ -562,7 +568,27 @@ def load_curated(path: Path) -> Curated:
         in_progress=dict(sorted(in_progress.items())),
         licence_probes=_licence_probes(doc.get("licence_probes"), path.name, set(in_progress)),
         currency_skill_nouns=tuple(sorted(nouns)),
+        fuzzy_exclusions=tuple(sorted({normalize_surface(word) for word in exclusions} - {""})),
+        sentence_initial=initial,
+        list_only=tuple(sorted({normalize_surface(word) for word in
+                                _strings(doc.get("list_only"), f"{path.name}: list_only")} - {""})),
     )
+
+
+def _sentence_initial(value: Any, where: str) -> dict[str, tuple[str, ...]]:
+    """`{keys: [...], languages: [...], cues: [...]}` (D-141), normalised and sorted. A language is
+    one of the keys; a cue is one word."""
+    if value is None:
+        return {}
+    if not isinstance(value, dict) or set(value) - {"keys", "languages", "cues"}:
+        raise BuildError(f"{where} must map keys, languages and cues to lists of words")
+    out = {name: tuple(sorted({normalize_surface(word) for word in _strings(value.get(name), f"{where}: {name}")}))
+           for name in ("keys", "languages", "cues")}
+    if not set(out["languages"]) <= set(out["keys"]):
+        raise BuildError(f"{where}: every language is one of the keys")
+    if any(not word or " " in word for words in out.values() for word in words):
+        raise BuildError(f"{where}: keys, languages and cues are single words")
+    return out
 
 
 def _licence_probes(value: Any, where: str, licences: set[str]) -> tuple[tuple[str, tuple[str, ...]], ...]:
@@ -1508,6 +1534,10 @@ def sources_markdown(raw: Raw, nodes: Sequence[SkillNode], report: Report, extra
         "  licence, and the CFA charter, to the node of its formal in-progress designations, read only as",
         "  written (D-28). `currency_skill_nouns` (curated) keep a currency code that is also a skill (CAD)",
         "  the skill after an amount (\"1,200 CAD drawings\"); before any other word it is money (D-27).",
+        "  `fuzzy_exclusions` (curated) are ordinary words `resolve` never fuzzy-matches (\"patients\", D-140);",
+        "  `sentence_initial` (curated) names the keys that may open a prose sentence that lists skills, and",
+        "  the languages that may open one about languages (\"Go, Python and Rust\", \"French is an asset\", D-141).",
+        "  `list_only` (curated) keys stand in prose only inside a skill list (\"Miro\", a given name too; D-144).",
         "",
         "## Counts",
         "",
@@ -1602,7 +1632,17 @@ def build(
         "blocked_phrases": list(curated.blocked_phrases),
         "in_progress": dict(curated.in_progress),
         "currency_skill_nouns": list(curated.currency_skill_nouns),
+        "fuzzy_exclusions": list(curated.fuzzy_exclusions),
+        "sentence_initial": {name: list(words) for name, words in curated.sentence_initial.items()},
+        "list_only": list(curated.list_only),
     }
+    unknown = sorted(set(curated.list_only) - index_keys)
+    if unknown:
+        raise BuildError(f"list_only keys that no node claims: {unknown}")
+    uncased = sorted(set(curated.sentence_initial.get("keys", ())) - set(resolver_settings["ambiguous"])
+                     - set(resolver_settings["cased"]))
+    if uncased:
+        raise BuildError(f"sentence_initial keys with no casing rule to relax (neither ambiguous nor cased): {uncased}")
     leaks = check_in_progress(nodes, curated, resolver_settings)
     if leaks:
         raise BuildError(f"licence status check failed (D-28): {leaks[:20]}")
@@ -1637,7 +1677,9 @@ def check_in_progress(nodes: Sequence[SkillNode], curated: Curated, settings: Ma
     graph = SkillGraph({node.id: node for node in nodes}, {}, {}, "in-progress-check")
     resolver = Resolver(graph, load_config(), ambiguous=settings["ambiguous"], cased=settings["cased"],
                         blocked_phrases=settings["blocked_phrases"], in_progress=settings["in_progress"],
-                        currency_skill_nouns=settings["currency_skill_nouns"])
+                        currency_skill_nouns=settings["currency_skill_nouns"],
+                        fuzzy_exclusions=settings["fuzzy_exclusions"], sentence_initial=settings["sentence_initial"],
+                        list_only=settings["list_only"])
     held = set(curated.in_progress)  # the professional licences and the CFA charter
     targets = set(curated.in_progress.values())
     failures = []

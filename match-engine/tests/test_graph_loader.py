@@ -335,6 +335,16 @@ def test_load_resolver_reads_the_manifest_once(tmp_path: Path, config, monkeypat
         ({"format": 1, "ambiguous": {}, "in_progress": {"cred.cpa": 1}}, "in_progress"),
         ({"format": 1, "ambiguous": {}, "currency_skill_nouns": "drawings"}, "currency_skill_nouns"),
         ({"format": 1, "ambiguous": {}, "currency_skill_nouns": ["drawings", ""]}, "currency_skill_nouns"),
+        ({"format": 1, "ambiguous": {}, "fuzzy_exclusions": "patients"}, "fuzzy_exclusions"),
+        ({"format": 1, "ambiguous": {}, "list_only": "Miro"}, "list_only"),
+        ({"format": 1, "ambiguous": {}, "list_only": [""]}, "list_only"),
+        ({"format": 1, "ambiguous": {}, "fuzzy_exclusions": ["patients", 3]}, "fuzzy_exclusions"),
+        ({"format": 1, "ambiguous": {}, "sentence_initial": ["go"]}, "sentence_initial"),
+        ({"format": 1, "ambiguous": {}, "sentence_initial": {"keys": "go"}}, "sentence_initial"),
+        ({"format": 1, "ambiguous": {}, "sentence_initial": {"keys": ["go"], "cues": [""]}}, "sentence_initial"),
+        ({"format": 1, "ambiguous": {}, "sentence_initial": {"keys": ["go"], "other": []}}, "sentence_initial"),
+        ({"format": 1, "ambiguous": {}, "sentence_initial": {"keys": ["go"], "languages": ["english"]}},
+         "sentence_initial"),  # a language must be one of the keys
     ],
 )
 def test_bad_resolver_settings_are_refused(tmp_path: Path, settings: dict, message: str) -> None:
@@ -474,3 +484,19 @@ def test_committed_fixture_loads(small_graph) -> None:
     assert math.isclose(small_graph.related_weight("skill.vue", "skill.react"), 0.65)
     assert math.isclose(small_graph.related_weight("skill.aws", "skill.terraform"), 0.55)
     assert sorted(_manifest(FIXTURE_DIR)["artifacts"]) == ["idf.json", "nodes.json", "pmi_edges.json"]
+
+
+def test_load_resolver_passes_the_fuzzy_exclusions_and_the_sentence_initial_rule(tmp_path: Path, config) -> None:
+    # Task 7.3 (D-140): both settings are optional; when present they reach the resolver.
+    nodes = (*NODES, SkillNode(id="esco.patents", label="patents", kind=SkillKind.DOMAIN),
+             SkillNode(id="esco.english", label="English", kind=SkillKind.DOMAIN))
+    settings = {"format": 1, "ambiguous": {"go": "Go"}, "cased": {"english": "English"},
+                "fuzzy_exclusions": ["patients"],
+                "sentence_initial": {"keys": ["english", "go"], "languages": ["english"], "cues": ["fluent"]}}
+    write_artifacts(tmp_path, nodes, IDF, EDGES, n_postings=N_POSTINGS, sources=SOURCES,
+                    extra={"resolver.json": settings})
+    assert load_resolver_settings(tmp_path) == settings
+    resolver = load_resolver(tmp_path, config)
+    assert resolver.resolve("patients").method == "NONE"
+    assert resolver.resolve("patentss").canonical_id == "esco.patents"
+    assert [m.canonical_id for m in resolver.extract("English, fluent.")] == ["esco.english"]

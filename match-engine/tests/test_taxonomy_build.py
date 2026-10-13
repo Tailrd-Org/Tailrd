@@ -455,6 +455,40 @@ def test_bad_currency_skill_nouns_fail_the_build(tmp_path: Path, nouns: str) -> 
         _build(tmp_path / "out", curated_path=path)
 
 
+def test_fuzzy_exclusions_and_the_sentence_initial_rule_are_written_for_the_resolver(built: Path, config) -> None:
+    # Task 7.3 (D-140): curated, written normalised and sorted.
+    settings = _json(built, "resolver.json")
+    assert settings["fuzzy_exclusions"] == ["patient", "patients"]
+    assert settings["list_only"] == ["confluence"]
+    assert settings["sentence_initial"] == {"keys": ["go"], "languages": [], "cues": ["fluent", "spoken"]}
+    resolver = load_resolver(built, config)
+    assert [m.canonical_id for m in resolver.extract("Go, Python and SQL.")] == [
+        "skill.go", "skill.python", "skill.structured_query_language_sql"]
+
+
+@pytest.mark.parametrize(
+    "block, message",
+    [
+        ("sentence_initial:\n  keys: [Python]\n", "sentence_initial"),  # no casing rule to relax
+        ("sentence_initial:\n  keys: [Go]\n  languages: [SQL]\n", "sentence_initial"),  # not one of the keys
+        ("sentence_initial:\n  keys: [Go]\n  cues: [two words]\n", "sentence_initial"),
+        ("sentence_initial:\n  keys: [Go]\n  other: [x]\n", "sentence_initial"),
+        ("sentence_initial: [Go]\n", "sentence_initial"),
+        ("fuzzy_exclusions: patients\n", "fuzzy_exclusions"),
+        ("list_only: [Nosuchtool]\n", "list_only"),  # a list-only key must be a key
+    ],
+)
+def test_bad_fuzzy_exclusions_or_sentence_initial_settings_fail_the_build(tmp_path: Path, block: str,
+                                                                           message: str) -> None:
+    text = CURATED.read_text(encoding="utf-8")
+    start = text.index("fuzzy_exclusions:")
+    end = text.index("generic_titles:")
+    path = tmp_path / "curated.yaml"
+    path.write_text(text[:start] + block + "\n" + text[end:], encoding="utf-8")
+    with pytest.raises(builder.BuildError, match=message):
+        _build(tmp_path / "out", curated_path=path)
+
+
 def test_formal_designations_are_read_as_written(graph, built: Path, config) -> None:
     # D-28: a professional licence names the node of its formal in-progress designations; no name
     # is generated, a status written around the licence is the context's business.

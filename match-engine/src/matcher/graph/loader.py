@@ -258,8 +258,12 @@ def load_resolver_settings(taxonomy_dir: str | Path) -> dict[str, Any]:
     in-progress designations to their node (D-28: the professional licences and the CFA charter,
     which is no gated licence); which licences the gate requires is `config/gates.yaml`
     (`license.professional_credential_ids`), not this map. `currency_skill_nouns` keep a currency
-    code that is also a skill after an amount ("1,200 CAD drawings", D-27). All but `ambiguous`
-    may be absent (empty)."""
+    code that is also a skill after an amount ("1,200 CAD drawings", D-27). `fuzzy_exclusions`
+    (Task 7.3, D-140) are ordinary words `resolve` never fuzzy-matches ("patients");
+    `sentence_initial` is `{"keys": [...], "languages": [...], "cues": [...]}`, the keys that may
+    open a prose sentence that lists skills or, for a language, speaks of languages (D-141);
+    `list_only` are keys that stand in prose only inside a skill list ("Miro", D-144). All but
+    `ambiguous` may be absent (empty)."""
     root = Path(taxonomy_dir)
     return _resolver_settings(root, _manifest_artifacts(root))
 
@@ -274,11 +278,24 @@ def _resolver_settings(root: Path, artifacts: Mapping[str, str]) -> dict[str, An
             isinstance(key, str) and isinstance(value, str) for key, value in mapping.items()
         ):
             raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must map strings to strings")
-    for name in ("blocked_phrases", "currency_skill_nouns"):
+    for name in ("blocked_phrases", "currency_skill_nouns", "fuzzy_exclusions", "list_only"):
         values = settings.get(name, [])
-        if not isinstance(values, list) or not all(isinstance(value, str) and value for value in values):
+        if not _non_empty_strings(values):
             raise ArtifactError(f"{RESOLVER_JSON}: {name!r} must be a list of non-empty strings")
+    initial = settings.get("sentence_initial", {})
+    if (
+        not isinstance(initial, dict)
+        or set(initial) - {"keys", "languages", "cues"}
+        or not all(_non_empty_strings(values) for values in initial.values())
+        or not set(initial.get("languages", [])) <= set(initial.get("keys", []))
+    ):
+        raise ArtifactError(f"{RESOLVER_JSON}: 'sentence_initial' must map keys, languages (some of the keys) "
+                            "and cues to lists of non-empty strings")
     return settings
+
+
+def _non_empty_strings(values: Any) -> bool:
+    return isinstance(values, list) and all(isinstance(value, str) and value for value in values)
 
 
 def load_resolver(
@@ -301,6 +318,9 @@ def load_resolver(
         currency_skill_nouns=settings.get("currency_skill_nouns", ()),
         common_words=_common_words(root, artifacts),
         fuzzy_log=fuzzy_log,
+        fuzzy_exclusions=settings.get("fuzzy_exclusions", ()),
+        sentence_initial=settings.get("sentence_initial", {}),
+        list_only=settings.get("list_only", ()),
     )
 
 
