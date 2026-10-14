@@ -129,7 +129,9 @@ describe("I-5: other plain-English negations never leave the US authorized", () 
   for (const text of outright) {
     it(text, () => {
       expect(usOf(text)).toMatchObject({ value: false, confidence: "high" });
-      expect(caOf(text)?.value).toBe(true);
+      // "without" in the citizen's own segment vetoes it (decide-b round 5): unknown, never a No.
+      if (/without/.test(text)) expect(caOf(text)).toBeNull();
+      else expect(caOf(text)?.value).toBe(true);
     });
   }
   it("a clause that needs sponsorship for the US is not a US citizen", () => {

@@ -31,6 +31,9 @@ import {
   type Country,
   type Region,
 } from "./geo";
+// The veto cues of the work-authorization reader, shared with the backend port
+// (decide-b round 5): one file, read by both languages.
+import VETO_LEXICON from "../../../backend/data/work_auth_veto.json" with { type: "json" };
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -283,6 +286,10 @@ export interface WorkAuthFacts {
   /** The applicant wrote a sponsorship answer that reads neither Yes nor No
    *  ("No for Canada, yes for US"): nothing may be inferred in its place. */
   sponsorshipUnclear?: boolean;
+  /** Countries whose status a veto cue withheld ("I'm on OPT until 2027", "My
+   *  wife is a US citizen"): what the applicant holds there is not known, so a
+   *  general "No" to sponsorship is not applied there (decide-b round 5). */
+  withheld?: string[];
 }
 
 /** "N/A" and its spellings, read against a trimmed, lowercased answer. */
@@ -303,12 +310,30 @@ export function collapseSpaces(text: string): string {
   return text.replace(/\s+/g, (m) => (/[\n\r]/.test(m) ? "\n" : " "));
 }
 
+/** A work-authorization or sponsorship answer is read only up to here (decide-b
+ *  round 5). Real answers are short; the cap bounds the worst-case time. */
+export const INPUT_CAP = 4000;
+
+/** The first INPUT_CAP characters, counted as code points (the backend's
+ *  str), so an emoji counts once in both languages. */
+export function capInput(text: string): string {
+  if (text.length <= INPUT_CAP) return text;
+  let i = 0;
+  let n = 0;
+  while (i < text.length && n < INPUT_CAP) {
+    const cp = text.codePointAt(i) ?? 0;
+    i += cp > 0xffff ? 2 : 1;
+    n++;
+  }
+  return text.slice(0, i);
+}
+
 /** A leading question echoed before the answer ("Do you require sponsorship? No"). */
 const QUESTION_ECHO = /^(do|does|are|is|will|would|have|has|can|could)\b/;
 
 /** Yes/no reading of a short stored answer, or null. */
 export function polarityOf(text: string): boolean | null {
-  let t = collapseSpaces(text || "").trim().toLowerCase();
+  let t = collapseSpaces(capInput(text || "")).trim().toLowerCase();
   if (!t) return null;
   // "Do you now or in the future require sponsorship? No.": the answer is
   // what follows the echoed question (decide-b review3).
@@ -394,7 +419,7 @@ export function countriesIn(text: string): Country[] {
 export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
   const text = normalizeAnswer(profile.workAuthorization || "");
   const byCountry = new Map<string, CountryAuth>();
-  const rawSponsorship = collapseSpaces(profile.requiresSponsorship || "").trim();
+  const rawSponsorship = collapseSpaces(capInput(profile.requiresSponsorship || "")).trim();
   const statedSponsorship = polarityOf(rawSponsorship);
   // "N/A - citizen" says why no sponsorship applies: unanswered, but not unclear.
   const sponsorshipUnclear = rawSponsorship !== "" && statedSponsorship === null && !NA_BECAUSE_SETTLED.test(rawSponsorship.toLowerCase());
@@ -404,23 +429,28 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     // No country anywhere: the statement is about wherever the applicant is
     // (a bare "Yes", "Citizen", "Not authorized").
     const lower = text.toLowerCase();
-    const all = statusFlagsOf(maskVisaIntent(maskAbbreviations(text)));
+    // Statuses only from segments with no veto cue ("Not yet a citizen", "I
+    // will become a permanent resident": decide-b round 5).
+    const all = statusFlagsOf(reading.positiveText);
     const denied =
       /\b(not|no|never)\s+((yet|currently|presently)\s+)?(legally\s+)?(authori[sz]ed|eligible|entitled|permitted|allowed)\b|\bno work (authori[sz]ation|permit)\b/.test(lower) ||
       (!all.pr && /\bnot a (citizen|resident)\b/.test(lower));
     // "No sponsorship needed" is not a No to being authorized. "No, I need
     // sponsorship" is: a leading No that a sponsorship need confirms, with
     // nothing that moves it to later.
-    const bareYes = /\bsponsor/.test(lower)
+    let bareYes = /\bsponsor/.test(lower)
       ? /^(no|nope|n)\b/.test(lower) && SPONSOR_NEED.test(lower) && !SPONSOR_NEGATED.test(lower) && !NOT_TODAY.test(lower)
         ? false
         : null
       : polarityOf(text);
+    // A bare Yes next to a vetoed segment ("Yes, once my permit arrives") is
+    // not a Yes today. The veto never makes it a No.
+    if (bareYes === true && reading.anyVetoed) bareYes = null;
     let unscopedAuthorized: boolean | null = null;
     if (denied || bareYes === false) unscopedAuthorized = false;
     else if (all.affirmative || bareYes === true || all.citizen || all.pr) unscopedAuthorized = true;
     applyExplicitCountries(profile, byCountry);
-    return { byCountry, statedSponsorship, unscopedAuthorized, sponsorshipUnclear };
+    return { byCountry, statedSponsorship, unscopedAuthorized, sponsorshipUnclear, withheld: reading.withheld };
   }
 
   for (const [code, f] of reading.bound) {
@@ -448,7 +478,7 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     }
   }
   applyExplicitCountries(profile, byCountry);
-  return { byCountry, statedSponsorship, unscopedAuthorized: null, sponsorshipUnclear };
+  return { byCountry, statedSponsorship, unscopedAuthorized: null, sponsorshipUnclear, withheld: reading.withheld };
 }
 
 /** A status that settles sponsorship for the country (none needed), or a No. */
@@ -472,7 +502,7 @@ const TYPOS: Array<[RegExp, string]> = [
 /** The work-authorization answer as the patterns read it: whitespace runs
  *  collapsed (first, before any other pattern) and status typos corrected. */
 function normalizeAnswer(text: string): string {
-  let t = collapseSpaces(text).trim();
+  let t = collapseSpaces(capInput(text)).trim();
   for (const [re, word] of TYPOS) t = t.replace(re, word);
   return t;
 }
@@ -618,7 +648,51 @@ function maskVisaIntent(norm: string): string {
 
 /** Ends of a unit. The weak ones (comma, spaced dash, brackets, colon) still
  *  let a bare answer and a bare country list pair up ("Yes, Canada"). */
-const UNIT_BREAK = /\r\n|\n|\r|;|\||\.(?=\s|$)|!|\?|,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s|\s\/\s|\b(?:but|however|whereas|while|although|though)\b/g;
+const UNIT_BREAK =
+  /\r\n|\n|\r|;|\||\.(?=\s|$)|!|\?|,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s|\s\/\s|\b(?:but|however|whereas|while|although|though)\b|(?<!not )(?<!no )(?<!n't )(?<!n\u2019t )\b(?:now|currently)\b/g;
+/** A break that ends a sentence: a sponsorship need said in it stays with the
+ *  countries the sentence names. */
+const SENTENCE_END = /[\n\r;|.!?]/;
+
+/**
+ * The veto (decide-b round 5, D-61 amendment). A segment that holds any cue
+ * from backend/data/work_auth_veto.json (someone else, a negation, the past,
+ * the future or a condition, a pending or needed status) gets no positive
+ * status for any country: no citizen, permanent resident, authorized or visa
+ * held. The veto never turns into a No; denials and sponsorship needs are read
+ * as before.
+ */
+function vetoSource(lexicon: Record<string, unknown>): string {
+  const entries: string[] = [];
+  for (const [family, words] of Object.entries(lexicon)) {
+    if (family.startsWith("_") || !Array.isArray(words)) continue;
+    for (const w of words) entries.push(String(w).toLowerCase());
+  }
+  const unique = [...new Set(entries)].sort((a, b) => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0));
+  const alts = unique.map((w) => {
+    const body = w.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&").replace(/ /g, "\\s");
+    const lead = /^[a-z0-9\u00e0-\u00ff]/.test(w) ? "(?<![a-z0-9\u00e0-\u00ff])" : "";
+    const trail = /[a-z0-9\u00e0-\u00ff]$/.test(w) ? "(?![a-z0-9\u00e0-\u00ff])" : "";
+    return lead + body + trail;
+  });
+  return alts.join("|");
+}
+const VETO = new RegExp(vetoSource(VETO_LEXICON as Record<string, unknown>));
+/** A negated sponsorship need ("do not require sponsorship", "no sponsorship
+ *  needed", "without sponsorship"): a sponsorship fact of its own, read
+ *  elsewhere, so its "not" or "need" vetoes nothing beside it. */
+const NEGATED_SPONSOR_PHRASE = new RegExp(
+  "(?:\\bnot|n't|\\bnever|\\bno\\s+longer)\\s+(?:\\w+\\s+){0,2}?(?:need|require)(?:s|d|ing)?\\s+(?:any\\s+|a\\s+|an\\s+)?(?:(?:visa|work|employer|employment|immigration)\\s+)?(?:sponsorship|sponsor|visa)\\b" +
+    "|\\b(?:no|without|not\\s+requiring|not\\s+needing)\\s+(?:any\\s+|a\\s+)?(?:need\\s+(?:for|of)\\s+(?:any\\s+)?)?(?:(?:visa|work|employer|employment|immigration)\\s+)?(?:sponsorship|sponsor|visa)(?:\\s+(?:is\\s+)?(?:needed|required|necessary))?\\b" +
+    "|\\b(?:sponsorship|sponsor|visa)\\s+(?:is\\s+not|isn't|not|never)\\s+(?:needed|required|necessary)\\b",
+  "g"
+);
+/** Does this piece of the lowercased text hold a veto cue? */
+function vetoed(lowerUnit: string): boolean {
+  return VETO.test(lowerUnit.replace(/\u2019/g, "'").replace(NEGATED_SPONSOR_PHRASE, " "));
+}
+/** The keys that assign a positive status: the veto blocks only these. */
+const POSITIVE = new Set<BoundKey>(["citizen", "pr", "student", "sponsoredVisa", "permit", "affirmative"]);
 const WEAK_BREAK = /^(?:,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s)$/;
 const ANSWER_WORD = /^\s*(?:(yes|y|yeah|yep|oui|si|[\u2705\u2714\u2611\u2713])|(no|n|nope|non|[\u274c\u2717\u2718\u2716]))\s*$/;
 const PURE_LIST = new RegExp(`^\\s*(?:(?:only\\s+)?(?:in|for)\\s+)?(?:the\\s+)?(${MLIST})\\s*(?:only\\s*)?(?::\\s*)?$`, "d");
@@ -655,7 +729,7 @@ const PATTERNS: Array<[RegExp, BoundKey]> = [
   [R(`(?:\\bcannot|\\bcan['\\u2019]?t|\\bcan\\s+not|\\bunable\\s+to|\\bnot\\s+able\\s+to)\\s+(?:legally\\s+)?work\\s+(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "deny"],
   [R(`\\b(?:ineligible|unauthori[sz]ed)\\s+(?:to\\s+work\\s+)?(?:(?:in|for)\\s+)?(?:the\\s+)?(${MLIST})`), "deny"],
   [R(`(?:\\bno|\\bwithout|\\b(?:do|does)\\s+not\\s+(?:currently\\s+|yet\\s+)?have|\\b(?:don|doesn)['\\u2019]?t\\s+(?:currently\\s+|yet\\s+)?have|${NO_MARK})\\s*(?:an?\\s+|any\\s+)?(?:the\\s+)?(${MLIST})\\s+(?:work\\s+)?${AUTH_NOUN}`), "deny"],
-  [R(`(?:\\bno|\\bwithout|\\b(?:do|does)\\s+not\\s+(?:currently\\s+|yet\\s+)?have|\\b(?:don|doesn)['\\u2019]?t\\s+(?:currently\\s+|yet\\s+)?have)\\s+(?:an?\\s+|any\\s+)?(?:work\\s+)?(?:authori[sz]ation|permit|right|status)\\s+(?:to\\s+work\\s+)?(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "deny"],
+  [R(`(?:\\bno|\\bwithout|\\b(?:do|does)\\s+not\\s+(?:currently\\s+|yet\\s+)?have|\\b(?:don|doesn)['\\u2019]?t\\s+(?:currently\\s+|yet\\s+)?have)\\s+(?:an?\\s+|any\\s+)?(?:work\\s+)?(?:authori[sz]ation|permit|permission|right|status)\\s+(?:to\\s+work\\s+)?(?:in|for)\\s+(?:the\\s+)?(${MLIST})`), "deny"],
   // "not a citizen of the US", "US citizen not"
   [R(`\\bnot\\s+(?:an?\\s+)?(?:citizen\\w*|nationals?|resident\\w*)\\s+of\\s+(?:the\\s+)?(${MLIST})`), "notCitizen"],
   [R(`(${MLIST})\\s+citizen\\w*\\s+(?:not|no)\\s*$`), "notCitizen"],
@@ -663,6 +737,8 @@ const PATTERNS: Array<[RegExp, BoundKey]> = [
   [R(`(${MLIST})\\s+(?:dual\\s+)?(?:citizen\\w*|nationals?)\\b`), "citizen"],
   [R(`(${MLIST})\\s?:\\s?(?:dual\\s+)?(?:citizen|citizenship|national)\\b(?!\\s(?:of|in)\\b)`), "citizen"],
   [R(`\\b(?:dual\\s+)?(?:citizen\\w*|nationals?)\\s*(?:of|:|-|\\u2013)\\s*(?:both\\s+)?(?:the\\s+)?(${MLIST})`), "citizen"],
+  // "I hold dual citizenship with the United Kingdom and Canada".
+  [R(`\\bdual\\s+citizenship\\s+with\\s+(?:both\\s+)?(?:the\\s+)?(${MLIST})`), "citizen"],
   // Permanent residence: "US permanent resident", "Canada: PR", "PR of Canada".
   [R(`(${MLIST})\\s+(?:permanent\\s+resident\\w*|perm(?:anent)?\\.?\\s+res(?:ident)?\\w*|pr|lpr|landed\\s+immigrant)\\b`), "pr"],
   [R(`(${MLIST})\\s?:\\s?(?:permanent\\s+resident|pr|lpr|landed\\s+immigrant)\\b(?!\\s(?:of|in)\\b)`), "pr"],
@@ -736,6 +812,13 @@ interface Reading {
   mentioned: Set<string>;
   /** "Would need sponsorship" said with no country. */
   sponsorshipNoCountry: boolean;
+  /** The masked text with every vetoed segment blanked: what a status may be
+   *  read from when no country is named. */
+  positiveText: string;
+  /** Some segment held a veto cue. */
+  anyVetoed: boolean;
+  /** Countries a veto kept a positive status from, in the order met. */
+  withheld: string[];
 }
 
 const emptyBound = (): Bound => ({ citizen: false, notCitizen: false, pr: false, student: false, sponsoredVisa: false, permit: false, affirmative: false, deny: false, sponsored: false });
@@ -754,6 +837,16 @@ function readWorkAuth(text: string): Reading {
   const bound = new Map<string, Bound>();
   const mentioned = new Set<string>();
   let sponsorshipNoCountry = false;
+  /** Units holding a veto cue: they bind no positive status (decide-b round 5). */
+  const vetoedUnit = new Set<number>();
+  const withheld: string[] = [];
+  const bindIn = (unitIdx: number[], codes: string[], key: BoundKey): void => {
+    if (POSITIVE.has(key) && unitIdx.some((i) => vetoedUnit.has(i))) {
+      for (const code of codes) if (!withheld.includes(code)) withheld.push(code);
+      return;
+    }
+    bind(codes, key);
+  };
   const bind = (codes: string[], key: BoundKey): void => {
     for (const code of codes) {
       const b = bound.get(code) ?? emptyBound();
@@ -771,6 +864,8 @@ function readWorkAuth(text: string): Reading {
   // us", "us citizen", "us: no"), never "work for us"; the patterns still see
   // it, and only bind it where a country belongs.
   const names = new Map<number, { code: string; key: string }>();
+  /** Starts of the names that count as named (not the pronoun "us"). */
+  const named = new Set<number>();
   const pieces: string[] = [];
   let last = 0;
   for (const m of masked.matchAll(COUNTRY_RE)) {
@@ -781,6 +876,7 @@ function readWorkAuth(text: string): Reading {
     pieces.push(masked.slice(last, at), MARK.repeat(m[0].length));
     last = at + m[0].length;
     if (m[0] === "us" && text.slice(at, at + 2) !== "US" && !LOWERCASE_US_BEFORE.test(masked.slice(Math.max(0, at - 8), at)) && !LOWERCASE_US_AFTER.test(masked.slice(at + 2, at + 24))) continue;
+    named.add(at);
     mentioned.add(code);
   }
   pieces.push(masked.slice(last));
@@ -793,9 +889,16 @@ function readWorkAuth(text: string): Reading {
     }
     return out;
   };
-  for (const [re, code, key] of INHERENT) {
-    if (masked.search(re) >= 0) bind([code], key);
-  }
+  /** The countries named (never the pronoun "us") between two indices. */
+  const namedAt = (start: number, end: number): string[] => {
+    const out: string[] = [];
+    for (const m of norm.slice(start, end).matchAll(MARK_RUN)) {
+      const at = start + (m.index ?? 0);
+      const name = names.get(at);
+      if (name && named.has(at) && !out.includes(name.code)) out.push(name.code);
+    }
+    return out;
+  };
 
   // Units.
   const units: Unit[] = [];
@@ -815,6 +918,32 @@ function readWorkAuth(text: string): Reading {
     if (units.length) units[units.length - 1].breakAfter = pending;
     units.push({ start: at, end: norm.length, breakAfter: "" });
   }
+  // The veto, read on the text before any visa or country is masked.
+  units.forEach((u, i) => {
+    if (vetoed(unmasked.slice(u.start, u.end))) vetoedUnit.add(i);
+  });
+  // Statuses that belong to one country, from each unit that has no veto cue.
+  units.forEach((u, i) => {
+    const piece = masked.slice(u.start, u.end);
+    for (const [re, code, key] of INHERENT) {
+      if (piece.search(re) >= 0) bindIn([i], [code], key);
+    }
+  });
+  // Sentences: a need said in a unit with no country belongs to the countries
+  // its sentence names (decide-b round 5: a need for one country stays there).
+  const sentenceOf: number[] = [];
+  const sentenceCodes: string[][] = [];
+  units.forEach((u, i) => {
+    const s = i === 0 ? 0 : SENTENCE_END.test(units[i - 1].breakAfter) ? sentenceOf[i - 1] + 1 : sentenceOf[i - 1];
+    sentenceOf.push(s);
+    if (!sentenceCodes[s]) sentenceCodes[s] = [];
+    for (const code of namedAt(u.start, u.end)) if (!sentenceCodes[s].includes(code)) sentenceCodes[s].push(code);
+  });
+  const needInSentence = (i: number): void => {
+    const codes = sentenceCodes[sentenceOf[i]] ?? [];
+    if (codes.length) bind(codes, "sponsored");
+    else sponsorshipNoCountry = true;
+  };
 
   // Bare answers next to bare country lists ("Yes, Canada", "Canada - Yes").
   const paired = new Set<number>();
@@ -847,7 +976,7 @@ function readWorkAuth(text: string): Reading {
       const answer = answerOf(other);
       const keys = answer ? [answer] : statusOnly(other);
       if (!keys.length) return false;
-      for (const k of keys) bind(codes, k);
+      for (const k of keys) bindIn([i, i + 1], codes, k);
       return true;
     };
     if (tryPair(b, a) || tryPair(a, b)) {
@@ -867,7 +996,7 @@ function readWorkAuth(text: string): Reading {
     if (!m) continue;
     const codes = codesAt(prev.start + m.indices![1][0], prev.start + m.indices![1][1]);
     if (codes.length !== 1) continue;
-    for (const k of keys) bind(codes, k);
+    for (const k of keys) bindIn([i - 1, i], codes, k);
     paired.add(i);
   }
 
@@ -882,20 +1011,20 @@ function readWorkAuth(text: string): Reading {
     // A unit with no country binds nothing more: only a sponsorship need
     // said with no country is left to read.
     if (!s.includes(MARK)) {
-      if (!SPONSOR_NEGATED.test(s) && SPONSOR_NEED.test(s)) sponsorshipNoCountry = true;
+      if (!SPONSOR_NEGATED.test(s) && SPONSOR_NEED.test(s)) needInSentence(i);
       return;
     }
     // "Canadian", "I'm Canadian", "American living in Toronto".
     const dm = DEMONYM_UNIT.exec(s);
     if (dm) {
       const name = names.get(u.start + dm.indices![1][0]);
-      if (name && DEMONYMS.has(name.key) && name.key.length === dm[1].length) bind([name.code], "citizen");
+      if (name && DEMONYMS.has(name.key) && name.key.length === dm[1].length) bindIn([i], [name.code], "citizen");
     }
     // Countries and punctuation alone ("Canada", "US: -"): every pattern
     // below needs a word or an answer mark beside the country.
     if (!WORD_OR_MARK.test(s.replace(MARK_RUN, ""))) return;
     if (!INTENT_WORDS.test(s)) {
-      for (const m of s.matchAll(PERMIT_WITH)) bind(codesAt(u.start + m.indices![1][0], u.start + m.indices![1][1]), "permit");
+      for (const m of s.matchAll(PERMIT_WITH)) bindIn([i], codesAt(u.start + m.indices![1][0], u.start + m.indices![1][1]), "permit");
     }
     const listCodes = (m: RegExpMatchArray, group: number): string[] => codesAt(u.start + m.indices![group][0], u.start + m.indices![group][1]);
     // "Authorized to work in the US? No.": the answer flips the question.
@@ -907,7 +1036,7 @@ function readWorkAuth(text: string): Reading {
       for (const m of s.matchAll(re)) {
         const end = (m.index ?? 0) + m[0].length;
         used.push([(m.index ?? 0) + m[1].length, end]);
-        bind(listCodes(m, 1), key);
+        bindIn([i], listCodes(m, 1), key);
       }
     }
     for (const [re, key] of PREFIX_ANSWER_PATTERNS) {
@@ -915,7 +1044,7 @@ function readWorkAuth(text: string): Reading {
         const start = m.index ?? 0;
         const answerEnd = start + m[0].length - m[1].length;
         if (overlaps(start, answerEnd)) continue;
-        bind(listCodes(m, 1), key);
+        bindIn([i], listCodes(m, 1), key);
       }
     }
     const negatedSponsor = SPONSOR_NEGATED.test(s);
@@ -928,7 +1057,7 @@ function readWorkAuth(text: string): Reading {
         if (key === "pr" && PR_AFTER.test(m[0]) && LIST_AT_END.test(s.slice(Math.max(0, (m.index ?? 0) - 40), m.index ?? 0))) continue;
         const flipped: BoundKey = answeredNo && key === "affirmative" ? "deny" : key;
         if (key === "sponsored") sponsorBound = true;
-        bind(listCodes(m, 1), flipped);
+        bindIn([i], listCodes(m, 1), flipped);
       }
     }
     for (const m of s.matchAll(NOT_PLACE)) {
@@ -937,9 +1066,23 @@ function readWorkAuth(text: string): Reading {
       const aboutCitizenship = Boolean(m[1]) || Boolean(m[3]) || DEMONYMS.has(first);
       bind(codes, aboutCitizenship ? "notCitizen" : "deny");
     }
-    if (!sponsorBound && !negatedSponsor && SPONSOR_NEED.test(s)) sponsorshipNoCountry = true;
+    // A need bound to no country by a pattern: the countries this unit names,
+    // else its sentence's (never every country the answer names).
+    if (!sponsorBound && !negatedSponsor && SPONSOR_NEED.test(s)) {
+      const own = namedAt(u.start, u.end);
+      if (own.length) bind(own, "sponsored");
+      else needInSentence(i);
+    }
   });
-  return { bound, mentioned, sponsorshipNoCountry };
+  let positiveText = "";
+  let at2 = 0;
+  units.forEach((u, i) => {
+    if (!vetoedUnit.has(i)) return;
+    positiveText += masked.slice(at2, u.start) + " ".repeat(u.end - u.start);
+    at2 = u.end;
+  });
+  positiveText += masked.slice(at2);
+  return { bound, mentioned, sponsorshipNoCountry, positiveText, anyVetoed: vetoedUnit.size > 0, withheld };
 }
 
 /** The "PR in/of <country>" pattern, and a country right before a match. */
@@ -1037,6 +1180,8 @@ export function needsSponsorshipIn(auth: WorkAuthFacts, countryCode: string | nu
     // Every US work visa and student status is temporary: a "No" beside OPT
     // or H-1B is not believed, and not contradicted either.
     if (stated === false && c && countryCode === "US" && (c.basis === "work_permit" || c.basis === "student")) return null;
+    // Nor beside a status a veto withheld there (decide-b round 5).
+    if (stated === false && !c && auth.withheld?.includes(countryCode)) return null;
     // The applicant's own answer wins for any country their status covers.
     if (stated !== null && (c || (auth.byCountry.size === 0 && (!residence || residence === countryCode)))) {
       return fact(stated, "high", "sponsorship:stated");

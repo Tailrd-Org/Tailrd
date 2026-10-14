@@ -1,0 +1,35 @@
+{
+  "_about": "Veto cues for the work-authorization reader (decide-b round 5, D-61 amendment). Read by chrome-extension/src/content/profileFacts.ts and backend/services/profile_facts.py. A segment that holds any cue gets no positive status (citizen, permanent resident, authorized, visa held) for any country; it never becomes a No. Matched case-insensitively on word boundaries; a 'prefixes' entry needs no boundary after it and a 'suffixes' entry none before it. Common typos sit next to their word.",
+  "third_party": [
+    "wife", "wifes", "husband", "husbands", "husbund", "huband", "spouse", "spouses", "spouce", "spousal",
+    "partner", "partners", "fiance", "fiancee", "fiancé", "fiancée", "married",
+    "parent", "parents", "mother", "father", "mom", "mum", "dad", "family", "sister", "brother", "sibling", "siblings",
+    "son", "daughter", "child", "children", "kid", "kids", "relative", "relatives", "dependent", "dependant",
+    "grandparent", "grandparents", "grandmother", "grandfather", "uncle", "aunt", "cousin",
+    "sponsor", "sponsors", "he", "she", "him", "his", "her", "hers"
+  ],
+  "negation": [
+    "not", "no", "none", "neither", "nor", "never", "nevr", "no longer", "without", "witout", "withouth",
+    "lost", "revoked", "denied", "rejected", "refused", "cancelled", "canceled", "terminated", "renounced", "renounce",
+    "ineligible", "unauthorized", "unauthorised", "unable", "cannot"
+  ],
+  "past": [
+    "was", "were", "used to", "previously", "previosly", "previouly", "perviously", "prevously", "formerly", "former",
+    "expired", "expierd", "expird", "exipred", "lapsed", "abandoned", "until", "had", "gave up", "prior"
+  ],
+  "future": [
+    "will", "wil", "would", "woud", "once", "when", "after", "upon", "if", "unless", "provided", "assuming", "depending",
+    "planning", "plan", "plans", "planned", "hope", "hopes", "hoping", "hopefully", "expect", "expects", "expecting", "expected",
+    "going to", "gonna", "soon", "future", "eventually", "later", "intend", "intends", "intending", "scheduled", "upcoming",
+    "should", "could", "might"
+  ],
+  "pending": [
+    "pending", "pendng", "applied", "aplied", "applying", "aplying", "apply", "application", "applications",
+    "waiting", "wating", "awaiting", "await", "in process", "in progress", "processing", "lottery",
+    "eligible", "eligibility", "need", "needs", "needed", "require", "requires", "required", "requiring", "requre",
+    "sponsorship request", "petition", "filed", "filing", "submitted", "qualify", "qualifies", "obtain", "obtaining",
+    "get", "getting", "seek", "seeking"
+  ],
+  "prefixes": ["non-", "ex-"],
+  "suffixes": ["n't", "'ll", "'d"]
+}

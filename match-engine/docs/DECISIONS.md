@@ -877,6 +877,25 @@ gives None, so step 3 warns and never fails a country whose authorisation is mer
 "American living in Toronto, no Canadian work permit" never fails a US posting). `authorized_countries`
 is exactly the countries the reader gives a positive status; a pending, applied-for, lottery or
 eligible status is never one.
+*Amended (decide-b round 5, the reader `profile_facts.work_auth_facts` and its extension twin
+`profileFacts.workAuthFacts`):* the gate relies on this reader for A, so a positive status is
+guarded by a veto lexicon rather than phrase by phrase. Within a segment (the reader's clause or
+labelled-answer units), citizen, permanent resident, authorized or a visa held is assigned only if
+the segment holds none of the cues in `backend/data/work_auth_veto.json`, one file read by both
+languages: someone else (wife, husband, spouse, partner, parent, child, sibling, a sponsor as a
+person), a negation (not, neither, nor, never, no longer, without, non-, lost, revoked, denied,
+ineligible), the past (was, used to, previously, former, ex-, expired, abandoned, until, had), the
+future or a condition (will, would, once, when, after, if, plan, hope, soon) and a pending or needed
+status (pending, applied, application, waiting, lottery, eligible, need, require). A vetoed segment
+gives no positive status for any country (unknown) and never a No; explicit denials and sponsorship
+needs are read as before ("US: No" is still No). A negated sponsorship need ("do not require
+sponsorship", "no sponsorship needed", "without sponsorship") is a sponsorship fact of its own and
+vetoes nothing beside it. "Now" and "currently" start a new segment, so "was X, now Y" reads Y. A
+sponsorship need stated for one country applies only to that country: to the countries its unit
+names, else its sentence's, and only a need in a sentence that names no country is unscoped. A
+general "No" to sponsorship is not applied to a country whose status a veto withheld. The input is
+read up to 4,000 characters. The accepted cost is lost value (a clear answer read as unknown, which
+the gate warns on): 24 to 49 of the 467 fixture phrasings, for zero wrong yeses and zero wrong noes.
 
 **D-62 Licence evidence. [Tailrd]** Held credentials are the AFFIRMED mentions with
 CERTIFICATION or ROLE_TITLE evidence (never a bullet such as "administered medications under RN

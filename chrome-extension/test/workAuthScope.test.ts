@@ -63,7 +63,9 @@ describe("a negated country is never authorized", () => {
   it("'and' starting a new statement ends the negation", () => {
     const a = workAuthFacts(profile({ workAuthorization: "Not authorized in the US and authorized to work in Canada" }));
     expect(authorizedIn(a, "US", "CA")?.value).toBe(false);
-    expect(authorizedIn(a, "CA", "CA")?.value).toBe(true);
+    // The Canada clause shares a segment with "not": the veto (decide-b round 5)
+    // leaves it unknown, never a No.
+    expect(authorizedIn(a, "CA", "CA")).toBeNull();
   });
 
   it("a negated sponsorship clause says nothing against the country", () => {

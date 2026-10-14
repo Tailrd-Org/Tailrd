@@ -920,9 +920,10 @@ def test_the_facts_copy_pickle_serialise_and_hash():
         "stated_sponsorship": None,
         "unscoped_authorized": None,
         "sponsorship_unclear": False,
+        "withheld": (),
     }
     assert dataclasses.asdict(auth) == as_data
-    assert json.loads(json.dumps(dataclasses.asdict(auth))) == as_data
+    assert json.loads(json.dumps(dataclasses.asdict(auth))) == {**as_data, "withheld": []}
 
     for clone in (copy.deepcopy(auth), copy.copy(auth), pickle.loads(pickle.dumps(auth))):
         assert type(clone.by_country) is type(auth.by_country)
@@ -1137,7 +1138,9 @@ def test_negation_scope_clauses():
     assert both.by_country["GB"] == CountryAuth(False, None, "denied")
     split = work_auth_facts(profile(workAuthorization="Not authorized in the US and authorized to work in Canada"))
     assert split.by_country["US"] == CountryAuth(False, None, "denied")
-    assert split.by_country["CA"] == CountryAuth(True, None, "statement")
+    # The Canada clause shares a segment with "not": the veto (decide-b round 5) leaves it unknown,
+    # never a No.
+    assert "CA" not in split.by_country
     sponsor = work_auth_facts(profile(workAuthorization="US citizen, not requiring sponsorship in the US"))
     assert sponsor.by_country["US"] == CountryAuth(True, False, "citizen")
     weak = work_auth_facts(profile(workAuthorization="Canadian citizen, not a US citizen"))
@@ -1267,7 +1270,9 @@ def test_review_i4_not_yet():
 ])
 def test_review_i5_other_negations(text):
     assert authorized_in(_wa(text), "US", "CA") == Fact(False, "high", "work-auth:denied")
-    assert authorized_in(_wa(text), "CA", "CA").value is True
+    # "without" in the citizen's own segment vetoes it (decide-b round 5): unknown, never a No.
+    ca = authorized_in(_wa(text), "CA", "CA")
+    assert (ca is None) if "without" in text else (ca.value is True)
 
 
 def test_review_i5_sponsorship_clause():

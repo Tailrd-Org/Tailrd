@@ -373,6 +373,14 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "don't currently have", "Do you require sponsorship?", "Are you authorized?", "No, I need sponsorship",
     "No - I will require sponsorship", "nope", "yep", "nah", "N/A - citizen", "I-485", "applying for PR",
     "eligible to get", "seeking", "planning", " " * 40, "\t\t", "\n\n", "\r\n", NBSP * 3, "Canada and Canada and",
+    # Decide-b round 5: veto cues (someone else, negation, past, future, pending), negated sponsorship
+    # phrases that do not veto, "now"/"currently" segments, sentence-scoped needs.
+    "my wife", "My husband's", "spouse of a", "parents", "brother", "her", "fiancé", "Not a", "neither", "nor",
+    "no longer", "non-US", "Ex-", "revoked", "was", "used to", "previously", "expired", "had a", "until", "will be",
+    "would", "once", "if", "should I", "I'd", "I'll", "won't", "hope", "soon", "application", "requiring", "need",
+    "now", "currently", "not currently", "don't currently", "now a", "do not require sponsorship",
+    "no sponsorship needed", "without sponsorship", "sponsorship not required", "dual citizenship with",
+    "permission to work in", "and would need a visa", "Was on a study permit, now a Canadian PR",
 ]
 
 EXOTIC_WORDS = [
@@ -446,6 +454,13 @@ class _Generator:
             out = rng.choice(SEPARATORS) + out + rng.choice(SEPARATORS)
         return out
 
+    def _near_cap(self) -> str:
+        """A text that straddles the 4,000-character input cap (decide-b round 5), padded among
+        others with a character that counts once in Python and twice in UTF-16."""
+        n = self.rng.randint(3985, 4005)
+        pad = self.rng.choice(["x ", "\U0001F600", "a,", " ", "US "])
+        return (pad * n)[:n] + self.text()
+
     def _padding(self) -> str:
         return "".join(self.rng.choice(PADDING) for _ in range(self.rng.randint(0, 6)))
 
@@ -503,7 +518,7 @@ class _Generator:
         put("addressState", rng.choice(REGIONS + ["", ""]) if rng.random() < 0.5 else "")
         put("postalCode", rng.choice(POSTAL_CODES + ["", ""]) if rng.random() < 0.5 else "")
         put("country", rng.choice(COUNTRY_NAMES + ["", "", " CA ", NBSP + "US"]) if rng.random() < 0.5 else "")
-        put("workAuthorization", self.text() if rng.random() < 0.9 else "")
+        put("workAuthorization", self._near_cap() if rng.random() < 0.02 else self.text() if rng.random() < 0.9 else "")
         put("requiresSponsorship", rng.choice(YES_NO) if rng.random() < 0.7 else self.text(5))
         put("authorizedUS", rng.choice(YES_NO))
         put("authorizedCanada", rng.choice(YES_NO))

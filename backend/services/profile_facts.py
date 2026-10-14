@@ -66,11 +66,13 @@ Behaviour kept on purpose (each one is pinned by a test named ``test_pin_*``)
 
 from __future__ import annotations
 
+import json
 import re
 import unicodedata
 from collections.abc import Mapping
 from dataclasses import dataclass
 from functools import lru_cache
+from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Generic, Literal, Optional, Protocol, TypeVar, Union
 
@@ -78,6 +80,7 @@ __all__ = [
     "CA_PROVINCES",
     "COUNTRIES",
     "FREE_MOVEMENT",
+    "INPUT_CAP",
     "US_STATES",
     "AuthBasis",
     "Confidence",
@@ -92,6 +95,7 @@ __all__ = [
     "Region",
     "WorkAuthFacts",
     "authorized_in",
+    "cap_input",
     "collapse_spaces",
     "countries_in",
     "country_of",
@@ -240,6 +244,10 @@ class WorkAuthFacts:
     #: The applicant wrote a sponsorship answer that reads neither Yes nor No ("No for Canada,
     #: yes for US"): nothing may be inferred in its place.
     sponsorship_unclear: bool = False
+    #: Countries whose status a veto cue withheld ("I'm on OPT until 2027", "My wife is a US
+    #: citizen"): what the applicant holds there is not known, so a general "No" to sponsorship is
+    #: not applied there (decide-b round 5; TS: ``withheld``).
+    withheld: tuple[str, ...] = ()
 
 
 # ---------------------------------------------------------------------------
@@ -795,6 +803,17 @@ def collapse_spaces(text: str) -> str:
     labelled answer keeps its lines), else a space (TS: ``collapseSpaces``). Applied to user text
     before any other pattern (decide-b round 4), so no pattern ever meets a long whitespace run."""
     return _WHITESPACE_RUN.sub(lambda m: "\n" if _LINE_BREAK.search(m.group(0)) else " ", text)
+
+
+#: A work-authorization or sponsorship answer is read only up to here (decide-b round 5; TS:
+#: ``INPUT_CAP``). Real answers are short; the cap bounds the worst-case time.
+INPUT_CAP = 4000
+
+
+def cap_input(text: str) -> str:
+    """The first ``INPUT_CAP`` characters (code points, as the TS ``capInput`` counts them)."""
+    return text[:INPUT_CAP]
+
 _NEGATED_NEED = _js_regex(r"\b(will not|won't|do not|don't|does not|doesn't|no longer|never)\s+(need|require)")
 _PLAIN_NEED = _js_regex(r"\b(will|do|does|would)\s+(need|require)\b")
 _NOT_REQUIRED = _js_regex(r"\b(not required|not needed)\b")
@@ -817,7 +836,7 @@ def polarity_of(text: Optional[str]) -> Optional[bool]:
     "N/A", "NA", "N.A.", "not applicable" are None: unanswered, never a No (owner decisions
     2026-10-13).
     """
-    t = _trim(collapse_spaces(text or "")).lower()
+    t = _trim(collapse_spaces(cap_input(text or ""))).lower()
     if not t:
         return None
     # "Do you now or in the future require sponsorship? No.": the answer follows the echo.
@@ -961,7 +980,7 @@ _TYPOS = (
 def _normalize_answer(text: str) -> str:
     """The work-authorization answer as the patterns read it: whitespace runs collapsed (first,
     before any other pattern) and status typos corrected (TS: ``normalizeAnswer``)."""
-    t = _trim(collapse_spaces(text))
+    t = _trim(collapse_spaces(cap_input(text)))
     for pattern, word in _TYPOS:
         t = pattern.sub(lambda m, word=word: word + (m.group(1) or "") if m.re.groups else word, t)
     return t
@@ -1136,7 +1155,57 @@ def _mask_visa_intent(norm: str) -> str:
 _UNIT_BREAK = _js_regex(
     r"\r\n|\n|\r|;|\||\.(?=\s|$)|!|\?|,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s|\s\/\s"
     r"|\b(?:but|however|whereas|while|although|though)\b"
+    "|(?<!not )(?<!no )(?<!n't )(?<!n\u2019t )" r"\b(?:now|currently)\b"
 )
+# A break that ends a sentence: a sponsorship need said in it stays with the countries the sentence
+# names (TS: ``SENTENCE_END``).
+_SENTENCE_END = re.compile(r"[\n\r;|.!?]")
+
+#: The shared veto cues (decide-b round 5, D-61 amendment), read by both languages.
+_VETO_FILE = Path(__file__).resolve().parents[1] / "data" / "work_auth_veto.json"
+_LETTER_OR_DIGIT = re.compile("[a-z0-9\u00e0-\u00ff]")
+_REGEX_SPECIAL = re.compile(r"[.*+?^${}()|[\]\\/]")
+
+
+def _veto_source(lexicon: Mapping[str, Any]) -> str:
+    """One alternation of every cue, each on word boundaries (TS: ``vetoSource``)."""
+    entries: list[str] = []
+    for family, words in lexicon.items():
+        if family.startswith("_") or not isinstance(words, list):
+            continue
+        entries.extend(str(w).lower() for w in words)
+    unique = sorted(set(entries), key=lambda w: (-len(w), w))
+    alts = []
+    for w in unique:
+        body = _REGEX_SPECIAL.sub(lambda m: "\\" + m.group(0), w).replace(" ", "\\s")
+        lead = "(?<![a-z0-9\u00e0-\u00ff])" if _LETTER_OR_DIGIT.match(w[0]) else ""
+        trail = "(?![a-z0-9\u00e0-\u00ff])" if _LETTER_OR_DIGIT.match(w[-1]) else ""
+        alts.append(lead + body + trail)
+    return "|".join(alts)
+
+
+# A segment that holds any cue gets no positive status for any country; the veto never becomes a
+# No (TS: ``VETO``).
+_VETO = _js_regex(_veto_source(json.loads(_VETO_FILE.read_text(encoding="utf-8"))))
+# A negated sponsorship need is a sponsorship fact of its own, so its "not" or "need" vetoes nothing
+# beside it (TS: ``NEGATED_SPONSOR_PHRASE``).
+_NEGATED_SPONSOR_PHRASE = _js_regex(
+    r"(?:\bnot|n't|\bnever|\bno\s+longer)\s+(?:\w+\s+){0,2}?(?:need|require)(?:s|d|ing)?\s+(?:any\s+|a\s+|an\s+)?"
+    r"(?:(?:visa|work|employer|employment|immigration)\s+)?(?:sponsorship|sponsor|visa)\b"
+    r"|\b(?:no|without|not\s+requiring|not\s+needing)\s+(?:any\s+|a\s+)?(?:need\s+(?:for|of)\s+(?:any\s+)?)?"
+    r"(?:(?:visa|work|employer|employment|immigration)\s+)?(?:sponsorship|sponsor|visa)"
+    r"(?:\s+(?:is\s+)?(?:needed|required|necessary))?\b"
+    r"|\b(?:sponsorship|sponsor|visa)\s+(?:is\s+not|isn't|not|never)\s+(?:needed|required|necessary)\b"
+)
+
+
+def _vetoed(lower_unit: str) -> bool:
+    """Does this piece of the lowercased text hold a veto cue? (TS: ``vetoed``)"""
+    return bool(_VETO.search(_NEGATED_SPONSOR_PHRASE.sub(" ", lower_unit.replace("\u2019", "'"))))
+
+
+#: The keys that assign a positive status: the veto blocks only these (TS: ``POSITIVE``).
+_POSITIVE = frozenset({"citizen", "pr", "student", "sponsoredVisa", "permit", "affirmative"})
 # \Z, not $: a break can end in "\n", and Python's $ matches before a final "\n" (JavaScript's
 # does not).
 _WEAK_BREAK = _js_regex(r"^(?:,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s)\Z")
@@ -1191,7 +1260,7 @@ _PATTERNS = (
                + r")\s*(?:an?\s+|any\s+)?(?:the\s+)?" + _L + r"\s+(?:work\s+)?" + _AUTH_NOUN), "deny"),
     (_js_regex(r"(?:\bno|\bwithout|\b(?:do|does)\s+not\s+(?:currently\s+|yet\s+)?have"
                r"|\b(?:don|doesn)['\u2019]?t\s+(?:currently\s+|yet\s+)?have)\s+(?:an?\s+|any\s+)?"
-               r"(?:work\s+)?(?:authori[sz]ation|permit|right|status)\s+(?:to\s+work\s+)?(?:in|for)\s+(?:the\s+)?" + _L),
+               r"(?:work\s+)?(?:authori[sz]ation|permit|permission|right|status)\s+(?:to\s+work\s+)?(?:in|for)\s+(?:the\s+)?" + _L),
      "deny"),
     # "not a citizen of the US", "US citizen not"
     (_js_regex(r"\bnot\s+(?:an?\s+)?(?:citizen\w*|nationals?|resident\w*)\s+of\s+(?:the\s+)?" + _L), "notCitizen"),
@@ -1200,6 +1269,8 @@ _PATTERNS = (
     (_js_regex(_L + r"\s+(?:dual\s+)?(?:citizen\w*|nationals?)\b"), "citizen"),
     (_js_regex(_L + r"\s?:\s?(?:dual\s+)?(?:citizen|citizenship|national)\b(?!\s(?:of|in)\b)"), "citizen"),
     (_js_regex(r"\b(?:dual\s+)?(?:citizen\w*|nationals?)\s*(?:of|:|-|\u2013)\s*(?:both\s+)?(?:the\s+)?" + _L), "citizen"),
+    # "I hold dual citizenship with the United Kingdom and Canada".
+    (_js_regex(r"\bdual\s+citizenship\s+with\s+(?:both\s+)?(?:the\s+)?" + _L), "citizen"),
     # Permanent residence: "US permanent resident", "Canada: PR", "PR of Canada".
     (_js_regex(_L + r"\s+(?:permanent\s+resident\w*|perm(?:anent)?\.?\s+res(?:ident)?\w*|pr|lpr|landed\s+immigrant)\b"),
      "pr"),
@@ -1299,6 +1370,13 @@ class _Reading:
     bound: dict[str, _Bound]
     mentioned: dict[str, None]
     sponsorship_no_country: bool
+    #: The masked text with every vetoed segment blanked: what a status may be read from when no
+    #: country is named.
+    positive_text: str = ""
+    #: Some segment held a veto cue.
+    any_vetoed: bool = False
+    #: Countries a veto kept a positive status from, in the order met.
+    withheld: tuple[str, ...] = ()
 
 
 def _read_work_auth(text: str) -> _Reading:
@@ -1322,10 +1400,24 @@ def _read_work_auth(text: str) -> _Reading:
             setattr(b, key, True)
             mentioned[code] = None
 
+    # Units holding a veto cue: they bind no positive status (decide-b round 5).
+    vetoed_unit: set[int] = set()
+    withheld: list[str] = []
+
+    def bind_in(unit_idx: list[int], codes: list[str], key: str) -> None:
+        if key in _POSITIVE and any(i in vetoed_unit for i in unit_idx):
+            for code in codes:
+                if code not in withheld:
+                    withheld.append(code)
+            return
+        bind(codes, key)
+
     unmasked = _mask_abbreviations(text)
     masked = _mask_visa_intent(unmasked)
 
     names: dict[int, tuple[str, str]] = {}
+    # Starts of the names that count as named (not the pronoun "us").
+    named: set[int] = set()
     pieces: list[str] = []
     last = 0
     for m in _COUNTRY_RE.finditer(masked):
@@ -1341,6 +1433,7 @@ def _read_work_auth(text: str) -> _Reading:
                 and not _LOWERCASE_US_BEFORE.search(masked[max(0, at - 8):at])
                 and not _LOWERCASE_US_AFTER.search(masked[at + 2:at + 24])):
             continue
+        named.add(at)
         mentioned[code] = None
     pieces.append(masked[last:])
     norm = "".join(pieces)
@@ -1353,9 +1446,15 @@ def _read_work_auth(text: str) -> _Reading:
                 out.append(name[0])
         return out
 
-    for pattern, code, key in _INHERENT:
-        if pattern.search(masked):
-            bind([code], key)
+    def named_at(start: int, end: int) -> list[str]:
+        """The countries named (never the pronoun "us") between two indices."""
+        out: list[str] = []
+        for m in _MARK_RUN.finditer(norm[start:end]):
+            at = start + m.start()
+            name = names.get(at)
+            if name and at in named and name[0] not in out:
+                out.append(name[0])
+        return out
 
     units: list[_Unit] = []
     at = 0
@@ -1373,6 +1472,36 @@ def _read_work_auth(text: str) -> _Reading:
         if units:
             units[-1].break_after = pending
         units.append(_Unit(at, len(norm)))
+    # The veto, read on the text before any visa or country is masked.
+    for i, u in enumerate(units):
+        if _vetoed(unmasked[u.start:u.end]):
+            vetoed_unit.add(i)
+    # Statuses that belong to one country, from each unit that has no veto cue.
+    for i, u in enumerate(units):
+        piece = masked[u.start:u.end]
+        for pattern, code, key in _INHERENT:
+            if pattern.search(piece):
+                bind_in([i], [code], key)
+    # Sentences: a need said in a unit with no country belongs to the countries its sentence names.
+    sentence_of: list[int] = []
+    sentence_codes: list[list[str]] = []
+    for i, u in enumerate(units):
+        sid = 0 if i == 0 else (sentence_of[i - 1] + 1 if _SENTENCE_END.search(units[i - 1].break_after)
+                                else sentence_of[i - 1])
+        sentence_of.append(sid)
+        if len(sentence_codes) <= sid:
+            sentence_codes.append([])
+        for code in named_at(u.start, u.end):
+            if code not in sentence_codes[sid]:
+                sentence_codes[sid].append(code)
+
+    def need_in_sentence(i: int) -> None:
+        nonlocal sponsorship_no_country
+        codes = sentence_codes[sentence_of[i]]
+        if codes:
+            bind(codes, "sponsored")
+        else:
+            sponsorship_no_country = True
 
     paired: set[int] = set()
 
@@ -1403,7 +1532,7 @@ def _read_work_auth(text: str) -> _Reading:
         m = _PURE_LIST.search(norm[u.start:u.end])
         return codes_at(u.start + m.start(1), u.start + m.end(1)) if m else []
 
-    def try_pair(lst: _Unit, other: _Unit) -> bool:
+    def try_pair(lst: _Unit, other: _Unit, idx: list[int]) -> bool:
         codes = list_of(lst)
         if not codes:
             return False
@@ -1412,14 +1541,14 @@ def _read_work_auth(text: str) -> _Reading:
         if not keys:
             return False
         for k in keys:
-            bind(codes, k)
+            bind_in(idx, codes, k)
         return True
 
     for i in range(len(units) - 1):
         if i in paired or not _WEAK_BREAK.search(units[i].break_after):
             continue
         a, b = units[i], units[i + 1]
-        if try_pair(b, a) or try_pair(a, b):
+        if try_pair(b, a, [i, i + 1]) or try_pair(a, b, [i, i + 1]):
             paired.add(i)
             paired.add(i + 1)
 
@@ -1439,7 +1568,7 @@ def _read_work_auth(text: str) -> _Reading:
         if len(codes) != 1:
             continue
         for k in keys:
-            bind(codes, k)
+            bind_in([i - 1, i], codes, k)
         paired.add(i)
 
     for i, u in enumerate(units):
@@ -1456,20 +1585,20 @@ def _read_work_auth(text: str) -> _Reading:
         # A unit with no country binds nothing more: only a no-country sponsorship need is left.
         if _MARK not in s:
             if not _SPONSOR_NEGATED.search(s) and _SPONSOR_NEED.search(s):
-                sponsorship_no_country = True
+                need_in_sentence(i)
             continue
         # "Canadian", "I'm Canadian", "American living in Toronto".
         dm = _DEMONYM_UNIT.search(s)
         if dm:
             name = names.get(u.start + dm.start(1))
             if name and name[1] in _DEMONYMS and len(name[1]) == len(dm.group(1)):
-                bind([name[0]], "citizen")
+                bind_in([i], [name[0]], "citizen")
         # Countries and punctuation alone: every pattern below needs a word or an answer mark.
         if not _WORD_OR_MARK.search(_MARK_RUN.sub("", s)):
             continue
         if not _INTENT_WORDS.search(s):
             for m in _PERMIT_WITH.finditer(s):
-                bind(codes_at(u.start + m.start(1), u.start + m.end(1)), "permit")
+                bind_in([i], codes_at(u.start + m.start(1), u.start + m.end(1)), "permit")
 
         def list_codes(m: re.Match[str], group: int, u: _Unit = u) -> list[str]:
             return codes_at(u.start + m.start(group), u.start + m.end(group))
@@ -1480,14 +1609,14 @@ def _read_work_auth(text: str) -> _Reading:
         for pattern, key in _POSTFIX_PATTERNS:
             for m in pattern.finditer(s):
                 used.append((m.start() + len(m.group(1)), m.end()))
-                bind(list_codes(m, 1), key)
+                bind_in([i], list_codes(m, 1), key)
         for pattern, key in _PREFIX_ANSWER_PATTERNS:
             for m in pattern.finditer(s):
                 start = m.start()
                 answer_end = start + len(m.group(0)) - len(m.group(1))
                 if any(start < q and p < answer_end for p, q in used):
                     continue
-                bind(list_codes(m, 1), key)
+                bind_in([i], list_codes(m, 1), key)
         negated_sponsor = bool(_SPONSOR_NEGATED.search(s))
         sponsor_bound = False
         for pattern, key in _PATTERNS:
@@ -1501,16 +1630,31 @@ def _read_work_auth(text: str) -> _Reading:
                 flipped = "deny" if answered_no and key == "affirmative" else key
                 if key == "sponsored":
                     sponsor_bound = True
-                bind(list_codes(m, 1), flipped)
+                bind_in([i], list_codes(m, 1), flipped)
         for m in _NOT_PLACE.finditer(s):
             codes = list_codes(m, 2)
             first = names.get(u.start + m.start(2))
             first_key = first[1] if first else ""
             about_citizenship = m.group(1) is not None or m.group(3) is not None or first_key in _DEMONYMS
             bind(codes, "notCitizen" if about_citizenship else "deny")
+        # A need bound to no country by a pattern: the countries this unit names, else its
+        # sentence's (never every country the answer names).
         if not sponsor_bound and not negated_sponsor and _SPONSOR_NEED.search(s):
-            sponsorship_no_country = True
-    return _Reading(bound, mentioned, sponsorship_no_country)
+            own = named_at(u.start, u.end)
+            if own:
+                bind(own, "sponsored")
+            else:
+                need_in_sentence(i)
+    blanked: list[str] = []
+    at = 0
+    for i, u in enumerate(units):
+        if i not in vetoed_unit:
+            continue
+        blanked.append(masked[at:u.start])
+        blanked.append(" " * (u.end - u.start))
+        at = u.end
+    blanked.append(masked[at:])
+    return _Reading(bound, mentioned, sponsorship_no_country, "".join(blanked), bool(vetoed_unit), tuple(withheld))
 
 
 def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
@@ -1529,7 +1673,7 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
     """
     text = _normalize_answer(_text(profile, "workAuthorization"))
     by_country: dict[str, CountryAuth] = {}
-    raw_sponsorship = _trim(collapse_spaces(_text(profile, "requiresSponsorship")))
+    raw_sponsorship = _trim(collapse_spaces(cap_input(_text(profile, "requiresSponsorship"))))
     stated_sponsorship = polarity_of(raw_sponsorship)
     # "N/A - citizen" says why no sponsorship applies: unanswered, but not unclear.
     sponsorship_unclear = (raw_sponsorship != "" and stated_sponsorship is None
@@ -1539,7 +1683,9 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
     if not reading.mentioned:
         # No country anywhere: the statement is about wherever the applicant is.
         lower = text.lower()
-        every = _status_flags_of(_mask_visa_intent(_mask_abbreviations(text)))
+        # Statuses only from segments with no veto cue ("Not yet a citizen", "I will become a
+        # permanent resident": decide-b round 5).
+        every = _status_flags_of(reading.positive_text)
         denied = bool(_DENIED_UNSCOPED.search(lower)) or (not every.pr and bool(_NOT_A_CITIZEN.search(lower)))
         # "No sponsorship needed" is not a No to being authorized. "No, I need sponsorship" is: a
         # leading No that a sponsorship need confirms, with nothing that moves it to later.
@@ -1549,13 +1695,18 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
                         else None)
         else:
             bare_yes = polarity_of(text)
+        # A bare Yes next to a vetoed segment ("Yes, once my permit arrives") is not a Yes today. The
+        # veto never makes it a No.
+        if bare_yes is True and reading.any_vetoed:
+            bare_yes = None
         unscoped: Optional[bool] = None
         if denied or bare_yes is False:
             unscoped = False
         elif every.affirmative or bare_yes is True or every.citizen or every.pr:
             unscoped = True
         _apply_explicit_countries(profile, by_country)
-        return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped, sponsorship_unclear)
+        return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, unscoped, sponsorship_unclear,
+                             reading.withheld)
 
     for code, f in reading.bound.items():
         citizen = f.citizen and not f.notCitizen
@@ -1588,7 +1739,7 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
                 continue
             by_country[code] = CountryAuth(auth.authorized if auth else None, True, auth.basis if auth else "statement")
     _apply_explicit_countries(profile, by_country)
-    return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, None, sponsorship_unclear)
+    return WorkAuthFacts(_ReadOnlyDict(by_country), stated_sponsorship, None, sponsorship_unclear, reading.withheld)
 
 
 def _apply_explicit_countries(profile: ProfileInput, by_country: dict[str, CountryAuth]) -> None:
@@ -1674,6 +1825,9 @@ def needs_sponsorship_in(
         # Every US work visa and student status is temporary: a "No" beside OPT or H-1B is not
         # believed, and not contradicted either.
         if stated is False and c is not None and country_code == "US" and c.basis in ("work_permit", "student"):
+            return None
+        # Nor beside a status a veto withheld there (decide-b round 5).
+        if stated is False and c is None and country_code in auth.withheld:
             return None
         # The applicant's own answer wins for any country their status covers.
         if stated is not None and (
