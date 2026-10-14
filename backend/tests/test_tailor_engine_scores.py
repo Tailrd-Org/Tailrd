@@ -163,13 +163,38 @@ def test_a_posting_without_requirements_needs_review(db_session):
     assert analysis.reasons  # it says why
 
 
-def test_a_failed_gate_is_not_eligible_with_the_reason(db_session):
-    """The user's saved answers are read as the feed reads them: here, not authorised in the US."""
+def test_a_country_scoped_denial_warns_and_never_fails(db_session):
+    """The user's saved answers are read as the feed reads them: here, not authorised in the US.
+
+    D-61 amendment (decide-b round 4): a denial scoped to one country leaves needs_sponsorship
+    unknown, because the flag is one boolean for every country, so the US gate warns instead of
+    failing. Never a wrong FAIL for a country whose authorisation is merely unknown.
+    """
     db_session.add(UserSettings(user_id=USER, prefilled_answers={"Authorized to work in the US": "No"},
                                 address_city="Toronto", address_state="ON", country="Canada"))
     db_session.commit()
     profile = _profile(db_session)
     job = ScrapedJob(title="Software Engineer", company="Acme", url="https://example.com/jobs/gate",
+                     description=NO_SPONSOR, locations_json=SEATTLE, country="US", work_type="onsite")
+    db_session.add(job)
+    db_session.commit()
+    posting = MatchEngine(db_session).posting(job=job)
+    result = fit_engine.score_document(db_session, USER, document_to_record(db_record_to_document(profile)), posting)
+    analysis = analysis_from_result(result)
+    assert analysis.outcome != "GATE_FAIL"
+    assert analysis.match_label != "Not eligible"
+    work_auth = [g for g in result.gates if g.kind == "WORK_AUTHORIZATION"]
+    assert work_auth and all(g.status == "WARN" for g in work_auth)
+
+
+def test_a_failed_gate_is_not_eligible_with_the_reason(db_session):
+    """An unscoped sponsorship need against a posting that offers none fails the gate."""
+    db_session.add(UserSettings(user_id=USER,
+                                prefilled_answers={"Do you now or in the future require sponsorship?": "Yes"},
+                                address_city="Toronto", address_state="ON", country="Canada"))
+    db_session.commit()
+    profile = _profile(db_session)
+    job = ScrapedJob(title="Software Engineer", company="Acme", url="https://example.com/jobs/gate2",
                      description=NO_SPONSOR, locations_json=SEATTLE, country="US", work_type="onsite")
     db_session.add(job)
     db_session.commit()
