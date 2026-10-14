@@ -157,11 +157,16 @@ class TestJobAnalysis:
         assert client.post(f"/ai/job-analysis/{job.id}", json={}).status_code == 200
 
     def test_a_failed_gate_returns_null_scores_and_the_reason(self, client, db_session):
-        """Fix round 1, Minor 5: the route, not only the mapping, says "Not eligible" and why."""
+        """Fix round 1, Minor 5: the route, not only the mapping, says "Not eligible" and why.
+
+        An unscoped sponsorship need fails a no-sponsorship posting; a country-scoped denial only
+        warns (D-61 amendment, decide-b round 4).
+        """
         from backend.db.models import UserSettings
 
         _seed(db_session)
-        db_session.add(UserSettings(user_id=TEST_USER_ID, prefilled_answers={"Authorized to work in the US": "No"},
+        db_session.add(UserSettings(user_id=TEST_USER_ID,
+                                    prefilled_answers={"Do you now or in the future require sponsorship?": "Yes"},
                                     address_city="Toronto", address_state="ON", country="Canada"))
         gated = ScrapedJob(title="Software Engineer", company="GateCo", url="https://example.com/job/gate",
                            description=("Requirements\n- 2+ years of Python\n- SQL and Docker\n\n"
