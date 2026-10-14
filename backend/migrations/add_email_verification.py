@@ -6,9 +6,9 @@ Adds:
   - verification_token (String(255), nullable)
   - verification_token_expires_at (DateTime, nullable)
 
-Sets email_verified=true for all existing rows (grandfather clause).
-Sets verification_token and verification_token_expires_at to NULL for all existing rows.
-Idempotent: skips columns that already exist.
+On the run that adds email_verified only, sets email_verified=true and clears the
+verification tokens for all existing rows (grandfather clause).
+Idempotent: skips columns that already exist, and never repeats the grandfather clause.
 Rolls back all changes on error.
 """
 
@@ -80,21 +80,22 @@ def run_migration() -> None:
             else:
                 logger.info("Column verification_token_expires_at already exists, skipping.")
 
-            # 4. Set email_verified=true for ALL existing rows (grandfather clause)
-            conn.execute(text("UPDATE users SET email_verified = true"))
-            logger.info("Set email_verified=true for all existing users.")
-
-            # 5. Set verification_token and verification_token_expires_at to NULL
-            conn.execute(
-                text(
-                    "UPDATE users SET verification_token = NULL, "
-                    "verification_token_expires_at = NULL"
+            # 4-5. Grandfather clause, only on the run that adds email_verified. This migration
+            # runs on every startup; repeating the clause would verify every user who signed up
+            # since and clear every pending verification token.
+            if "email_verified" not in existing_columns:
+                conn.execute(text("UPDATE users SET email_verified = true"))
+                logger.info("Set email_verified=true for all existing users.")
+                conn.execute(
+                    text(
+                        "UPDATE users SET verification_token = NULL, "
+                        "verification_token_expires_at = NULL"
+                    )
                 )
-            )
-            logger.info(
-                "Set verification_token and verification_token_expires_at to NULL "
-                "for all existing users."
-            )
+                logger.info(
+                    "Set verification_token and verification_token_expires_at to NULL "
+                    "for all existing users."
+                )
 
         except Exception as e:
             logger.error(f"Email verification migration failed: {e}")

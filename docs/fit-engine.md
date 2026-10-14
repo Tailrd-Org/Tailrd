@@ -90,14 +90,13 @@ This must be revisited before any demographic data is collected (a separate sche
    16 bytes, for example `python -c "import secrets; print(secrets.token_urlsafe(32))"`. Never
    commit it. Without it the feed shows no scores. Use the same value wherever the prod database
    is shared (a Preview that writes to it included).
-2. **Smoke-test the Postgres migration on the Neon Development branch** (never main). The
-   migration (`backend/migrations/add_fit_engine.py`) adds seven nullable columns to
-   `job_match_scores`, drops NOT NULL on `score`, and the app's `create_all` creates
-   `match_traces`, `match_calibration` and `match_fingerprints`. It is catalog-only and
-   additive, but it has only been verified against SQLite and the recorded SQL. Start the app
-   once against Development, then check the columns and tables exist. The 2026-10-13 dry run
-   found Development still on the old schema (no `outcome` column, no `match_traces`), so this
-   has not been done yet.
+2. **Check `REQUIRE_EMAIL_VERIFICATION` before the push.** Until this branch,
+   `add_email_verification` re-ran its grandfather clause on every startup, marking every user
+   verified and clearing every pending verification token, so the email gate never took effect.
+   It now runs once (the run that adds the column). If the gate is on (the default) and
+   verification emails do not reliably arrive, new email-and-password signups will be blocked
+   until they verify; set `REQUIRE_EMAIL_VERIFICATION=false` on Vercel for the beta in that case.
+   Google sign-in is unaffected.
 3. **Ship extension 0.5.1 together with the backend.** Build `chrome-extension` (`npm run
    build`) at version 0.5.1 and upload it to the Store; do not upload the 0.5.0 zip built
    earlier (31a4371), which predates the fix. The backend deploy and the 0.5.1 Store upload must
@@ -111,11 +110,10 @@ This must be revisited before any demographic data is collected (a separate sche
    `MATCH_HOLDOUT_BUNDLE_URL` as environment secrets, release branches only and a required
    reviewer; `holdout-guard` as a required status check; protection for the `holdout-ledger`
    branch.
-5. **Fix the package-lock drift.** `npm ci` fails because a `package-lock.json` does not match
-   its `package.json`: Task 9.4 hit it in `frontend/` (esbuild 0.28.2 missing from the lock) and
-   Task 9.3 saw the same kind of drift in `chrome-extension/`. Run `npm install` once in each,
-   check the diff and commit the lock files, so CI and fresh checkouts install cleanly. The drift
-   predates the match-engine work.
+Done by the build controller on 2026-10-13: the Postgres migration smoke test on the Neon
+Development branch (all fit-engine columns and tables created, idempotent on a second run, lock
+guards held, row counts unchanged), and the package-lock resync in `frontend/` and
+`chrome-extension/` (`npm ci` succeeds in both).
 
 ## Decisions
 
