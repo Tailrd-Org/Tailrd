@@ -207,7 +207,9 @@ def test_work_authorisation_and_location_come_from_the_saved_answers(db_session)
     auth = parsed.resume.work_auth
     assert auth is not None
     assert auth.authorized_countries == ("CA",)
-    assert auth.needs_sponsorship is True  # not authorised in the US, the other country of interest
+    # D-61 amendment (decide-b round 4): "not authorised in the US" is a need scoped to the US, so
+    # no global flag: a US posting warns, never fails, and the Canadian one passes.
+    assert auth.needs_sponsorship is None
     assert any(place.country == "CA" and place.region == "ON" for place in parsed.resume.locations)
 
 
@@ -221,6 +223,64 @@ def test_a_general_sponsorship_answer_does_not_reach_another_country(db_session)
     auth = resume_for_profile(_profile(db_session), settings).resume.work_auth
     assert auth.authorized_countries == ("CA",)
     assert auth.needs_sponsorship is None
+
+
+# D-61 amendment (decide-b round 4, review3's engine table): a sponsorship need scoped to some
+# countries never becomes the global flag, so it can never FAIL a country whose authorisation is
+# merely unknown; and the authorised list is exactly the countries with a positive status.
+_REFUSED = "refused"
+_NAMED = "named"
+
+
+def _gate_for(fields: dict, residence, country: str, policy: str):
+    from matcher.models import JobPosting, WorkAuthGate
+    from matcher.score.gates import _work_authorization
+
+    config = get_engine().config
+    work_auth = fit_engine._profile_work_auth(fields, "", residence, config)
+    gate = (WorkAuthGate(countries=(country,), sponsorship_available=False) if policy == _REFUSED
+            else WorkAuthGate(countries=(country,)))
+    return work_auth, _work_authorization(gate, JobPosting(gates=(gate,)), work_auth, config).status.value
+
+
+@pytest.mark.parametrize("policy", [_REFUSED, _NAMED])
+@pytest.mark.parametrize("text,residence,expected", [
+    # review3 #42, #210, #211: the citizen's (or PR's) own country passes; the US need stays scoped.
+    ("Canada: citizen\nUSA: needs sponsorship", None, {"CA": {"PASS"}, "US": {"WARN"}}),
+    ("Canada: Citizen\nUS: Requires sponsorship", None, {"CA": {"PASS"}, "US": {"WARN"}}),
+    ("Canada: PR\nUS: need visa", None, {"CA": {"PASS"}, "US": {"WARN"}}),
+    # review3 #71: a US posting passes or warns, never fails; the Canadian one is never a PASS.
+    ("American living in Toronto, no Canadian work permit", "CA", {"US": {"PASS", "WARN"}, "CA": {"WARN"}}),
+    ("American living in Toronto, no Canadian work permit", None, {"US": {"PASS", "WARN"}, "CA": {"WARN"}}),
+    # review3's FAIL-on-unknown rows: a US No never fails a Canadian posting.
+    ("Not authorized to work in the US", None, {"CA": {"WARN"}, "US": {"WARN"}}),
+    ("I am not legally allowed to work in the United States", None, {"CA": {"WARN"}, "US": {"WARN"}}),
+    ("Are you legally authorized to work in the US? No", None, {"CA": {"WARN"}, "US": {"WARN"}}),
+])
+def test_a_scoped_sponsorship_need_never_fails_another_country(text, residence, expected, policy):
+    for country, allowed in expected.items():
+        work_auth, status = _gate_for({"workAuthorization": text}, residence, country, policy)
+        assert status in allowed, (country, work_auth, status)
+        assert work_auth is None or work_auth.needs_sponsorship is not True
+
+
+def test_an_unscoped_sponsorship_need_is_the_global_flag():
+    # Nothing scoped to a country: "Yes, I need sponsorship" applies everywhere.
+    work_auth, status = _gate_for({"workAuthorization": "", "requiresSponsorship": "Yes"}, "CA", "US", _REFUSED)
+    assert work_auth.needs_sponsorship is True and status == "FAIL"
+
+
+def test_the_authorised_list_is_exactly_the_countries_with_a_positive_status():
+    config = get_engine().config
+    work_auth = fit_engine._profile_work_auth({"workAuthorization": "Canadian citizen"}, "", None, config)
+    assert work_auth.authorized_countries == ("CA",)
+    # "would" and "relocate" are outside the allow-list vocabulary (D-61 amendment): no positive status
+    # for any country, so not even Canada is listed.
+    work_auth = fit_engine._profile_work_auth(
+        {"workAuthorization": "Canadian citizen; would relocate to the US on a TN"}, "", None, config)
+    assert work_auth is None or work_auth.authorized_countries == ()
+    work_auth = fit_engine._profile_work_auth({"workAuthorization": "green card - pending"}, "", None, config)
+    assert work_auth is None or work_auth.authorized_countries == ()
 
 
 def test_unknown_work_authorisation_stays_unknown(db_session):
@@ -359,7 +419,8 @@ def test_the_fingerprint_changes_when_the_resume_is_edited(db_session):
 def test_the_fingerprint_changes_when_the_profile_facts_change(db_session):
     profile = _profile(db_session)
     before = current_fingerprints(profile, None)
-    settings = _settings(db_session, prefilled={"Authorized to work in the US": "No"})
+    # An unscoped need (D-61 amendment, decide-b round 4): a scoped one no longer sets the flag.
+    settings = _settings(db_session, prefilled={"Do you now or in the future require sponsorship?": "Yes"})
     assert current_fingerprints(profile, settings) != before
 
 
@@ -443,7 +504,8 @@ def test_stale_ai_and_local_rows_are_rescored(db_session):
 
 def test_a_gate_fail_stores_no_score(db_session):
     _user(db_session)
-    _settings(db_session, prefilled={"Authorized to work in the US": "No"},
+    # An unscoped sponsorship need is the global flag (D-61 amendment, decide-b round 4).
+    _settings(db_session, prefilled={"Do you now or in the future require sponsorship?": "Yes"},
               address_city="Toronto", address_state="ON", country="Canada")
     profile = _profile(db_session)
     job = _job(db_session, 1, NO_SPONSOR, locations=SEATTLE, country="US")

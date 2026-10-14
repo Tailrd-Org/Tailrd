@@ -78,16 +78,31 @@ export const COUNTRIES: Country[] = [
   { code: "GH", name: "Ghana", continent: "Africa", aliases: ["ghanaian"] },
 ];
 
+/**
+ * A lookup table with no prototype: a user's string ("constructor",
+ * "__proto__", "toString") indexes it as an unknown key, never as an inherited
+ * Object.prototype member (a city named "constructor" crashed the location
+ * facts, owner decisions 2026-10-13).
+ */
+export function ownKeys<T>(entries: Record<string, T>): Record<string, T> {
+  return Object.assign(Object.create(null) as Record<string, T>, entries);
+}
+
+/** `table[key]` only when the table itself holds that key. */
+export function ownValue<T>(table: Record<string, T>, key: string): T | null {
+  return Object.hasOwn(table, key) ? table[key] : null;
+}
+
 /** International dialing code (digits after "+") of each country above. A
  *  phone picker reads back "+1" for the "Canada" it was given (Greenhouse). */
-export const DIAL_CODES: Record<string, string> = {
+export const DIAL_CODES: Record<string, string> = ownKeys({
   US: "1", CA: "1", MX: "52", GB: "44", IE: "353", FR: "33", DE: "49", NL: "31", BE: "32", ES: "34",
   PT: "351", IT: "39", CH: "41", AT: "43", SE: "46", NO: "47", DK: "45", FI: "358", PL: "48", CZ: "420",
   RO: "40", GR: "30", UA: "380", TR: "90", IL: "972", AE: "971", SA: "966", IN: "91", PK: "92", BD: "880",
   LK: "94", CN: "86", HK: "852", TW: "886", JP: "81", KR: "82", SG: "65", MY: "60", PH: "63", VN: "84",
   TH: "66", ID: "62", AU: "61", NZ: "64", BR: "55", AR: "54", CL: "56", CO: "57", PE: "51", NG: "234",
   KE: "254", ZA: "27", EG: "20", MA: "212", GH: "233",
-};
+});
 
 export interface Region {
   code: string;
@@ -203,7 +218,7 @@ export function findPostalCode(text: string): { code: string; country: string } 
  * evidence of its country. Evidence, not proof (there is a London, Ontario):
  * facts derived from this list are capped at MEDIUM confidence and never fill.
  */
-const CITY_COUNTRY: Record<string, string> = {
+const CITY_COUNTRY: Record<string, string> = ownKeys({
   toronto: "CA", montreal: "CA", vancouver: "CA", ottawa: "CA", calgary: "CA", edmonton: "CA",
   winnipeg: "CA", mississauga: "CA", brampton: "CA", hamilton: "CA", kitchener: "CA", waterloo: "CA",
   markham: "CA", "quebec city": "CA", halifax: "CA", victoria: "CA", saskatoon: "CA", regina: "CA",
@@ -211,10 +226,10 @@ const CITY_COUNTRY: Record<string, string> = {
   "new york": "US", "new york city": "US", nyc: "US", "san francisco": "US", seattle: "US", boston: "US",
   chicago: "US", austin: "US", "los angeles": "US", "san jose": "US", "palo alto": "US", denver: "US",
   atlanta: "US", miami: "US", dallas: "US", houston: "US", "washington dc": "US", philadelphia: "US",
-};
+});
 
 export function countryHintForCity(city: string): string | null {
-  return CITY_COUNTRY[geoNorm(city)] ?? null;
+  return ownValue(CITY_COUNTRY, geoNorm(city));
 }
 
 /**
@@ -223,7 +238,7 @@ export function countryHintForCity(city: string): string | null {
  * city of the name. Used only to tell that an office is somewhere an applicant
  * who will not move does not live.
  */
-const CITY_REGION: Record<string, string> = {
+const CITY_REGION: Record<string, string> = ownKeys({
   "new york": "NY", "new york city": "NY", nyc: "NY", "san francisco": "CA", seattle: "WA", boston: "MA",
   chicago: "IL", austin: "TX", "los angeles": "CA", "san jose": "CA", "palo alto": "CA", "mountain view": "CA",
   "menlo park": "CA", sunnyvale: "CA", "san diego": "CA", denver: "CO", atlanta: "GA", miami: "FL",
@@ -232,11 +247,11 @@ const CITY_REGION: Record<string, string> = {
   redmond: "WA", bellevue: "WA",
   toronto: "ON", montreal: "QC", vancouver: "BC", ottawa: "ON", calgary: "AB", edmonton: "AB",
   mississauga: "ON", markham: "ON", "quebec city": "QC",
-};
+});
 
 /** "TX" for "Austin": a well-known office city's state or province code. */
 export function regionHintForCity(city: string): string | null {
-  return CITY_REGION[geoNorm(city)] ?? null;
+  return ownValue(CITY_REGION, geoNorm(city));
 }
 
 /** US states (and DC) and Canadian provinces that share a border. */
@@ -283,7 +298,7 @@ export function sameMetro(a: string, b: string): boolean | null {
   const x = geoNorm(a);
   const y = geoNorm(b);
   if (x === y) return true;
-  const known = (c: string): boolean => c in CITY_REGION || METROS.some((m) => m.includes(c));
+  const known = (c: string): boolean => Object.hasOwn(CITY_REGION, c) || METROS.some((m) => m.includes(c));
   if (!known(x) || !known(y)) return null;
   return METROS.some((m) => m.includes(x) && m.includes(y));
 }

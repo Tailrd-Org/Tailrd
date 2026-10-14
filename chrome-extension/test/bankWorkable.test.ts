@@ -90,8 +90,9 @@ describe("working without sponsorship now, and later (OnLogic)", () => {
   it("a U.S. citizen is asked about, not anyone authorized (Credence)", () => {
     const q = "Are you legally authorized to work in the U.S. as a U.S. citizen or Fully Naturalized U.S. Citizen?";
     expect(ask("BOOTCAMP_CAREER_GAP", q, YES_NO)).toBe("Yes");
-    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("No");
-    expect(ask("US_OPT_ANALYST", q, YES_NO)).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("abstain");
+    expect(ask("US_OPT_ANALYST", q, YES_NO)).toBe("abstain");
   });
 });
 
@@ -103,7 +104,8 @@ describe("citizenship is not residence (Open Data Jobs)", () => {
     expect(ask("US_OPT_ANALYST", q, opts, US, "checkboxes")).not.toBe("United States of America");
     expect(ask("BOOTCAMP_CAREER_GAP", q, opts, US, "checkboxes")).toBe("United States of America");
     expect(ask("COMPLETE_CANADIAN", q, opts, US, "checkboxes")).toBe("Canada");
-    expect(ask("BERLIN_STAFF", q, opts, US, "checkboxes")).toBe("Other");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("BERLIN_STAFF", q, opts, US, "checkboxes")).toBe("abstain");
   });
 });
 
@@ -241,12 +243,14 @@ describe("blanks now answered", () => {
   it("a U.S. person is a citizen or permanent resident, never a visa holder (Jeffrey M. Consulting)", () => {
     const q = "This position involves access to export-controlled information. Are you a “U.S. person” as defined under applicable U.S. export-control regulations, including ITAR and EAR?";
     expect(ask("BOOTCAMP_CAREER_GAP", q, YES_NO)).toBe("Yes");
-    expect(ask("US_OPT_ANALYST", q, YES_NO)).toBe("No");
-    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("US_OPT_ANALYST", q, YES_NO)).toBe("none");
+    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("none");
   });
 
   it("an EU citizen may work in another EU country (Genetec's Austria)", () => {
-    expect(ask("BERLIN_STAFF", "Are you legally authorized to work in Austria?", YES_NO, { jobCountry: "AT", company: "Genetec" })).toBe("Yes");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("BERLIN_STAFF", "Are you legally authorized to work in Austria?", YES_NO, { jobCountry: "AT", company: "Genetec" })).toBe("abstain");
   });
 
   it("French: living in, and allowed to work in, Canada (Mila)", () => {

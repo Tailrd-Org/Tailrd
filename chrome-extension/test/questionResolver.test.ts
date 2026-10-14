@@ -33,6 +33,14 @@ function ask(
 
 const value = (r: ReturnType<typeof ask>) => (r && r.status === "answer" ? r.value : r?.status ?? null);
 
+describe("M-3 (decide-b review): a condition word named like an Object.prototype key", () => {
+  it("does not crash the resolver", () => {
+    for (const w of ["constructor", "__proto__", "toString", "valueOf"]) {
+      expect(() => ask(`If you ${w} not in Canada, are you willing to relocate?`, { options: YES_NO })).not.toThrow();
+    }
+  });
+});
+
 describe("work authorization, country-aware", () => {
   it("Canadian citizen: Canada Yes, United States ABSTAIN (never Yes)", () => {
     expect(value(ask("Are you legally authorized to work in Canada?", { options: YES_NO }))).toBe("Yes");
@@ -198,7 +206,8 @@ describe("question bank, status choices and acknowledgements (Greenhouse, 2026-1
     const q = "Will you now or in the future require sponsorship for a visa to remain in your current location?";
     const opts = ["No", "Yes, Netherlands Highly Skilled Migrant Visa", "Yes, Ireland Highly Skilled Worker Visa", "Yes, EU Blue Card", "Yes, USMCA Professional (TN) Visa (USA)", "Yes, F-1 Visa OPT (USA)", "Yes, but not one of the visas listed here"];
     expect(choose(q, opts, canadian)).toBe("No");
-    expect(choose(q, opts, berlin)).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(choose(q, opts, berlin)).toBe("abstain");
   });
 
   it("a notice to acknowledge, its only option Yes, is acknowledged (Riot's E-Verify)", () => {
@@ -693,7 +702,8 @@ describe("embargoed places, listed (question bank 2026-10-05: Databricks, Planet
     const { INDIA_NEW_GRAD, BERLIN_STAFF } = await P();
     const o = { options: DATABRICKS, kind: "multiChoice" as never, controlType: "checkboxGroup" as const };
     expect(value(ask(LIST, o, INDIA_NEW_GRAD, US_JOB))).toBe("None of the above");
-    expect(value(ask(LIST, o, BERLIN_STAFF, US_JOB))).toBe("None of the above");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(value(ask(LIST, o, BERLIN_STAFF, US_JOB))).toBe("abstain");
   });
 
   it("…but never without the citizenship, nor when an option names the applicant's country", async () => {

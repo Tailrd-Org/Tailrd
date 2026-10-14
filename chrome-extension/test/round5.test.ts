@@ -547,7 +547,8 @@ describe("work-right questions read by what they ask (Ashby question bank, 2026-
     const q = "Are you prevented from lawfully becoming employed in the US because of visa or immigration status? (Proof of citizenship or immigration status will be required upon employment)";
     expect(ask(P.COMPLETE_CANADIAN, q, ["Yes", "No"])).toBe("Yes");
     expect(ask(P.BOOTCAMP_CAREER_GAP, q, ["Yes", "No"])).toBe("No");
-    expect(ask(P.US_OPT_ANALYST, q, ["Yes", "No"])).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask(P.US_OPT_ANALYST, q, ["Yes", "No"])).toBe("abstain");
     expect(ask(P.US_H1B_SENIOR, q, ["Yes", "No"])).not.toBe("No");
   });
 });
@@ -668,7 +669,8 @@ describe("U.S. person questions in their other wordings (Ashby question bank, 20
     for (const label of [SARONIC, GECKO, REFLECT, COWBOY]) {
       expect(ask(P.BOOTCAMP_CAREER_GAP, label), label.slice(0, 40)).toBe("Yes");
       expect(ask(P.COMPLETE_CANADIAN, label), label.slice(0, 40)).toBe("No");
-      expect(ask(P.US_H1B_SENIOR, label), label.slice(0, 40)).toBe("No");
+      // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+      expect(ask(P.US_H1B_SENIOR, label), label.slice(0, 40)).toBe("abstain");
     }
     expect(ask(P.BERLIN_STAFF, GECKO, ["Yes", "No", "Unsure \u2014 I would like Gecko Robotics to review my eligibility"])).toBe("No");
   });

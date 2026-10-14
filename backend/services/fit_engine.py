@@ -304,10 +304,11 @@ def _profile_work_auth(fields: Mapping[str, str], clearance: str, residence: Opt
                        config: EngineConfig) -> Optional[WorkAuth]:
     """The work-authorisation facts (DECISIONS D-61 inputs) from the saved answers.
 
-    authorised countries: those where ``authorized_in`` says True (US, CA, the residence and any
-    country the answer names). needs_sponsorship: from ``needs_sponsorship_in`` over the countries
-    of interest the person is not known to be authorised in; True when any says True, False when
-    all say False, else None. Citizenships are never inferred here (a stated citizenship that
+    authorised countries: exactly those where ``authorized_in`` says True (US, CA, the residence and
+    any country the answer names). needs_sponsorship: from ``needs_sponsorship_in`` over the
+    countries of interest the person is not known to be authorised in; True only when a need is
+    unscoped (the applicant's own sponsorship answer with no country-scoped status, D-61
+    amendment), False when all say False, else None. Citizenships are never inferred here (a stated citizenship that
     misses a posting's country could fail a gate, and the profile cannot say "only"). An answer
     of "Active clearance" is the configured unknown-level token (D-63). Nothing stated: None.
     """
@@ -325,7 +326,12 @@ def _profile_work_auth(fields: Mapping[str, str], clearance: str, residence: Opt
     answers = [profile_facts.needs_sponsorship_in(auth, code, residence) for code in interest]
     known = [fact.value for fact in answers if fact is not None]
     if any(value is True for value in known):
-        needs = True
+        # D-61 amendment (decide-b round 4): the flag is one boolean for every country, so only an
+        # unscoped need sets it: the applicant's own sponsorship answer, with nothing in the work
+        # authorisation scoped to a country. A need scoped to some countries ("US: needs
+        # sponsorship", "not authorised in the US") stays None, so the gate warns and never fails a
+        # country whose authorisation is merely unknown.
+        needs = True if (auth.stated_sponsorship is True and not auth.by_country) else None
     elif known and len(known) == len(answers):
         needs = False
     clearances: tuple[str, ...] = ()

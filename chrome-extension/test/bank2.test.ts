@@ -44,10 +44,14 @@ describe("the place the applicant lives, in other words (Datacor)", () => {
   const AUTH = "Are you legally authorized to work in the location you currently reside?";
   const SPONSOR = "Will you now, or in the future, require sponsorship for a work permit for the location you currently reside?";
   it("citizens at home are authorized there and need no sponsorship", () => {
-    for (const who of ["COMPLETE_CANADIAN", "BERLIN_STAFF", "INDIA_NEW_GRAD", "BOOTCAMP_CAREER_GAP"] as Persona[]) {
+    for (const who of ["COMPLETE_CANADIAN", "INDIA_NEW_GRAD", "BOOTCAMP_CAREER_GAP"] as Persona[]) {
       expect(ask(who, AUTH, YES_NO), who).toBe("Yes");
       expect(ask(who, SPONSOR, YES_NO), who).toBe("No");
     }
+    // The allow-list layer (D-61 amendment): "German citizen (EU)" holds "EU", outside the closed
+    // vocabulary, so the citizenship is unknown and the device abstains.
+    expect(ask("BERLIN_STAFF", AUTH, YES_NO)).toBe("abstain");
+    expect(ask("BERLIN_STAFF", SPONSOR, YES_NO)).toBe("abstain");
   });
   it("visa holders in the US keep their answers", () => {
     expect(ask("US_H1B_SENIOR", AUTH, YES_NO)).toBe("Yes");
@@ -132,7 +136,9 @@ describe("in our <city> office, for someone who will not move (Cloudflare, Gifto
 
 describe("US citizenship for someone on a student visa (Covar)", () => {
   it("F-1 OPT is not citizenship", () => {
-    expect(ask("US_OPT_ANALYST", "Are you a US citizen? Eligibility for a US security clearance is required for this role, and that requires US citizenship.", YES_NO)).toBe("No");
+    // The allow-list layer (D-61 amendment): "F-1 STEM OPT (EAD valid through June 2028)" holds
+    // words outside the closed vocabulary, so nothing is known and the device abstains.
+    expect(ask("US_OPT_ANALYST", "Are you a US citizen? Eligibility for a US security clearance is required for this role, and that requires US citizenship.", YES_NO)).toBe("abstain");
   });
 });
 

@@ -29,6 +29,7 @@ import {
   sameMetro,
   DIAL_CODES,
   geoNorm,
+  ownKeys,
   regionFromText,
   type Country,
 } from "./geo";
@@ -2219,13 +2220,13 @@ const CURRENCY_OPTION: Record<string, RegExp> = {
   INR: /\bindian rupees?\b|\binr\b/,
   JPY: /\bjapanese yen\b|\bjpy\b/,
 };
-const DOLLAR_BY_COUNTRY: Record<string, string> = { US: "USD", CA: "CAD", AU: "AUD", NZ: "NZD", SG: "SGD", HK: "HKD" };
+const DOLLAR_BY_COUNTRY: Record<string, string> = ownKeys({ US: "USD", CA: "CAD", AU: "AUD", NZ: "NZD", SG: "SGD", HK: "HKD" });
 
 /** A country's currency, for the countries salaries are asked in most. */
-const CURRENCY_BY_COUNTRY: Record<string, string> = {
+const CURRENCY_BY_COUNTRY: Record<string, string> = ownKeys({
   ...DOLLAR_BY_COUNTRY, GB: "GBP", IN: "INR", JP: "JPY",
   DE: "EUR", FR: "EUR", NL: "EUR", IE: "EUR", ES: "EUR", IT: "EUR", PT: "EUR", BE: "EUR", AT: "EUR", FI: "EUR",
-};
+});
 
 /** The currency a salary is written in: its symbol or code, "$" by the
  *  applicant's country; null for a bare number. */
@@ -3117,13 +3118,13 @@ const MAIN_CLAUSE =
  *  position, will you require sponsorship?"). */
 const HYPOTHETICAL = /\b(hired|selected|offered|successful|chosen|an offer|invited|moved? forward|join(ing)? (us|our|the team))\b/;
 /** The auxiliary a condition opens with, and whether it negates. */
-const CONDITION_AUX: Record<string, [string, boolean]> = {
+const CONDITION_AUX: Record<string, [string, boolean]> = ownKeys({
   are: ["Are", false], were: ["Were", false], have: ["Have", false], had: ["Had", false],
   do: ["Do", false], did: ["Did", false], will: ["Will", false], would: ["Would", false],
   can: ["Can", false], could: ["Could", false],
   arent: ["Are", true], werent: ["Were", true], havent: ["Have", true], hadnt: ["Had", true],
   dont: ["Do", true], didnt: ["Did", true], wont: ["Will", true], cant: ["Can", true], cannot: ["Can", true],
-};
+});
 /** An option saying the question does not apply ("I am not a current or former
  *  government employee", "N/A"). */
 const NOT_APPLICABLE =

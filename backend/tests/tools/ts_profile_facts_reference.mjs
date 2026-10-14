@@ -102,7 +102,7 @@ const tables = {
   US_STATES: { value: geo.US_STATES },
   CITY_COUNTRY: lift(
     geoSource,
-    /const CITY_COUNTRY: Record<string, string> = (\{[\s\S]*?\n\});/,
+    /const CITY_COUNTRY: Record<string, string> = (?:ownKeys\()?(\{[\s\S]*?\n\})\)?;/,
     "CITY_COUNTRY in geo.ts",
   ),
   FREE_MOVEMENT: lift(

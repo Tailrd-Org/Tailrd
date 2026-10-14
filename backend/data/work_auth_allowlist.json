@@ -1,0 +1,30 @@
+{
+  "_about": "Closed vocabulary of the allow-list layer for the work-authorization reader (decide-b, D-61 amendment: positives only from a fully recognised answer). Read by chrome-extension/src/content/profileFacts.ts and backend/services/profile_facts.py. A positive status (citizen, permanent resident, authorized, visa held) is emitted only when every word of the answer is listed here or is a country name, adjective or abbreviation of the geo tables (plus 'country' below); one word outside it and no country gets a positive status. A labelled multi-line answer ('Canada: citizen' on one line, 'US: no' on the next) is checked line by line. Matched after NFKC, ASCII case folding and whitespace collapsing; any non-ASCII letter left after NFKC is outside the vocabulary. Numbers, punctuation and whitespace are always allowed. Family rules: 'negative_answer' words are recognised but a positive never stands beside one ('US citizen? No' is not a Yes); 'possessive' counts only before a status or visa (country names may stand between: 'my Canadian citizenship'); 'visa_preposition' counts only before a visa, optionally after 'a' or 'an' ('On OPT', never 'working on my green card'). Never add words for third parties, negation, the past, the future or pending wording: they must stay outside so they cause unknown. 'holder' and 'on' are the two words beyond the ruling's list, needed by its own required answers 'Green card holder' and 'On OPT'.",
+  "answer": ["yes", "y", "yeah", "yep", "sure", "correct", "true"],
+  "negative_answer": ["no", "n", "false"],
+  "frame": ["i", "i'm", "im", "i am", "am", "a", "an", "the", "me", "have", "hold", "holding", "with", "have got", "holder"],
+  "possessive": ["my"],
+  "visa_preposition": ["on"],
+  "status": [
+    "citizen", "citizenship", "national", "permanent resident", "pr", "pr card", "green card", "lpr",
+    "authorized", "authorised", "eligible to work", "legally", "work authorization", "work authorisation", "status"
+  ],
+  "visa": [
+    "work permit", "open work permit", "pgwp", "study permit", "opt", "stem opt", "cpt",
+    "h-1b", "h1b", "tn", "l-1", "e-3", "o-1", "visa"
+  ],
+  "country": ["ca", "u.s.", "u.s", "u. s.", "u. s", "u.s.a.", "u.s.a", "u. s. a.", "u.k.", "u.k", "u. k."],
+  "connector": ["and", "&", "/", "plus", "both", "in", "of", "for", "to", "work", "working", "the", "in the"],
+  "sponsorship": [
+    "do not require sponsorship", "do not need sponsorship", "do not require visa sponsorship", "do not need visa sponsorship",
+    "don't require sponsorship", "don't need sponsorship", "don't require visa sponsorship", "don't need visa sponsorship",
+    "dont require sponsorship", "dont need sponsorship",
+    "does not require sponsorship", "does not need sponsorship", "doesn't require sponsorship", "doesn't need sponsorship",
+    "no sponsorship", "no sponsorship needed", "no sponsorship required", "no visa sponsorship", "no visa sponsorship needed",
+    "no visa sponsorship required", "no sponsorship is needed", "no sponsorship is required",
+    "without sponsorship", "without visa sponsorship", "without any sponsorship",
+    "sponsorship not needed", "sponsorship not required", "sponsorship is not needed", "sponsorship is not required",
+    "not requiring sponsorship"
+  ],
+  "sponsorship_suffixes": ["now or in the future", "now or in future"]
+}
