@@ -136,9 +136,10 @@ def test_an_explicit_no_is_still_a_no():
 
 
 def test_the_applicants_own_clause_keeps_its_status():
+    # One answer, so the partner's words leave Canada unknown too (the allow-list layer, D-61
+    # amendment); never a No.
     a = _auth("My partner is an American citizen. I am a Canadian citizen.")
-    ca = a.by_country["CA"]
-    assert (ca.authorized, ca.basis) == (True, "citizen")
+    assert a.by_country.get("CA") is None or a.by_country["CA"].authorized is None
     ca = _auth("Canadian citizen").by_country["CA"]
     assert (ca.authorized, ca.needs_sponsorship, ca.basis) == (True, False, "citizen")
     us = _auth("US permanent resident").by_country["US"]
@@ -153,11 +154,12 @@ def test_a_negated_sponsorship_need_is_not_a_veto_on_the_status_beside_it():
         assert (c.authorized, c.basis) == (True, "citizen"), text
 
 
-def test_was_x_now_y_reads_y_as_the_current_status():
-    ca = _auth("Was on a study permit, now a Canadian PR").by_country["CA"]
-    assert (ca.authorized, ca.basis) == (True, "permanent_resident")
+def test_was_x_now_y_is_unknown_under_the_allow_list():
+    """"was" and "now" are outside the allow-list vocabulary (D-61 amendment)."""
+    a = _auth("Was on a study permit, now a Canadian PR")
+    assert a.by_country.get("CA") is None or a.by_country["CA"].authorized is None
     b = _auth("I was a US green card holder now I am a Canadian citizen")
-    assert (b.by_country["CA"].authorized, b.by_country["CA"].basis) == (True, "citizen")
+    assert b.by_country.get("CA") is None or b.by_country["CA"].authorized is None
     assert _basis(b, "US") != "permanent_resident"
 
 
@@ -189,7 +191,8 @@ def test_the_input_cap_is_4000_characters():
 
 
 def test_text_after_the_cap_is_not_read():
-    pad = "x" * INPUT_CAP
+    # Padded with a word of the allow-list vocabulary, so only the cap decides.
+    pad = "a " * (INPUT_CAP // 2)
     assert "CA" not in _auth(f"{pad} Canadian citizen").by_country
     assert _basis(_auth(f"Canadian citizen {pad}"), "CA") == "citizen"
     assert polarity_of(f"{pad} yes") is None

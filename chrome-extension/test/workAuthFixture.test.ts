@@ -35,10 +35,11 @@ interface Case {
 
 const NON_CITIZEN = ["permanent_resident", "work_permit", "student", "denied"];
 const NON_PR = ["work_permit", "student", "denied"];
-/** Lost value on the whole fixture (467 phrasings) after fix round 5: the veto
- *  lexicon trades value for zero wrong yeses (24 before the round on the same
- *  467; round 4 left 1 on the first 348). */
-const LOST_VALUE_CEILING = 49;
+/** Lost value on the whole fixture (567 phrasings) after the allow-list layer
+ *  (D-61 amendment: positives only from a fully recognised answer): 57 before
+ *  it on the same 567 (49 on the first 467 after round 5). The ruling accepts
+ *  the rise for zero wrong yeses on phrasings no blocklist could enumerate. */
+const LOST_VALUE_CEILING = 262;
 
 const CASES: Case[] = JSON.parse(readFileSync(join(__dirname, "fixtures", "work-auth-cases.json"), "utf8"));
 
@@ -75,8 +76,8 @@ export function gradeCase(c: Case): string[] {
 }
 
 describe("shared work-authorization fixture", () => {
-  it("has the 467 reviewer phrasings", () => {
-    expect(CASES.length).toBe(467);
+  it("has the 567 reviewer phrasings", () => {
+    expect(CASES.length).toBe(567);
   });
   for (const [i, c] of CASES.entries()) {
     it(`#${i} [${c.source}] ${JSON.stringify(c.wa)}${c.rs ? ` rs=${JSON.stringify(c.rs)}` : ""}${c.res ? ` res=${c.res}` : ""}`, () => {

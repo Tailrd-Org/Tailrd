@@ -37,9 +37,12 @@ describe("a negated country is never authorized", () => {
     expect(authorizedIn(a, "US", "CA")).toMatchObject({ value: false, confidence: "high" });
   });
   for (const [text, us] of cases) {
-    it(`"${text}": Canada yes, the US ${us === false ? "no" : "unknown"}`, () => {
+    it(`"${text}": Canada unknown, the US ${us === false ? "no" : "unknown"}`, () => {
       const a = workAuthFacts(profile({ workAuthorization: text }));
-      expect(authorizedIn(a, "CA", "CA")?.value).toBe(true);
+      // Each statement holds a word outside the closed vocabulary ("but",
+      // "not", "except", "only"): the allow-list layer (D-61 amendment) leaves
+      // Canada unknown, never a No.
+      expect(authorizedIn(a, "CA", "CA")).toBeNull();
       const usAuth = authorizedIn(a, "US", "CA");
       if (us === null) expect(usAuth).toBeNull();
       else expect(usAuth).toMatchObject({ value: false, confidence: "high" });
@@ -50,12 +53,12 @@ describe("a negated country is never authorized", () => {
   it("a denial scoped to one country does not deny the other", () => {
     const a = workAuthFacts(profile({ workAuthorization: "Not authorized to work in the US, but authorized to work in Canada" }));
     expect(authorizedIn(a, "US", "CA")?.value).toBe(false);
-    expect(authorizedIn(a, "CA", "CA")?.value).toBe(true);
+    expect(authorizedIn(a, "CA", "CA")).toBeNull(); // allow-list (D-61 amendment): unknown
   });
 
   it("a negation over two countries joined by 'and' negates both", () => {
     const a = workAuthFacts(profile({ workAuthorization: "Authorized to work in Canada, not in the US and the UK" }));
-    expect(authorizedIn(a, "CA", "CA")?.value).toBe(true);
+    expect(authorizedIn(a, "CA", "CA")).toBeNull(); // allow-list (D-61 amendment): unknown
     expect(authorizedIn(a, "US", "CA")?.value).toBe(false);
     expect(authorizedIn(a, "GB", "CA")?.value).toBe(false);
   });
@@ -75,14 +78,13 @@ describe("a negated country is never authorized", () => {
 
   it("not authorized in the US means sponsorship is needed there", () => {
     const a = workAuthFacts(profile({ workAuthorization: "Canadian citizen, not authorized in the US" }));
-    expect(authorizedIn(a, "CA", "CA")).toMatchObject({ value: true });
-    expect(a.byCountry.get("CA")?.basis).toBe("citizen");
+    expect(authorizedIn(a, "CA", "CA")).toBeNull(); // allow-list (D-61 amendment): unknown
     expect(needsSponsorshipIn(a, "US", "CA")?.value).toBe(true);
   });
 
   it("'not a US citizen' alone leaves US authorization unknown, never authorized", () => {
     const a = workAuthFacts(profile({ workAuthorization: "Canadian citizen, not a US citizen" }));
-    expect(authorizedIn(a, "CA", "CA")?.value).toBe(true);
+    expect(authorizedIn(a, "CA", "CA")).toBeNull(); // allow-list (D-61 amendment): unknown
     expect(a.byCountry.get("US")?.authorized).not.toBe(true);
   });
 

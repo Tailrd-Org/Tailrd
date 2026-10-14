@@ -112,8 +112,10 @@ describe("veto: never a No, and clean segments keep their status", () => {
     expect(authorizedIn(auth("Not authorized to work in the US"), "US", null)?.value).toBe(false);
   });
   it("the applicant's own clause keeps its status", () => {
+    // One answer, so the partner's words leave Canada unknown too (the
+    // allow-list layer, D-61 amendment); never a No.
     const a = auth("My partner is an American citizen. I am a Canadian citizen.");
-    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(a.byCountry.get("CA")?.authorized ?? null).toBeNull();
     expect(auth("Canadian citizen").byCountry.get("CA")).toMatchObject({ authorized: true, needsSponsorship: false, basis: "citizen" });
     expect(auth("US permanent resident").byCountry.get("US")).toMatchObject({ authorized: true, basis: "permanent_resident" });
   });
@@ -123,11 +125,11 @@ describe("veto: never a No, and clean segments keep their status", () => {
       expect(auth(text).byCountry.get(code), text).toMatchObject({ authorized: true, basis: "citizen" });
     }
   });
-  it("'was X, now Y' reads Y as the current status", () => {
+  it("'was X, now Y' is unknown under the allow-list layer (\"was\", \"now\" are outside the vocabulary)", () => {
     const a = auth("Was on a study permit, now a Canadian PR");
-    expect(a.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "permanent_resident" });
+    expect(a.byCountry.get("CA")?.authorized ?? null).toBeNull();
     const b = auth("I was a US green card holder now I am a Canadian citizen");
-    expect(b.byCountry.get("CA")).toMatchObject({ authorized: true, basis: "citizen" });
+    expect(b.byCountry.get("CA")?.authorized ?? null).toBeNull();
     expect(b.byCountry.get("US")?.basis ?? null).not.toBe("permanent_resident");
   });
   it("'not currently authorized' is never split into a Yes", () => {
@@ -157,7 +159,8 @@ describe("input cap", () => {
     expect(INPUT_CAP).toBe(4000);
   });
   it("text after the cap is not read", () => {
-    const pad = "x".repeat(INPUT_CAP);
+    // Padded with a word of the allow-list vocabulary, so only the cap decides.
+    const pad = "a ".repeat(INPUT_CAP / 2);
     expect(auth(`${pad} Canadian citizen`).byCountry.has("CA")).toBe(false);
     expect(auth(`Canadian citizen ${pad}`).byCountry.get("CA")?.basis).toBe("citizen");
     expect(polarityOf(`${pad} yes`)).toBeNull();

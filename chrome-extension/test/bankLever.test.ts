@@ -392,7 +392,8 @@ describe("Lever bank blanks a stated fact answers", () => {
   it("a bulleted list of U.S.-person statuses over Yes / No (Woven by Toyota)", () => {
     const q = "Are you one of the following: \u2022 U.S. Citizen or National. \u2022 U.S. Lawful Permanent Resident. \u2022 Person granted Refugee status in the United States. \u2022 Person granted Asylum in the United States.";
     expect(ask("BOOTCAMP_CAREER_GAP", q, ["Yes", "No"])).toBe("Yes");
-    expect(ask("US_H1B_SENIOR", q, ["Yes", "No"])).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("US_H1B_SENIOR", q, ["Yes", "No"])).toBe(null);
     expect(ask("COMPLETE_CANADIAN", q, ["Yes", "No"])).toBe("No");
   });
   it("a U.S.-person list as options (Shield AI)", () => {

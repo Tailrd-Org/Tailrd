@@ -272,9 +272,13 @@ def test_an_unscoped_sponsorship_need_is_the_global_flag():
 
 def test_the_authorised_list_is_exactly_the_countries_with_a_positive_status():
     config = get_engine().config
+    work_auth = fit_engine._profile_work_auth({"workAuthorization": "Canadian citizen"}, "", None, config)
+    assert work_auth.authorized_countries == ("CA",)
+    # "would" and "relocate" are outside the allow-list vocabulary (D-61 amendment): no positive status
+    # for any country, so not even Canada is listed.
     work_auth = fit_engine._profile_work_auth(
         {"workAuthorization": "Canadian citizen; would relocate to the US on a TN"}, "", None, config)
-    assert work_auth.authorized_countries == ("CA",)
+    assert work_auth is None or work_auth.authorized_countries == ()
     work_auth = fit_engine._profile_work_auth({"workAuthorization": "green card - pending"}, "", None, config)
     assert work_auth is None or work_auth.authorized_countries == ()
 

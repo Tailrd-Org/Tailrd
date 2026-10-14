@@ -1204,6 +1204,143 @@ def _vetoed(lower_unit: str) -> bool:
     return bool(_VETO.search(_NEGATED_SPONSOR_PHRASE.sub(" ", lower_unit.replace("\u2019", "'"))))
 
 
+#: The closed vocabulary of the allow-list layer (decide-b, D-61 amendment: positives only from a
+#: fully recognised answer), shared with the extension: one file, read by both languages.
+_ALLOW_FILE = Path(__file__).resolve().parents[1] / "data" / "work_auth_allowlist.json"
+
+
+def _allow_family() -> dict[str, str]:
+    """Every term of the shared vocabulary and every country key, mapped to its family ("status",
+    "country", ...) (TS: ``ALLOW_FAMILY``)."""
+    out: dict[str, str] = {}
+    lists = json.loads(_ALLOW_FILE.read_text(encoding="utf-8"))
+    suffixes = lists.get("sponsorship_suffixes") or []
+    for family, words in lists.items():
+        if family.startswith("_") or family == "sponsorship_suffixes" or not isinstance(words, list):
+            continue
+        for w in words:
+            term = str(w).lower()
+            out.setdefault(term, family)
+            if family == "sponsorship":
+                for sfx in suffixes:
+                    out.setdefault(f"{term} {sfx}", family)
+    for k in _COUNTRY_KEYS:
+        out.setdefault(k, "country")
+    return out
+
+
+_ALLOW_FAMILY = MappingProxyType(_allow_family())
+
+
+def _escape_term(t: str) -> str:
+    return _REGEX_SPECIAL.sub(lambda m: "\\" + m.group(0), t).replace(" ", "\\s")
+
+
+def _by_length(terms) -> list[str]:
+    """Longest first, so the alternation takes the longest term that fits (TS: ``byLength``)."""
+    return sorted(terms, key=lambda k: (-len(k), k))
+
+
+_ALLOW_PUNCTUATED = re.compile(r"[^a-z0-9']")
+# One token: a term of several words or with punctuation ("permanent resident", "h-1b", "u.s."),
+# else a word, else one other character. A term never ends inside a word (TS: ``ALLOW_TOKEN``).
+_ALLOW_TOKEN = _js_regex(
+    "(" + "|".join(_escape_term(k) for k in _by_length(k for k in _ALLOW_FAMILY if _ALLOW_PUNCTUATED.search(k)))
+    + r")(?![a-z0-9]|'[a-z])|([a-z][a-z0-9']*)|.",
+    re.DOTALL,
+)
+_COUNTRY_TERM = "|".join(_escape_term(k) for k in _by_length(k for k, f in _ALLOW_FAMILY.items() if f == "country"))
+# "Canada:", "US / Canada:", "the U.S.:", "Canada -": the label of a labelled line (TS: ``ALLOW_LABEL``).
+_ALLOW_LABEL = _js_regex(
+    r"^\s?(?:the\s)?(?:" + _COUNTRY_TERM + r")(?:\s?(?:&|\/|\+|and)\s?(?:the\s)?(?:" + _COUNTRY_TERM + r")){0,7}"
+    "\\s?(?::|-|\\u2013|\\u2014)"
+)
+_ASCII_UPPER = re.compile("[A-Z]")
+
+
+def _has_non_ascii_letter(t: str) -> bool:
+    """A letter or mark outside ASCII, or an invisible format character: never in the vocabulary.
+    Every Cyrillic or Greek lookalike of a Latin letter is one (TS: ``NON_ASCII_LETTER``)."""
+    for ch in t:
+        if ord(ch) > 0x7F:
+            cat = unicodedata.category(ch)
+            if cat[0] in "LM" or cat == "Cf":
+                return True
+    return False
+
+
+def _fold_for_allow_list(text: str) -> Optional[str]:
+    """The answer as the vocabulary reads it: NFKC, whitespace collapsed, ASCII letters lowercased
+    (with no other letter left, that is the casefold), curly apostrophes straight. None when a
+    non-ASCII letter survives NFKC (TS: ``foldForAllowList``)."""
+    t = _trim(collapse_spaces(unicodedata.normalize("NFKC", text)))
+    if _has_non_ascii_letter(t):
+        return None
+    return _ASCII_UPPER.sub(lambda m: m.group(0).lower(), t).replace("‘", "'").replace("’", "'")
+
+
+def out_of_vocabulary(text: str) -> bool:
+    """Is the answer outside the closed vocabulary, for a positive status? (TS: ``outOfVocabulary``)
+
+    One word that is not listed or a non-ASCII letter is enough. So is a negative answer word ("US
+    citizen? No"), "my" before anything but a status or a visa (country names may stand between:
+    "my Canadian citizenship"), and "on" before anything but a visa, "a" or "an" aside ("On OPT",
+    never "working on my green card").
+    """
+    t = _fold_for_allow_list(text)
+    if t is None:
+        return True
+    tokens: list[tuple[str, str]] = []
+    for m in _ALLOW_TOKEN.finditer(t):
+        term = _JS_SPACES.sub(" ", m.group(1)) if m.group(1) is not None else m.group(2)
+        if term is None:
+            continue
+        family = _ALLOW_FAMILY.get(term)
+        if family is None or family == "negative_answer":
+            return True
+        tokens.append((term, family))
+
+    def family_at(j: int) -> str:
+        return tokens[j][1] if j < len(tokens) else ""
+
+    def term_at(j: int) -> str:
+        return tokens[j][0] if j < len(tokens) else ""
+
+    for i, (_, family) in enumerate(tokens):
+        j = i + 1
+        if family == "possessive":
+            while family_at(j) == "country":
+                j += 1
+            if family_at(j) not in ("status", "visa"):
+                return True
+        elif family == "visa_preposition":
+            if term_at(j) in ("a", "an"):
+                j += 1
+            if family_at(j) != "visa":
+                return True
+    return False
+
+
+def _out_of_vocabulary_ranges(text: str) -> list[tuple[int, int]]:
+    """The ranges of the answer that may bind no positive status: the whole answer when anything in
+    it is outside the vocabulary, or, in a labelled multi-line answer ("Canada: citizen\\nUS: no"),
+    each line that is (TS: ``outOfVocabularyRanges``)."""
+    lines: list[tuple[int, int]] = []
+    start = 0
+    for i in range(len(text) + 1):
+        if i < len(text) and text[i] != "\n":
+            continue
+        if _trim(text[start:i]):
+            lines.append((start, i))
+        start = i + 1
+    labelled = len(lines) >= 2 and all(
+        _ALLOW_LABEL.search(_fold_for_allow_list(text[a:b]) or "") for a, b in lines
+    )
+    if labelled:
+        return [(a, b) for a, b in lines if out_of_vocabulary(text[a:b])]
+    return [(0, len(text))] if out_of_vocabulary(text) else []
+
+
 #: The keys that assign a positive status: the veto blocks only these (TS: ``POSITIVE``).
 _POSITIVE = frozenset({"citizen", "pr", "student", "sponsoredVisa", "permit", "affirmative"})
 # \Z, not $: a break can end in "\n", and Python's $ matches before a final "\n" (JavaScript's
@@ -1377,6 +1514,8 @@ class _Reading:
     any_vetoed: bool = False
     #: Countries a veto kept a positive status from, in the order met.
     withheld: tuple[str, ...] = ()
+    #: Of those, the countries whose withheld status was citizenship or permanent residence.
+    withheld_settled: tuple[str, ...] = ()
 
 
 def _read_work_auth(text: str) -> _Reading:
@@ -1403,12 +1542,17 @@ def _read_work_auth(text: str) -> _Reading:
     # Units holding a veto cue: they bind no positive status (decide-b round 5).
     vetoed_unit: set[int] = set()
     withheld: list[str] = []
+    withheld_settled: list[str] = []
 
     def bind_in(unit_idx: list[int], codes: list[str], key: str) -> None:
         if key in _POSITIVE and any(i in vetoed_unit for i in unit_idx):
             for code in codes:
                 if code not in withheld:
                     withheld.append(code)
+            if key in ("citizen", "pr"):
+                for code in codes:
+                    if code not in withheld_settled:
+                        withheld_settled.append(code)
             return
         bind(codes, key)
 
@@ -1475,6 +1619,12 @@ def _read_work_auth(text: str) -> _Reading:
     # The veto, read on the text before any visa or country is masked.
     for i, u in enumerate(units):
         if _vetoed(unmasked[u.start:u.end]):
+            vetoed_unit.add(i)
+    # The allow-list layer: a unit in a range with any word outside the closed vocabulary binds no
+    # positive status either (decide-b, D-61 amendment).
+    outside = _out_of_vocabulary_ranges(text)
+    for i, u in enumerate(units):
+        if any(u.start < b and a < u.end for a, b in outside):
             vetoed_unit.add(i)
     # Statuses that belong to one country, from each unit that has no veto cue.
     for i, u in enumerate(units):
@@ -1654,7 +1804,8 @@ def _read_work_auth(text: str) -> _Reading:
         blanked.append(" " * (u.end - u.start))
         at = u.end
     blanked.append(masked[at:])
-    return _Reading(bound, mentioned, sponsorship_no_country, "".join(blanked), bool(vetoed_unit), tuple(withheld))
+    return _Reading(bound, mentioned, sponsorship_no_country, "".join(blanked), bool(vetoed_unit), tuple(withheld),
+                    tuple(withheld_settled))
 
 
 def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
@@ -1725,17 +1876,23 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
             auth = CountryAuth(True, None, "work_permit")
         elif f.affirmative:
             auth = CountryAuth(True, None, "statement")
-        # "I would require sponsorship to work in the US": sponsorship is needed there.
-        if f.sponsored and not (auth is not None and auth.basis in _SETTLED):
+        # "I would require sponsorship to work in the US": sponsorship is needed there. Nor where
+        # the answer states citizenship or permanent residence that a veto or the allow-list
+        # withheld: what is held there is not known.
+        if (f.sponsored and not (auth is not None and auth.basis in _SETTLED)
+                and code not in reading.withheld_settled):
             auth = CountryAuth(auth.authorized if auth else None, True, auth.basis if auth else "statement")
         if auth is not None:
             by_country[code] = auth
     # "Would need sponsorship" with no country: never where the applicant is a citizen or
-    # permanent resident; otherwise every country they name.
+    # permanent resident, nor where the answer says so but a veto or the allow-list withheld it
+    # ("Canadian citizen - would need sponsorship"); otherwise every country they name.
     if reading.sponsorship_no_country:
         for code in reading.mentioned:
             auth = by_country.get(code)
             if auth is not None and auth.basis in _SETTLED:
+                continue
+            if code in reading.withheld_settled:
                 continue
             by_country[code] = CountryAuth(auth.authorized if auth else None, True, auth.basis if auth else "statement")
     _apply_explicit_countries(profile, by_country)

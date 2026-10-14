@@ -896,6 +896,25 @@ names, else its sentence's, and only a need in a sentence that names no country 
 general "No" to sponsorship is not applied to a country whose status a veto withheld. The input is
 read up to 4,000 characters. The accepted cost is lost value (a clear answer read as unknown, which
 the gate warns on): 24 to 49 of the 467 fixture phrasings, for zero wrong yeses and zero wrong noes.
+*Amended (decide-b allow-list layer, same reader in both languages): positives only from a fully
+recognised answer.* A blocklist cannot be complete (round 5 passed its own 467 phrasings and failed 59
+of 100 fresh ones), so a final allow-list layer sits on top of the veto. A positive status (citizen,
+permanent resident, authorized, visa held) is emitted only when every word of the WHOLE answer is in
+the closed vocabulary of `backend/data/work_auth_allowlist.json` (one file read by both languages)
+or is a country name, adjective or abbreviation of the geo tables: answer words, the "I am / have /
+hold" frame, the status and visa nouns, connectors, the recognised negated sponsorship phrases,
+numbers and punctuation. One word outside it and no country gets a positive status (unknown);
+negative facts and sponsorship needs are read as before, so the layer only removes positives. Words
+for third parties, negation, the past, the future and pending wording are never added. The answer is
+read after NFKC, ASCII case folding and whitespace collapsing, and any non-ASCII letter left after
+NFKC (every Cyrillic or Greek lookalike, an accent, another script) is outside the vocabulary. Three
+family rules: a negative answer word (no, n, false) is recognised but no positive stands beside it
+("US citizen? No"); "my" counts only before a status or visa ("my PR card"); "on" only before a visa
+("On OPT", never "working on my green card"). A labelled multi-line answer ("Canada: citizen" then
+"US: no", a colon or dash after the country) is checked line by line. A sponsorship need with no
+country is never applied where the answer states citizenship or permanent residence that the layer
+or the veto withheld. Accepted cost: lost value 57 to 262 of the 567 fixture phrasings (the 467 plus
+review5's 100), for zero wrong yeses and zero wrong noes; review5's 59 wrong yeses go to 0.
 
 **D-62 Licence evidence. [Tailrd]** Held credentials are the AFFIRMED mentions with
 CERTIFICATION or ROLE_TITLE evidence (never a bullet such as "administered medications under RN

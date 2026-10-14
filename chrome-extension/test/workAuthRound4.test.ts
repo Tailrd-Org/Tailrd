@@ -54,9 +54,11 @@ describe("a pending, applied-for, lottery, waiting or eligible status is never h
       if (!/canadian citizen/i.test(text)) expect(authorizedIn(a, "CA", "CA")?.value ?? null).not.toBe(true);
     });
   }
-  it("a held status next to a pending one is still held", () => {
-    expect(auth("On H-1B, green card pending").byCountry.get("US")).toMatchObject({ authorized: true, needsSponsorship: true, basis: "work_permit" });
-    expect(auth("I-485 pending, EAD in hand").byCountry.get("US")).toMatchObject({ authorized: true, basis: "work_permit" });
+  it("a held status next to a pending one is unknown under the allow-list layer, never a pending one held", () => {
+    // "pending", "I-485", "EAD", "hand": outside the closed vocabulary (D-61 amendment).
+    expect(auth("On H-1B, green card pending").byCountry.get("US")?.basis).not.toBe("permanent_resident");
+    expect(auth("On H-1B, green card pending").byCountry.get("US")?.authorized ?? null).toBeNull();
+    expect(auth("I-485 pending, EAD in hand").byCountry.get("US")?.authorized ?? null).toBeNull();
   });
 });
 

@@ -34,6 +34,9 @@ import {
 // The veto cues of the work-authorization reader, shared with the backend port
 // (decide-b round 5): one file, read by both languages.
 import VETO_LEXICON from "../../../backend/data/work_auth_veto.json" with { type: "json" };
+// The closed vocabulary of the allow-list layer (decide-b, D-61 amendment),
+// shared with the backend port the same way.
+import ALLOW_LIST from "../../../backend/data/work_auth_allowlist.json" with { type: "json" };
 
 export type Confidence = "high" | "medium" | "low";
 
@@ -465,15 +468,20 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     else if (f.affirmative) auth = { authorized: true, needsSponsorship: null, basis: "statement" };
     // "I would require sponsorship to work in the US": sponsorship is needed
     // there; whether they are authorized today is not said.
-    if (f.sponsored && !(auth && SETTLED.has(auth.basis))) auth = { ...(auth ?? { authorized: null, basis: "statement" }), needsSponsorship: true };
+    // Nor where the answer states citizenship or permanent residence that a
+    // veto or the allow-list withheld: what is held there is not known.
+    if (f.sponsored && !(auth && SETTLED.has(auth.basis)) && !reading.withheldSettled.includes(code)) auth = { ...(auth ?? { authorized: null, basis: "statement" }), needsSponsorship: true };
     if (auth) byCountry.set(code, auth);
   }
   // "Would need sponsorship" with no country: never where the applicant is a
-  // citizen or permanent resident; otherwise every country they name.
+  // citizen or permanent resident, nor where the answer says so but a veto or
+  // the allow-list withheld it ("Canadian citizen - would need sponsorship");
+  // otherwise every country they name.
   if (reading.sponsorshipNoCountry) {
     for (const code of reading.mentioned) {
       const auth = byCountry.get(code);
       if (auth && SETTLED.has(auth.basis)) continue;
+      if (reading.withheldSettled.includes(code)) continue;
       byCountry.set(code, { ...(auth ?? { authorized: null, basis: "statement" }), needsSponsorship: true });
     }
   }
@@ -691,6 +699,101 @@ const NEGATED_SPONSOR_PHRASE = new RegExp(
 function vetoed(lowerUnit: string): boolean {
   return VETO.test(lowerUnit.replace(/\u2019/g, "'").replace(NEGATED_SPONSOR_PHRASE, " "));
 }
+/**
+ * The allow-list layer (decide-b, D-61 amendment: positives only from a fully
+ * recognised answer). Every term of backend/data/work_auth_allowlist.json and
+ * every country key, mapped to its family ("status", "country", ...).
+ */
+const ALLOW_FAMILY: Map<string, string> = (() => {
+  const out = new Map<string, string>();
+  const lists = ALLOW_LIST as Record<string, unknown>;
+  const suffixes = (lists.sponsorship_suffixes as string[]) ?? [];
+  for (const [family, words] of Object.entries(lists)) {
+    if (family.startsWith("_") || family === "sponsorship_suffixes" || !Array.isArray(words)) continue;
+    for (const w of words) {
+      const term = String(w).toLowerCase();
+      if (!out.has(term)) out.set(term, family);
+      if (family === "sponsorship") for (const s of suffixes) if (!out.has(`${term} ${s}`)) out.set(`${term} ${s}`, family);
+    }
+  }
+  for (const k of COUNTRY_KEYS) if (!out.has(k)) out.set(k, "country");
+  return out;
+})();
+const escapeTerm = (t: string): string => t.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&").replace(/ /g, "\\s");
+/** Longest first, so the alternation takes the longest term that fits. */
+const byLength = (a: string, b: string): number => b.length - a.length || (a < b ? -1 : a > b ? 1 : 0);
+/** One token: a term of several words or with punctuation ("permanent
+ *  resident", "h-1b", "u.s."), else a word, else one other character. A term
+ *  never ends inside a word ("us" in "usual", "canada" in "canada's"). */
+const ALLOW_TOKEN = new RegExp(
+  `(${[...ALLOW_FAMILY.keys()].filter((k) => /[^a-z0-9']/.test(k)).sort(byLength).map(escapeTerm).join("|")})(?![a-z0-9]|'[a-z])|([a-z][a-z0-9']*)|[\\s\\S]`,
+  "g"
+);
+const COUNTRY_TERM = [...ALLOW_FAMILY.entries()].filter(([, f]) => f === "country").map(([k]) => k).sort(byLength).map(escapeTerm).join("|");
+/** "Canada:", "US / Canada:", "the U.S.:", "Canada -": the label of a labelled line. */
+const ALLOW_LABEL = new RegExp(`^\\s?(?:the\\s)?(?:${COUNTRY_TERM})(?:\\s?(?:&|\\/|\\+|and)\\s?(?:the\\s)?(?:${COUNTRY_TERM})){0,7}\\s?(?::|-|\\u2013|\\u2014)`);
+/** A letter or mark outside ASCII, or an invisible format character: never in
+ *  the vocabulary. Every Cyrillic or Greek lookalike of a Latin letter is one. */
+const NON_ASCII_LETTER = /(?![\x00-\x7f])[\p{L}\p{M}\p{Cf}]/u;
+
+/** The answer as the vocabulary reads it: NFKC, whitespace collapsed, ASCII
+ *  letters lowercased (with no other letter left, that is the casefold), curly
+ *  apostrophes straight. Null when a non-ASCII letter survives NFKC. */
+function foldForAllowList(text: string): string | null {
+  const t = collapseSpaces(text.normalize("NFKC")).trim();
+  if (NON_ASCII_LETTER.test(t)) return null;
+  return t.replace(/[A-Z]/g, (c) => c.toLowerCase()).replace(/[\u2018\u2019]/g, "'");
+}
+
+/**
+ * Is the answer outside the closed vocabulary, for a positive status? One word
+ * that is not listed or a non-ASCII letter is enough. So is a negative answer
+ * word ("US citizen? No"), "my" before anything but a status or a visa
+ * (country names may stand between: "my Canadian citizenship"), and "on"
+ * before anything but a visa, "a" or "an" aside ("On OPT", never "working on
+ * my green card").
+ */
+export function outOfVocabulary(text: string): boolean {
+  const t = foldForAllowList(text);
+  if (t === null) return true;
+  const tokens: Array<[string, string]> = [];
+  for (const m of t.matchAll(ALLOW_TOKEN)) {
+    const term = m[1] !== undefined ? m[1].replace(/\s+/g, " ") : m[2];
+    if (term === undefined) continue;
+    const family = ALLOW_FAMILY.get(term);
+    if (family === undefined || family === "negative_answer") return true;
+    tokens.push([term, family]);
+  }
+  const familyAt = (j: number): string => tokens[j]?.[1] ?? "";
+  for (let i = 0; i < tokens.length; i++) {
+    let j = i + 1;
+    if (tokens[i][1] === "possessive") {
+      while (familyAt(j) === "country") j++;
+      if (familyAt(j) !== "status" && familyAt(j) !== "visa") return true;
+    } else if (tokens[i][1] === "visa_preposition") {
+      if (tokens[j]?.[0] === "a" || tokens[j]?.[0] === "an") j++;
+      if (familyAt(j) !== "visa") return true;
+    }
+  }
+  return false;
+}
+
+/** The ranges of the answer that may bind no positive status: the whole answer
+ *  when anything in it is outside the vocabulary, or, in a labelled multi-line
+ *  answer ("Canada: citizen\nUS: no"), each line that is. */
+function outOfVocabularyRanges(text: string): Array<[number, number]> {
+  const lines: Array<[number, number]> = [];
+  let start = 0;
+  for (let i = 0; i <= text.length; i++) {
+    if (i < text.length && text[i] !== "\n") continue;
+    if (text.slice(start, i).trim()) lines.push([start, i]);
+    start = i + 1;
+  }
+  const labelled = lines.length >= 2 && lines.every(([a, b]) => ALLOW_LABEL.test(foldForAllowList(text.slice(a, b)) ?? ""));
+  if (labelled) return lines.filter(([a, b]) => outOfVocabulary(text.slice(a, b)));
+  return outOfVocabulary(text) ? [[0, text.length]] : [];
+}
+
 /** The keys that assign a positive status: the veto blocks only these. */
 const POSITIVE = new Set<BoundKey>(["citizen", "pr", "student", "sponsoredVisa", "permit", "affirmative"]);
 const WEAK_BREAK = /^(?:,|\(|\)|\[|\]|\s[-\u2013\u2014]+\s)$/;
@@ -819,6 +922,9 @@ interface Reading {
   anyVetoed: boolean;
   /** Countries a veto kept a positive status from, in the order met. */
   withheld: string[];
+  /** Of those, the countries whose withheld status was citizenship or
+   *  permanent residence. */
+  withheldSettled: string[];
 }
 
 const emptyBound = (): Bound => ({ citizen: false, notCitizen: false, pr: false, student: false, sponsoredVisa: false, permit: false, affirmative: false, deny: false, sponsored: false });
@@ -840,9 +946,11 @@ function readWorkAuth(text: string): Reading {
   /** Units holding a veto cue: they bind no positive status (decide-b round 5). */
   const vetoedUnit = new Set<number>();
   const withheld: string[] = [];
+  const withheldSettled: string[] = [];
   const bindIn = (unitIdx: number[], codes: string[], key: BoundKey): void => {
     if (POSITIVE.has(key) && unitIdx.some((i) => vetoedUnit.has(i))) {
       for (const code of codes) if (!withheld.includes(code)) withheld.push(code);
+      if (key === "citizen" || key === "pr") for (const code of codes) if (!withheldSettled.includes(code)) withheldSettled.push(code);
       return;
     }
     bind(codes, key);
@@ -921,6 +1029,12 @@ function readWorkAuth(text: string): Reading {
   // The veto, read on the text before any visa or country is masked.
   units.forEach((u, i) => {
     if (vetoed(unmasked.slice(u.start, u.end))) vetoedUnit.add(i);
+  });
+  // The allow-list layer: a unit in a range with any word outside the closed
+  // vocabulary binds no positive status either (decide-b, D-61 amendment).
+  const outside = outOfVocabularyRanges(text);
+  units.forEach((u, i) => {
+    if (outside.some(([a, b]) => u.start < b && a < u.end)) vetoedUnit.add(i);
   });
   // Statuses that belong to one country, from each unit that has no veto cue.
   units.forEach((u, i) => {
@@ -1082,7 +1196,7 @@ function readWorkAuth(text: string): Reading {
     at2 = u.end;
   });
   positiveText += masked.slice(at2);
-  return { bound, mentioned, sponsorshipNoCountry, positiveText, anyVetoed: vetoedUnit.size > 0, withheld };
+  return { bound, mentioned, sponsorshipNoCountry, positiveText, anyVetoed: vetoedUnit.size > 0, withheld, withheldSettled };
 }
 
 /** The "PR in/of <country>" pattern, and a country right before a match. */

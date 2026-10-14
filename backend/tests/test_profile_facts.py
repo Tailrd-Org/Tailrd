@@ -533,15 +533,17 @@ ROWS = [
         resid="CA", auth_us=(False, "work-auth:stated"), auth_ca=(True, "work-auth:citizen"),
         spons_us=(True, "sponsorship:not-authorized-stated"), spons_ca=(False, "sponsorship:citizen")),
     # --- visas and permits ---
+    # "transfer required" and the F-1 row's words are outside the allow-list vocabulary (D-61
+    # amendment): the text binds nothing, so the explicit per-country answers stand alone.
     Row("h1b_seattle", wa="H-1B visa (transfer required)", rs="Yes", au="Yes", ac="No", loc="Seattle, WA",
-        resid="US", auth_us=(True, "work-auth:work_permit"), auth_ca=(False, "work-auth:stated"),
+        resid="US", auth_us=(True, "work-auth:stated"), auth_ca=(False, "work-auth:stated"),
         spons_us=(True, "sponsorship:stated"), spons_ca=(True, "sponsorship:not-authorized-stated")),
     Row("green-card_san-jose", wa="U.S. permanent resident (green card)", rs="No", au="Yes", ac="No",
         loc="San Jose, CA", resid="US", auth_us=(True, "work-auth:permanent_resident"),
         auth_ca=(False, "work-auth:stated"), spons_us=(False, "sponsorship:permanent_resident"),
         spons_ca=(True, "sponsorship:not-authorized-stated")),
     Row("stem-opt_boston", wa="F-1 STEM OPT (EAD valid through June 2028)", rs="Yes", au="Yes", ac="No",
-        loc="Boston, MA, USA", resid="US", auth_us=(True, "work-auth:student"),
+        loc="Boston, MA, USA", resid="US", auth_us=(True, "work-auth:stated"),
         auth_ca=(False, "work-auth:stated"), spons_us=(True, "sponsorship:stated"),
         spons_ca=(True, "sponsorship:not-authorized-stated")),
     Row("f1-student_no-explicit_cambridge", wa="F-1 student visa (OPT eligible)", rs="Yes",
@@ -645,11 +647,13 @@ def _b(id, answers, country, residence, auth=None, spons=None):
 
 BRANCHES = [
     # --- free movement: a citizen of the EU / EEA / Switzerland may work in any other ---
-    _b("free-movement_german-citizen_asked-austria", {"workAuthorization": "German citizen (EU)"}, "AT", "DE",
+    _b("free-movement_german-citizen_asked-austria", {"workAuthorization": "German citizen"}, "AT", "DE",
        auth=(True, "high", "work-auth:free-movement"), spons=(False, "high", "sponsorship:free-movement")),
     _b("free-movement_german-citizen_asked-norway",
-       {"workAuthorization": "German citizen (EU)", "requiresSponsorship": "Yes"}, "NO", "DE",
+       {"workAuthorization": "German citizen", "requiresSponsorship": "Yes"}, "NO", "DE",
        auth=(True, "high", "work-auth:free-movement"), spons=(False, "high", "sponsorship:free-movement")),
+    # "EU" is outside the allow-list vocabulary (D-61 amendment): the citizenship is unknown.
+    _b("free-movement_needs-a-recognised-citizenship", {"workAuthorization": "German citizen (EU)"}, "AT", "DE"),
     _b("free-movement_stops-at-the-uk", {"workAuthorization": "German citizen (EU)"}, "GB", "DE"),
     _b("free-movement_stops-at-the-us", {"workAuthorization": "German citizen (EU)"}, "US", "DE"),
     _b("free-movement_needs-a-citizen-not-a-resident", {"workAuthorization": "Permanent resident of Germany"},
@@ -1054,19 +1058,18 @@ def test_no_function_is_superlinear_on_hostile_text(shape):
 
 
 @pytest.mark.parametrize("statement", ["Iranian citizen", "French citizen"])
-def test_pin_a_citizenship_the_country_table_lacks_reads_as_an_unscoped_yes(statement):
-    """PINNED TS BEHAVIOUR (probable bug): the demonym is missing from geo.ts (no "french" alias, no Iran).
-
-    No country is found, so "<nationality> citizen" falls into the unscoped "citizen" branch
-    and becomes "authorized wherever the applicant lives", at high confidence. A French citizen
-    living in Toronto reads as authorized to work in Canada.
+def test_a_citizenship_the_country_table_lacks_is_unknown(statement):
+    """Was PINNED TS BEHAVIOUR (probable bug): the demonym is missing from geo.ts (no "french" alias,
+    no Iran), so "<nationality> citizen" fell into the unscoped "citizen" branch and read as
+    "authorized wherever the applicant lives". The allow-list layer (D-61 amendment) fixes it: the
+    unknown demonym is outside the closed vocabulary, so nothing positive is read.
     """
     a = work_auth_facts(profile(workAuthorization=statement))
     assert dict(a.by_country) == {}
-    assert a.unscoped_authorized is True
-    assert authorized_in(a, "CA", "CA") == Fact(True, "high", "work-auth:unscoped-residence")
+    assert a.unscoped_authorized is None
+    assert authorized_in(a, "CA", "CA") is None
     assert authorized_in(a, "US", "CA") is None
-    assert authorized_in(a, None, "CA") == Fact(True, "high", "work-auth:unscoped")
+    assert authorized_in(a, None, "CA") is None
 
 
 def test_pin_a_citizenship_the_table_knows_stays_scoped_to_its_country():
@@ -1095,17 +1098,18 @@ def test_a_negated_country_is_never_authorized():
     """
     but = work_auth_facts(profile(workAuthorization="Authorized to work in Canada but not in the US"))
     assert authorized_in(but, "US", "CA") == Fact(False, "high", "work-auth:denied")
-    assert authorized_in(but, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    # The allow-list layer (D-61 amendment): a word outside the closed vocabulary leaves it unknown.
+    assert authorized_in(but, "CA", "CA") is None
 
     comma = work_auth_facts(profile(workAuthorization="Authorized to work in Canada, not authorized in the US"))
-    assert authorized_in(comma, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    assert authorized_in(comma, "CA", "CA") is None
     assert authorized_in(comma, "US", "CA") == Fact(False, "high", "work-auth:denied")
     assert needs_sponsorship_in(comma, "US", "CA") == Fact(True, "high", "sponsorship:not-authorized-denied")
 
     fixed = work_auth_facts(profile(
         workAuthorization="Authorized to work in Canada but not in the US", authorizedUS="No", authorizedCanada="Yes"))
     assert authorized_in(fixed, "US", "CA") == Fact(False, "high", "work-auth:denied")
-    assert authorized_in(fixed, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    assert authorized_in(fixed, "CA", "CA") == Fact(True, "high", "work-auth:stated")
 
 
 def test_a_country_only_named_stays_unknown():
@@ -1123,7 +1127,9 @@ def test_a_country_only_named_stays_unknown():
 ])
 def test_a_scoped_statement_counts_only_its_positive_countries(text, us):
     a = work_auth_facts(profile(workAuthorization=text))
-    assert authorized_in(a, "CA", "CA") == Fact(True, "high", "work-auth:statement")
+    # Each holds a word outside the allow-list vocabulary ("not", "except", "but", "only", D-61
+    # amendment): Canada is unknown, never a No.
+    assert authorized_in(a, "CA", "CA") is None
     if us is None:
         assert authorized_in(a, "US", "CA") is None
     else:
@@ -1144,7 +1150,8 @@ def test_negation_scope_clauses():
     sponsor = work_auth_facts(profile(workAuthorization="US citizen, not requiring sponsorship in the US"))
     assert sponsor.by_country["US"] == CountryAuth(True, False, "citizen")
     weak = work_auth_facts(profile(workAuthorization="Canadian citizen, not a US citizen"))
-    assert weak.by_country["CA"] == CountryAuth(True, False, "citizen")
+    # The allow-list layer (D-61 amendment): a word outside the closed vocabulary leaves it unknown.
+    assert "CA" not in weak.by_country
     assert "US" not in weak.by_country
 
 
@@ -1202,7 +1209,7 @@ def _auth(a, code):
 def test_review_c1_dotted_us_is_negated(us):
     text = f"Authorized to work in Canada but not in the {us}"
     assert authorized_in(_wa(text), "US", "CA") == Fact(False, "high", "work-auth:denied")
-    assert authorized_in(_wa(text), "CA", "CA").value is True
+    assert authorized_in(_wa(text), "CA", "CA") is None  # allow-list (D-61 amendment): unknown
     assert needs_sponsorship_in(_wa(text, requiresSponsorship="No"), "US", None).value is True
 
 
@@ -1210,19 +1217,20 @@ def test_review_c1_dotted_collateral():
     assert _auth(_wa("Authorized to work in Canada, except the U.S."), "US") is False
     a = _wa("Canadian citizen, but not the U.S. (would need TN)")
     assert _auth(a, "US") is not True
-    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    # The allow-list layer (D-61 amendment): a word outside the closed vocabulary leaves it unknown.
+    assert _auth(a, "CA") is None
     b = _wa("Not authorized in the U.S. but authorized in Canada")
-    assert _auth(b, "CA") is True and _auth(b, "US") is False
+    assert _auth(b, "CA") is None and _auth(b, "US") is False
     c = _wa("not authorized to work in the U.S., Canadian citizen")
-    assert c.by_country["CA"] == CountryAuth(True, False, "citizen") and _auth(c, "US") is False
+    assert _auth(c, "CA") is None and _auth(c, "US") is False
     d = _wa("Not authorized in the U.S. I am a Canadian citizen.")
-    assert d.by_country["CA"] == CountryAuth(True, False, "citizen") and _auth(d, "US") is False
+    assert _auth(d, "CA") is None and _auth(d, "US") is False
 
 
 @pytest.mark.parametrize("text", ["Canadian citizen. Not sure about the US.", "Not sure about the US; Canadian citizen"])
 def test_review_i1_not_sure_is_unknown(text):
     assert authorized_in(_wa(text), "US", "CA") is None
-    assert authorized_in(_wa(text), "CA", "CA").value is True
+    assert authorized_in(_wa(text), "CA", "CA") is None  # allow-list (D-61 amendment): unknown
 
 
 @pytest.mark.parametrize("v", ["Not sure", "Unsure", "Not certain", "Unknown", "TBD", "Don't know",
@@ -1236,12 +1244,14 @@ def test_review_i2_uncertain_or_future_answers_are_unanswered(v):
 @pytest.mark.parametrize("text", ["Not a US citizen but have a green card", "Green card holder (not a US citizen)",
                                   "Not a US citizen; I hold a green card"])
 def test_review_i3_green_card_survives_not_a_citizen(text):
-    assert _wa(text).by_country["US"] == CountryAuth(True, False, "permanent_resident")
+    # "not" is outside the allow-list vocabulary (D-61 amendment): unknown, never a No.
+    assert _auth(_wa(text), "US") is None
 
 
 @pytest.mark.parametrize("text", ["I am a US permanent resident, not a citizen", "Not a citizen, US green card holder"])
 def test_review_i3_permanent_resident_not_a_citizen(text):
-    assert _wa(text).by_country["US"] == CountryAuth(True, False, "permanent_resident")
+    # "not" is outside the allow-list vocabulary (D-61 amendment): unknown, never a No.
+    assert _auth(_wa(text), "US") is None
 
 
 def test_review_i3_not_a_citizen_alone_is_never_authorized():
@@ -1251,7 +1261,7 @@ def test_review_i3_not_a_citizen_alone_is_never_authorized():
 def test_review_i4_not_yet():
     assert _wa("Not yet authorized").unscoped_authorized is False
     a = _wa("Canadian citizen; not yet authorized in the US")
-    assert _auth(a, "US") is False and a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _auth(a, "US") is False and _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
     assert _auth(_wa("Not yet authorized in the US; OPT pending"), "US") is False
 
 
@@ -1270,16 +1280,16 @@ def test_review_i4_not_yet():
 ])
 def test_review_i5_other_negations(text):
     assert authorized_in(_wa(text), "US", "CA") == Fact(False, "high", "work-auth:denied")
-    # "without" in the citizen's own segment vetoes it (decide-b round 5): unknown, never a No.
-    ca = authorized_in(_wa(text), "CA", "CA")
-    assert (ca is None) if "without" in text else (ca.value is True)
+    # Every phrasing holds a word outside the closed vocabulary, or a standalone "no" (the allow-list
+    # layer, D-61 amendment): Canada is unknown, never a No.
+    assert authorized_in(_wa(text), "CA", "CA") is None
 
 
 def test_review_i5_sponsorship_clause():
     a = _wa("Canadian citizen; I would require sponsorship to work in the US")
     assert _auth(a, "US") is not True
     assert needs_sponsorship_in(a, "US", "CA").value is True
-    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
     assert _wa("I am a Canadian citizen and do not require sponsorship").by_country["CA"] == CountryAuth(
         True, False, "citizen")
     assert _auth(_wa("Authorized to work in the US without sponsorship"), "US") is True
@@ -1290,21 +1300,21 @@ def test_review_probe_sponsorship_before_the_country_and_pending():
     a = _wa("Authorized in Canada; US requires sponsorship")
     assert _auth(a, "US") is not True
     assert needs_sponsorship_in(a, "US", "CA").value is True
-    assert _auth(a, "CA") is True
+    assert _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
     b = _wa("Canadian citizen, US authorization pending")
     assert "US" not in b.by_country
-    assert b.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _auth(b, "CA") is None
 
 
 def test_review_i6_denial_after_the_country():
     a = _wa("Canadian PR; US not authorized")
-    assert a.by_country["CA"] == CountryAuth(True, False, "permanent_resident")
+    assert _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
     assert _auth(a, "US") is False
 
 
 def test_review_m1_m2_demonym_and_not_only():
     a = _wa("Yes - US citizen (not Canadian)")
-    assert _auth(a, "CA") is not False and a.by_country["US"] == CountryAuth(True, False, "citizen")
+    assert _auth(a, "CA") is not False and _auth(a, "US") is None  # allow-list (D-61 amendment)
     b = _wa("Not only Canada, also the US")
     assert _auth(b, "CA") is not False and _auth(b, "US") is not False
 
@@ -1393,7 +1403,7 @@ def test_pin_a_five_digit_postcode_is_a_us_zip():
 
 def test_status_probe_tn_eligible_is_not_a_us_status():
     a = _wa("Canadian citizen; TN eligible for US")
-    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    assert _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
     us = a.by_country.get("US")
     assert us is None or (us.basis != "citizen" and us.authorized is not True)
     assert (authorized_in(a, "US", "CA") or Fact(None, "high", "")).value is not True
@@ -1406,9 +1416,10 @@ def test_status_probe_us_citizen_and_canadian_pr():
 
 
 def test_status_probe_citizen_of_canada_h1b_in_the_us():
+    # "via" is outside the allow-list vocabulary (D-61 amendment): both unknown, never a No.
     a = _wa("Citizen of Canada, authorized to work in the US via H-1B")
-    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
-    assert a.by_country["US"] == CountryAuth(True, True, "work_permit")
+    assert _auth(a, "CA") is None
+    assert _auth(a, "US") is None
 
 
 def test_status_probe_canadian_and_american_citizen():
@@ -1420,7 +1431,10 @@ def test_status_probe_canadian_and_american_citizen():
 @pytest.mark.parametrize("text", ["Canadian citizen not requiring sponsorship in the US", "Canadian citizen and US resident"])
 def test_status_probe_no_us_status_borrowed(text):
     a = _wa(text)
-    assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
+    if text.endswith("US resident"):
+        assert _auth(a, "CA") is None  # allow-list (D-61 amendment): unknown
+    else:
+        assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
     assert (a.by_country.get("US") is None) or a.by_country["US"].basis != "citizen"
 
 
@@ -1438,7 +1452,8 @@ def test_status_probe_dotted_us_keeps_its_status(text):
 
 
 def test_status_probe_f1_opt_eligible_is_still_a_student():
-    assert _wa("F-1 student visa (OPT eligible)").by_country["US"] == CountryAuth(None, None, "student")
+    # "F-1" and "eligible" are outside the allow-list vocabulary (D-61 amendment): still unknown.
+    assert _auth(_wa("F-1 student visa (OPT eligible)"), "US") is None
 
 
 def test_status_probe_timing():

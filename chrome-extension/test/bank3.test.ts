@@ -59,8 +59,9 @@ describe("permanent or unrestricted work authorization (Airtable, MyFundedFuture
   ];
   it("a visa is not permanent or unrestricted; citizenship is", () => {
     for (const [q, o] of QS) {
-      expect(ask("US_H1B_SENIOR", q, o), q).toBe("No");
-      expect(ask("US_OPT_ANALYST", q, o), q).toBe("No");
+      // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+      expect(ask("US_H1B_SENIOR", q, o), q).toBe("abstain");
+      expect(ask("US_OPT_ANALYST", q, o), q).toBe("abstain");
       expect(ask("BOOTCAMP_CAREER_GAP", q, o), q).toBe("Yes");
     }
   });
@@ -68,7 +69,8 @@ describe("permanent or unrestricted work authorization (Airtable, MyFundedFuture
     const q = "Do you have permanent authorization to work for Warp in the U.S. or Canada?";
     expect(ask("COMPLETE_CANADIAN", q, YES_NO)).toBe("Yes");
     expect(ask("BOOTCAMP_CAREER_GAP", q, YES_NO)).toBe("Yes");
-    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("No");
+    // The allow-list layer (D-61 amendment): this persona's answer holds words outside the closed vocabulary, so its status is unknown and the device abstains.
+    expect(ask("US_H1B_SENIOR", q, YES_NO)).toBe("abstain");
     expect(ask("BERLIN_STAFF", q, YES_NO)).toBe("No");
   });
   it("based in either of two countries: where they live (Warp)", () => {

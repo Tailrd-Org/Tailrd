@@ -381,6 +381,22 @@ June 2028 2026 (US) (Canada) (EU) / - , ; . : ! ?""".split() + [
     "now", "currently", "not currently", "don't currently", "now a", "do not require sponsorship",
     "no sponsorship needed", "without sponsorship", "sponsorship not required", "dual citizenship with",
     "permission to work in", "and would need a visa", "Was on a study permit, now a Canadian PR",
+    # The allow-list layer (D-61 amendment): words of the closed vocabulary and words just outside it,
+    # family rules ("my", "on", a negative answer), labelled lines with a dash, sponsorship suffixes.
+    "my", "My green card", "my PR card", "on", "On OPT", "On a work permit", "Working on", "working on my",
+    "holder", "Green card holder", "hubby", "better half", "sure", "correct", "have got", "STEM OPT", "E-3",
+    "eligible to work", "work authorisation", "no visa sponsorship needed", "now or in the future", "false",
+    "Canada - Yes", "US - No", "Canada: citizen", "citizen-to-be", "TBD", "nope", "Cdn",
+]
+
+#: Whole answers inside the allow-list vocabulary (D-61 amendment): random word runs almost never are,
+#: so without these the corpus would rarely reach a positive status at all.
+RECOGNISED_ANSWERS = [
+    "Yes", "Canadian citizen", "US citizen", "PR", "Canadian PR", "Green card holder", "Study permit",
+    "Canadian study permit", "Canada: study permit", "On OPT", "H-1B", "PGWP", "I am a US citizen",
+    "Citizen of Canada", "Authorized to work in Canada and the US", "Canada: Yes\nUS: No", "Canada - citizen\nUS - no",
+    "Yes, Canadian citizen, no sponsorship needed", "my PR card", "On a work permit", "U.S. permanent resident",
+    "German citizen", "British citizen", "TN", "Canada: open work permit", "I have a green card",
 ]
 
 EXOTIC_WORDS = [
@@ -388,6 +404,11 @@ EXOTIC_WORDS = [
     f"{E_ACUTE}US", f"n{O_UMLAUT}", f"{DOTTED_CAPITAL_I}stanbul", DOTLESS_I, f"{LONG_S}eattle", KELVIN_SIGN,
     f"stra{SHARP_S}e", FULLWIDTH_DIGITS, ARABIC_INDIC_DIGITS, f"Z{U_UMLAUT}rich", f"Montr{E_ACUTE}al",
     f"Qu{E_ACUTE}bec", f"S{A_TILDE}o",
+    # The allow-list layer: fullwidth letters NFKC folds, Cyrillic lookalikes and a combining accent it
+    # never accepts, a format character, and a word in another script.
+    "".join(chr(0xFF21 + ord(c) - 65) for c in "NOT"), chr(0xFF35) + chr(0xFF33),
+    "n" + chr(0x43E) + "t", "husb" + chr(0x430) + "nd", "cit" + chr(0x456) + "zen", "citize" + chr(0x301) + "n",
+    "citi" + chr(0x200B) + "zen", chr(0x6211) + chr(0x7684), "I" + chr(0x2019) + "m",
 ]
 
 SEPARATORS = [" "] * 12 + [
@@ -461,6 +482,13 @@ class _Generator:
         pad = self.rng.choice(["x ", "\U0001F600", "a,", " ", "US "])
         return (pad * n)[:n] + self.text()
 
+    def _recognised(self) -> str:
+        """An answer inside the allow-list vocabulary, sometimes with a random run after it."""
+        out = self._case(self.rng.choice(RECOGNISED_ANSWERS))
+        if self.rng.random() < 0.3:
+            out += self.rng.choice(SEPARATORS) + self.text(3)
+        return out
+
     def _padding(self) -> str:
         return "".join(self.rng.choice(PADDING) for _ in range(self.rng.randint(0, 6)))
 
@@ -518,7 +546,9 @@ class _Generator:
         put("addressState", rng.choice(REGIONS + ["", ""]) if rng.random() < 0.5 else "")
         put("postalCode", rng.choice(POSTAL_CODES + ["", ""]) if rng.random() < 0.5 else "")
         put("country", rng.choice(COUNTRY_NAMES + ["", "", " CA ", NBSP + "US"]) if rng.random() < 0.5 else "")
-        put("workAuthorization", self._near_cap() if rng.random() < 0.02 else self.text() if rng.random() < 0.9 else "")
+        roll = rng.random()
+        put("workAuthorization", self._near_cap() if roll < 0.02 else self._recognised() if roll < 0.2
+            else self.text() if roll < 0.92 else "")
         put("requiresSponsorship", rng.choice(YES_NO) if rng.random() < 0.7 else self.text(5))
         put("authorizedUS", rng.choice(YES_NO))
         put("authorizedCanada", rng.choice(YES_NO))

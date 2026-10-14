@@ -18,9 +18,11 @@ FIXTURE = Path(__file__).resolve().parents[2] / "chrome-extension" / "test" / "f
 CASES = json.loads(FIXTURE.read_text(encoding="utf-8"))
 NON_CITIZEN = {"permanent_resident", "work_permit", "student", "denied"}
 NON_PR = {"work_permit", "student", "denied"}
-#: Lost value on the whole fixture (467 phrasings) after fix round 5: the veto lexicon trades value
-#: for zero wrong yeses (24 before the round on the same 467; round 4 left 1 on the first 348).
-LOST_VALUE_CEILING = 49
+#: Lost value on the whole fixture (567 phrasings) after the allow-list layer (D-61 amendment:
+#: positives only from a fully recognised answer): 57 before it on the same 567 (49 on the first 467
+#: after round 5). The ruling accepts the rise for zero wrong yeses on phrasings no blocklist could
+#: enumerate.
+LOST_VALUE_CEILING = 262
 
 
 def _judge(exp, val, kind):
@@ -67,8 +69,8 @@ def grade_case(c: dict) -> list[str]:
     return errs
 
 
-def test_the_fixture_holds_the_467_reviewer_phrasings():
-    assert len(CASES) == 467
+def test_the_fixture_holds_the_567_reviewer_phrasings():
+    assert len(CASES) == 567
 
 
 @pytest.mark.parametrize("case", CASES, ids=[f"{i}-{c['source']}" for i, c in enumerate(CASES)])

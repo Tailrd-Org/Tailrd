@@ -72,11 +72,12 @@ def test_a_pending_status_is_never_held(text):
         assert _value(authorized_in(a, "CA", "CA")) is not True
 
 
-def test_a_held_status_next_to_a_pending_one_is_still_held():
-    a = _auth("On H-1B, green card pending").by_country["US"]
-    assert (a.authorized, a.needs_sponsorship, a.basis) == (True, True, "work_permit")
-    b = _auth("I-485 pending, EAD in hand").by_country["US"]
-    assert (b.authorized, b.basis) == (True, "work_permit")
+def test_a_held_status_next_to_a_pending_one_is_unknown_under_the_allow_list_never_a_pending_one_held():
+    # "pending", "I-485", "EAD", "hand": outside the closed vocabulary (D-61 amendment).
+    a = _auth("On H-1B, green card pending").by_country.get("US")
+    assert a is None or (a.basis != "permanent_resident" and a.authorized is None)
+    b = _auth("I-485 pending, EAD in hand").by_country.get("US")
+    assert b is None or b.authorized is None
 
 
 LINES = [
