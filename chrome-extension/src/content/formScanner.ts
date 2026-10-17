@@ -29,6 +29,7 @@ import { holdsPageGuess } from "./pageGuesses";
 import { isCaptchaField } from "./captcha";
 import { isConsentField } from "./consent";
 import { isInPageChrome } from "./pageChrome";
+import { isSiteSearch } from "./siteSearch";
 import { filterToScope, resolveFormScope, type ScopeEntry } from "./formScope";
 import { isAriaCombobox, readComboboxOptions, readComboboxValue } from "./comboboxEngine";
 import { classifyWithAdapter, resolveAnswerWithAdapter } from "./adapters/apply";
@@ -1162,6 +1163,13 @@ export function scanPage(
   const checkboxGroups = new Map<Element, HTMLInputElement[]>();
 
   for (const el of candidates) {
+    // A same-origin child page's controls are its own content script's: it
+    // scans them and announces its form. Its ARIA widgets pass the checks
+    // below (its native inputs fail instanceof), so on iCIMS's login (live
+    // 2026-10-17) the top frame took half of the frame's form for its own,
+    // kept the flow, and the frame was never adopted. A blank frame (an
+    // editor) has no script of its own and stays the top frame's to read.
+    if (el.ownerDocument !== document && /^https?:/i.test(el.ownerDocument.URL)) continue;
     const controlType = controlTypeOf(el);
     if (controlType === null) continue;
     // A role=radiogroup that only WRAPS native radios (Material UI renders two
@@ -1184,6 +1192,9 @@ export function scanPage(
     // Page chrome (header/nav/footer/aside and landmark roles) is never part
     // of the application form, an EN/FR switcher is a real <select> we skip.
     if (isInPageChrome(el)) continue;
+    // A site's own job search (keyword box, sort, results per page) is not
+    // the application's either (siteSearch.ts).
+    if (isSiteSearch(el)) continue;
     if ((el as HTMLInputElement).disabled) continue;
     // A read-only box is the page's, except a dropdown's: Ant Design's select
     // without a search box keeps a read-only input as its focus target

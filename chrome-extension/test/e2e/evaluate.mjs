@@ -82,6 +82,14 @@ function describe(expected) {
   return JSON.stringify(expected);
 }
 
+/**
+ * A cookie-consent manager's own controls (OneTrust's "#ot-group-id-C0003").
+ * The extension never scans them (consent.ts), so a change there is the
+ * page's: OneTrust renders its categories after the before-dump, ticked by
+ * default (iCIMS DocuSign, live 2026-10-17).
+ */
+const CONSENT_MANAGER_KEY = /^#(ot-|onetrust|cookiebot|usercentrics|cookiescript)/i;
+
 export function evaluateCase(testCase, result) {
   const rows = [];
   // A saved run is re-scored against the day it ran, not the day it is read.
@@ -134,6 +142,7 @@ export function evaluateCase(testCase, result) {
   for (const rec of result.after) {
     const id = `${rec.frame}|${rec.key}`;
     if (usedKeys.has(id)) continue;
+    if (CONSENT_MANAGER_KEY.test(rec.key)) continue;
     const before = beforeByKey.get(id)?.value ?? "";
     if (String(rec.value ?? "") !== String(before)) {
       unexpected.push({ key: rec.key, label: rec.label, type: rec.type, before, actual: rec.value });
