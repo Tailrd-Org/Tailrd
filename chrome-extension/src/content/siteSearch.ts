@@ -16,6 +16,9 @@
 
 const SEARCH_ID =
   /^(keywords?|search-?keywords?|keywords?-?search|location-?search|search-?locations?|job-?search|search-?jobs?|search-?term|search-?text)$/i;
+/** iCIMS's own job search box ("jsb_f_location_s", live 2026-10-17), and
+ *  names that open with "search" and go on in a new word ("searchRelation"). */
+const SEARCH_ID_PREFIX = /^(jsb_|search[A-Z_-])/;
 const SEARCH_NAME =
   /^search\b.{0,40}?\b(keywords?|jobs?|titles?|categor(y|ies)|roles?|positions?|openings?|careers?|locations?)\b/i;
 /** The result list's own controls. */
@@ -44,7 +47,8 @@ function nameOf(el: HTMLElement): string {
 }
 
 export function isSiteSearch(el: HTMLElement): boolean {
-  if (SEARCH_ID.test(el.id) || SEARCH_ID.test(el.getAttribute("name") ?? "")) return true;
+  const ids = [el.id, el.getAttribute("name") ?? ""];
+  if (ids.some((id) => SEARCH_ID.test(id) || SEARCH_ID_PREFIX.test(id))) return true;
   const name = nameOf(el);
   return SEARCH_NAME.test(name) || RESULT_CONTROL.test(name);
 }

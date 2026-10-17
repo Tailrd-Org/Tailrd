@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach } from "vitest";
 import { AutofillReconciler } from "../src/content/reconciler";
 import type { RuntimeControl } from "../src/content/formScanner";
+import { forgetUserFocus } from "../src/content/userFocus";
 
 /** Instant settle window so cycle logic is exercised without real waiting. */
 const instant = async (): Promise<void> => {};
@@ -28,6 +29,7 @@ function userEvent(el: HTMLElement, type: string): void {
 
 beforeEach(() => {
   document.body.innerHTML = "";
+  forgetUserFocus(document);
 });
 
 describe("AutofillReconciler, happy path", () => {
@@ -241,7 +243,8 @@ describe("AutofillReconciler, respects the user after autofill", () => {
     );
     expect(b.el.value).toBe("Beta");
 
-    // User is actively editing field A.
+    // User is actively editing field A: they clicked into it.
+    userEvent(a.el, "pointerdown");
     a.el.focus();
     expect(document.activeElement).toBe(a.el);
 
@@ -253,6 +256,33 @@ describe("AutofillReconciler, respects the user after autofill", () => {
 
     // Refilling B would focus()/blur() it and yank the caret out of A. The
     // reconciler must defer while the user is mid-edit.
+    expect(document.activeElement).toBe(a.el);
+  });
+});
+
+// iCIMS's login (Kinaxis, live 2026-10-17): its email box has `autofocus`,
+// so on a full-page login it held focus from load. The guard took that for
+// the user typing there and never wrote it; the page then rejected the empty
+// email. Focus the page gave a box is not the user's.
+describe("AutofillReconciler, focus the page gave a field", () => {
+  it("fills a field the page focused before any user action", async () => {
+    const a = input("f-1");
+    a.el.focus(); // the page's autofocus, no click or key before it
+    const engine = new AutofillReconciler({ sleep: instant, observe: false });
+    const reports = await engine.run([{ fieldId: "f-1", value: "maya@example.com" }], reg([a.control]));
+    engine.dispose();
+    expect(a.el.value).toBe("maya@example.com");
+    expect(reports[0].ok).toBe(true);
+  });
+
+  it("still leaves a field the user clicked into", async () => {
+    const a = input("f-1");
+    userEvent(a.el, "pointerdown");
+    a.el.focus();
+    const engine = new AutofillReconciler({ sleep: instant, observe: false });
+    await engine.run([{ fieldId: "f-1", value: "maya@example.com" }], reg([a.control]));
+    engine.dispose();
+    expect(a.el.value).toBe("");
     expect(document.activeElement).toBe(a.el);
   });
 });

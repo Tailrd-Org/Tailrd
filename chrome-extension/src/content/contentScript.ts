@@ -95,6 +95,7 @@ import { detectSite } from "./siteRegistry";
 import { FlowController, FLOW_TTL_MS, type FlowDeps, type FlowSnapshot, type StepTally } from "./flowController";
 import { clickAdvance, findAdvanceButton, findPendingAdvance } from "./advance";
 import { loneFormScope, type ScopeEntry } from "./formScope";
+import { trackUserFocus } from "./userFocus";
 import { findApplyEntry } from "./applyEntry";
 import {
   hasUnsolvedCaptcha,
@@ -1701,6 +1702,9 @@ function initialize(): void {
   };
   document.addEventListener("pointerdown", holdOnUserInput, true);
   document.addEventListener("keydown", holdOnUserInput, true);
+  // From the start, so a box the user clicked into before a fill is still
+  // theirs, and one the page autofocused is not (userFocus.ts).
+  trackUserFocus(document);
 
   /** Resume a persisted flow after a real navigation (form-owning frame only,
    *  or the top frame of an entry page, job posting / apply-method chooser). */

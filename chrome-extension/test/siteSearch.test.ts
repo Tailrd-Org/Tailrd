@@ -25,6 +25,21 @@ describe("isSiteSearch", () => {
     for (const id of ["keyword-search", "location-search", "kw", "x1", "x2"]) expect(isSiteSearch(el(id)), id).toBe(true);
   });
 
+  it("knows iCIMS's own job search (H&R Block's closed posting, live 2026-10-17)", () => {
+    // The search box ("jsb") a closed iCIMS posting lands on: its Location
+    // filter took the applicant's state, its category the AI's turn.
+    document.body.innerHTML = `
+      <label for="jsb_f_keywords_i">Start your job search here</label><input id="jsb_f_keywords_i" name="jsb_f_keywords_i">
+      <input type="radio" id="r1" name="searchRelation" value="keyword_all">
+      <label for="jsb_f_position_s">Job Search Category</label><select id="jsb_f_position_s"><option>All</option></select>
+      <label for="jsb_f_location_s">Location</label><select id="jsb_f_location_s"><option>WA SEATTLE US</option></select>
+      <label for="jsb_f_zipcode_i">Postal Code</label><input id="jsb_f_zipcode_i">
+      <label for="iCIMS_SortSelect">Sort By</label><select id="iCIMS_SortSelect"><option>Date</option></select>`;
+    for (const id of ["jsb_f_keywords_i", "r1", "jsb_f_position_s", "jsb_f_location_s", "jsb_f_zipcode_i", "iCIMS_SortSelect"]) {
+      expect(isSiteSearch(el(id)), id).toBe(true);
+    }
+  });
+
   it("knows the result list's own controls", () => {
     document.body.innerHTML = `
       <label for="sort-by">Sort by</label><select id="sort-by"><option>Relevance</option></select>

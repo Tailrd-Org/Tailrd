@@ -25,6 +25,7 @@
  */
 import type { RuntimeControl } from "./formScanner";
 import { verifyControl, writeControl } from "./writeEngine";
+import { trackUserFocus, focusIsUsers } from "./userFocus";
 
 export type FieldStatus =
   | "discovered"
@@ -130,6 +131,7 @@ export class AutofillReconciler {
     registry: Map<string, RuntimeControl>,
     signal?: AbortSignal
   ): Promise<FieldReport[]> {
+    trackUserFocus(this.doc());
     this.registry = registry;
     this.states = new Map(
       targets.map((t) => [
@@ -264,10 +266,11 @@ export class AutofillReconciler {
     }
   }
 
-  /** True when the user currently has focus inside this control. */
+  /** True when the user currently has focus inside this control. A focus the
+   *  page gave it (iCIMS's autofocused email) is not the user's (userFocus.ts). */
   private isActiveElement(control: RuntimeControl): boolean {
     const active = this.doc().activeElement;
-    if (!active) return false;
+    if (!active || !focusIsUsers(this.doc())) return false;
     if (control.el && (control.el === active || control.el.contains(active))) return true;
     return Boolean(control.radios?.some((r) => r === active));
   }
@@ -276,6 +279,7 @@ export class AutofillReconciler {
   private userIsEditing(): boolean {
     const el = this.doc().activeElement as HTMLElement | null;
     if (!el || el === this.doc().body || el === this.doc().documentElement) return false;
+    if (!focusIsUsers(this.doc())) return false;
     const tag = el.tagName;
     return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || el.isContentEditable;
   }
