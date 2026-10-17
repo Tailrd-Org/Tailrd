@@ -80,6 +80,22 @@ function entryTexts(el: HTMLElement): string[] {
 }
 
 /**
+ * The posting an entry leads to: its link's path without a last /apply or
+ * /application step, its query or its fragment; "" when it is no link (an
+ * in-page button). Two Apply buttons of one posting share it.
+ */
+function postingOf(el: HTMLElement): string {
+  const href = el.closest("a[href]")?.getAttribute("href") ?? "";
+  if (!href || href.startsWith("#") || /^(javascript|mailto):/i.test(href)) return "";
+  try {
+    const url = new URL(href, el.ownerDocument.baseURI);
+    return `${url.origin}${url.pathname}`.replace(/\/+$/, "").replace(/\/(apply|application)$/i, "").toLowerCase();
+  } catch {
+    return "";
+  }
+}
+
+/**
  * The best apply-entry control on the page, or null.
  *
  * "Apply Manually" is checked FIRST (ahead of even the adapter hook) because
@@ -94,12 +110,17 @@ function entryTexts(el: HTMLElement): string[] {
  * After that the adapter hook wins (reliable automation-ids), then the generic
  * tiers, which match anchored button text so body copy like "apply by June 1"
  * can never produce a click target.
+ *
+ * Apply buttons leading to two postings or more make a list of jobs, never a
+ * posting: a closed Breezy posting sends its /apply to the company's openings,
+ * and the flow applied to the first of 39 (Vagaro, regression 2026-10-17).
  */
 export function findApplyEntry(doc: Document, adapter: SiteAdapter | null): EntryButton | null {
   let apply: HTMLElement | null = null;
   let cont: HTMLElement | null = null;
   let applyLabel = "";
   let contLabel = "";
+  const postings = new Set<string>();
   for (const el of deepQueryAll(doc, ENTRY_SELECTOR)) {
     if (!isClickable(el)) continue;
     const texts = entryTexts(el);
@@ -107,6 +128,7 @@ export function findApplyEntry(doc: Document, adapter: SiteAdapter | null): Entr
     const manual = texts.find((t) => ENTRY_MANUAL_RE.test(t));
     if (manual) return { el, label: manual, fromAdapter: false }; // best, stop
     const applyText = texts.find((t) => ENTRY_APPLY_RE.test(t));
+    if (applyText && postingOf(el)) postings.add(postingOf(el));
     if (!apply && applyText) [apply, applyLabel] = [el, applyText];
     const contText = texts.find((t) => ENTRY_CONTINUE_RE.test(t));
     if (!cont && contText) [cont, contLabel] = [el, contText];
@@ -119,6 +141,6 @@ export function findApplyEntry(doc: Document, adapter: SiteAdapter | null): Entr
   } catch {
     // Adapter hooks refine, never break, fall through to the generic tiers.
   }
-  if (apply) return { el: apply, label: applyLabel, fromAdapter: false };
+  if (apply && postings.size < 2) return { el: apply, label: applyLabel, fromAdapter: false };
   return cont ? { el: cont, label: contLabel, fromAdapter: false } : null;
 }

@@ -177,3 +177,36 @@ describe("findApplyEntry", () => {
     expect(entry?.label).toBe("Poser sa candidature");
   });
 });
+
+/**
+ * A closed Breezy posting sends its /apply to the company's openings (Vagaro,
+ * regression 2026-10-17): 39 jobs, each with its own "Apply". The flow took
+ * the first, a Director of DevOps role in Ahmedabad, and filled that
+ * application. A list of postings offers no entry; one posting's two Apply
+ * buttons (top and bottom, or its page and its /apply) still do.
+ */
+describe("a list of postings is no posting", () => {
+  const position = (slug: string, title: string, place: string): string =>
+    `<li class="position transition"><ul class="position-wrap pad-b-50"><li class="position-details flex-0">` +
+    `<a href="/p/${slug}" title="Apply"><h2>${title}</h2><ul class="meta"><li class="location"><span>${place}</span></li></ul>` +
+    `<button class="button apply polygot button-full bzyButtonColor">Apply</button></a></li>` +
+    `<li class="position-actions"><a href="/p/${slug}" title="Apply"><button class="button apply polygot button-right bzyButtonColor">Apply</button></a></li></ul></li>`;
+
+  it("offers no Apply on Breezy's openings (Vagaro)", () => {
+    document.body.innerHTML =
+      `<h1>Openings at Vagaro</h1><ul class="positions">` +
+      position("d1ade44fbc28-director-of-devops-sre-infrastructure", "Director of DevOps, SRE &amp; Infrastructure", "Ahmedabad, IN") +
+      position("d8c61acc6349-director-software-engineering", "Director- Software Engineering", "Ahmedabad, IN") +
+      `</ul>`;
+    expect(findApplyEntry(document, null)).toBeNull();
+  });
+
+  it("still takes a posting's own Apply, at its top and its bottom", () => {
+    document.body.innerHTML =
+      `<a id="top" href="/p/1a62d98b9483-software-engineer/apply">Apply</a><p>The role…</p>` +
+      `<a id="bottom" href="/p/1a62d98b9483-software-engineer/apply?source=bottom#form">Apply</a>`;
+    expect(findApplyEntry(document, null)?.el.id).toBe("top");
+    document.body.innerHTML = `<a id="page" href="/p/1a62d98b9483-software-engineer">Apply</a><a href="/p/1a62d98b9483-software-engineer/apply">Apply now</a>`;
+    expect(findApplyEntry(document, null)?.el.id).toBe("page");
+  });
+});
