@@ -84,6 +84,22 @@ export function findAdvanceButton(
   return findInPageFooter(scope);
 }
 
+/**
+ * A visible advance or submit button the page still holds disabled, in scope.
+ * Some pages enable theirs only after checking what was typed: iCIMS's login
+ * enables "Next" a moment after the email and the privacy notice are in (live
+ * 2026-10-17), so the flow looked once, found nothing, and ended there.
+ */
+export function findPendingAdvance(scope: HTMLElement, opts: FindAdvanceOpts = {}): HTMLElement | null {
+  for (const el of deepQueryAll(scope, BUTTON_SELECTOR)) {
+    const disabled = (el as HTMLButtonElement).disabled || el.getAttribute("aria-disabled") === "true";
+    if (!disabled || !isVisible(el)) continue;
+    const text = buttonText(el);
+    if (text && (ADVANCE_RE.test(text) || TERMINAL_RE.test(text) || opts.extraAdvance?.test(text))) return el;
+  }
+  return null;
+}
+
 /** Landmarks whose buttons are site navigation, never a step's advance.
  *  `footer` is deliberately absent: a step footer IS where Back /
  *  Save-and-Continue lives, and excluding it is what caused this bug. */

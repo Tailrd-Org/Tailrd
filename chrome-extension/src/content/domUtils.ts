@@ -93,6 +93,35 @@ export function isVisible(el: HTMLElement): boolean {
 }
 
 /**
+ * The text an element shows: its text without the parts the page hides
+ * (display:none / visibility:hidden), with a space at every box boundary.
+ * textContent runs a responsive button's two labels together: iCIMS's
+ * "Apply for this job online" keeps a short "Apply" beside it, hidden, and
+ * read as "Apply for this job onlineApply" (live 2026-10-17). jsdom has no
+ * innerText, so this walks the tree itself.
+ */
+export function shownText(el: Element): string {
+  if (!el.firstElementChild) return cleanText(el.textContent);
+  let out = "";
+  const walk = (node: Node): void => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        out += child.textContent ?? "";
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const style = getComputedStyle(child as Element);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        const box = style.display !== "inline" && style.display !== "contents";
+        if (box) out += " ";
+        walk(child);
+        if (box) out += " ";
+      }
+    }
+  };
+  walk(el);
+  return cleanText(out);
+}
+
+/**
  * The "visually hidden" clip trick, used for sr-only content and, critically,
  * for bot-trap honeypot inputs: a `clip: rect(1px,1px,1px,1px)` (or `rect(0,…)`)
  * or a zero-area `clip-path` collapses the box to nothing while leaving it in the

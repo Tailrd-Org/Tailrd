@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach, beforeAll, afterAll } from "vitest";
-import { findAdvanceButton } from "../src/content/advance";
+import { findAdvanceButton, findPendingAdvance } from "../src/content/advance";
 import { LOGIN_ADVANCE_RE, SIGNUP_ADVANCE_RE } from "../src/content/accountFlow";
 import type { SiteAdapter } from "../src/content/adapters/types";
 import { stubLayout } from "./helpers/layout";
@@ -152,5 +152,30 @@ describe("account wall advance", () => {
     document.body.innerHTML = `<div id="scope"><input type="password" /><button>Sign in to apply</button></div>`;
     const found = findAdvanceButton(document.getElementById("scope")!, null, { extraAdvance: LOGIN_ADVANCE_RE });
     expect(found!.kind).toBe("advance");
+  });
+});
+
+describe("findPendingAdvance", () => {
+  // iCIMS's candidate login (live 2026-10-17): Next is disabled until the
+  // email and the privacy notice are in, and the page enables it a moment
+  // after the fill's events.
+  const ICIMS_LOGIN = `
+    <form id="enterEmailForm" class="iCIMS_SignIn" method="post">
+      <label for="email">Email</label>
+      <input type="email" autocomplete="email" id="email" name="css_loginName" class="form-control" value="">
+      <label for="accept_gdpr"><input type="checkbox" id="accept_gdpr" name="accept_gdpr" value="1" aria-required="true"> By clicking the Next button below, I agree to the Privacy Notice.</label>
+      <input id="enterEmailSubmitButton" type="submit" class="iCIMS_PrimaryButton gdprAnswerSubmitButton" value="Next" disabled="">
+    </form>`;
+
+  it("reports the disabled Next the enabled search cannot see", () => {
+    const scope = scopeWith(ICIMS_LOGIN);
+    expect(findAdvanceButton(scope, null)).toBeNull();
+    expect(findPendingAdvance(scope)?.id).toBe("enterEmailSubmitButton");
+    (document.getElementById("enterEmailSubmitButton") as HTMLInputElement).disabled = false;
+    expect(findAdvanceButton(scope, null)?.el.id).toBe("enterEmailSubmitButton");
+  });
+
+  it("ignores disabled buttons that are not a page turn", () => {
+    expect(findPendingAdvance(scopeWith(`<button disabled>Remove</button><button aria-disabled="true">Add another</button>`))).toBeNull();
   });
 });

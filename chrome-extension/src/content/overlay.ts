@@ -149,6 +149,7 @@ export interface OverlayViewState {
 }
 
 export function showOverlay(state: OverlayViewState, cb: OverlayCallbacks): void {
+  const switched = callbacks !== null && callbacks !== cb;
   callbacks = cb;
   overlayState.fields = state.fields;
   overlayState.tabUrl = state.tabUrl;
@@ -159,7 +160,14 @@ export function showOverlay(state: OverlayViewState, cb: OverlayCallbacks): void
   ensureMounted();
   if (!panelExpanded) setExpanded(true);
   if (!initialized) void initPanel();
-  else refreshMainView();
+  else {
+    // New callbacks on a panel that already loaded the profile: a form frame
+    // adopted after the posting's own page (iCIMS opens its login inside the
+    // posting's frame). That frame needs the profile to fill, and to resume
+    // the flow the posting's Apply started; loadProfile only fed the old one.
+    if (switched && overlayState.scanned) cb.onProfileResolved(fillProfile());
+    refreshMainView();
+  }
 }
 
 export function updateOverlay(state: OverlayViewState): void {

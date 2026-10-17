@@ -13,7 +13,7 @@
  * always beats "Autofill with Resume" / "Use My Last Application" on Workday's
  * chooser, our filler drives the manual form.
  */
-import { cleanText, deepQueryAll, isVisible } from "./domUtils";
+import { cleanText, deepQueryAll, isVisible, shownText } from "./domUtils";
 import type { SiteAdapter } from "./adapters/types";
 
 export interface EntryButton {
@@ -60,12 +60,19 @@ function entryText(el: HTMLElement): string {
  * aria-label often names the job too ("Apply for Software Designer" on a
  * Dayforce button that reads "Apply"), so matching only the first name missed
  * the button. A bypass option named in either one still excludes it.
+ *
+ * What it shows is read without the parts the page hides (iCIMS's hidden short
+ * label, see shownText). A title names the control only when it shows no
+ * text of its own: beside visible text it is a tooltip, not the name.
  */
 function entryTexts(el: HTMLElement): string[] {
+  const shown = shownText(el);
   const texts = [
     cleanText(el.getAttribute("aria-label")),
     cleanText(el.textContent),
+    shown,
     cleanText((el as HTMLInputElement).value ?? ""),
+    shown ? "" : cleanText(el.getAttribute("title")),
   ]
     .map((t) => t.replace(TRAILING_DECOR, ""))
     .filter((t) => t && t.length <= 40);

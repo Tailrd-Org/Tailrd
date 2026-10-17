@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "vitest";
-import { resolveFormScope, filterToScope, type ScopeEntry } from "../src/content/formScope";
+import { resolveFormScope, filterToScope, loneFormScope, type ScopeEntry } from "../src/content/formScope";
 import type { DetectedField, FieldCategory } from "../src/shared/types";
 
 beforeEach(() => {
@@ -111,5 +111,32 @@ describe("resolveFormScope", () => {
     const scope = resolveFormScope(entries)!;
     expect(scope.id).toBe("app");
     expect(filterToScope(entries, scope).map((e) => e.field.id)).toEqual(["1", "2", "3", "4"]);
+  });
+});
+
+describe("loneFormScope", () => {
+  // iCIMS's candidate login (live 2026-10-17): one recognized field (the
+  // email) and the privacy notice's box, in their own <form> with its Next.
+  // No scope is drawn from one field, so the flow had nowhere to look for Next.
+  it("is the lone recognized field's own form when it holds every scanned field", () => {
+    document.body.innerHTML = `
+      <form id="enterEmailForm"><input id="email" type="email" />
+        <div id="gdpr_container"><input id="accept_gdpr" type="checkbox" /></div>
+        <input id="enterEmailSubmitButton" type="submit" value="Next" /></form>`;
+    const entries = [
+      entry("1", "email", document.getElementById("email")!),
+      entry("2", "unknown", document.getElementById("accept_gdpr")!),
+    ];
+    expect(resolveFormScope(entries)).toBeNull();
+    expect(loneFormScope(entries)?.id).toBe("enterEmailForm");
+  });
+
+  it("is null when a scanned field sits outside that form, or two fields are recognized", () => {
+    document.body.innerHTML = `<form id="f"><input id="a" /></form><input id="b" />`;
+    const a = entry("1", "email", document.getElementById("a")!);
+    expect(loneFormScope([a, entry("2", "unknown", document.getElementById("b")!)])).toBeNull();
+    expect(loneFormScope([a, entry("2", "firstName", document.getElementById("b")!)])).toBeNull();
+    document.body.innerHTML = `<div><input id="c" /></div>`;
+    expect(loneFormScope([entry("1", "email", document.getElementById("c")!)])).toBeNull();
   });
 });

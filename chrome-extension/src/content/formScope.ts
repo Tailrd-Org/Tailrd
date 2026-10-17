@@ -59,6 +59,21 @@ export function resolveFormScope(entries: ScopeEntry[]): HTMLElement | null {
   return best.el === lca ? widenToSections(best.el, entries) : best.el;
 }
 
+/**
+ * A one-question step's own form: one recognized field inside a <form> that
+ * also holds every other scanned field. resolveFormScope draws no scope from
+ * one field, so a step like iCIMS's "Let's get started" (an email and its
+ * privacy notice, live 2026-10-17) gave the flow nowhere to look for its Next.
+ * The flow searches this form for the page turn; the scan is not narrowed.
+ */
+export function loneFormScope(entries: ScopeEntry[]): HTMLElement | null {
+  const recognized = entries.filter((e) => e.field.category !== "unknown");
+  if (recognized.length !== 1) return null;
+  const form = recognized[0].el.closest("form") as HTMLElement | null;
+  if (!form) return null;
+  return entries.every((e) => composedContains(form, e.el)) ? form : null;
+}
+
 /** At most this many levels: a row, its section, the form. */
 const MAX_WIDEN = 3;
 

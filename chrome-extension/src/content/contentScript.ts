@@ -93,7 +93,8 @@ import { runAdapterOperations, type SiteAdapter } from "./adapters";
 import { ERROR_FRAGMENT as WD_ERROR_FRAGMENT } from "./adapters/workdaySelectors";
 import { detectSite } from "./siteRegistry";
 import { FlowController, FLOW_TTL_MS, type FlowDeps, type FlowSnapshot, type StepTally } from "./flowController";
-import { clickAdvance, findAdvanceButton } from "./advance";
+import { clickAdvance, findAdvanceButton, findPendingAdvance } from "./advance";
+import { loneFormScope, type ScopeEntry } from "./formScope";
 import { findApplyEntry } from "./applyEntry";
 import {
   hasUnsolvedCaptcha,
@@ -1544,21 +1545,35 @@ function initialize(): void {
     });
   }
 
+  /** Where the flow looks for the page turn: the scanned form's scope, or a
+   *  one-question step's own form (loneFormScope: iCIMS's email step). */
+  function flowScope(): HTMLElement | null {
+    if (lastScope) return lastScope;
+    const entries: ScopeEntry[] = [];
+    for (const f of lastFields) {
+      const el = registry.get(f.id)?.el;
+      if (el) entries.push({ field: f, el });
+    }
+    return loneFormScope(entries);
+  }
+
   function makeFlowDeps(): FlowDeps {
     return {
       fillStep: (ids, ctx) => fillOnce(ids, flowAbort?.signal, null, ctx?.afterEntry === true),
       snapshot: (): FlowSnapshot => ({
         fields: lastFields,
-        scopeEl: lastScope,
+        scopeEl: flowScope(),
         url: location.href,
         entry: findApplyEntry(document, lastAdapter),
         accountWall: detectWall(lastScope ?? document.body) !== null,
+        remoteForm: isTopFrame && adoptedRemote,
       }),
       rescan: () => {
         runScan();
         engine?.updateRegistry(registry);
       },
       findAdvance: (scope, extraAdvance) => findAdvanceButton(scope, lastAdapter, { extraAdvance }),
+      advancePending: (scope, extraAdvance) => findPendingAdvance(scope, { extraAdvance }) !== null,
       findPageTerminal: () => {
         const footer = lastAdapter?.advanceButton?.(document.body);
         if (!footer) return null;

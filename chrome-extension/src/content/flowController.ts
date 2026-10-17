@@ -47,6 +47,11 @@ const GATE_POLL_MS = 250;
 const PAUSE_POLL_MS = 2000;
 const ADVANCE_POLL_MS = 500;
 const ADVANCE_WAIT_MS = 8000;
+/** After an entry click opens a page with no form of its own, how long a
+ *  child frame has to claim one (its content script scans, then announces). */
+const REMOTE_FORM_WAIT_MS = 6000;
+/** How long a filled page's disabled advance gets to enable itself. */
+const ADVANCE_ENABLE_WAIT_MS = 3000;
 /** How many times to auto-attach a résumé upload field that lazy-renders after
  *  the fill before falling back to waiting for a manual attach. */
 const RESUME_ATTACH_TRIES = 6;
@@ -79,6 +84,10 @@ export interface FlowSnapshot {
   /** True while a signup/login account wall is on the page, lets the flow
    *  hand a stuck wall back to the user instead of stopping the whole flow. */
   accountWall: boolean;
+  /** The page's form belongs to a child frame (the panel adopted it), so the
+   *  flow continues there: iCIMS opens its login and form inside the
+   *  posting's own frame. Absent = false. */
+  remoteForm?: boolean;
 }
 
 export interface FlowDeps {
@@ -90,6 +99,9 @@ export interface FlowDeps {
   /** Force a fresh scan (updates what snapshot() returns). */
   rescan(): void;
   findAdvance(scope: HTMLElement, extraAdvance?: RegExp): AdvanceButton | null;
+  /** True while the scope holds an advance/submit button the page keeps
+   *  disabled for now (it enables it once its own checks pass). Absent = false. */
+  advancePending?(scope: HTMLElement, extraAdvance?: RegExp): boolean;
   clickAdvance(el: HTMLElement): void;
   /** The flow reached the terminal (submit) button, hand it over so the caller
    *  can bind submit tracking. NEVER clicked by the controller. */
@@ -252,6 +264,7 @@ export class FlowController {
 
       const tally = pending ?? (await this.deps.fillStep(null, { afterEntry: this.openedFromEntry }));
       pending = null;
+      const afterEntry = this.openedFromEntry;
       this.openedFromEntry = false;
       // Cumulative across steps: the final "done" beat reports the whole flow.
       this.lastTally = { ok: this.lastTally.ok + tally.ok, fail: this.lastTally.fail + tally.fail };
@@ -264,8 +277,16 @@ export class FlowController {
 
       const snap = this.deps.snapshot();
       const recognized = snap.fields.filter((f) => f.category !== "unknown").length;
-      const adv = snap.scopeEl ? this.deps.findAdvance(snap.scopeEl, account.extraAdvance) : null;
-      const advText = adv ? (adv.el.getAttribute("aria-label") || adv.el.textContent || "").trim().slice(0, 40) : "";
+      let adv = snap.scopeEl ? this.deps.findAdvance(snap.scopeEl, account.extraAdvance) : null;
+      if (!adv && snap.scopeEl && this.deps.advancePending?.(snap.scopeEl, account.extraAdvance)) {
+        adv = await this.waitForAdvanceEnabled(snap.scopeEl, account.extraAdvance);
+      }
+      // An <input type="submit"> shows its value (iCIMS's "Next").
+      const advText = adv
+        ? (adv.el.getAttribute("aria-label") || adv.el.textContent?.trim() || (adv.el as HTMLInputElement).value || "")
+            .trim()
+            .slice(0, 40)
+        : "";
       console.log(`[Tailrd flow] step ${this.step}: ${snap.fields.length} fields, advance=${adv ? `${adv.kind} "${advText}"` : "NONE"}`);
       if (!adv) {
         // No advance inside a form scope. On a page with no recognized fields,
@@ -279,6 +300,19 @@ export class FlowController {
           }
           this.openedFromEntry = true;
           continue;
+        }
+        // The form is a child frame's (iCIMS: the login and the application
+        // open inside the posting's own frame). That frame's flow resumes from
+        // the step persisted before the entry click, so this one ends without
+        // a beat and without clearing it. Right after an entry click the frame
+        // may not have claimed its form yet: give it a moment.
+        if (recognized === 0) {
+          const where = snap.remoteForm ? "remote" : afterEntry ? await this.waitForRemoteForm() : "none";
+          if (where === "remote") {
+            console.log("[Tailrd flow] the form is in a child frame; the flow continues there");
+            return;
+          }
+          if (where === "local") continue;
         }
         // A field-less LAST page: Workday's Review lists the answers and offers
         // only Submit, so there is no form scope to search. Its own footer, when
@@ -537,6 +571,36 @@ export class FlowController {
       }
       await this.deps.sleep(PAUSE_POLL_MS);
     }
+  }
+
+  /** The filled page's advance is still disabled: give the page a moment to
+   *  enable it (its own checks run after the fill's events), then look again. */
+  private async waitForAdvanceEnabled(scope: HTMLElement, extraAdvance?: RegExp): Promise<AdvanceButton | null> {
+    console.log("[Tailrd flow] the page's advance is still disabled; waiting for it");
+    for (let waited = 0; waited < ADVANCE_ENABLE_WAIT_MS; waited += GATE_POLL_MS) {
+      if (this.stopRequested) return null;
+      await this.deps.sleep(GATE_POLL_MS);
+      const adv = this.deps.findAdvance(scope, extraAdvance);
+      if (adv) return adv;
+      if (!this.deps.advancePending?.(scope, extraAdvance)) break;
+    }
+    console.log("[Tailrd flow] the advance never enabled");
+    return null;
+  }
+
+  /** A page an entry click opened shows no form of its own: poll until a
+   *  child frame claims one ("remote"), the page grows its own fields or an
+   *  entry ("local", fill it), or the wait runs out ("none"). */
+  private async waitForRemoteForm(): Promise<"remote" | "local" | "none"> {
+    for (let waited = 0; waited < REMOTE_FORM_WAIT_MS; waited += ADVANCE_POLL_MS) {
+      if (this.stopRequested) return "none";
+      await this.deps.sleep(ADVANCE_POLL_MS);
+      this.deps.rescan();
+      const snap = this.deps.snapshot();
+      if (snap.remoteForm) return "remote";
+      if (snap.entry || snap.fields.some((f) => f.category !== "unknown")) return "local";
+    }
+    return "none";
   }
 
   /** After an advance click: rescan until the page (fields, or URL/entry on

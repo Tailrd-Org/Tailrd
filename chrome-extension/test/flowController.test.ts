@@ -202,6 +202,20 @@ describe("FlowController", () => {
     await run;
   });
 
+  it("labels the gate with an input button's value (iCIMS's Next, live 2026-10-17)", async () => {
+    const next = document.createElement("input");
+    next.type = "submit";
+    next.value = "Next";
+    const pages = [[field("1", "A")], [field("2", "B")]];
+    const { deps, progress } = makeDeps(pages, [{ el: next, kind: "advance" }, terminalBtn()]);
+    const controller = new FlowController(deps);
+    const run = controller.run(freshState(), null);
+    while (!progress.some((p) => p.phase === "ready")) await Promise.resolve();
+    expect(progress.find((p) => p.phase === "ready")?.nextLabel).toBe("Next");
+    controller.notifyAdvanceRequested();
+    await run;
+  });
+
   it("uses the provided first tally instead of re-filling step 0", async () => {
     const pages = [[field("1", "A")], [field("2", "B")]];
     const { deps, log, progress } = makeDeps(pages, [advanceBtn(), null]);
@@ -357,6 +371,68 @@ describe("FlowController", () => {
 
   it("stops with a clear message when a field-less page has no entry", async () => {
     const { deps, progress } = makeDeps([[]], [null]);
+    await new FlowController(deps).run(freshState(), null);
+    const last = progress[progress.length - 1];
+    expect(last.phase).toBe("stopped");
+    expect(last.detail).toMatch(/no application form/i);
+  });
+
+  // iCIMS (live 2026-10-17): the posting's Apply sits in a same-origin frame,
+  // and the page it opens (the candidate login, then the form) is that frame's.
+  // The top frame's flow saw no form of its own and stopped with "No
+  // application form found", clearing the state the frame's flow resumes from.
+  it("hands the flow to the frame that owns the form an entry click opened (iCIMS)", async () => {
+    const { deps, log, progress } = makeDeps([[], []], [null, null], ["Apply for this job online", null]);
+    const snapshot = deps.snapshot;
+    deps.snapshot = () => {
+      const s = snapshot();
+      return { ...s, remoteForm: s.url.endsWith("page-1") };
+    };
+    await new FlowController(deps).run(freshState(), null);
+    expect(log).toContain("click:0");
+    expect(progress.some((p) => p.phase === "stopped" || p.phase === "done")).toBe(false);
+    expect(log).not.toContain("state:null"); // the frame resumes from step 1
+    expect(log.filter((l) => l.startsWith("state:")).pop()).toBe("state:1");
+  });
+
+  it("waits a moment after an entry click for a frame to claim the form", async () => {
+    const { deps, log, progress } = makeDeps([[], []], [null, null], ["Apply for this job online", null]);
+    const snapshot = deps.snapshot;
+    let polls = 0;
+    deps.snapshot = () => {
+      const s = snapshot();
+      if (!s.url.endsWith("page-1")) return s;
+      polls++;
+      return { ...s, remoteForm: polls > 6 };
+    };
+    await new FlowController(deps).run(freshState(), null);
+    expect(progress.some((p) => p.phase === "stopped" || p.phase === "done")).toBe(false);
+    expect(log).not.toContain("state:null");
+  });
+
+  // iCIMS's login (live 2026-10-17): "Next" stays disabled until the page has
+  // checked the email and the notice, a moment after the fill. The flow looked
+  // once, found no advance, and ended "Done … Review and submit" on a login page.
+  it("waits for an advance the page enables a moment after the fill", async () => {
+    const { deps, log, progress } = makeDeps([[field("1", "Email")], [field("2", "Password")]], [advanceBtn(), terminalBtn()]);
+    let looks = 0;
+    const find = deps.findAdvance;
+    deps.findAdvance = (scope, extra) => (log.some((l) => l.startsWith("click:")) || ++looks > 3 ? find(scope, extra) : null);
+    deps.advancePending = () => looks <= 3;
+    await drive(new FlowController(deps), progress);
+    expect(log).toContain("click:0");
+    expect(progress.some((p) => p.phase === "ready")).toBe(true);
+  });
+
+  it("finishes as before when no disabled advance is waiting", async () => {
+    const { deps, progress } = makeDeps([[field("1", "Email")]], [null]);
+    deps.advancePending = () => false;
+    await drive(new FlowController(deps), progress);
+    expect(progress[progress.length - 1].phase).toBe("done");
+  });
+
+  it("still stops when no frame claims a form after an entry click", async () => {
+    const { deps, progress } = makeDeps([[], []], [null, null], ["Apply", null]);
     await new FlowController(deps).run(freshState(), null);
     const last = progress[progress.length - 1];
     expect(last.phase).toBe("stopped");

@@ -115,6 +115,47 @@ describe("findApplyEntry", () => {
     expect(findApplyEntry(document, null)?.el.id).toBe("go");
   });
 
+  // The real iCIMS button (DocuSign, live 2026-10-17): a long and a short label
+  // side by side, the short one hidden by the page's stylesheet, so its text
+  // runs together as "Apply for this job onlineApply" and the anchored match
+  // never saw it. The title says what the button shows.
+  const ICIMS_APPLY = `
+    <a id="go" href="https://uscareers-x.icims.com/jobs/30499/software-engineer-intern/job?mode=apply&amp;apply=yes&amp;in_iframe=1&amp;hashed=-1834411579" class="iCIMS_Anchor iCIMS_Action_Button iCIMS_ApplyOnlineButton iCIMS_PrimaryButton" title="Apply for this job online"><div class="iCIMS_Action_ButtonText"><span class="iCIMS_LongLabel">Apply for this job online</span><span class="iCIMS_ShortLabel" style="display:none">Apply</span></div></a>`;
+
+  it("reads iCIMS's real button: a hidden short label beside the long one (live 2026-10-17)", () => {
+    document.body.innerHTML = ICIMS_APPLY;
+    const entry = findApplyEntry(document, null);
+    expect(entry?.el.id).toBe("go");
+    expect(entry?.label).toBe("Apply for this job online");
+  });
+
+  it("reads a button by what it shows when no title says it", () => {
+    document.body.innerHTML = ICIMS_APPLY.replace(/ title="[^"]*"/, "");
+    expect(findApplyEntry(document, null)?.label).toBe("Apply for this job online");
+  });
+
+  it("never takes a title that is a sentence about applying", () => {
+    document.body.innerHTML = `<a id="go" href="/jobs" title="Apply for this job online">See all jobs</a>`;
+    expect(findApplyEntry(document, null)).toBeNull();
+  });
+
+  it("finds iCIMS's button inside the posting's same-origin frame (live 2026-10-17)", () => {
+    document.body.innerHTML = `<iframe id="icims_content_iframe"></iframe>`;
+    const frame = document.getElementById("icims_content_iframe") as HTMLIFrameElement;
+    const doc = frame.contentDocument!;
+    doc.body.innerHTML = ICIMS_APPLY;
+    const frameProto = (frame.contentWindow as unknown as typeof window).HTMLElement.prototype;
+    const original = frameProto.getClientRects;
+    frameProto.getClientRects = window.HTMLElement.prototype.getClientRects;
+    try {
+      const entry = findApplyEntry(document, null);
+      expect(entry?.el).toBe(doc.getElementById("go"));
+      expect(entry?.label).toBe("Apply for this job online");
+    } finally {
+      frameProto.getClientRects = original;
+    }
+  });
+
   it("reads past a decorative arrow: 'Apply now »' (L3Harris on SuccessFactors, round 5 batch C)", () => {
     document.body.innerHTML = `
       <a class="btn btn-primary apply dialogApplyBtn" id="go" href="/talentcommunity/apply/1432400300/?locale=en_US">Apply now »</a>`;
