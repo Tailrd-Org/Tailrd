@@ -115,7 +115,8 @@ const STATES = [
     url: "/app",
     ...AUTHED,
     wait: ".jobs-page",
-    steps: [{ click: ".filter-toggle-btn" }],
+    // Filters are always visible; open the first pill's dropdown instead.
+    steps: [{ click: '[aria-label="Job filters"] button' }],
   },
   {
     id: "app-job-detail",
