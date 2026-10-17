@@ -60,6 +60,8 @@ function render(p: BankPosting): string {
     if (q.type === "input_number") return `<div class="field"><label for="${id}">${label}</label>${desc}<input type="number" id="${id}" name="${esc(q.name)}"${aria}></div>`;
     if (q.type === "input_date") return `<div class="field"><label for="${id}">${label}</label>${desc}<input type="date" id="${id}" name="${esc(q.name)}"${aria}></div>`;
     if (q.type === "textarea") return `<div class="field"><label for="${id}">${label}</label>${desc}<textarea id="${id}" name="${esc(q.name)}"${aria}></textarea></div>`;
+    // A lone box under the text it accepts (Jobvite's "I Accept").
+    if (q.type === "input_checkbox") return `<div class="field">${desc}<input type="checkbox" id="${id}" name="${esc(q.name)}" value="1"${aria}><label for="${id}">${label}</label></div>`;
     if (q.type === "multi_value_multi_select" && q.options.length) {
       const boxes = q.options.map((o, j) => `<label><input type="checkbox" name="${esc(q.name)}[]" value="${j}"> ${esc(o)}</label>`).join("");
       return `<fieldset class="field" id="${id}"><legend>${label}</legend>${desc}${boxes}</fieldset>`;

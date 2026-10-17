@@ -51,6 +51,16 @@ describe("a sentence goes on past an abbreviation", () => {
     ]);
     expect(sentencesOf("Are you a U.S. Citizen? Please answer.")).toEqual(["Are you a U.S. Citizen?", "Please answer."]);
     expect(sentencesOf("List your skills, i.e. Python. Then sign.")).toEqual(["List your skills, i.e. Python.", "Then sign."]);
+    expect(sentencesOf("Sponsorship (E.g. H-1B) needed? Yes or no.")).toEqual(["Sponsorship (E.g. H-1B) needed?", "Yes or no."]);
+  });
+  it("ends only before a capital or a digit", () => {
+    expect(sentencesOf("Did anyone refer you to this position? if so, who?")).toEqual(["Did anyone refer you to this position? if so, who?"]);
+  });
+  it("so a referral asked yes or no takes no job title (Syska Hennessy)", () => {
+    // The applicant's title was written into it (question bank 2026-10-17).
+    const a = propose("Did anyone refer you to this position? if so, who?", [], ["US_OPT_ANALYST", "US_H1B_SENIOR"]);
+    expect(a.US_OPT_ANALYST).toBeNull();
+    expect(a.US_H1B_SENIOR).toBeNull();
   });
 });
 
@@ -136,6 +146,53 @@ describe("a box that only acknowledges reads its question (Everpure)", () => {
   it("never agrees to arbitrate for the applicant", () => {
     const html = box("Mutual Arbitration Agreement", "By checking this box you agree to resolve any dispute through binding individual arbitration and waive the right to a jury trial.");
     expect(proposed(html)).toBeNull();
+  });
+  // Twilio's pledge over one "Acknowledge" box stays the applicant's
+  // (decision 6 of round 4). The question bank renders its description
+  // between the legend and the box; Greenhouse puts it after the fieldset.
+  const PLEDGE =
+    "By checking this box, I confirm I have read, reviewed and understood the guidelines outlined in the Candidate AI Responsible Use Policy. I affirm that all the information and materials I submit throughout my application and candidacy will reflect my own work and experience.";
+  it("leaves a pledge of the applicant's own work blank, the description inside the fieldset", () => {
+    const html =
+      `<form><fieldset class="field" id="q0"><legend>${PLEDGE}*</legend><div id="q0-d" class="description">Candidate AI Responsible Use Policy</div>` +
+      `<label><input type="checkbox" name="question_68522887[]" value="0"> Acknowledge</label></fieldset><div class="field"><label for="em">Email</label><input id="em" name="email"></div></form>`;
+    expect(proposed(html)).toBeNull();
+  });
+  it("leaves a pledge of the applicant's own work blank, Greenhouse's markup", () => {
+    expect(proposed(box(PLEDGE, "Candidate AI Responsible Use Policy").replace(/Acknowledge\/Confirm/g, "Acknowledge"))).toBeNull();
+  });
+});
+
+describe("some high school is no diploma (Lucid Motors)", () => {
+  // A bootcamp graduate with a high school diploma got "Some High School"
+  // (question bank 2026-10-17): the GED in the diploma's option ruled it out.
+  it("takes the diploma", () => {
+    const a = propose(
+      "What is your highest level of education completed?",
+      ["Some High School", "High School Diploma/GED", "Bachelors Degree", "Masters Degree", "PHD"],
+      ["BOOTCAMP_CAREER_GAP", "US_VETERAN"]
+    );
+    expect(a.BOOTCAMP_CAREER_GAP).toBe("High School Diploma/GED");
+    expect(a.US_VETERAN).toBe("Bachelors Degree");
+  });
+  it("never takes it for a high school graduate either", () => {
+    const a = propose("Highest level of education", ["Some High School", "High School Diploma/GED", "Some College", "Associate's Degree"], ["BOOTCAMP_CAREER_GAP"]);
+    expect(a.BOOTCAMP_CAREER_GAP).not.toBe("Some High School");
+  });
+  it("nor for a student who has completed nothing yet (Lucid Motors, Wattpad)", () => {
+    const a = propose(
+      "What is your highest level of education completed?",
+      ["Some High School", "High School Diploma/GED", "Bachelors Degree", "Masters Degree", "PHD"],
+      ["COMPLETE_CANADIAN"]
+    );
+    expect(a.COMPLETE_CANADIAN).not.toBe("Some High School");
+    const b = propose(
+      "What is the highest degree that you have attained?",
+      ["Less than high school or equivalent", "High school or equivalent", "College diploma", "University degree", "Advanced degree (MSc, MA, PhD)", "Prefer not to say"],
+      ["COMPLETE_CANADIAN"],
+      "CA"
+    );
+    expect(b.COMPLETE_CANADIAN).not.toBe("Less than high school or equivalent");
   });
 });
 

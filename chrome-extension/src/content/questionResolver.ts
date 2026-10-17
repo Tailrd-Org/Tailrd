@@ -1532,6 +1532,11 @@ const LEVEL_Q = /\bhighest (completed )?(level of )?(education|degree|qualificat
 /** Rank an OPTION (labels like "Bachelors", "Associates", "GED", "PhD"). */
 function optionRank(o: string): number | null {
   const t = qnorm(o);
+  // "Some High School" is high school unfinished (Lucid Motors, question bank
+  // 2026-10-17: a bootcamp graduate with a diploma got it). Below any rank a
+  // profile holds: 0 is a student's "nothing completed yet", and a Waterloo
+  // student got "Less than high school or equivalent" (Wattpad) by it.
+  if (/\b(some|less than|no|partial|incomplete) (high school|secondary)\b|\bdid not (complete|finish|graduate)\b/.test(t)) return -1;
   // ("HS Diploma", GEI on Jobvite: its "diploma" ranked it a college one.)
   if (/\bged\b|\bhigh school\b|\bhs\b|\bsecondary\b/.test(t)) return 1;
   if (/\bassociates?\b/.test(t)) return 3;
@@ -1605,9 +1610,12 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
   // A certificate or college diploma the list does not offer (a bootcamp
   // graduate on Nutanix's High School / Associate / … list, Jobvite bank
   // 2026-10-17): high school, which it implies, is the highest level listed.
+  // A GED alone is not the diploma; "High School Diploma/GED" is.
   if (hits.length === 0 && rank.value === 2) {
-    const school = q.options.filter((o) => optionRank(o) === 1 && !/\bged\b/.test(qnorm(o)));
-    if (school.length === 1) return answer(school[0], "education-level:certificate-implies-high-school");
+    const school = q.options.filter((o) => optionRank(o) === 1);
+    const diploma = school.filter((o) => !/\bged\b/.test(qnorm(o)) || /\bhigh school\b|\bhs\b|\bsecondary\b/.test(qnorm(o)));
+    const pick = diploma.length === 1 ? diploma : school;
+    if (pick.length === 1) return answer(pick[0], "education-level:certificate-implies-high-school");
   }
   return abstain("education-level:no-unique-option");
 }

@@ -35,8 +35,11 @@ const RECORDING_CONSENT: QuestionResult = { status: "abstain", rule: "default:re
 /** Who referred the applicant: theirs to write, never a guess. */
 const REFERRER_UNKNOWN: QuestionResult = { status: "abstain", rule: "default:referrer-unknown", blockBackend: true };
 /** Who wrote the application, or whether an AI helped: Tailrd may have. */
+// "…all the information and materials I submit … will reflect my own work and
+// experience." (Twilio, question bank) and "I agree to use only my own words"
+// (Canonical) are such pledges (decision 6 of round 4).
 const AUTHORSHIP =
-  /\b(this|the|my|your) application\b[^.?]{0,40}\b(myself|yourself|by a person|by a human|personally|on my own)\b|\bcompleted by a (person|human)\b|\b(used|using|use) an? (ai|artificial intelligence) tool\b|\bai (generated|assisted|written)\b/;
+  /\b(this|the|my|your) application\b[^.?]{0,40}\b(myself|yourself|by a person|by a human|personally|on my own)\b|\bcompleted by a (person|human)\b|\b(used|using|use) an? (ai|artificial intelligence) tool\b|\bai (generated|assisted|written)\b|\b(my|your) own (words|work)\b|\bplagiari\w*/;
 const AUTHORSHIP_THEIRS: QuestionResult = { status: "abstain", rule: "default:authorship", blockBackend: true };
 /** Needing an accommodation, for anyone who has not stated "no disability". */
 const ACCOMMODATION_THEIRS: QuestionResult = { status: "abstain", rule: "default:accommodation-theirs", blockBackend: true };
@@ -473,6 +476,13 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
     // "Other", never the default job board ("Career fair" got "Online Job
     // Board" on Paylocity, live 2026-10-03).
     if (!/\b(linked ?in|indeed|glassdoor|monster|zip ?recruiter|job (board|site|search)s?|online)\b/.test(stated)) {
+      // A career site the list names in general ("Internet Career Site", SRC
+      // on Jobvite) may be the company's own: the applicant's to say, never
+      // "Other" (question bank 2026-10-17). A named one ("Campus Career Site",
+      // NSBE's) is not.
+      const GENERIC_SITE = /^(internet|online|web|career|careers|employment|site|sites|website|websites|page|pages|portal|job|jobs|the|an?|official)$/;
+      const genericSite = (o: string): boolean => /\b(career|careers|employment) (site|sites|website|websites|page|pages|portal)\b/.test(qn(o)) && qn(o).split(" ").every((w) => GENERIC_SITE.test(w));
+      if (/\bwebsite\b|\bsite\b|\bcareers? page\b/.test(stated) && opts.some(genericSite)) return null;
       const other = opts.filter((o) => /^other\b/.test(qn(o)));
       return other.length === 1 ? answer(other[0], "source:stated-other") : null;
     }
@@ -488,7 +498,10 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
     // "Internet / Online", "Online job ad": not "Online community" (Workleap),
     // "Online Forum or Community" (Coveo) or a "Search Engine" (Accenture
     // Federal; question bank 2): a job board is none of those.
-    const ONLINE = /^((the|an?|internet|online|web)\s*)+$|\b(internet|online|web) (job|jobs|ad|ads|advert|advertisement|posting|listing)s?\b|\bthird party (website|site|job site|job board)s?\b/;
+    // "Internet Career Site" is the standard applicant-source list's job
+    // site channel (SRC on Jobvite, question bank 2026-10-17: LinkedIn got "Other").
+    const ONLINE =
+      /^((the|an?|internet|online|web)\s*)+$|\b(internet|online|web) (job|jobs|ad|ads|advert|advertisement|posting|listing)s?\b|\b(internet|online|web) (career|careers|employment) (site|sites|website|websites|board|boards|portal|portals)\b|\bthird party (website|site|job site|job board)s?\b/;
     // A named platform stated is that platform: "LinkedIn" is never another
     // brand's board ("Handshake", Geotab; question bank 2026-10-05).
     const brands = NAMED_SOURCE.test(stated) ? [SOURCE_PREFERENCE[0], ONLINE] : [SOURCE_PREFERENCE[0], ONLINE, SOURCE_PREFERENCE[4]];

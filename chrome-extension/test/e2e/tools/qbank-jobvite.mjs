@@ -85,7 +85,9 @@ function preScreening(form) {
         if (!f.fieldType) continue;
         const own = clean(f.name ?? el.name ?? "");
         const generic = !own || /^(selection|answer|response|your answer|please select|choose one|select one|select)\s*:?$/i.test(own);
-        out.push({ ...f, name: generic ? title : own, required: f.required || el.required });
+        // The text above it rides along: an "IAgreeCheckbox" ("I Accept")
+        // accepts the paragraph before it.
+        out.push({ ...f, name: generic ? title : own, required: f.required || el.required, context: title });
       }
     }
   }
@@ -103,6 +105,20 @@ function toQuestion(f, group) {
   if (!seenTypes.has(ft)) seenTypes.set(ft, JSON.stringify(f).slice(0, 300));
   const options = (f.values ?? []).map((v) => clean(typeof v === "string" ? v : v?.value ?? v?.key ?? "")).filter(Boolean);
   let type = "input_text";
+  // One box ("I Accept", its only value "1"; Ross Video's "IAgreeCheckbox"):
+  // a lone checkbox under the paragraph it accepts, that paragraph its
+  // description. It was a one-option select of "1".
+  if (/check ?box/i.test(ft) && options.length <= 1) {
+    return {
+      group,
+      label,
+      description: clean(f.instructions ?? "") || clean(f.context ?? ""),
+      required: !!f.required,
+      name: `jv_${group === "preScreening" ? "ps_" : ""}${f.fieldId ?? label.slice(0, 20)}`,
+      type: "input_checkbox",
+      options: [],
+    };
+  }
   if (/drop ?down|select|radio|check ?box|multiple|yes ?no|boolean/i.test(ft) && options.length > 0) {
     type = f.multiSelect || /check ?box/i.test(ft) && options.length > 1 ? "multi_value_multi_select" : "multi_value_single_select";
   } else if (/^text$|text ?area|long|paragraph|essay/i.test(ft)) type = "textarea";

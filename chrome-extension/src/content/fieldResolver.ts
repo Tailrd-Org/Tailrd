@@ -19,7 +19,7 @@ import { resolveAnswerWithAdapter } from "./adapters/apply";
 import type { SiteAdapter } from "./adapters/types";
 import { answerKindOf, optionPolarity, valueFitsKind, type AnswerKind } from "./answerKind";
 import { dateFormatFor, fitDate, type DateFormat } from "./dateControl";
-import type { FieldSignals } from "./domUtils";
+import { cleanText, type FieldSignals } from "./domUtils";
 import { isHigh, profileFacts } from "./profileFacts";
 import { resolveQuestion, type QuestionContext, type QuestionInput, type QuestionResult } from "./questionResolver";
 import { countryFromName } from "./geo";
@@ -437,14 +437,21 @@ export function resolveField(input: FieldResolveInput): FieldResolution {
  *  under: "Acknowledge/Confirm" under the legend "Personal Information Policy"
  *  (Everpure on Greenhouse, live 2026-10-17) went to the AI and was dropped.
  *  Read with that question, the arbitration, recording and authorship guards
- *  see it too. */
+ *  see it too. Only its own group's legend: the text nearest the box can be a
+ *  description ("Candidate AI Responsible Use Policy" under Twilio's pledge,
+ *  question bank) or the question before it. */
 const BARE_ACKNOWLEDGEMENT =
   /^\s*(i )?(acknowledged?|confirm(ed)?|agreed?|understood|understand)(\s*([/&,]|\band\b|\bor\b)\s*(acknowledged?|confirm(ed)?|agreed?|understood|understand))?[\s*.]*$/i;
 
+function legendOf(el: HTMLElement | undefined): string {
+  const legend = el?.closest("fieldset")?.querySelector(":scope > legend");
+  return legend ? cleanText(legend.textContent) : "";
+}
+
 function resolveFieldValue(input: FieldResolveInput): FieldResolution {
   const { profile, category, control, signals } = input;
-  const label =
-    control.controlType === "checkbox" && signals.nearby && BARE_ACKNOWLEDGEMENT.test(input.label) ? `${signals.nearby} ${input.label}` : input.label;
+  const legend = control.controlType === "checkbox" && BARE_ACKNOWLEDGEMENT.test(input.label) ? legendOf(input.el) : "";
+  const label = legend ? `${legend} ${input.label}` : input.label;
   const options = control.options;
   const kind = answerKindOf({
     controlType: control.controlType,

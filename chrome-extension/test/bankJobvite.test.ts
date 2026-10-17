@@ -200,4 +200,22 @@ describe("a stated source never becomes a board nobody named (Nutanix, ActioNet)
     expect(a.COMPLETE_CANADIAN).toBe("LinkedIn");
     expect(a.US_H1B_SENIOR).toBe("ActioNet Career Page");
   });
+  // SRC's list is the standard applicant-source one: "Internet Career Site"
+  // is the job site channel. LinkedIn got "Other" (round 6, bank re-run), and
+  // so did the company's own website, which that option may well be.
+  it("a job site the list does not name is its internet career site, never Other", () => {
+    const SRC = ["Internet Career Site", "Job Fair/Career Event", "Social Media", "Employee Referral", "Internet Search Engine", "Advertisement", "Other"];
+    const a = answers([{ label: "Applicant Source", options: SRC }], "Applicant Source", "North Syracuse, New York", "SRC, Inc.");
+    expect(a.COMPLETE_CANADIAN).toBe("Internet Career Site");
+    expect(a.INDIA_NEW_GRAD).toBe("Internet Career Site");
+    expect(a.US_OPT_ANALYST).toBe("Internet Career Site");
+    expect(a.US_H1B_SENIOR).not.toBe("Other");
+    expect(a.BOOTCAMP_CAREER_GAP).toBe("Social Media");
+    expect(a.BERLIN_STAFF).toBe("Employee Referral");
+  });
+  it("a named career site is no company's own site: Other stands (Enova, Greenhouse bank)", () => {
+    const ENOVA = ["Agency", "Built in Chicago", "Campus Career Site", "Campus Event", "Campus Career Fair", "CareerBuilder", "Conference", "Facebook", "Glassdoor", "Indeed", "LinkedIn", "Meetup", "Grace Hopper", "Other", "Twitter"];
+    const a = answers([{ label: "How did you hear about this job?", options: ENOVA }], "How did you hear about this job?", "Chicago, IL", "Enova International");
+    expect(a.US_H1B_SENIOR).toBe("Other");
+  });
 });

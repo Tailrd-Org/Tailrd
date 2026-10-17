@@ -14,6 +14,14 @@ export const STATEMENT_WORDS = 40;
 const REQUEST = /^(please )?(select|indicate|enter|provide|list|choose|confirm|specify|state|share|tell|describe|type|write|check|mark|tick|identify|initial|sign)\b/i;
 const NOTE = /^(\*+\s*)?(please )?(note|nb|n\.b\.)\b/i;
 
+const ABBREVIATIONS = ["e.g", "i.e", "etc", "vs", "approx", "incl", "u.s", "u.k", "inc", "ltd", "corp", "co", "st", "mr", "mrs", "ms", "dr", "jr", "sr", "a.m", "p.m"];
+/** An abbreviation in either case, letter by letter: a flag would make the
+ *  capital the next sentence starts with any letter, and "Did anyone refer you
+ *  to this position? if so, who?" (Syska Hennessy, question bank 2026-10-17)
+ *  became two sentences, the yes/no one no longer the one asked. */
+const anyCase = (word: string): string => word.replace(/\./g, "\\.").replace(/[a-z]/g, (c) => `[${c}${c.toUpperCase()}]`);
+const SENTENCE_BREAK = new RegExp(`(?<!\\b(?:${ABBREVIATIONS.map(anyCase).join("|")})\\.["”’)]?)(?<=[.?!]["”’)]?)\\s+(?=["“‘(]?[A-Z0-9])`);
+
 /** The sentences of a label, a sentence ending only before a capital or digit
  *  ("…work in the U.S. without sponsorship?" is one), after any closing quote,
  *  and never at an abbreviation: "(e.g. H-1B status, etc.)" ended Justworks'
@@ -21,7 +29,7 @@ const NOTE = /^(\*+\s*)?(please )?(note|nb|n\.b\.)\b/i;
  *  question (Yes for everyone, live 2026-10-17); "a U.S. Citizen" too. */
 export function sentencesOf(raw: string): string[] {
   return (raw || "")
-    .split(/(?<!\b(?:e\.g|i\.e|etc|vs|approx|incl|u\.s|u\.k|inc|ltd|corp|co|st|mr|mrs|ms|dr|jr|sr|a\.m|p\.m)\.["”’)]?)(?<=[.?!]["”’)]?)\s+(?=["“‘(]?[A-Z0-9])/i)
+    .split(SENTENCE_BREAK)
     .map((s) => s.trim())
     .filter(Boolean);
 }
