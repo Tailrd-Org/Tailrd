@@ -89,6 +89,56 @@ describe("a veteran in the family is not the applicant's service (Justworks)", (
   });
 });
 
+describe("blanks a stated fact answers (Greenhouse, live 2026-10-17)", () => {
+  it("the deemed export rule does not touch a US citizen or permanent resident (Everpure)", () => {
+    const a = propose("Does the deemed export rule affect your employment by Everpure?*", ["Yes", "No"], ["US_VETERAN", "US_GREENCARD_STUDENT", "US_H1B_SENIOR"]);
+    expect(a.US_VETERAN).toBe("No");
+    expect(a.US_GREENCARD_STUDENT).toBe("No");
+    expect(a.US_H1B_SENIOR).toBeNull();
+  });
+  it("documentation of the resume's history, if requested, is provided (Justworks)", () => {
+    const a = propose("If requested, would you be able to provide documentation reflecting the education and employment history listed on your resume? *", ["Yes", "No"], ["US_GREENCARD_STUDENT", "US_VETERAN"]);
+    expect(a.US_GREENCARD_STUDENT).toBe("Yes");
+    expect(a.US_VETERAN).toBe("Yes");
+  });
+  it("a graduate returns to no program after the internship (Everpure)", () => {
+    const a = propose("Will you be returning to an undergraduate or graduate program after the internship if selected?*", ["Yes", "No"], ["US_VETERAN", "INDIA_NEW_GRAD", "COMPLETE_CANADIAN"]);
+    expect(a.US_VETERAN).toBe("No");
+    expect(a.INDIA_NEW_GRAD).toBe("No");
+    expect(a.COMPLETE_CANADIAN).toBeNull();
+  });
+});
+
+describe("a box that only acknowledges reads its question (Everpure)", () => {
+  // Greenhouse's markup, verbatim but for the link: a lone "Acknowledge/Confirm"
+  // box under the legend "Personal Information Policy" was left to the AI and
+  // dropped (live 2026-10-17).
+  const box = (legend: string, description: string): string =>
+    `<form><fieldset class="checkbox" id="question_69589930[]" aria-required="true"><legend class="label checkbox__description">${legend}<!-- --> <span class="required">*</span></legend>` +
+    `<div class="checkbox__wrapper"><div class="checkbox__input"><input description="${legend}" required="" type="checkbox" id="question_69589930[]_754163668" name="question_69589930[]" aria-describedby="question_69589930[]-description question_69589930[]-error" aria-invalid="false" aria-errormessage="question_69589930[]-error" value="754163668"/></div>` +
+    `<label for="question_69589930[]_754163668">Acknowledge/Confirm</label></div></fieldset>` +
+    `<div class="body body__secondary"><div id="question_69589930[]-description" class="question-description"><p>${description}</p></div></div>` +
+    `<div class="field"><label for="em">Email</label><input id="em" name="email"></div></form>`;
+  const proposed = (html: string): string | null => {
+    document.body.innerHTML = html;
+    setResolveContext({ jobCountry: "US", jobCity: null, jobPlaces: null, company: "Everpure" });
+    const { fields } = scanPage(persona("US_VETERAN"), true);
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    return fields.find((f) => /acknowledge/i.test(f.label))?.proposedValue ?? null;
+  };
+  it("acknowledges a policy", () => {
+    const html = box(
+      "Personal Information Policy",
+      "Wonder how or why Pure collects or uses any information you provide? Check out our <a href=\"https://example.com/notice.pdf\">Applicant &amp; Candidate Personal Information Protection Notice</a>."
+    );
+    expect(proposed(html)).toMatch(/^(yes|true|checked)$/i);
+  });
+  it("never agrees to arbitrate for the applicant", () => {
+    const html = box("Mutual Arbitration Agreement", "By checking this box you agree to resolve any dispute through binding individual arbitration and waive the right to a jury trial.");
+    expect(proposed(html)).toBeNull();
+  });
+});
+
 describe("Justworks' sponsorship question, read whole", () => {
   // "(e.g. H-1B" ended a sentence, so the question read was "H-1B status,
   // etc.) to work legally … in the United States?", a work-right question:

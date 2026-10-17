@@ -1532,7 +1532,8 @@ const LEVEL_Q = /\bhighest (completed )?(level of )?(education|degree|qualificat
 /** Rank an OPTION (labels like "Bachelors", "Associates", "GED", "PhD"). */
 function optionRank(o: string): number | null {
   const t = qnorm(o);
-  if (/\bged\b|\bhigh school\b|\bsecondary\b/.test(t)) return 1;
+  // ("HS Diploma", GEI on Jobvite: its "diploma" ranked it a college one.)
+  if (/\bged\b|\bhigh school\b|\bhs\b|\bsecondary\b/.test(t)) return 1;
   if (/\bassociates?\b/.test(t)) return 3;
   if (/\bbachelors?\b|\bundergrad/.test(t)) return 4;
   if (/\bmasters?\b|\bmba\b/.test(t)) return 5;
@@ -1601,7 +1602,29 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
   // "High School" vs "GED", "Master's" vs "MBA": prefer the generic one.
   const generic = hits.filter((o) => !/\b(ged|mba|m b a|md|jd)\b/.test(qnorm(o)));
   if (generic.length === 1) return answer(generic[0], "education-level");
+  // A certificate or college diploma the list does not offer (a bootcamp
+  // graduate on Nutanix's High School / Associate / … list, Jobvite bank
+  // 2026-10-17): high school, which it implies, is the highest level listed.
+  if (hits.length === 0 && rank.value === 2) {
+    const school = q.options.filter((o) => optionRank(o) === 1 && !/\bged\b/.test(qnorm(o)));
+    if (school.length === 1) return answer(school[0], "education-level:certificate-implies-high-school");
+  }
   return abstain("education-level:no-unique-option");
+}
+
+/**
+ * "Will you be returning to an undergraduate or graduate program after the
+ * internship if selected?" (Everpure on Greenhouse, live 2026-10-17): a
+ * graduate enrolled nowhere has no program to return to. A student's answer
+ * turns on dates the profile does not settle (finishing before the
+ * internship ends, or not), so it stays theirs.
+ */
+function resolveReturningToSchool(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!/\b(return|returning|go back|going back)\b[^?]{0,40}\b(school|program|programme|studies|university|college|degree|undergraduate|graduate)\b/.test(n)) return null;
+  if (!/\bafter\b[^?]{0,30}\b(internship|co ?op|placement|work term|term)\b/.test(n)) return null;
+  if (!isBooleanQuestion(q)) return null;
+  const e = facts.education.currentlyEnrolled;
+  return isHigh(e) && !e.value ? booleanResult(false, q, "returning-to-school:graduated") : abstain("returning-to-school:student");
 }
 
 function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
@@ -2098,7 +2121,8 @@ function resolveGpa(q: QuestionInput, n: string, profile: UserApplicationProfile
   // "What was your bachelor's university degree result…? Please include the
   // grading system" (Canonical, question bank 2026-10-05) is the GPA too.
   const result = /\b(degree|university|academic|final) (result|results|grade|grades|classification)\b|\bexpected result\b/.test(n);
-  if (!/\b(gpa|cgpa|grade point average|cumulative average)\b/.test(n) && !result) return null;
+  // ("G.P.A." reads "g p a", SRC on Jobvite, question bank 2026-10-17.)
+  if (!/\b(c ?)?g ?p ?a\b|\bgrade point average\b|\bcumulative average\b/.test(n) && !result) return null;
   if (/\b(scale|out of|maximum|max)\b/.test(n) && !/\byour\b/.test(n)) return null;
   const higher = /\b(graduate|masters?|doctorate|doctoral|phd|mba)\b/.test(n) && !/\bundergraduate\b/.test(n);
   const rank = facts.education.highestRank?.value ?? null;
@@ -2158,6 +2182,9 @@ function durationRange(option: string): [number, number] | null {
   const WORDS: Record<string, number> = { a: 1, an: 1, one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, eight: 8, ten: 10, twelve: 12 };
   const t = qnorm(option).replace(/\b(an?|one|two|three|four|five|six|eight|ten|twelve)\b(?= (day|week|month)s?\b)/g, (w) => String(WORDS[w]));
   if (/\b(immediately|immediate|asap|right away)\b/.test(t)) return [0, 7];
+  // "With Reasonable Notice" beside "Immediately" (Ross Video on Jobvite,
+  // question bank 2026-10-17): a notice period, up to three months' notice.
+  if (/\b(with|after|upon) (a |the )?(reasonable |standard |proper |appropriate |usual |sufficient |giving |serving |my )*notice\b/.test(t)) return [8, 120];
   const unit = (u: string): number => (u.startsWith("day") ? 1 : u.startsWith("week") ? 7 : 30);
   let m: RegExpExecArray | null;
   if ((m = /\b(\d+)\s*(?:to\s+|\s)(\d+)\s*(day|week|month)s?\b/.exec(t))) return [+m[1] * unit(m[3]), +m[2] * unit(m[3])];
@@ -2593,6 +2620,19 @@ function resolveRelocationChoice(q: QuestionInput, n: string, profile: UserAppli
 // AI on Lever, question bank 2026-10-08).
 const US_STATUS_OPTION = /\b(u ?s citizen|united states citizen|citizen of the united states|national of the united states|u ?s national|lawful permanent resident|permanent resident of the u|green card|refugee|asylee|protected individual|daca|u ?s person|foreign person)\b/;
 const NONE = /^(\(?[a-z]\)?\s+)?other\b|\bnone of the above\b|\bforeign person\b|\bnot a u ?s (person|citizen)\b/;
+/**
+ * "Does the deemed export rule affect your employment by Everpure?" (Greenhouse,
+ * live 2026-10-17): the rule governs foreign persons, so a US citizen or
+ * permanent resident is not affected. Anyone else is the applicant's to judge
+ * (it turns on the technology and on licences, not on the profile).
+ */
+function resolveDeemedExport(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!/\bdeemed exports?\b/.test(n) || !/\b(affect|affects|apply|applies|subject|impact|impacts|restrict|restricts)\b/.test(n)) return null;
+  if (!isBooleanQuestion(q)) return null;
+  const basis = facts.workAuth.byCountry.get("US")?.basis;
+  return basis === "citizen" || basis === "permanent_resident" ? booleanResult(false, q, "deemed-export:us-person") : abstain("deemed-export:foreign-person");
+}
+
 function resolveUsPersonStatus(q: QuestionInput, facts: ProfileFacts, profile: UserApplicationProfile, fullLabel: string = q.label): QuestionResult {
   // "Are you a “U.S. person” as defined under applicable U.S. export-control
   // regulations…?" with Yes / No (Jeffrey M. Consulting on Workable,
@@ -2806,8 +2846,11 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
   // "a Twitch employee", "…of any of the Crest family of companies"), else an
   // explicit pointer at the hiring company ("for us", "this company").
   // Anything else ("worked at a startup") names no company we can check.
+  // ("…employed by, or contracted to, Ross Video…" names it after a comma;
+  // "…by any of our Range Group companies" after "our": Jobvite and
+  // Greenhouse, 2026-10-17.)
   const named =
-    /\b(?:of|by|for|at)\s+(?:any of\s+)?(?:the\s+)?([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})/.exec(raw) ??
+    /\b(?:of|by|for|at|to)\s*,?\s+(?:any of\s+)?(?:(?:the|our)\s+)?([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})/.exec(raw) ??
     // "a current MongoDB employee" (MongoDB's embedded form, live 2026-10-03):
     // a qualifier may sit between the article and the name, or two ("a
     // current or former Alphabet employee", Waymo, live 2026-10-05).
@@ -3411,6 +3454,7 @@ export function resolveQuestion(
     resolveVisaStatusList(q, facts, profile) ??
     resolvePracticalTraining(sq, sn, profile) ??
     (unnoted !== raw ? resolveWorkAuthorization({ ...q, label: unnoted }, qnorm(unnoted), facts, profile, ctx) : resolveWorkAuthorization(q, n, facts, profile, ctx)) ??
+    resolveDeemedExport(sq, sn, facts) ??
     resolveUsPersonStatus(sq, facts, profile, q.label) ??
     resolveLaterResidency(sq, sn, facts) ??
     resolveCitizenship(sq, sn, facts, ctx) ??
@@ -3430,6 +3474,7 @@ export function resolveQuestion(
     resolveEducationLevel(sq, sn, facts) ??
     resolveDegreeCandidate(sq, sn, facts) ??
     resolveF1Status(sq, sn, profile) ??
+    resolveReturningToSchool(sq, sn, facts) ??
     resolveEnrollment(sq, sn, facts) ??
     resolveCoop(sq, sn, facts) ??
     resolvePreviousInternship(sq, sn, profile) ??

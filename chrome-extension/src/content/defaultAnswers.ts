@@ -131,8 +131,10 @@ const EXPERIENCE_ASKED =
 /** "…challenges clearing a background check?": the clean answer is NO. */
 const OBSTACLE = /\b(challenges?|issues?|problems?|concerns?|difficult(y|ies)?|prevent you|preclude|disqualif\w*|impediments?|barriers?|obstacles?|restrictions?|limitations?)\b/;
 
+// ("Have you ever filled out an application with us before?", GEI on Jobvite,
+// question bank 2026-10-17.)
 const PRIOR_APPLICATION =
-  /\b(have|did) you (ever |previously |already )?(applied|interviewed|submitted (an )?application|filed (an )?application)\b|\bpreviously (applied|interviewed)\b|\bapplied (here|before|previously)\b|\binterviewed (here|before|with us)\b/;
+  /\b(have|did) you (ever |previously |already )?(applied|interviewed|submitted (an )?application|filed (an )?application|(filled|filed) out (an )?application|completed (an )?application)\b|\bpreviously (applied|interviewed)\b|\bapplied (here|before|previously)\b|\binterviewed (here|before|with us)\b/;
 /** "Were you referred by an employee?" (a yes/no; WHO referred stays unanswerable). */
 const REFERRED = /\b(were|was) you referred\b|\bwere you referred by\b|\breferred by (a|an|any) (current )?(employee|staff|team member|friend)\b|\bemployee referral\b/;
 const RELATIVES =
@@ -686,6 +688,32 @@ export function resolveDefault(
   // interested in being considered?" (Glossier, question bank 2026-10-05):
   // applying says so.
   if (/\bare you (still )?interested in (being considered|this (role|position|opportunity|job))\b/.test(n)) return polar(true, q, "default:still-interested");
+  // "If selected for this position will you continue to work for another
+  // employer?" (GEI on Jobvite, question bank 2026-10-17): the unencumbered
+  // applicant takes this job, not two.
+  if (/\b(continue|keep|remain|still)\b[^?]{0,20}\b(work|working|employed|employment)\b[^?]{0,15}\b(for|with|at) (another|other|a second|any other|an outside) (employer|company|job|organi[sz]ation)s?\b/.test(n)) {
+    return polar(false, q, "default:no-other-employer");
+  }
+  // "This position is Full-Time … Are you available for Full Time work?",
+  // "Are you available to work in a full-time position?" (CMPA on Jobvite,
+  // question bank 2026-10-17): the posting's requirement, accepted by applying
+  // (decision 49) unless the applicant prefers part-time work.
+  if (/\bare you (available|able) (to work )?(for |in )?(a |the )?full ?time( work| position| role| basis| employment| job)?\b|\bavailable (to work )?(for |in )?(a )?full ?time\b/.test(n)) {
+    return /\bpart ?time\b/.test(qn(profile.workPreference ?? "")) ? null : polar(true, q, "default:full-time-accepted");
+  }
+  // "If requested, would you be able to provide documentation reflecting the
+  // education and employment history listed on your resume?" (Justworks on
+  // Greenhouse, live 2026-10-17): the history is the applicant's own, and so
+  // are its records. Proof of a right to work is the work-authorization
+  // reader's, never this.
+  if (
+    /\b(provide|produce|submit|furnish|supply|show)\b[^?]{0,30}\b(documentation|documents|proof|records?|transcripts?|verification)\b/.test(n) &&
+    /\b(education(al)?|degrees?|academic|employment|work history|work experience|history|resume|cv|credentials?|qualifications?)\b/.test(n) &&
+    !/\b(eligib\w*|authori[sz]\w*|visas?|citizenship|immigration|right to work|i 9|identity|identification|vaccinat\w*|medical)\b/.test(n) &&
+    /\b(would|will|can|could|are) you\b|\b(able|willing) to\b/.test(n)
+  ) {
+    return polar(true, q, "default:documents-on-request");
+  }
   // "Will you be serving as enlisted personnel in either the Reserves or the
   // National Guard while working for AFS?" (live 2026-10-05): No for someone
   // who never served; anyone who did answers it.

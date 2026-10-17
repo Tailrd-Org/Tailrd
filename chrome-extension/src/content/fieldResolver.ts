@@ -433,8 +433,18 @@ export function resolveField(input: FieldResolveInput): FieldResolution {
   return { ...r, value, dateFormat };
 }
 
+/** A box whose own label only acknowledges answers the question it sits
+ *  under: "Acknowledge/Confirm" under the legend "Personal Information Policy"
+ *  (Everpure on Greenhouse, live 2026-10-17) went to the AI and was dropped.
+ *  Read with that question, the arbitration, recording and authorship guards
+ *  see it too. */
+const BARE_ACKNOWLEDGEMENT =
+  /^\s*(i )?(acknowledged?|confirm(ed)?|agreed?|understood|understand)(\s*([/&,]|\band\b|\bor\b)\s*(acknowledged?|confirm(ed)?|agreed?|understood|understand))?[\s*.]*$/i;
+
 function resolveFieldValue(input: FieldResolveInput): FieldResolution {
-  const { profile, category, control, signals, label } = input;
+  const { profile, category, control, signals } = input;
+  const label =
+    control.controlType === "checkbox" && signals.nearby && BARE_ACKNOWLEDGEMENT.test(input.label) ? `${signals.nearby} ${input.label}` : input.label;
   const options = control.options;
   const kind = answerKindOf({
     controlType: control.controlType,

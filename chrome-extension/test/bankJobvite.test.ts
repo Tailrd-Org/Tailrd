@@ -97,6 +97,61 @@ describe("Current Company / School (Nutanix)", () => {
   });
 });
 
+describe("blanks a stated fact answers (Jobvite bank)", () => {
+  it("a former employee or contractor of a company named after a comma, or one of 'our' companies", () => {
+    const a = answers([{ label: "Have you previously been employed by, or contracted to, Ross Video or any of its entities?", options: YN }], "Have you previously been employed by, or contracted to, Ross Video or any of its entities?", "Hybrid Remote, Nepean, Ontario", "Ross Video");
+    for (const who of ALL) expect(a[who], who).toBe("No");
+    const RANGE = "Have you previously been employed by any of our Range Group companies such as: Kensington Tours, Butterfield & Robinson, Abercrombie & Kent?";
+    const b = answers([{ label: RANGE, options: YN }], RANGE, "Toronto, Ontario", "Kensington Tours");
+    expect(b.COMPLETE_CANADIAN).toBe("No");
+  });
+  it("Immediately, or With Reasonable Notice, by the notice", () => {
+    const L = "When would you be available to start a new opportunity?";
+    const a = answers([{ label: L, options: ["Immediately", "With Reasonable Notice", "Other"] }], L, "Hybrid Remote, Nepean, Ontario", "Ross Video");
+    expect(a.BOOTCAMP_CAREER_GAP).toBe("Immediately");
+    expect(a.US_OPT_ANALYST).toBe("With Reasonable Notice");
+    expect(a.US_H1B_SENIOR).toBe("With Reasonable Notice");
+  });
+  it("no application filled out before", () => {
+    const L = "Have you ever filled out an application with us before?";
+    const a = answers([{ label: L, options: YN }], L, "Marquette, Michigan", "GEI Consultants");
+    for (const who of ALL) expect(a[who], who).toBe("No");
+  });
+  it("no other employer kept", () => {
+    const L = "If selected for this position will you continue to work for another employer?";
+    const a = answers([{ label: L, options: YN }], L, "Marquette, Michigan", "GEI Consultants");
+    for (const who of ALL) expect(a[who], who).toBe("No");
+  });
+  it("a VEVRAA paragraph over its two veteran options is the veteran question", () => {
+    const L =
+      "As a Government contractor we are subjected to the Vietnam Era Veterans’ Readjustment Assistance Act of 1974, as amended by the Jobs for Veterans Act of 2002, 38 U.S.C. 4212 (VEVRAA), which requires Government contractors to take affirmative action to employ and advance in employment: (1) disabled veterans; (2) recently separated veterans; (3) active duty wartime or campaign badge veterans; and (4) Armed Forces service medal veterans. If you believe you belong to any of the categories of protected veterans listed above, please indicate by making the appropriate selection.";
+    const a = answers([{ label: L, options: ["I AM NOT A PROTECTED VETERAN", "I IDENTIFY AS ONE OR MORE OF THE CLASSIFICATIONS OF PROTECTED VETERAN LISTED ABOVE"] }], L, "Syracuse, New York", "SRC");
+    expect(a.COMPLETE_CANADIAN).toBe("I AM NOT A PROTECTED VETERAN");
+    expect(a.US_OPT_ANALYST).toBe("I AM NOT A PROTECTED VETERAN");
+  });
+  it("a G.P.A. list by the stated GPA, on its own scale only", () => {
+    const L = "What is your overall G.P.A.?";
+    const OPTS = ["Below 2.5", "2.6", "2.7", "2.8", "2.9", "3.0", "3.1", "3.2", "3.3", "3.4", "3.5", "3.6", "3.7", "3.8", "3.9", "4.0"];
+    const a = answers([{ label: L, options: OPTS }], L, "Syracuse, New York", "SRC");
+    expect(a.COMPLETE_CANADIAN).toBe("3.7");
+    expect(a.INDIA_NEW_GRAD).toBeNull();
+  });
+  it("a highest qualification list like a highest education list", () => {
+    const L = "Highest Level of Qualification";
+    const a = answers([{ label: L, options: ["High School Diploma", "Associate Degree", "Bachelor's Degree", "Master's Degree", "Doctoral Degree (PhD)"] }], L, "San Jose, California", "Nutanix");
+    expect(a.BOOTCAMP_CAREER_GAP).toBe("High School Diploma");
+    expect(a.US_H1B_SENIOR).toBe("Master's Degree");
+  });
+  it("full-time work the posting asks for is accepted by applying", () => {
+    const L = "This position is Full-Time with the required hours of work Monday to Friday 8:30am-4:30pm. Are you available for Full Time work?";
+    const a = answers([{ label: L, options: YN }], L, "Ottawa, Ontario", "CMPA");
+    expect(a.COMPLETE_CANADIAN).toBe("Yes");
+    expect(a.BERLIN_STAFF).toBe("Yes");
+    const M = "Are you available to work in a full-time position?";
+    expect(answers([{ label: M, options: YN }], M, "Ottawa, Ontario", "CMPA").US_OPT_ANALYST).toBe("Yes");
+  });
+});
+
 describe("the job-board channel, not one board, across the banks", () => {
   // Re-running the older banks after the named-board rule: the channel with
   // brands as examples must stay the channel, and no other channel (a job

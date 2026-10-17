@@ -307,7 +307,28 @@ function withOptionsEvidence(
   if (!named) return current;
   if (current.category === "unknown") return named;
   if (current.category === named.category && current.confidence < named.confidence) return named;
+  // Self-ID options outrank a paragraph's stray words: SRC's VEVRAA notice
+  // ("…entitled to compensation…") read as salary over "I AM NOT A
+  // PROTECTED VETERAN" | "I IDENTIFY AS ONE OR MORE…" (Jobvite bank 2026-10-17).
+  if (!current.sensitive) return named;
   return current;
+}
+
+/** Controls that answer by choosing. */
+const CHOOSING: ReadonlySet<ControlType> = new Set<ControlType>(["select", "combobox", "customDropdown", "radioGroup", "ariaRadioGroup", "checkbox", "checkboxGroup"]);
+
+/**
+ * A control that answers by choosing is never the résumé upload: "If
+ * requested, would you be able to provide documentation reflecting the
+ * education and employment history listed on your resume?" (Justworks on
+ * Greenhouse, live 2026-10-17) was the upload by its "resume", and no rule
+ * ever read it. A question, then, unknown until a rule reads it.
+ */
+function choiceIsNoUpload(
+  current: { category: FieldCategory; confidence: number; sensitive: boolean },
+  controlType: ControlType
+): { category: FieldCategory; confidence: number; sensitive: boolean } {
+  return current.category === "resumeUpload" && CHOOSING.has(controlType) ? { category: "unknown", confidence: 0, sensitive: false } : current;
 }
 
 /**
@@ -1303,7 +1324,7 @@ export function scanPage(
     }
 
     const groupIndex = detectGroupIndex(signals);
-    let { category, confidence, sensitive } = classifyWithAdapter(adapter, { el, signals, controlType });
+    let { category, confidence, sensitive } = choiceIsNoUpload(classifyWithAdapter(adapter, { el, signals, controlType }), controlType);
 
     const options =
       el instanceof HTMLSelectElement
@@ -1313,7 +1334,9 @@ export function scanPage(
           : controlType === "ariaRadioGroup"
             ? ariaRadioOptions(el)
             : undefined;
-    if (options?.length) ({ category, confidence, sensitive } = consentOptionsOverride({ category, confidence, sensitive }, options));
+    // The options' own evidence too, as for radio and checkbox groups: SRC's
+    // VEVRAA notice is a SELECT of two veteran options (Jobvite bank 2026-10-17).
+    if (options?.length) ({ category, confidence, sensitive } = withOptionsEvidence({ category, confidence, sensitive }, options, signals.label));
     // A dialing-code picker is the phone's code: Rippling's combobox labelled
     // "Search" showing "+44 GB" (live 2026-10-05), or a list of bare "+49"
     // codes, which the label beside it made the phone number itself.
@@ -1413,7 +1436,7 @@ export function scanPage(
     const signals = groupSignals(radios, first.closest('fieldset, [role="radiogroup"]'));
     const groupIndex = detectGroupIndex(signals);
     const options = radios.map(radioOptionLabel).filter(Boolean).slice(0, MAX_GROUP_OPTIONS);
-    let { category, confidence, sensitive } = classifyWithAdapter(adapter, { el: first, signals, controlType: "radioGroup" });
+    let { category, confidence, sensitive } = choiceIsNoUpload(classifyWithAdapter(adapter, { el: first, signals, controlType: "radioGroup" }), "radioGroup");
     ({ category, confidence, sensitive } = withOptionsEvidence({ category, confidence, sensitive }, options, signals.label));
 
     registry.set(id, { id, controlType: "radioGroup", radios });
@@ -1460,7 +1483,7 @@ export function scanPage(
     const signals = groupSignals(checkboxes, container);
     const groupIndex = detectGroupIndex(signals);
     const options = checkboxes.map(radioOptionLabel).filter(Boolean).slice(0, MAX_GROUP_OPTIONS);
-    let { category, confidence, sensitive } = classifyWithAdapter(adapter, { el: first, signals, controlType: "checkboxGroup" });
+    let { category, confidence, sensitive } = choiceIsNoUpload(classifyWithAdapter(adapter, { el: first, signals, controlType: "checkboxGroup" }), "checkboxGroup");
     // As for radios: Workday's disability form asks only "Please check one of
     // the boxes below:" over three disability boxes, and stayed unanswered.
     ({ category, confidence, sensitive } = withOptionsEvidence({ category, confidence, sensitive }, options, signals.label));
