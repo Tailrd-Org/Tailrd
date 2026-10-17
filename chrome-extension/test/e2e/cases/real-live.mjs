@@ -64,8 +64,35 @@ async function userOpensBambooForm(page) {
 
 export default [
   // ---------------------------------------------------------------- Greenhouse
-  // live-gh-oneimaging retired 2026-10-08: the posting closed (Greenhouse's job API
-  // answers 404); real-live-embedded.mjs keeps its host page.
+  // Retired 2026-10-08 (Greenhouse's job API answered 404), restored 2026-10-17:
+  // the posting is open again. real-live-embedded.mjs frames the same posting.
+  live({
+    id: "live-gh-oneimaging",
+    ats: "greenhouse",
+    url: "https://job-boards.greenhouse.io/oneimaging/jobs/4403125009",
+    expect: {
+      "#first_name": "Maya",
+      "#last_name": "Tremblay",
+      "#preferred_name": { oneOf: ["Maya", ""] },
+      "#email": P.email,
+      // The phone dial-code picker (inside fieldset.phone-input): "Canada"
+      // selects "Canada +1", and the widget then displays only "+1".
+      "#country": DIAL_CODE_CANADA,
+      "#phone": PHONE,
+      "label:University of": { re: "^no" },
+      "label:Miami HQ": null,
+      "label:career fair": null,
+      "label:LinkedIn Profile": LINKEDIN,
+      "label:Desired Salary": null,
+      "label:authorized to work in the United States": null,
+      "label:require sponsorship": null,
+      // The page renamed its declines on 2026-10-03 ("Decline to self-identify",
+      // veteran status included): either wording is the decline.
+      "#gender": { oneOf: ["Decline To Self Identify", "Decline to self-identify"] },
+      "#hispanic_ethnicity": { oneOf: ["Decline To Self Identify", "Decline to self-identify"] },
+      "#veteran_status": { oneOf: ["I don't wish to answer", "Decline to self-identify"] },
+    },
+  }),
   live({
     id: "live-gh-garner",
     ats: "greenhouse",
