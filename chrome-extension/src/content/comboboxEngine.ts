@@ -715,7 +715,7 @@ export function comboboxDisplaysValue(trigger: HTMLElement, value: string): bool
  * from the label alone). Visibility is ignored on purpose: a mounted-but-hidden
  * listbox is a valid source.
  */
-export function readComboboxOptions(trigger: HTMLElement): string[] | undefined {
+export function readComboboxOptions(trigger: HTMLElement, limit = 60): string[] | undefined {
   const listbox = findMountedListbox(trigger);
   if (!listbox) return undefined;
   // A virtualized list renders a window of its options, each telling the
@@ -725,7 +725,7 @@ export function readComboboxOptions(trigger: HTMLElement): string[] | undefined 
   const rendered = optionsIn(listbox);
   const setSize = Math.max(0, ...rendered.map((o) => Number(o.getAttribute("aria-setsize")) || 0));
   if (setSize > rendered.length) return undefined;
-  return optionLabels(listbox);
+  return optionLabels(listbox, limit);
 }
 
 /**
@@ -755,13 +755,14 @@ export async function harvestComboboxOptions(
   return labels;
 }
 
-/** Non-disabled option labels of a listbox, trimmed for transport (cap 60). */
-function optionLabels(listbox: HTMLElement): string[] | undefined {
+/** Non-disabled option labels of a listbox, trimmed for transport (cap 60;
+ *  resolution asks for every one, see scanPage). */
+function optionLabels(listbox: HTMLElement, limit = 60): string[] | undefined {
   const labels = optionsIn(listbox)
     .filter((o) => o.getAttribute("aria-disabled") !== "true")
     .map((o) => optionText(o))
     .filter((t) => t.length > 0)
-    .slice(0, 60);
+    .slice(0, limit);
   return labels.length > 0 ? labels : undefined;
 }
 

@@ -97,7 +97,9 @@ export const COMMON_ATS: readonly AtsSpec[] = [
   { id: "bullhorn", host: /(^|\.)(bullhornstaffing|bullhorn|talentrackr)\.com$/i },
 
   // ---- Hard tier (Workday has its own module) ------------------------------
-  { id: "icims", host: /(^|\.)icims\.com$/i },
+  // The candidate login's submit is its Next, whatever it says: Schwab's reads
+  // "I Acknowledge the Privacy Notice" (live 2026-10-17).
+  { id: "icims", host: /(^|\.)icims\.com$/i, advance: ["form.iCIMS_SignIn #enterEmailSubmitButton"] },
   { id: "taleo", host: /(^|\.)taleo\.net$/i },
   { id: "adp", host: /(^|\.)adp\.com$/i },
   { id: "successfactors", host: /(^|\.)(successfactors\.(com|eu)|sapsf\.(com|eu))$/i },

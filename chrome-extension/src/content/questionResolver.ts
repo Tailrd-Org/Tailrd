@@ -3063,6 +3063,11 @@ function askedSentenceOf(label: string): string {
 
 // ----- Phone country code -----------------------------------------------------------
 
+/** A dialing-code option without its code: "(+1) United States" → "United States". */
+function withoutDialCode(option: string): string {
+  return option.replace(/\(\s*\+\s?\d{1,4}\s*\)|\+\s?\d{1,4}\b/g, " ").replace(/\s+/g, " ").trim();
+}
+
 function resolvePhoneCode(q: QuestionInput, n: string, facts: ProfileFacts, profile: UserApplicationProfile): QuestionResult {
   if (q.category !== "phoneCountryCode" && !/\b(country|dial(ing)?|phone|area) code\b|\bcountry calling\b/.test(n)) return null;
   if (/\barea code\b/.test(n)) return null;
@@ -3082,6 +3087,10 @@ function resolvePhoneCode(q: QuestionInput, n: string, facts: ProfileFacts, prof
   }
   const byCountry = country ? q.options.filter((o) => countryNamedIn(o) !== null && (countryNamedIn(o) as { code: string }).code === country.code) : [];
   if (byCountry.length === 1) return answer(byCountry[0], "phone-code:country");
+  // "(+1) United States" beside "(+1) United States Minor Outlying Islands"
+  // (iCIMS, Schwab, live 2026-10-17): the option that IS the country's name.
+  const exact = byCountry.filter((o) => countryFromName(withoutDialCode(o))?.code === country?.code);
+  if (exact.length === 1) return answer(exact[0], "phone-code:country");
   if (callingCode) {
     const byCode = q.options.filter((o) => new RegExp(`\\+\\s?${callingCode}(?!\\d)`).test(o));
     if (byCode.length === 1) return answer(byCode[0], "phone-code:calling-code");

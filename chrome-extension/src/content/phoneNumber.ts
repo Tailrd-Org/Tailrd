@@ -60,8 +60,9 @@ export function internationalNumber(phone: string, homeCountry: string | null, s
 }
 
 /** A dialing code shown as a picker's value or option: "+44 GB", "+1",
- *  "+49 DE - Germany", "Germany (+49)", "India +91". */
-const DIAL_TEXT = /^\+\s?\d{1,4}\b|\(\s*\+\s?\d{1,4}\s*\)\s*$|\s\+\d{1,4}\s*$/;
+ *  "+49 DE - Germany", "Germany (+49)", "India +91", "(+93) Afghanistan"
+ *  (iCIMS, live 2026-10-17). */
+const DIAL_TEXT = /^\+\s?\d{1,4}\b|^\(\s*\+\s?\d{1,4}\s*\)|\(\s*\+\s?\d{1,4}\s*\)\s*$|\s\+\d{1,4}\s*$/;
 
 /** A picker that holds dialing codes: its value is one, or nearly every
  *  option is (a native list carries its options at scan time). */

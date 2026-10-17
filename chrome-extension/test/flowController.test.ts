@@ -395,6 +395,24 @@ describe("FlowController", () => {
     expect(log.filter((l) => l.startsWith("state:")).pop()).toBe("state:1");
   });
 
+  // DocuSign (live 2026-10-17, second run): the frame's flow had parked at its
+  // Next gate when the top frame's flow announced "Step 2 · filling…", and the
+  // panel showed that stale beat over the gate. A flow whose page belongs to a
+  // child frame neither fills nor announces anything.
+  it("hands over before it fills or announces anything on the frame's page", async () => {
+    const { deps, log, progress } = makeDeps([[], []], [null, null], ["Apply for this job online", null]);
+    const snapshot = deps.snapshot;
+    deps.snapshot = () => {
+      const s = snapshot();
+      return { ...s, remoteForm: s.url.endsWith("page-1") };
+    };
+    await new FlowController(deps).run(freshState(), null);
+    const clickAt = log.indexOf("click:0");
+    expect(log.slice(clickAt).some((l) => l.startsWith("fill:"))).toBe(false);
+    const afterClick = progress.slice(progress.findIndex((p) => p.phase === "advancing") + 1);
+    expect(afterClick).toEqual([]);
+  });
+
   it("waits a moment after an entry click for a frame to claim the form", async () => {
     const { deps, log, progress } = makeDeps([[], []], [null, null], ["Apply for this job online", null]);
     const snapshot = deps.snapshot;

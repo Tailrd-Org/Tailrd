@@ -248,6 +248,18 @@ function opensList(el: HTMLElement): boolean {
   );
 }
 
+/**
+ * Every option a control offers, for resolution: the panel keeps a capped copy
+ * (60), and an answer past the cap was "not offered". A combobox list read
+ * whole too: Schwab's 245 dialing codes on iCIMS were cut at Canada, then the
+ * only "+1" left, and a Boston number got "(+1) Canada" (live 2026-10-17).
+ */
+function everyOption(el: HTMLElement, controlType: ControlType, capped: string[] | undefined): string[] | undefined {
+  if (el instanceof HTMLSelectElement) return selectOptions(el, Infinity);
+  if (controlType === "combobox") return readComboboxOptions(el, Infinity) ?? capped;
+  return capped;
+}
+
 /** Options for a <select>, trimmed for transport. Exported for the Phase-2
  *  re-ask pass, which re-reads options after dependent-dropdown repopulation. */
 export function selectOptions(el: HTMLSelectElement, limit = 60): string[] {
@@ -856,7 +868,7 @@ function reresolveRowField(
   const control = registry.get(f.id);
   const el = control?.el ?? control?.radios?.[0] ?? control?.checkboxes?.[0];
   if (!el) return;
-  const options = el instanceof HTMLSelectElement ? selectOptions(el, Infinity) : f.options;
+  const options = everyOption(el, f.controlType, f.options);
   const resolved = resolveField({
     adapter,
     category: f.category,
@@ -905,7 +917,7 @@ function remapRepeatingRows(
       const control = registry.get(f.id);
       if (!control?.el) continue;
       // Every option, not the panel's capped copy (see scanPage).
-      const allOptions = control.el instanceof HTMLSelectElement ? selectOptions(control.el, Infinity) : f.options;
+      const allOptions = everyOption(control.el, f.controlType, f.options);
       f.proposedValue = guardConstrainedOption(
         resolveAnswerWithAdapter(
           adapter,
@@ -1326,7 +1338,7 @@ export function scanPage(
     // Resolution sees EVERY option: `options` is capped at 60 for the panel,
     // and a value past the cap ("United States" in a country list) was dropped
     // as "not offered" when the gate used the capped copy.
-    const allOptions = el instanceof HTMLSelectElement ? selectOptions(el, Infinity) : options;
+    const allOptions = everyOption(el, controlType, options);
     const resolved = resolveField({
       adapter,
       category,
@@ -1569,13 +1581,17 @@ function hasRenderedProxy(el: HTMLElement): boolean {
   return true;
 }
 
-/** A select or combobox input holding dialing codes ("+44 GB", "+49"). */
+/** A select or combobox holding dialing codes ("+44 GB", "+49"). A combobox
+ *  whose list is in the page is read by its options too: iCIMS's "Country
+ *  Code" is a link over "(+93) Afghanistan"… (Schwab, live 2026-10-17). */
 function isDialPicker(el: HTMLElement): boolean {
   if (el instanceof HTMLSelectElement) {
     const options = Array.from(el.options, (o) => cleanText(o.textContent));
     return looksLikeDialCodes(cleanText(el.selectedOptions[0]?.textContent), options);
   }
-  return el instanceof HTMLInputElement && el.getAttribute("role") === "combobox" && looksLikeDialCodes(el.value, undefined);
+  if (el.getAttribute("role") !== "combobox") return false;
+  if (el instanceof HTMLInputElement && looksLikeDialCodes(el.value, undefined)) return true;
+  return looksLikeDialCodes(cleanText(el.textContent), readComboboxOptions(el, Infinity));
 }
 
 const PHONE_WORDS = /\b(phone|mobile|telephone|tel|cell)\b/i;
@@ -1595,15 +1611,17 @@ function isPhoneInput(el: HTMLElement): boolean {
 /**
  * The control that shares a small block with `el` and passes `want`: the
  * nearest ancestor holding at most three controls (a picker, its number and
- * an extension), never a wider section of the form.
+ * an extension), never a wider section of the form. Only what shows counts
+ * toward the three: iCIMS keeps two hidden boxes behind its code picker
+ * (Schwab, live 2026-10-17). An ARIA combobox is a control too.
  */
 function blockPartner(el: HTMLElement, want: (c: HTMLElement) => boolean): HTMLElement | null {
   let node = el.parentElement;
   for (let depth = 0; depth < 12 && node; depth++, node = node.parentElement) {
     const controls = Array.from(
-      node.querySelectorAll<HTMLElement>('input:not([type="hidden"]):not([type="file"]), select, textarea')
+      node.querySelectorAll<HTMLElement>('input:not([type="hidden"]):not([type="file"]), select, textarea, [role="combobox"]')
     );
-    if (controls.length > 3) return null;
+    if (controls.filter((c) => isVisible(c)).length > 3) return null;
     const hit = controls.find((c) => c !== el && want(c));
     if (hit) return hit;
   }

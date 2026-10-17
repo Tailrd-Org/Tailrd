@@ -187,6 +187,11 @@ export function pageTurned(filled: FlowSnapshot, now: FlowSnapshot): boolean {
   return kept / had.size < 0.5;
 }
 
+/** This page's form belongs to a child frame: nothing here to fill or click. */
+function pageIsChildFrames(snap: FlowSnapshot): boolean {
+  return snap.remoteForm === true && !snap.entry && !snap.fields.some((f) => f.category !== "unknown");
+}
+
 export class FlowController {
   private stopRequested = false;
   private step = 0;
@@ -257,6 +262,11 @@ export class FlowController {
       // A new step invalidates any press that arrived while no gate was open
       // (a double-click on the last page), so it can never auto-turn this one.
       this.advanceRequested = false;
+      // The page belongs to a child frame (iCIMS opens its login in the
+      // posting's frame): that frame's flow resumes from the persisted step.
+      // This one fills nothing and says nothing more, or its beat covers the
+      // frame's (a stale "filling…" over the frame's Next gate, live 2026-10-17).
+      if (pageIsChildFrames(this.deps.snapshot())) return this.handOver();
 
       const account = await this.deps.accountStep(this.deps.snapshot());
       const wallDetail =
@@ -268,6 +278,7 @@ export class FlowController {
       this.openedFromEntry = false;
       // Cumulative across steps: the final "done" beat reports the whole flow.
       this.lastTally = { ok: this.lastTally.ok + tally.ok, fail: this.lastTally.fail + tally.fail };
+      if (pageIsChildFrames(this.deps.snapshot())) return this.handOver();
       this.emit("filling", { detail: wallDetail });
 
       if (this.deps.needsResume(this.deps.snapshot()) && !(await this.deps.attachResume())) {
@@ -308,10 +319,7 @@ export class FlowController {
         // may not have claimed its form yet: give it a moment.
         if (recognized === 0) {
           const where = snap.remoteForm ? "remote" : afterEntry ? await this.waitForRemoteForm() : "none";
-          if (where === "remote") {
-            console.log("[Tailrd flow] the form is in a child frame; the flow continues there");
-            return;
-          }
+          if (where === "remote") return this.handOver();
           if (where === "local") continue;
         }
         // A field-less LAST page: Workday's Review lists the answers and offers
@@ -439,6 +447,12 @@ export class FlowController {
     const changed = await this.waitForChange(before);
     console.log(`[Tailrd flow] page changed after advance = ${changed}`);
     return changed;
+  }
+
+  /** End this flow without a beat and without clearing the persisted state:
+   *  the child frame that owns the form resumes from it. */
+  private handOver(): void {
+    console.log("[Tailrd flow] the form is in a child frame; the flow continues there");
   }
 
   private expired(): boolean {
