@@ -21,6 +21,15 @@ function drive(fieldId: string, value: string, kind: "react-select" | "workday")
   });
 }
 
+describe("pickOption for a school (Everpure on Greenhouse, live 2026-10-17)", () => {
+  it("takes the school by its own words, never one that shares a word", () => {
+    const v = "The University of Texas at Austin";
+    expect(pickOption(["Austin Peay State University", "Austin College"], v, undefined, true)).toBe(-1);
+    expect(pickOption(["University of Texas - Arlington", "Austin Peay State University"], v, undefined, true)).toBe(-1);
+    expect(pickOption(["Austin Peay State University", "University of Texas - Austin"], v, undefined, true)).toBe(1);
+  });
+});
+
 describe("pickOption", () => {
   it("prefers exact, then contains, then token overlap", () => {
     expect(pickOption(["United States", "Canada"], "Canada")).toBe(1);

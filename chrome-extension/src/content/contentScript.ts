@@ -640,7 +640,7 @@ function initialize(): void {
       // A street address box with suggestions takes the street as typed when
       // none of them is it (Paylocity's "Address Line 1", live 2026-10-03).
       const freeText = lastFields.find((f) => f.id === t.fieldId)?.category === "addressStreet";
-      const res = await fillAriaCombobox(el, t.value, { multi: control?.multi, placeHint: placeHintFor(t.fieldId), freeText });
+      const res = await fillAriaCombobox(el, t.value, { multi: control?.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId), freeText });
       // Carry the specific reason (couldn't-open / no-match / didn't-commit) into
       // telemetry, otherwise a dropdown failure is logged with an empty reason.
       outcomes.push({ fieldId: t.fieldId, ok: res.filled, reason: res.reason });
@@ -675,7 +675,7 @@ function initialize(): void {
         if (!res.filled && res.options) reask.push({ fieldId: t.fieldId, options: res.options });
         continue;
       }
-      const res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId) });
+      const res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
       if (res.ok || !control.el) {
         outcomes.push({ fieldId: t.fieldId, ok: res.ok, reason: res.ok ? undefined : res.reason });
         continue;
@@ -689,7 +689,7 @@ function initialize(): void {
         continue;
       }
       // Driver miss: best-effort ARIA fallback: may fill, or harvest options.
-      const fb = await fillAriaCombobox(control.el, t.value, { multi: control.multi, placeHint: placeHintFor(t.fieldId) });
+      const fb = await fillAriaCombobox(control.el, t.value, { multi: control.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
       outcomes.push({ fieldId: t.fieldId, ok: fb.filled, reason: fb.reason });
       if (!fb.filled && fb.options) reask.push({ fieldId: t.fieldId, options: fb.options });
     }
@@ -712,6 +712,11 @@ function initialize(): void {
       isHigh(loc.country) ? loc.country.value.name : "",
     ].filter(Boolean);
     return parts.length >= 2 ? parts.join(", ") : undefined;
+  }
+
+  /** A school field: its list is chosen from by the school's own words. */
+  function isSchool(fieldId: string): boolean {
+    return lastFields.find((x) => x.id === fieldId)?.category === "school";
   }
 
   /** Whether a tracked field is a custom ARIA dropdown (filled by comboboxEngine). */

@@ -43,7 +43,9 @@ function remoteTypeahead(
   latencyPolls: number,
   openWith: string[] = [],
   // Greenhouse's school search lists nothing until something is typed.
-  searchOnly = false
+  searchOnly = false,
+  // The search itself, when it is no substring filter.
+  search?: (q: string) => string[]
 ) {
   const control = document.createElement("div");
   control.className = "select__control";
@@ -113,7 +115,7 @@ function remoteTypeahead(
     if (--ticksLeft > 0) return;
     const q = pending;
     pending = null;
-    renderOptions(q ? options.filter((o) => o.toLowerCase().includes(q)) : searchOnly ? [] : options);
+    renderOptions(search ? search(q) : q ? options.filter((o) => o.toLowerCase().includes(q)) : searchOnly ? [] : options);
   };
 
   return { input, single, sleep };
@@ -197,6 +199,25 @@ describe("a school searched the way the list spells it (Greenhouse, live 2026-10
   it("a campus the list does not have is still no match", async () => {
     const { input, single, sleep } = remoteTypeahead(LIST, 3, [], true);
     const res = await fillAriaCombobox(input, "University of Texas at Midland", opts(sleep));
+    expect(res.filled).toBe(false);
+    expect(single.textContent).toBe("");
+  });
+
+  // Everpure (live 2026-10-17): the search's answer to the full name held
+  // other schools of Austin and not the university, and a shared word chose
+  // "Austin Peay State University". A school is chosen by its own words only.
+  it("never takes another school that shares a word, and searches on", async () => {
+    const search = (q: string): string[] =>
+      /austin/.test(q) ? ["Austin Peay State University", "Austin College"] : /^university of texas$/.test(q) ? LIST.slice(0, 8) : [];
+    const { input, single, sleep } = remoteTypeahead(LIST, 3, [], true, search);
+    const res = await fillAriaCombobox(input, "The University of Texas at Austin", { ...opts(sleep), school: true });
+    expect(single.textContent).toBe("University of Texas - Austin");
+    expect(res.filled).toBe(true);
+  });
+  it("and leaves it blank when no answer holds the school", async () => {
+    const search = (q: string): string[] => (/austin|texas|university/.test(q) ? ["Austin Peay State University", "University of Texas - Arlington"] : []);
+    const { input, single, sleep } = remoteTypeahead(LIST, 3, [], true, search);
+    const res = await fillAriaCombobox(input, "The University of Texas at Austin", { ...opts(sleep), school: true });
     expect(res.filled).toBe(false);
     expect(single.textContent).toBe("");
   });

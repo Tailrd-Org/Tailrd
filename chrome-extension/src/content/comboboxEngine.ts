@@ -21,6 +21,7 @@ import {
 import { normalize } from "./fieldMatcher";
 import { matchOption } from "./writeEngine";
 import { looksLikePlaces, pickPlaceOption } from "./placeMatch";
+import { snapSchool } from "./schoolMatch";
 import { regionFromText } from "./geo";
 import {
   MULTISELECT_CONTAINER_FRAGMENT as WD_MULTISELECT_CONTAINER_FRAGMENT,
@@ -52,6 +53,12 @@ export interface FillComboboxOptions {
    *  Canada"). When the options read as places, the one that IS that place is
    *  chosen (placeMatch.ts), never one that merely shares the city name. */
   placeHint?: string;
+  /** For a school field: an option is chosen by the school's own words
+   *  (schoolMatch.ts), never by a word it shares. Everpure's search answered
+   *  the full name with other schools of Austin, and "Austin Peay State
+   *  University" was taken for "The University of Texas at Austin"
+   *  (Greenhouse, live 2026-10-17). */
+  school?: boolean;
   /** An input whose own text is an answer (a street address): when no
    *  suggestion is the value, the typed value stays and counts. Paylocity's
    *  "Address Line 1" suggests nothing for a UK street (live 2026-10-03). */
@@ -188,7 +195,7 @@ async function selectOne(
     open(trigger);
     listbox = await waitFor(() => getListbox(trigger), sleep, openWaitMs, pollMs);
   }
-  let option = listbox ? findOption(listbox, value, opts.placeHint) : null;
+  let option = listbox ? findOption(listbox, value, opts.placeHint, opts.school) : null;
   if (input && isTypeahead(input) && !option) {
     // Progressively broader filter texts: the full answer; the answer as a
     // search list spells it, without accents or a leading "The"; its leading
@@ -225,7 +232,7 @@ async function selectOne(
       const preTypeKey = optionsKey(getListbox(trigger));
       lastTyped = text;
       typeInto(input, text);
-      const hit = await pollForMatch(trigger, value, text, preTypeKey, sleep, openWaitMs, pollMs, opts.placeHint);
+      const hit = await pollForMatch(trigger, value, text, preTypeKey, sleep, openWaitMs, pollMs, opts.placeHint, opts.school);
       if (hit) {
         listbox = hit.lb;
         option = hit.opt;
@@ -427,7 +434,8 @@ async function pollForMatch(
   sleep: (ms: number) => Promise<void>,
   budgetMs: number,
   pollMs: number,
-  placeHint?: string
+  placeHint?: string,
+  school?: boolean
 ): Promise<{ lb: HTMLElement; opt: HTMLElement } | null> {
   const reactionWindowMs = Math.min(budgetMs, 800);
   let lastKey = preTypeKey;
@@ -435,7 +443,7 @@ async function pollForMatch(
   let stablePolls = 0;
   for (let elapsed = 0; ; elapsed += pollMs) {
     const lb = getListbox(trigger);
-    const opt = lb ? findOption(lb, target, placeHint) : null;
+    const opt = lb ? findOption(lb, target, placeHint, school) : null;
     if (lb && opt) return { lb, opt };
     const key = optionsKey(lb);
     // An EMPTY option list is the widget mid-flight, never its answer.
@@ -637,10 +645,16 @@ function hasOptions(listbox: HTMLElement): boolean {
   return optionsIn(listbox).length > 0;
 }
 
-function findOption(listbox: HTMLElement, value: string, placeHint?: string): HTMLElement | null {
+function findOption(listbox: HTMLElement, value: string, placeHint?: string, school?: boolean): HTMLElement | null {
   const options = optionsIn(listbox).filter(
     (o) => o.getAttribute("aria-disabled") !== "true"
   );
+  // A school by its own words: none of them, no option (the search goes on).
+  if (school) {
+    const texts = options.map((o) => optionText(o));
+    const hit = snapSchool(texts, value);
+    return hit === null ? null : options[texts.indexOf(hit)];
+  }
   // Place suggestions are chosen as PLACES: token matching would read
   // "Toronto, OH, US" as a perfect match for "Toronto, ON, Canada".
   if (placeHint) {

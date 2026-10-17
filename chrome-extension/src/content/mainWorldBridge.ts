@@ -25,6 +25,8 @@ export interface MwFillDetail {
   /** A city/location field's full place ("San Jose, CA, United States"):
    *  place suggestions are chosen by it. */
   placeHint?: string;
+  /** A school field: an option is chosen by the school's own words only. */
+  school?: boolean;
 }
 
 export interface MwResultDetail {

@@ -18,6 +18,7 @@ import {
 } from "./adapters/workdaySelectors";
 import { matchOption } from "./optionMatch";
 import { looksLikePlaces, pickPlaceOption } from "./placeMatch";
+import { snapSchool } from "./schoolMatch";
 
 const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
 
@@ -29,11 +30,17 @@ const norm = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
  * 2028" fits too (Greenhouse, live 2026-10-03), and "male" sits inside
  * "female".
  */
-export function pickOption(labels: string[], target: string, placeHint?: string): number {
+export function pickOption(labels: string[], target: string, placeHint?: string, school?: boolean): number {
   // Place suggestions are chosen as PLACES, from the applicant's full place:
   // "San Jose" picked "San José, Costa Rica" for a Californian (Zipline's
   // embedded Greenhouse form, live 2026-10-03).
   if (placeHint && looksLikePlaces(labels)) return pickPlaceOption(labels, placeHint);
+  // A school by its own words: "Austin Peay State University" shares two with
+  // "The University of Texas at Austin" (Everpure, live 2026-10-17).
+  if (school) {
+    const hit = snapSchool(labels, target);
+    return hit === null ? -1 : labels.indexOf(hit);
+  }
   const hit = matchOption(
     labels.map((_, i) => i),
     (i) => labels[i],
@@ -91,7 +98,7 @@ async function fillField(doc: Document, detail: MwFillDetail): Promise<MwResultD
     missOptions = [];
     const committed =
       detail.kind === "react-select"
-        ? await fillReactSelect(el, detail.value, detail.placeHint)
+        ? await fillReactSelect(el, detail.value, detail.placeHint, detail.school)
         : await fillWorkday(el, detail.value);
     return committed === null
       ? { id: detail.id, ok: false, reason: "no-match", ...(missOptions.length ? { options: missOptions.slice(0, 300) } : {}) }
@@ -143,7 +150,7 @@ function rsWidgetHost(el: HTMLElement): HTMLElement {
   return host;
 }
 
-async function fillReactSelect(el: HTMLElement, value: string, placeHint?: string): Promise<string | null> {
+async function fillReactSelect(el: HTMLElement, value: string, placeHint?: string, school?: boolean): Promise<string | null> {
   const container = rsWidgetHost(el);
   const inst = climbFiber(getFiber(el.closest('[class*="-container"], [class*="__container"]') ?? container), (f) => {
     const sn = f.stateNode as RsInstance | null;
@@ -154,7 +161,7 @@ async function fillReactSelect(el: HTMLElement, value: string, placeHint?: strin
     const labels = (): string[] => rsFlatten(inst.props.options ?? []).map((o) => rsLabel(inst, o)).filter((l): l is string => typeof l === "string" && l.trim() !== "");
     const pick = (): { opt: unknown; label: string } | null => {
       const flat = rsFlatten(inst.props.options ?? []);
-      const idx = pickOption(flat.map((o) => rsLabel(inst, o)), value, placeHint);
+      const idx = pickOption(flat.map((o) => rsLabel(inst, o)), value, placeHint, school);
       return idx >= 0 ? { opt: flat[idx], label: rsLabel(inst, flat[idx]) } : null;
     };
     missOptions = labels();
@@ -187,11 +194,11 @@ async function fillReactSelect(el: HTMLElement, value: string, placeHint?: strin
     else inst.props.onChange?.(hit.opt, { action: "select-option" });
     return hit.label;
   }
-  return fillReactSelectByDom(container, value, placeHint);
+  return fillReactSelectByDom(container, value, placeHint, school);
 }
 
 /** Fallback when no instance is found: open, filter, click the option in page context. */
-async function fillReactSelectByDom(container: HTMLElement, value: string, placeHint?: string): Promise<string | null> {
+async function fillReactSelectByDom(container: HTMLElement, value: string, placeHint?: string, school?: boolean): Promise<string | null> {
   const input = rsInput(container);
   const opener = (input as HTMLElement) ?? container;
   fireMouse(opener, "mousedown");
@@ -215,7 +222,7 @@ async function fillReactSelectByDom(container: HTMLElement, value: string, place
       if (options.length > 0) break;
     }
   }
-  const idx = pickOption(options.map((o) => norm(o.textContent ?? "")), value, placeHint);
+  const idx = pickOption(options.map((o) => norm(o.textContent ?? "")), value, placeHint, school);
   if (idx < 0) {
     missOptions = options.map((o) => norm(o.textContent ?? "")).filter(Boolean);
     fireKey(opener, "Escape");
