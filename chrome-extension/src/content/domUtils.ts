@@ -122,6 +122,41 @@ export function shownText(el: Element): string {
 }
 
 /**
+ * The shown text of `el` in its boxes, in order: Ashby's school result is its
+ * name, its country and its domain ("University of Waterloo", "Canada",
+ * "uwaterloo.ca"), spans in flex rows whose textContent runs together (live
+ * 2026-10-17). A flex or grid container's children are boxes, as a browser
+ * lays them out.
+ */
+export function boxPieces(el: Element): string[] {
+  const pieces: string[] = [];
+  let current = "";
+  const flush = (): void => {
+    const text = cleanText(current);
+    if (text) pieces.push(text);
+    current = "";
+  };
+  const isLayout = (display: string): boolean => /\b(flex|grid)\b/.test(display);
+  const walk = (node: Node, inLayout: boolean): void => {
+    for (const child of Array.from(node.childNodes)) {
+      if (child.nodeType === Node.TEXT_NODE) {
+        current += child.textContent ?? "";
+      } else if (child.nodeType === Node.ELEMENT_NODE) {
+        const style = getComputedStyle(child as Element);
+        if (style.display === "none" || style.visibility === "hidden") continue;
+        const box = inLayout || (style.display !== "inline" && style.display !== "contents");
+        if (box) flush();
+        walk(child, isLayout(style.display));
+        if (box) flush();
+      }
+    }
+  };
+  walk(el, isLayout(getComputedStyle(el).display));
+  flush();
+  return pieces;
+}
+
+/**
  * The "visually hidden" clip trick, used for sr-only content and, critically,
  * for bot-trap honeypot inputs: a `clip: rect(1px,1px,1px,1px)` (or `rect(0,…)`)
  * or a zero-area `clip-path` collapses the box to nothing while leaving it in the

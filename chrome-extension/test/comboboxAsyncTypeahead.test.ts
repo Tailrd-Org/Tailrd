@@ -222,3 +222,66 @@ describe("a school searched the way the list spells it (Greenhouse, live 2026-10
     expect(single.textContent).toBe("");
   });
 });
+
+/**
+ * Ashby's school search (Ramp, live 2026-10-17): each result is the school's
+ * name, its country and its domain, three boxes in flex rows, so the option's
+ * text runs "University of WaterlooCanadauwaterloo.ca". The name is the first
+ * box. Markup verbatim from the live page (class names shortened by nothing).
+ */
+describe("a school result with its country and domain (Ashby, live 2026-10-17)", () => {
+  const STYLE = `<style>._stack_b7xpf_1{display:flex}._vertical_b7xpf_4{flex-direction:column}</style>`;
+  const result = (name: string, country: string, domain: string, i: number): string =>
+    `<div role="option" id=":r${i}:" aria-selected="false" class="_result_d7ago_107 ashby-application-form-input-autocomplete-popup-result">` +
+    `<div class="_stack_b7xpf_1 _vertical_b7xpf_4 _gapXxsmall_b7xpf_10 _lineHeightInitial_1e3gg_201">` +
+    `<div class="_stack_b7xpf_1 _horizontal_b7xpf_7 _gapSmall_b7xpf_16 _justifyBetween_b7xpf_22 _alignCenter_b7xpf_25 _lineHeightInitial_1e3gg_201">` +
+    `<span class="_canonicalSchoolResultName_1e3gg_205">${name}</span><span class="_canonicalSchoolResultCountry_1e3gg_209">${country}</span></div>` +
+    `<span class="_canonicalSchoolResultDomain_1e3gg_218">${domain}</span></div></div>`;
+  const RESULTS: [string, string, string][] = [
+    ["University of Waterloo", "Canada", "uwaterloo.ca"],
+    ["University of Wah", "Pakistan", "uow.edu.pk"],
+    ["University of Wasit", "Iraq", "uowasit.edu.iq"],
+    ["University of Wales", "United Kingdom", "wales.ac.uk"],
+  ];
+  function ashbySchool(results: [string, string, string][]) {
+    document.head.innerHTML = STYLE;
+    document.body.innerHTML =
+      `<div class="_inputContainer_d7ago_28"><input class="_input_d7ago_28 ashby-application-form-input-autocomplete" placeholder="Search schools..." aria-autocomplete="list" aria-expanded="false" aria-haspopup="listbox" role="combobox" aria-controls=":r0:" value=""></div>`;
+    const input = document.querySelector("input")!;
+    let chosen = "";
+    input.addEventListener("input", () => {
+      input.setAttribute("aria-expanded", "true");
+      let lb = document.getElementById(":r0:");
+      if (!lb) {
+        lb = document.createElement("div");
+        lb.id = ":r0:";
+        lb.setAttribute("role", "listbox");
+        document.body.append(lb);
+      }
+      lb.innerHTML = input.value.trim() ? results.map((r, i) => result(...r, i + 3)).join("") : "";
+      for (const o of lb.querySelectorAll<HTMLElement>('[role="option"]')) {
+        o.addEventListener("mousedown", () => {
+          chosen = o.querySelector("span")!.textContent!;
+          input.value = chosen;
+          input.setAttribute("aria-expanded", "false");
+          lb!.remove();
+        });
+      }
+    });
+    return { input, chosen: () => chosen };
+  }
+  const quick = { openWaitMs: 300, commitWaitMs: 300, pollMs: 10 };
+
+  it("takes the result whose name is the school", async () => {
+    const { input, chosen } = ashbySchool(RESULTS);
+    const res = await fillAriaCombobox(input, "University of Waterloo", { ...quick, school: true });
+    expect(chosen()).toBe("University of Waterloo");
+    expect(res.filled).toBe(true);
+  });
+  it("and none of the others", async () => {
+    const { input, chosen } = ashbySchool(RESULTS.slice(1));
+    const res = await fillAriaCombobox(input, "University of Waterloo", { ...quick, school: true });
+    expect(chosen()).toBe("");
+    expect(res.filled).toBe(false);
+  });
+});

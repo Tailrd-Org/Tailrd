@@ -12,6 +12,7 @@
  * controls are filled once during the autofill pass and never drift-tracked.
  */
 import {
+  boxPieces,
   cleanText,
   deepQueryAll,
   dispatchInputEvents,
@@ -650,10 +651,20 @@ function findOption(listbox: HTMLElement, value: string, placeHint?: string, sch
     (o) => o.getAttribute("aria-disabled") !== "true"
   );
   // A school by its own words: none of them, no option (the search goes on).
+  // An option is read by its first box too, where a result shows the name
+  // before its country and domain (Ashby).
   if (school) {
-    const texts = options.map((o) => optionText(o));
+    const texts: string[] = [];
+    const owners: HTMLElement[] = [];
+    for (const o of options) {
+      for (const t of new Set([boxPieces(o)[0] ?? "", optionText(o)])) {
+        if (!t) continue;
+        texts.push(t);
+        owners.push(o);
+      }
+    }
     const hit = snapSchool(texts, value);
-    return hit === null ? null : options[texts.indexOf(hit)];
+    return hit === null ? null : owners[texts.indexOf(hit)];
   }
   // Place suggestions are chosen as PLACES: token matching would read
   // "Toronto, OH, US" as a perfect match for "Toronto, ON, Canada".
