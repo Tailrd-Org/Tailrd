@@ -47,7 +47,7 @@ import { dialCodeOf, phoneCountryName } from "./phoneNumber";
 import { deriveFieldOfStudy } from "./fieldMatcher";
 import { schoolOffered, snapSchool } from "./schoolMatch";
 import { onsiteVerdict, resolveDefault } from "./defaultAnswers";
-import { STATEMENT_WORDS, askedOfStatement } from "./statementText";
+import { STATEMENT_WORDS, askedOfStatement, sentencesOf } from "./statementText";
 
 export interface QuestionInput {
   label: string;
@@ -518,6 +518,16 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
   // "Will you require relocation assistance or visa sponsorship?" asks two
   // things; the sponsorship half alone cannot answer it.
   if (hasSponsor && /\brelocat/.test(n)) return abstain("sponsorship:compound-question");
+  // "What is your current visa status?" in a text box (Sigma on Greenhouse,
+  // live 2026-10-17) asks for the status, and got "No", the sponsorship
+  // answer. The applicant's own statement of it is the answer.
+  // ("Will you require sponsorship for employment visa status…? If yes, …"
+  // asks the need, not the status: not this.)
+  // (A "work authorization status" is a country's, answered below.)
+  if (/\b(visa|immigration|citizenship|residency) status\b/.test(n) && !REQUIRES_SPONSOR.test(n) && !isBooleanQuestion(q) && !(q.options ?? []).some((o) => o.trim()) && q.kind !== "number" && q.kind !== "date") {
+    const stated = (profile.workAuthorization || "").trim();
+    return stated ? answer(stated, "visa-status:text") : abstain("visa-status:unknown");
+  }
   // "If you're not authorized to work at the stated location, what sponsorship
   // would you require for the role?" (Brex, live 2026-10-03) wants the TYPE,
   // and got the work-authorization statement ("Canadian citizen").
@@ -1214,16 +1224,28 @@ function resolveSanctionedList(q: QuestionInput, n: string, facts: ProfileFacts)
   const asksResidence = /\b(reside|resides|resident|residence|live|living|located|ordinarily)\b/i.test(asked) || !asksCitizenship;
   if ((asksResidence && !residence) || (asksCitizenship && citizenOf.length === 0)) return abstain("sanctions:unknown");
   const mine = [...(asksResidence ? [residence, ...prOf] : []), ...(asksCitizenship ? citizenOf : [])].filter((c): c is Country => Boolean(c));
-  const names = (c: Country): string[] => [c.name, ...c.aliases].map(qnorm).filter((w) => w.length > 2);
+  // Codes that are also words never name a country in a sentence: Canada's
+  // "can" was found in "Can you confirm…" (Ross Video, question bank 2026-10-17).
+  const names = (c: Country): string[] => [c.name, ...c.aliases].map(qnorm).filter((w) => w.length > 2 && w !== "can" && w !== "nor");
   const named = (text: string): boolean => {
     const t = ` ${qnorm(text)} `;
     return mine.some((c) => names(c).some((w) => t.includes(` ${w} `)));
   };
   if (checklist) return listed.some(named) ? abstain("sanctions:named") : answer(none[0], "sanctions:none");
+  const noUs = (text: string): string => text.replace(/\b(u\.?\s?s\.?|us|united states)\s+(export|government|laws?|regulations?|sanctions|embargo)\b/gi, " ");
+  // "…restrictions for individuals from countries under U.S. embargo,
+  // including Cuba, Iran, Syria, or North Korea. Can you confirm that you meet
+  // these requirements and are eligible to comply?" (Ross Video on Jobvite,
+  // question bank 2026-10-17): the places come first and the applicant
+  // confirms they are not from them, so its Yes is this rule's "not one of
+  // them". It was answered No for a US citizen.
+  const sentence = qnorm(askedSentenceOf(q.label));
+  if (/\b(confirm|certify|attest|affirm)\b.*\b(meet|comply|satisfy|eligible)\b|\b(do|can|will) you (meet|comply with|satisfy)\b/.test(sentence)) {
+    return named(noUs(q.label)) ? abstain("sanctions:named") : booleanResult(true, q, "sanctions:confirmed");
+  }
   // The places asked about are in the sentence asked; "U.S. export control
   // laws" before it names no place (a US citizen read as listed, Asana).
-  const asked2 = askedSentenceOf(q.label).replace(/\b(u\.?\s?s\.?|us|united states)\s+(export|government|laws?|regulations?|sanctions)\b/gi, " ");
-  return named(asked2) ? abstain("sanctions:named") : booleanResult(false, q, "sanctions:none");
+  return named(noUs(askedSentenceOf(q.label))) ? abstain("sanctions:named") : booleanResult(false, q, "sanctions:none");
 }
 
 /**
@@ -2839,6 +2861,23 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
   return booleanResult(asksCurrentOnly ? isCurrent : isCurrent || isPast, q, "former-employee");
 }
 
+/**
+ * One box for either: "Current Company / School" (Nutanix on Jobvite,
+ * question bank 2026-10-17). The school went in for everyone, a senior
+ * engineer's of 2014 included. A job still running is the answer, else the
+ * school the applicant is enrolled at, else there is nothing current to name.
+ */
+function resolveCompanyOrSchool(q: QuestionInput, facts: ProfileFacts): QuestionResult {
+  if (q.options?.length) return null;
+  const label = q.label.toLowerCase();
+  if (!/\b(company|employer)\s*(\/|\bor\b)\s*(school|university|college|institution)\b|\b(school|university|college)\s*(\/|\bor\b)\s*(company|employer)\b/.test(label)) return null;
+  const emp = facts.employment;
+  if (emp.currentlyEmployed?.value === true && isHigh(emp.currentCompany)) return answer(emp.currentCompany.value, "company-or-school:employer");
+  const edu = facts.education;
+  if (edu.currentlyEnrolled?.value === true && edu.primary?.school) return answer(edu.primary.school, "company-or-school:school");
+  return abstain("company-or-school:none-current");
+}
+
 function resolveCurrentlyEmployed(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   if (!/\bare you (currently|presently) (employed|working)\b|\bcurrently employed\b/.test(n) || !isBooleanQuestion(q)) return null;
   if (/\bby\b|\bat\b|\bwith\b/.test(n)) return null;
@@ -3057,7 +3096,7 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
 
 /** The sentence a label asks (its last question, else its last sentence), as written. */
 function askedSentenceOf(label: string): string {
-  const parts = (label || "").split(/(?<=[.?!]["”’)]?)\s+(?=["“‘(]?[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
+  const parts = sentencesOf(label);
   return [...parts].reverse().find((s) => /\?\W*$/.test(s)) ?? parts[parts.length - 1] ?? "";
 }
 
@@ -3384,6 +3423,7 @@ export function resolveQuestion(
     resolveLocatedChoice(sq, sn, facts) ??
     resolveFormerEmployee(sq, sn, sq.label, facts, ctx) ??
     resolveRecentEmployer(sq, sn, facts) ??
+    resolveCompanyOrSchool(sq, facts) ??
     resolveCurrentlyEmployed(sq, sn, facts) ??
     resolveYearsOfExperience(sq, sn, facts) ??
     resolvePursuedDegree(sq, sn, facts) ??

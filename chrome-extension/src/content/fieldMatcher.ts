@@ -239,6 +239,9 @@ const CATEGORY_SPECS: CategorySpec[] = [
     patterns: [
       { re: /\bstreet\b/ },
       { re: /\baddress ?line ?\d?\b/ },
+      // "Address 2" (Jobvite, question bank 2026-10-17) fell to `location`
+      // below and took "Seattle, WA": it is the street's second line.
+      { re: /\baddress ?[12]\b/ },
       { re: /\bcivic\b/ },
       { re: /\badresse\b/ }, // FR
     ],

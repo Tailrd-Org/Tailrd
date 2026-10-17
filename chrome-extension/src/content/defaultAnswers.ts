@@ -22,7 +22,7 @@ import { isConsentOption, optionPolarity } from "./answerKind";
 import { isHigh, type ProfileFacts } from "./profileFacts";
 import { placeOf } from "./placeMatch";
 import { REGION_CITIES, regionFromText, regionHintForCity } from "./geo";
-import { askedOfStatement } from "./statementText";
+import { askedOfStatement, sentencesOf } from "./statementText";
 import type { QuestionContext, QuestionInput, QuestionResult } from "./questionResolver";
 
 const answer = (value: string, rule: string): QuestionResult => ({ status: "answer", value, confidence: "high", rule });
@@ -197,7 +197,7 @@ const CONTACT_METHOD = /\b(contact|communication) (method|preference|channel)s?\
 const HOW_HEARD =
   // "Where did you first see this position?" (Iambic), "How'd you hear about
   // Range?" (Ashby bank 2026-10-08).
-  /\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
+  /\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|applicant|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
 // ("From which job site did you see this posting?", Data Lab on Lever, live
 // 2026-10-08, the last alternative.)
 
@@ -346,6 +346,36 @@ const SOURCE_SYNONYMS: Array<[RegExp, RegExp]> = [
   [/\bother\b/, /\bother\b/],
 ];
 
+/**
+ * An option naming one board ("Girls in Tech Job Board", "Indeed", "Dice"),
+ * not the channel ("Job Board", "Online job board", "Job Board (Indeed,
+ * Monster, etc.)": examples in brackets name no one board). A generic "Job
+ * board" got Nutanix's "Girls in Tech Job Board" and ActioNet's "Indeed", and
+ * "LinkedIn" the Girls in Tech board too (Jobvite, question bank 2026-10-17).
+ */
+function namesOneBoard(option: string): boolean {
+  const raw = option.replace(/\([^)]*\)/g, " ");
+  const t = qn(raw);
+  // A board for one kind of people or place is that board, whatever else it
+  // says ("Company Alumni Job Board or LinkedIn Group", "Diversity Job Board").
+  if (/\b(alumni|university|campus|college|school|diversity|internal|government|state|regional|local|global)\b/.test(t)) return true;
+  // The channel with brands as examples is the channel: "Indeed or other job
+  // board" (Kobie), "Job posting on LinkedIn, Indeed, or other job board"
+  // (Faire), "Job Board/Recruitment Platform" (BigID), "A different job
+  // posting site" (Iambic).
+  if (/\b(other|another|any|different)\b/.test(t) || (/\/|\b(or|and)\b/.test(raw) && /\bjob (board|site|search|posting)s?\b/.test(t))) return false;
+  // A job bank is one government's board ("New York State Job Bank").
+  if (NAMED_SOURCE.test(t) || /\bjob ?bank\b/.test(t)) return true;
+  if (!/\b(board|site|website|search)s?\b/.test(t)) return false;
+  const GENERIC = /^(job|jobs|career|careers|board|boards|site|sites|website|websites|search|searches|engine|online|internet|web|posting|postings|listing|listings|ad|ads|advert|advertisement|recruitment|recruiting|platform|platforms|aggregator|aggregators|portal|employment|an|a|the|or|and|third|party|general|public|external|e|g|etc|via|through|on)$/;
+  return t.split(" ").some((w) => w && !GENERIC.test(w));
+}
+
+/** The brand an option or a stated source names ("indeed" for "Indeed.com"). */
+function brandOf(text: string): string | null {
+  return NAMED_SOURCE.exec(qn(text))?.[0].replace(/\s+/g, "") ?? null;
+}
+
 /** A company-website option that is the company's OWN site: its name, or a
  *  generic "Careers Website", never "NSBE Careers- National Society of Black
  *  Engineers Career Site" (Bandwidth, question bank 2026-10-05). */
@@ -405,9 +435,17 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
     // me directly, such as via LinkedIn message") is not finding the job there
     // (Flipp, question bank 2026-10-05), unless a recruiter is what was said.
     const outreach = (o: string): boolean => /\brecruiter|\breached out\b|\bcontacted me\b|\boutreach\b|\bsourced\b/.test(qn(o)) && !/\brecruit/.test(stated);
+    // A board the applicant did not name is never theirs (namesOneBoard).
+    const otherBoard = (o: string): boolean => namesOneBoard(o) && !(brandOf(o) !== null && brandOf(o) === brandOf(stated));
     for (const [said, offered] of SOURCE_SYNONYMS) {
       if (!said.test(stated)) continue;
-      const keep = /website/.test(said.source) ? (o: string) => ownSite(o, company) && !outreach(o) : (o: string) => !outreach(o);
+      const keep = /website/.test(said.source)
+        ? (o: string) => ownSite(o, company) && !outreach(o)
+        : /job \(board/.test(said.source)
+          ? // A forum, a community or a blog online is no board ("Online
+            // Forum or Community", Coveo).
+            (o: string) => !outreach(o) && !otherBoard(o) && !/\b(forum|forums|communit\w*|groups?|blogs?|news|articles?|events?|webinars?|podcasts?)\b/.test(qn(o))
+          : (o: string) => !outreach(o);
       const hit = unique(offered, keep);
       if (hit) return answer(hit, "source:stated");
       // Several of that kind ("Coveo Employee Referral" | "Friend or Former
@@ -453,10 +491,19 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
     // brand's board ("Handshake", Geotab; question bank 2026-10-05).
     const brands = NAMED_SOURCE.test(stated) ? [SOURCE_PREFERENCE[0], ONLINE] : [SOURCE_PREFERENCE[0], ONLINE, SOURCE_PREFERENCE[4]];
     for (const re of brands) {
-      const hits = general.filter((o) => re.test(qn(o)) && !ours(o) && !outreach(o) && !(NAMED_SOURCE.test(stated) && NAMED_SOURCE.test(qn(o))));
+      const hits = general.filter((o) => re.test(qn(o)) && !ours(o) && !outreach(o) && !otherBoard(o) && !(NAMED_SOURCE.test(stated) && NAMED_SOURCE.test(qn(o))));
       if (hits.length === 1) return answer(hits[0], "source:stated-board");
       const unbranded = hits.filter((o) => !NAMED_SOURCE.test(qn(o)));
       if (hits.length > 1 && unbranded.length === 1) return answer(unbranded[0], "source:stated-board");
+    }
+    // A platform named ("LinkedIn") that the list neither offers nor holds a
+    // general board for: "Other" is what is true (Nutanix's "Other - please
+    // list source below"). A generic "job board" over named boards alone
+    // stays the applicant's: which one it was, nobody said.
+    const named = brandOf(stated);
+    if (named && !opts.some((o) => brandOf(o) === named)) {
+      const other = opts.filter((o) => /^other\b/.test(qn(o)));
+      if (other.length === 1) return answer(other[0], "source:stated-other");
     }
     // A list with no online channel at all (Figma: FigFest | a partnership |
     // an on-campus event | a virtual event | Other): the job site is "Other".
@@ -507,7 +554,7 @@ function chooseLocated(q: QuestionInput, profile: UserApplicationProfile, facts:
  *  work (Monday–Friday). Which location can you reliably commute to?" asks
  *  "which location…", whatever the requirement before it. */
 function askedSentence(label: string): string {
-  const parts = (label || "").split(/(?<=[.?!]["”’)]?)\s+(?=["“‘(]?[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
+  const parts = sentencesOf(label);
   return qn([...parts].reverse().find((s) => /\?\W*$/.test(s)) ?? parts[parts.length - 1] ?? "");
 }
 

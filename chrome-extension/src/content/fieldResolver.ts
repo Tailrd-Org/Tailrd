@@ -27,6 +27,7 @@ import { snapSchool } from "./schoolMatch";
 import { placeOf } from "./placeMatch";
 import { closestDemographicOption, declineOption, groupedEthnicityOption, hispanicRaceOption, veteranOption } from "./demographicMatch";
 import { matchOption } from "./writeEngine";
+import { sentencesOf } from "./statementText";
 
 export interface FieldResolveInput {
   adapter: SiteAdapter | null;
@@ -217,6 +218,9 @@ const SINGLE_LINE_FACTS: ReadonlySet<FieldCategory> = new Set<FieldCategory>([
   "firstName", "lastName", "fullName", "email", "phone", "location", "addressStreet", "addressCity",
   "addressState", "postalCode", "country", "linkedin", "github", "portfolio", "currentCompany", "currentTitle",
   "school", "degree", "fieldOfStudy", "graduationYear", "salary", "yearsOfExperience", "startDate", "noticePeriod",
+  // A project to describe that shows "your data analysis experience/skills"
+  // got the skills list twice (PDT on Greenhouse, live 2026-10-17).
+  "skills",
 ]);
 
 /** A label that is a prompt for prose rather than the name of a fact. */
@@ -228,7 +232,7 @@ function isProsePrompt(label: string): boolean {
   // A fact asked WITH an essay is still an essay: "What is your major? Please
   // describe why you feel it is applicable…" got the major alone
   // (NinjaHoldings on Breezy, live 2026-10-03).
-  if (/\b(describe|explain|elaborate|tell us|why (do|did|would|are|is)|in your own words)\b/i.test(label)) return true;
+  if (/\b(describe|description|explain|elaborate|tell us|why (do|did|would|are|is)|in your own words)\b/i.test(label)) return true;
   // A link asked for at length is still a link: "Please paste your LinkedIn
   // profile link here. Please confirm the link is accurate…" (Ammortal, Open
   // Data Jobs on Workable, 2026-10-05) was left blank.
@@ -238,7 +242,7 @@ function isProsePrompt(label: string): boolean {
 
 /** The sentence a label asks: its last question, else its last sentence. */
 function askedSentenceOf(label: string): string {
-  const parts = (label || "").split(/(?<=[.?!]["”’)]?)\s+(?=["“‘(]?[A-Z0-9])/).map((s) => s.trim()).filter(Boolean);
+  const parts = sentencesOf(label);
   return [...parts].reverse().find((s) => /\?\W*$/.test(s)) ?? parts[parts.length - 1] ?? "";
 }
 
@@ -579,6 +583,11 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     const refined = refineGenderIdentity(category, label, options, profile);
     if (refined !== undefined) value = refined;
   }
+  // A veteran in the family is not the applicant's own service: "Are you a
+  // spouse or domestic partner to a veteran?" got "No" from "I have never
+  // served" (Justworks, live 2026-10-17). The profile holds no answer (so a
+  // decline where the list has one).
+  if (input.sensitive && category === "eeoVeteran" && /\b(spouse|domestic partner|partner|family member|parent|child|dependents?|wife|husband|widow\w*)\b/i.test(label)) value = null;
   // Veteran status: an answer settles only the options it actually claims
   // ("not a protected veteran" is not "never served"); else left for the user.
   if (input.sensitive && category === "eeoVeteran" && value?.trim() && options?.length) {
