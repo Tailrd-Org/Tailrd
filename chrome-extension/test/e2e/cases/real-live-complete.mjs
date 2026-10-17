@@ -304,6 +304,8 @@ export default [
     ats: "lever",
     url: "https://jobs.lever.co/zoox/5f10dfaf-5920-4506-8a09-b39b29e6f48b/apply",
     expect: {
+      // "Do you plan to continue working for other employers during your contract at Zoox?": No (decision 64, round 6).
+      "name=cards[18631c8a-d2a4-41d9-ba8a-8fccf4193494][field3]": "No",
       "name=name": "Maya Tremblay",
       "name=pronouns#2": "checked",
       "name=email": "maya.tremblay@example.com",
@@ -343,37 +345,7 @@ export default [
       "radio=surveysResponses[b30d8a74-c86a-44ee-a14a-08a543858e5d][responses][field4]": "No, I Don’t Have A Disability, Or A History/Record Of Having A Disability",
     },
   }),
-  live({
-    id: "live-complete-ashby-superhuman",
-    ats: "ashby",
-    url: "https://jobs.ashbyhq.com/superhuman%20platform%20inc/e6b917b1-325a-47d0-b267-b279b0efdad0/application",
-    expect: {
-      // Ashby's Yes/No questions, answered since round 5 (read 2026-10-08).
-      "yesno~Are you authorized to be employed in the United States?": "No",
-      "yesno~Do you need visa sponsorship?": "Yes",
-      "yesno~Are you currently pursuing a degree in computer science or a": "Yes",
-      "yesno~Do you currently live within 50 miles of one of our Superhum": "No",
-      "#_systemfield_name": "Maya Tremblay",
-      "name=5b200700-e6f9-40cc-bf21-7be8bbfbe819": "Maya",
-      "#_systemfield_email": "maya.tremblay@example.com",
-      "name=44d2849c-6823-46fa-8b7f-f298d53192c3": "(416) 555-0142",
-      "url~LinkedIn URL": "https://www.linkedin.com/in/maya-tremblay",
-      "name=1cdfa9fe-d4d1-4d0b-8708-c0084402f93c": "LinkedIn",
-      "label=Start typing...": "Toronto, Ontario, Canada",
-      "radio~Which degree are you currently pursuing?": "Bachelors",
-      "radio~When is your expected graduation date?": "January - June 2027",
-      "label=Search schools...": "University of Waterloo",
-      "#_systemfield_education_history-degree": orBlank("Bachelor of Applied Science in Mechatronics Engineering"),
-      "#_systemfield_education_history-major": "Mechatronics Engineering",
-      "#_systemfield_education_history-isCurrent": "checked",
-      "radio~Are you a veteran or active member of the United S": "No, I am not a veteran or active member",
-      "radio~Do you have a disability or chronic condition (phy": "No",
-      "checkbox~White or European": "checked",
-      "radio~Do you identify as transgender?": "No",
-      "checkbox~Woman": "checked",
-      "checkbox~Heterosexual": "checked",
-    },
-  }),
+  // live-complete-ashby-superhuman retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "live-complete-ashby-ramp",
     ats: "ashby",

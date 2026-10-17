@@ -207,6 +207,8 @@ export default [
     ats: "ashby",
     url: "https://jobs.ashbyhq.com/grow-therapy/92bfe88a-4c23-48c8-8f7b-4959ab6cd8d8/application",
     expect: {
+      // New on the page (2026-10-17): the posting's office days, accepted by an applicant who will move (decision 49).
+      "yesno~Are you able to be onsite in our New York City office Tuesda": "Yes",
       // Ashby's Yes/No questions, answered since round 5 (read 2026-10-08). The
       // page renamed its custom fields' ids: by label. An April 2027 graduate's
       // term is not offered ("Winter 2027" was written in the regression): blank.
