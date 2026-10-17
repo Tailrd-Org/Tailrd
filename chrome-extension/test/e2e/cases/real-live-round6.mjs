@@ -82,19 +82,154 @@ export default [
   // so there is no GET-only question bank. Live, each posting goes as far as a
   // run may: the posting, Apply, the chooser, the create-account wall. Its
   // Create Account POSTs, which live runs block: no account is created.
-  live({ id: "r6b-wd-analogdevices", ats: "workday", profile: COMPLETE_CANADIAN, url: "https://analogdevices.wd1.myworkdayjobs.com/External/job/Canada-Toronto/Embedded-Software-Engineer_R266615", nextPages: 2 }),
-  live({ id: "r6b-wd-aep", ats: "workday", profile: US_OPT_ANALYST, url: "https://aep.wd1.myworkdayjobs.com/en-US/aepcareersite/job/Columbus-OH/Data-Scientist-Intern---Columbus--OH_R19884", nextPages: 2 }),
-  live({ id: "r6b-wd-bdo", ats: "workday", profile: MONTREAL_CHANGER, url: "https://bdo.wd3.myworkdayjobs.com/Bdo/job/Saskatoon---2nd-Avenue-South/Co-op-or-Intern--Assurance---Saskatoon--Summer-2027-_JR7038", nextPages: 2 }),
-  live({ id: "r6b-wd-abb", ats: "workday", profile: INDIA_NEW_GRAD, url: "https://abb.wd3.myworkdayjobs.com/en-US/external_career_page/job/USA-NC-Cary/AI-Engineering--Business-Systems-Intern--Summer-2027_JR00048714", nextPages: 2 }),
-  live({ id: "r6b-wd-homedepot", ats: "workday", profile: SPARSE_CANADIAN, url: "https://homedepot.wd5.myworkdayjobs.com/en-US/careerdepotcanada/job/CANADA-STORE-SUPPORT-CENTER---7000/Intern--Full-Stack-Software-Developer_Req195012", nextPages: 2 }),
+  live({
+    id: "r6b-wd-analogdevices",
+    ats: "workday",
+    profile: COMPLETE_CANADIAN,
+    url: "https://analogdevices.wd1.myworkdayjobs.com/External/job/Canada-Toronto/Embedded-Software-Engineer_R266615", nextPages: 2,
+    expect: {
+      // Workday's own header language button, drawn after the page loads: the page's, never the extension's.
+      "#languageSelectorButton": { any: true },
+      "label:Email Address": "maya.tremblay@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  live({
+    id: "r6b-wd-aep",
+    ats: "workday",
+    profile: US_OPT_ANALYST,
+    url: "https://aep.wd1.myworkdayjobs.com/en-US/aepcareersite/job/Columbus-OH/Data-Scientist-Intern---Columbus--OH_R19884", nextPages: 2,
+    expect: {
+      "label:Email Address": "jiwoo.park@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      "label:I accept": "checked",
+    },
+  }),
+  live({
+    id: "r6b-wd-bdo",
+    ats: "workday",
+    profile: MONTREAL_CHANGER,
+    url: "https://bdo.wd3.myworkdayjobs.com/Bdo/job/Saskatoon---2nd-Avenue-South/Co-op-or-Intern--Assurance---Saskatoon--Summer-2027-_JR7038", nextPages: 2,
+    expect: {
+      // Workday's own header language button, drawn after the page loads: the page's, never the extension's.
+      "#languageSelectorButton": { any: true },
+      "label:Email Address": "alex.cote@example.ca",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  live({
+    id: "r6b-wd-abb",
+    ats: "workday",
+    profile: INDIA_NEW_GRAD,
+    url: "https://abb.wd3.myworkdayjobs.com/en-US/external_career_page/job/USA-NC-Cary/AI-Engineering--Business-Systems-Intern--Summer-2027_JR00048714", nextPages: 2,
+    expect: {
+      "label:Email Address": "ananya.raghavan@example.in",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  live({
+    id: "r6b-wd-homedepot",
+    ats: "workday",
+    profile: SPARSE_CANADIAN,
+    url: "https://homedepot.wd5.myworkdayjobs.com/en-US/careerdepotcanada/job/CANADA-STORE-SUPPORT-CENTER---7000/Intern--Full-Stack-Software-Developer_Req195012", nextPages: 2,
+    expect: {
+      "label:Email Address": "maya.tremblay@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  // Adobe's Apply Manually starts the application with a POST, which live
+  // runs block: the sign-in page never draws, and nothing is written.
   live({ id: "r6b-wd-adobe", ats: "workday", profile: US_F1_STUDENT, url: "https://adobe.wd5.myworkdayjobs.com/external_experienced/job/New-York/XMLNAME-2027-Intern---Enterprise-Architecture-Analyst_R171856", nextPages: 2 }),
-  live({ id: "r6b-wd-bose", ats: "workday", profile: US_GREENCARD_STUDENT, url: "https://boseallaboutme.wd503.myworkdayjobs.com/en-US/bose_careers/job/US-MA---Framingham/Embedded-Software-Engineer-Co-op----Audio-Tech_R29278", nextPages: 2 }),
-  live({ id: "r6b-wd-revvity", ats: "workday", profile: BOOTCAMP_CAREER_GAP, url: "https://revvity.wd103.myworkdayjobs.com/en-US/external/job/Akron/Software-Integration-Co-Op--Spring-2027-_JR-045616", nextPages: 2 }),
-  live({ id: "r6b-wd-copart", ats: "workday", profile: US_H1B_SENIOR, url: "https://copart.wd12.myworkdayjobs.com/en-US/copart/job/Dallas-TX---Headquarters/Data---AI-Intern_JR111596", nextPages: 2 }),
-  live({ id: "r6b-wd-centric", ats: "workday", profile: COMPLETE_CANADIAN, url: "https://centricsoftware.wd501.myworkdayjobs.com/en-US/centric/job/Toronto-ON/Azure-Cloud-Engineer_JR397", nextPages: 2 }),
-  live({ id: "r6b-wd-expedia", ats: "workday", profile: US_VETERAN, url: "https://expedia.wd108.myworkdayjobs.com/en-US/private/job/Washington---Seattle-Campus/Software-Development-Engineering-Intern---2027---Austin--San-Jose--Seattle_R-110311", nextPages: 2 }),
-  live({ id: "r6b-wd-cmu", ats: "workday", profile: NEW_GRAD_DECLINER, url: "https://cmu.wd115.myworkdayjobs.com/en-US/sei/job/Pittsburgh-PA/AI-Security-Software-Engineer-Intern---Summer-2027_2025200-1", nextPages: 2 }),
-  live({ id: "r6b-wd-symbotic", ats: "workday", profile: UK_SENIOR, url: "https://symbotic.wd504.myworkdayjobs.com/en-US/symbotic/job/USA-Wilmington--MA---HQ/Intern--Machine-Learning-Ops_R8202", nextPages: 2 }),
+  live({
+    id: "r6b-wd-bose",
+    ats: "workday",
+    profile: US_GREENCARD_STUDENT,
+    url: "https://boseallaboutme.wd503.myworkdayjobs.com/en-US/bose_careers/job/US-MA---Framingham/Embedded-Software-Engineer-Co-op----Audio-Tech_R29278", nextPages: 2,
+    expect: {
+      "label:Email Address": "mei.lin@example.edu",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      "label:By checking this box, I agree to the Bose Candidate Privacy ": "checked",
+    },
+  }),
+  live({
+    id: "r6b-wd-revvity",
+    ats: "workday",
+    profile: BOOTCAMP_CAREER_GAP,
+    url: "https://revvity.wd103.myworkdayjobs.com/en-US/external/job/Akron/Software-Integration-Co-Op--Spring-2027-_JR-045616", nextPages: 2,
+    expect: {
+      "label:Email Address": "dandre.jb@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  live({
+    id: "r6b-wd-copart",
+    ats: "workday",
+    profile: US_H1B_SENIOR,
+    url: "https://copart.wd12.myworkdayjobs.com/en-US/copart/job/Dallas-TX---Headquarters/Data---AI-Intern_JR111596", nextPages: 2,
+    expect: {
+      // Workday's own header language button, drawn after the page loads: the page's, never the extension's.
+      "#languageSelectorButton": { any: true },
+      "label:Email Address": "thuha.nguyen@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      "label:I willingly accept the Terms and Conditions for submitting a": "checked",
+    },
+  }),
+  live({
+    id: "r6b-wd-centric",
+    ats: "workday",
+    profile: COMPLETE_CANADIAN,
+    url: "https://centricsoftware.wd501.myworkdayjobs.com/en-US/centric/job/Toronto-ON/Azure-Cloud-Engineer_JR397", nextPages: 2,
+    expect: {
+      "label:Email Address": "maya.tremblay@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      "label:I consent": "checked",
+    },
+  }),
+  live({
+    id: "r6b-wd-expedia",
+    ats: "workday",
+    profile: US_VETERAN,
+    url: "https://expedia.wd108.myworkdayjobs.com/en-US/private/job/Washington---Seattle-Campus/Software-Development-Engineering-Intern---2027---Austin--San-Jose--Seattle_R-110311", nextPages: 2,
+    expect: {
+      "label:Email Address": "marcus.hill@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      "label:I have read the Expedia Group Global Staffing Privacy Policy": "checked",
+    },
+  }),
+  live({
+    id: "r6b-wd-cmu",
+    ats: "workday",
+    profile: NEW_GRAD_DECLINER,
+    url: "https://cmu.wd115.myworkdayjobs.com/en-US/sei/job/Pittsburgh-PA/AI-Security-Software-Engineer-Intern---Summer-2027_2025200-1", nextPages: 2,
+    expect: {
+      "label:Email Address": "priya.nair@example.com",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
+  live({
+    id: "r6b-wd-symbotic",
+    ats: "workday",
+    profile: UK_SENIOR,
+    url: "https://symbotic.wd504.myworkdayjobs.com/en-US/symbotic/job/USA-Wilmington--MA---HQ/Intern--Machine-Learning-Ops_R8202", nextPages: 2,
+    expect: {
+      // Workday's own header language button, drawn after the page loads: the page's, never the extension's.
+      "#languageSelectorButton": { any: true },
+      "label:Email Address": "siobhan.oneill@example.co.uk",
+      "#input-5": { re: String.raw`^\S{8,}$` },
+      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+    },
+  }),
 
   // ------------------------- batch C: Greenhouse boards in no bank and no case
   // From prod's active postings (2026-10-17): 37 of 117 live Greenhouse boards
