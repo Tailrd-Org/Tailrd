@@ -32,36 +32,7 @@ const live = (c) => ({ mode: "live", profile: P, trigger: { fillTimeoutMs: 18000
 
 export default [
   // ---------------------------------------------------------------- Ashby
-  live({
-    id: "live-heldout-ashby-superhuman",
-    ats: "ashby",
-    url: "https://jobs.ashbyhq.com/superhuman%20platform%20inc/e6b917b1-325a-47d0-b267-b279b0efdad0/application",
-    expect: {
-      // Ashby's Yes/No questions, answered since round 5 (read 2026-10-08).
-      "yesno~Are you currently pursuing a degree in computer science or a": "Yes",
-      "yesno~Do you currently live within 50 miles of one of our Superhum": "No",
-      "label:Legal Full Name": NAME,
-      "label:Preferred First Name": "Maya",
-      "label:Email": P.email,
-      "tel~Phone": PHONE,
-      "label:LinkedIn URL": LINKEDIN,
-      "label:How did you hear about this job?": "Online job board",
-      "label:Start typing": TORONTO,
-      "label:Which degree are you currently pursuing?": "Bachelors",
-      // Options: 2026 | January - June 2027 | December 2027 | … The profile
-      // knows the YEAR only: two options fit.
-      "label:When is your expected graduation date?": null,
-      "label:Search schools": "University of Waterloo",
-      "label:Field of Study": "Mechatronics Engineering",
-      "#_systemfield_education_history-degree": "Bachelor of Applied Science in Mechatronics Engineering",
-      "label:Are you a veteran": "I don't wish to answer",
-      "label:Do you have a disability": "I don't wish to answer",
-      "label:Do you identify as transgender": "I don't wish to answer",
-      // Ashby renders a decline box per EEO question, with ids that change every load.
-      "all:checkbox~I don't wish to answer": "checked",
-      "#_systemfield_education_history-isCurrent": "checked",
-    },
-  }),
+  // live-heldout-ashby-superhuman retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "live-heldout-ashby-beacon",
     ats: "ashby",
@@ -498,6 +469,8 @@ export default [
     ats: "lever",
     url: "https://jobs.lever.co/zoox/5f10dfaf-5920-4506-8a09-b39b29e6f48b/apply",
     expect: {
+      // "Do you plan to continue working for other employers during your contract at Zoox?": No (decision 64, round 6).
+      "name=cards[18631c8a-d2a4-41d9-ba8a-8fccf4193494][field3]": "No",
       "label:Full name": "Maya Tremblay",
       "label:Email": "maya.tremblay@example.com",
       "label:Phone": PHONE,
@@ -565,7 +538,8 @@ export default [
       "label:LinkedIn URL": "https://www.linkedin.com/in/maya-tremblay",
       // "Where do you live? (City and State/Province)": the city alone is a partial answer.
       "name=cards[e5ea5c10-06d8-4dca-b744-4790b20a37c7][field0]": { re: "^(Toronto(, (ON|Ontario))?)?$" },
-      "label:LinkedIn Link": "https://www.linkedin.com/in/maya-tremblay",
+      // The page's label no longer names this box to the dump (2026-10-17): by its name.
+      "name=cards[e86292bd-6ffb-499f-ab4b-4fbd9b9c65f4][field0]": "https://www.linkedin.com/in/maya-tremblay",
       "label:GenderSelect ...MaleFemaleDecline to self-identify": "Decline to self-identify",
       "label:RaceSelect ...Hispanic or LatinoWhite (Not Hispanic or Latin": "Decline to self-identify",
       "label:Veteran statusSelect ...I am a veteranI am not a veteranDecl": "Decline to self-identify",

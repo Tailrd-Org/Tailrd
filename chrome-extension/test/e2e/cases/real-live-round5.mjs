@@ -29,19 +29,7 @@ export default [
       "label:Other": null,
     },
   }),
-  live({
-    id: "r5a-ashby-pryzm",
-    ats: "ashby",
-    profile: INDIA_NEW_GRAD,
-    url: ashby("pryzm", "2c40f0bb-e559-49b3-9831-81d7484cc6dc"),
-    expect: {
-      "label:Name": "Ananya Raghavan",
-      "label:Email": "ananya.raghavan@example.in",
-      "radio~This is an on-site position in our Boston office. Are you lo": "Planning to Relocate",
-      "yesno~Are you legally authorized to work in the United States?": "No",
-      "yesno~Will you now or in the future require sponsorship for an emp": "Yes",
-    },
-  }),
+  // r5a-ashby-pryzm retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "r5a-ashby-zip",
     ats: "ashby",
@@ -75,23 +63,12 @@ export default [
       "label:Phone Number": "+1 617 555 0148",
       "label:LinkedIn Profile URL:": "https://www.linkedin.com/in/jiwoo-park-data",
       "label:Yes, but require relocation": "checked",
-      "radio~What's your citizenship / employment eligibility?": "STEM OPT",
+      // The form asks this instead since 2026-10-17 (decision 68).
+      "radio~Are you legally authorized to work in the United States?": "I require sponsorship to work in the United States",
       "label:How did you hear about this job?": "Job board",
     },
   }),
-  live({
-    id: "r5a-ashby-teleskope",
-    ats: "ashby",
-    profile: BERLIN_STAFF,
-    url: ashby("teleskope", "f96084cd-766a-4791-95e4-2f4ffbadacc0"),
-    expect: {
-      "label:Name": "Jürgen Weiß",
-      "label:Email": "juergen.weiss@example.de",
-      "yesno~Do you now, or will you in the future, require visa sponsors": "Yes",
-      "yesno~Are you currently based, or planning to be based in NYC and ": "Yes",
-      "label:LinkedIn Profile": "https://www.linkedin.com/in/juergen-weiss",
-    },
-  }),
+  // r5a-ashby-teleskope retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "r5a-ashby-trulioo",
     ats: "ashby",
@@ -491,7 +468,8 @@ export default [
       "name=cards[ca0b5ab1-644d-4685-9006-51358c0b57be][field6]": "Yes",
       "label:Are you subject to a term employment contract and/or post-em": "No, I do not have a term employment contract and / or post-employment restrictions",
       "label:By completing this application I understand that the qualifi": "Yes",
-      "label:Where did you hear about us?": "Indeed",
+      // A job board stated is no named board (decision 57): never Indeed.
+      "label:Where did you hear about us?": { re: String.raw`^(?!Indeed$)` },
       "label:I confirm that I have read, understand and agree to the abov": "checked",
       "label:I have read and agree to the terms of the Candidate Privacy ": "checked",
       "label:GenderSelect ...MaleFemaleDecline to self-identify": "Male",
@@ -518,7 +496,8 @@ export default [
       "label:If yes, please explain.": null,
       "label:Are you a previous employee of any of the Crest family of co": "No",
       "label:Were you referred by a current employee of the Crest Family ": "No",
-      "label:Are you permanently authorized to work for any employer in t": "No",
+      // Blank since main's work-authorization allow-list (D-61, owner decisions batch B): no positive status from an answer with a word outside its vocabulary.
+      "label:Are you permanently authorized to work for any employer in t": null,
       "label:If not, do you now or will you in the future need sponsorshi": null,
       "label:GenderSelect ...MaleFemaleDecline to self-identify": "Female",
       "radio~Race": "Asian (Not Hispanic or Latino)A person having origins in any of the original peoples of the Far East, Southeast Asia, or the Indian Subcontinent, including, for example, Cambodia, China, India, Japan, Korea, Malaysia, Pakistan, the Philippine Islands, Thailand, and Vietnam.",

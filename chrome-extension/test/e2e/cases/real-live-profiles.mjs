@@ -85,8 +85,9 @@ export default [
     expect: {
       "label:First Name": "Arjun",
       "label:Last Name": "Mehta",
-      "label:Address*": "77 Massachusetts Ave, Apt 4B",
-      "label:Address2": null,
+      // The unit is the address's second line (decision 59, round 6).
+      "label:Address*": "77 Massachusetts Ave",
+      "label:Address2": "Apt 4B",
       "label:City": "Cambridge",
       "label:State": "Massachusetts",
       "label:Zip/Postal Code": "02139",

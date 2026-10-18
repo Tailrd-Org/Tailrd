@@ -137,6 +137,8 @@ export default [
     profile: COMPLETE_CANADIAN,
     url: "https://www.carvana.com/careers/apply/?gh_jid=8234285",
     expect: {
+      // New answer (2026-10-17): the posting's place, accepted by an applicant who will move (decision 49).
+      "label:This position is located in Plainfield, IN. Are you willing": "Select answerYes",
       "label:First Name": "Maya",
       "label:Last Name": "Tremblay",
       "label:Email": "maya.tremblay@example.com",
@@ -596,20 +598,7 @@ export default [
       "label:Degree Obtained": "Bachelor",
     },
   }),
-  live({
-    id: "r4c-jobvite-acpm",
-    ats: "jobvite",
-    profile: US_OPT_ANALYST,
-    url: "https://jobs.jobvite.com/acpm/job/oXWTAfw6",
-    expect: {
-      "label:First Name": "Ji-woo",
-      "label:Last Name": "Park",
-      "label:Email": "jiwoo.park@example.com",
-      "label:Phone": "+1 617 555 0148",
-      "label:City": "Boston",
-      "label:Country": "United States",
-    },
-  }),
+  // r4c-jobvite-acpm retired 2026-10-17: the posting closed (Jobvite sends it to the job list, error=404); ACPM's open postings are r6d-jv-acpm-*.
   live({
     id: "r4c-dayforce-eclipse",
     ats: "dayforce",
@@ -741,6 +730,7 @@ export default [
     profile: BERLIN_STAFF,
     url: "https://ats.rippling.com/4ag/jobs/71d97d10-87f2-4f53-88b7-97f27f392d24",
     expect: {
+      // 4AG republished its form on 2026-10-17: the same questions and answers under new ids.
       "label:First name": "Jürgen",
       "label:Last name": "Weiß",
       "label:Email": "juergen.weiss@example.de",
@@ -749,13 +739,13 @@ export default [
       "label:Phone number": "3012345678",
       // The dial-code picker, re-mounted under a new id once set (it was
       // "+44 GB", the page's preset for this machine's locale).
-      "#field-113": "+49 DE",
+      "#field-112": "+49 DE",
       "label:textbox": "Berlin, Germany",
-      "name=customQuestions.6aac638d4ec72afe293aaa0a.b891223f-c99a-42a0-b06c-c6a62e15bee9": "checked",
+      "name=customQuestions.6aac638d4ec72afe293aaa0a.b7475329-734e-411a-ba49-fa13e72cbb3c": "checked",
       "label:When would you be available to start the co-op?": { re: String.raw`^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}|\d{2} [A-Z][a-z]{2} \d{4})$` },
       "label:Expected graduation year?": "2011",
-      "name=customQuestions.6aac638d4ec72afe293aaa0a.804f83dc-4c13-4b29-806b-564208c04b48#2": "checked",
-      "#field-100": "No – I do not consent to receiving text messages",
+      "name=customQuestions.6aac638d4ec72afe293aaa0a.f51c9692-d325-4545-847d-ae895575d415#2": "checked",
+      "#field-99": "No – I do not consent to receiving text messages",
       "radio=sms_opt_in": "false",
     },
   }),
@@ -844,8 +834,9 @@ export default [
       // Workable's IP guess for Address is replaced (round 5); two clearance questions
       // the posting added since round 4: an H-1B holder with no clearance.
       "#address": "Seattle, WA",
-      "ariaradio=Are you a U.S. citizen and able to obtain and maintain a Sec": "NO",
-      "radio=QA_12574377": "NO",
+      // Blank since main's work-authorization allow-list (D-61, owner decisions batch B): no positive status from an answer with a word outside its vocabulary.
+      "ariaradio=Are you a U.S. citizen and able to obtain and maintain a Sec": null,
+      "radio=QA_12574377": null,
       "ariaradio=Do you currently hold an active Secret security clearance?": "NO",
       "radio=QA_12575264": "NO",
       "label:*First name": "Thu Hà",
@@ -872,13 +863,16 @@ export default [
       "label=SVGs not supported by this browser.#2": "November",
       "label=SVGs not supported by this browser.#3": "2026",
       "label=SVGs not supported by this browser.#4": "2026",
-      "ariaradio=Are you legally authorized to work in the U.S. as a U.S. cit": "NO",
-      "radio=CA_41263": "NO",
+      // Blank since main's work-authorization allow-list (D-61, owner decisions batch B): no positive status from an answer with a word outside its vocabulary.
+      "ariaradio=Are you legally authorized to work in the U.S. as a U.S. cit": null,
+      "radio=CA_41263": null,
       "ariaradio=Do you currently or will you in the future, require an immig": "YES",
       "radio=CA_41264": "YES",
       "ariaradio=Are you at least 18 years old? (if no, you may be required t": "YES",
       "radio=CA_41265": "YES",
-      "label:*How did you hear about us? Was it a job board or an employe": "Company website",
+      // Credence asks this instead of how you heard since 2026-10-17: never referred.
+      "ariaradio=Were you referred to this position by a Credence team member": "NO",
+      "radio=CA_56312": "NO",
       "ariaradio=Have you ever worked for Credence before? If yes, what year ": "NO",
       "radio=CA_41267": "NO",
       "ariaradio=Credence honors our Service Members and wonder if you are a ": "NO",
@@ -892,28 +886,7 @@ export default [
       "radio=CA_50750": "NO",
     },
   }),
-  live({
-    id: "r4d-wk-disa-assembler",
-    ats: "workable",
-    profile: BOOTCAMP_CAREER_GAP,
-    url: "https://apply.workable.com/disa-technologies/j/13BE492B4E/apply/",
-    expect: {
-      // Workable's IP guess for Address is replaced with the profile's location (round 5).
-      "#address": "Denver, CO",
-      "label:*First name": "D'Andre",
-      "label:*Last name": "Jean-Baptiste",
-      "label:*Email": "dandre.jb@example.com",
-      "label:Phone": "720-555-0164",
-      "label:*School": "Turing School of Software & Design",
-      "label:Field of study (Optional)": "Back-End Engineering",
-      "label:Degree (Optional)": "Certificate in Back-End Engineering",
-      "label:End date (Optional)SVGs not supported by this browser.": null,
-      "ariaradio=Do you have a valid drivers license?": "YES",
-      "radio=QA_12498844": "YES",
-      "ariaradio=I am legally authorized to work in the United States and wil": "YES",
-      "radio=QA_12498845": "YES",
-    },
-  }),
+  // r4d-wk-disa-assembler retired 2026-10-17: the posting closed (Workable's job API answers 404).
   live({
     id: "r4d-wk-flourish",
     ats: "workable",
@@ -989,8 +962,9 @@ export default [
       "label:*Last name": "Nguyễn",
       "label:*Email": "thuha.nguyen@example.com",
       "#input_phone": "206-555-0131",
-      "ariaradio=Are you a United States citizen?": "NO",
-      "radio=QA_12535935": "NO",
+      // Blank since main's work-authorization allow-list (D-61, owner decisions batch B): no positive status from an answer with a word outside its vocabulary.
+      "ariaradio=Are you a United States citizen?": null,
+      "radio=QA_12535935": null,
       "ariaradio=Can you work a hybrid schedule in the Washington, DC metropo": "NO",
       "radio=QA_12535939": "NO",
       "ariaradio=Are you willing to undergo a background check?": "YES",
@@ -1059,9 +1033,8 @@ export default [
       "label:End date (Optional)SVGs not supported by this browser.": null,
       "ariaradio=Will you now, or in the future, require visa sponsorship?": "NO",
       "radio=QA_12524067": "NO",
-      "ariaradio=This position involves access to export-controlled informati": "YES",
-      "radio=QA_12540866": "YES",
-      "ariaradio=Are you available to work on-site in Seattle or Chicago?": "NO",
+      // The form no longer asks its export-control question (2026-10-17).
+      "ariaradio=Are you available to work on-site in Seattle": "NO",
       "radio=QA_12524070": "NO",
     },
   }),
@@ -1076,8 +1049,9 @@ export default [
       "label:*Email": "juergen.weiss@example.de",
       "label:Phone": "30 12345678",
       "label:What is your desired salary for this role? (Optional)": "€120.000",
-      "ariaradio=Are you legally authorized to work in Austria?": "YES",
-      "radio=QA_12569194": "YES",
+      // Blank since main's work-authorization allow-list (D-61, owner decisions batch B): no positive status from an answer with a word outside its vocabulary.
+      "ariaradio=Are you legally authorized to work in Austria?": null,
+      "radio=QA_12569194": null,
       "name=gdpr": "checked",
     },
   }),

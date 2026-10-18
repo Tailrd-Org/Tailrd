@@ -140,25 +140,7 @@ export default [
       "radio=section_1648044732427_question_0": "Yes",
     },
   }),
-  live({
-    id: "r3a-breezy-vagaro",
-    ats: "breezy",
-    profile: MONTREAL_CHANGER,
-    url: "https://vagaro.breezy.hr/p/1a62d98b9483-software-engineer/apply",
-    expect: {
-      "label:Full Name": "Alex Côté-Tremblay",
-      "label:Email Address": "alex.cote@example.ca",
-      "name=cPhoneNumber": "514 555 0186",
-      "#fullAddress": "Montréal, QC",
-      "label:Desired Salary": "75000",
-      "radio~This position requires working onsite in Pleasanton, CA, Mon": "No",
-      "radio=section_1786658626286_question_2": "No",
-      "radio~Will you now or in the future require sponsorship for employ": "Yes",
-      "radio~Race or Ethnicity": "Hispanic or Latino (including Black individuals whose origins are Hispanic)",
-      "radio~Gender": null,
-      "label:I've read the Privacy Notice below and consent the processin": "checked",
-    },
-  }),
+  // r3a-breezy-vagaro retired 2026-10-17: the posting closed; its /apply now opens Vagaro's openings, where the flow applied to the first of 39 jobs (fixed in 5e5915e).
   live({
     id: "r3a-recruitee-huawei",
     ats: "recruitee",
@@ -306,65 +288,8 @@ export default [
       "label:*Adresse e-mail": "alex.cote@example.ca",
     },
   }),
-  live({
-    id: "r3b-workable-syntiant",
-    ats: "workable",
-    profile: UK_SENIOR,
-    url: "https://apply.workable.com/syntiant/j/11DDC0AC87/apply/",
-    expect: {
-      // Workable's IP guess for Address is replaced with the profile's location (round 5).
-      "#address": "London, United Kingdom",
-      "label:*First name": "Siobhán",
-      "label:*Last name": "O'Neill",
-      "label:*Email": "siobhan.oneill@example.co.uk",
-      "label:Phone": "20 7946 0958",
-      "label:*School": "Imperial College London",
-      "label:Field of study (Optional)": "Computing",
-      "label:Degree (Optional)": "Master of Science in Computing",
-      "name=end_date": null,
-      "label:*Title": "Senior Backend Engineer",
-      "label:Company (Optional)": "Monzo",
-      "name=end_date#2": null,
-      "label:SVGs not supported by this browser.SVGs not supported by thi": "checked",
-      "label:LinkedIn link (Optional)": "https://www.linkedin.com/in/siobhan-oneill",
-      "name=CA_5999": { re: String.raw`^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}|\d{2} [A-Z][a-z]{2} \d{4})$` },
-      "label=SVGs not supported by this browser.": "January",
-      "label=SVGs not supported by this browser.#2": "January",
-      "label=SVGs not supported by this browser.#3": "2027",
-      "label=SVGs not supported by this browser.#4": "2027",
-      "ariaradio=Are you legally authorized to work in the country where this": "NO",
-      "radio=CA_6000": "NO",
-    },
-  }),
-  live({
-    id: "r3b-workable-disa",
-    ats: "workable",
-    profile: US_GREENCARD_STUDENT,
-    url: "https://apply.workable.com/disa-technologies/j/73E7609B99/apply/",
-    expect: {
-      "label:*First name": "Mei",
-      "label:*Last name": "Lin",
-      "label:*Email": "mei.lin@example.edu",
-      "label:Phone": "408-555-0172",
-      // The posting dropped its Education section after round 3 (2026-10-05).
-      "label:*School": { ifPresent: "San José State University" },
-      "label:Field of study (Optional)": { ifPresent: "Software Engineering" },
-      "label:Degree (Optional)": { ifPresent: "Bachelor of Science in Software Engineering" },
-      "label:End date (Optional)SVGs not supported by this browser.": { ifPresent: null },
-      // Its questions since: years of relevant experience, the attention check
-      // ("please choose option C"), open to relocation. The hidden inputs
-      // hold the chosen option's id.
-      "#input_CA_43442_input": "0-2 years",
-      "name=CA_43442": "441022",
-      "#input_CA_43445_input": "C",
-      "name=CA_43445": "441035",
-      "#input_CA_48127_input": "Yes",
-      "name=CA_48127": "494547",
-      // Workable fills Address from the visitor's location: the page's guess,
-      // replaced with the profile's location (round 5).
-      "#address": { ifPresent: "San Jose, CA" },
-    },
-  }),
+  // r3b-workable-syntiant retired 2026-10-17: the posting closed (Workable's job API answers 404).
+  // r3b-workable-disa retired 2026-10-17: the posting closed (Workable's job API answers 404).
   live({
     id: "r3b-bamboo-nexthop",
     ats: "bamboohr",
@@ -384,45 +309,7 @@ export default [
 
   // ------------- batch C: forms the suite knows, answered by a different person
   // r3c-gh-robinhood-uk retired 2026-10-08: the posting closed (Greenhouse's job API answers 404).
-  live({
-    id: "r3c-ashby-superhuman-mtl",
-    ats: "ashby",
-    profile: MONTREAL_CHANGER,
-    url: "https://jobs.ashbyhq.com/superhuman%20platform%20inc/e6b917b1-325a-47d0-b267-b279b0efdad0/application",
-    expect: {
-      // Ashby's Yes/No questions, answered since round 5 (read 2026-10-08). The
-      // posting's hubs are in the US; a graduate attends no college anywhere. Once
-      // these were scanned, "attending a college…" read as a School field and both
-      // education rows took Concordia (regression 2026-10-08, fixed).
-      "yesno~Are you authorized to be employed in the United States?": "No",
-      "yesno~Do you need visa sponsorship?": "Yes",
-      "yesno~Are you currently attending a college or university in the U": "No",
-      "yesno~Are you currently pursuing a degree in computer science or a": "No",
-      "yesno~Do you currently live within 50 miles of one of our Superhum": "No",
-      "label:Legal Full Name": "Alex Côté-Tremblay",
-      "label:Preferred First Name": "Alex",
-      "label:Email": "alex.cote@example.ca",
-      "label:Phone": "514 555 0186",
-      "label:LinkedIn URL": "https://linkedin.com/in/alexcote",
-      "label:How did you hear about this job?": "Referral",
-      "label=Start typing...": "Montreal, Quebec, Canada",
-      "radio~Which degree are you currently pursuing?": null,
-      "radio~When is your expected graduation date?": null,
-      "label=Search schools...": "Université de Montréal",
-      "label:Degree Degree": "Baccalauréat en psychologie",
-      "label:Field of Study Field of Study": "Psychologie",
-      "label=End Date": null,
-      "label=Search schools...#2": "Concordia University",
-      "label=e.g. Bachelor of Science": "Certificate in Computer Science",
-      "label=e.g. Computer Science": "Computer Science",
-      "label=End Date#2": null,
-      "radio~Are you a veteran or active member of the United States Arme": "No, I am not a veteran or active member",
-      "radio~Do you have a disability or chronic condition (physical, vis": "No",
-      "label:Hispanic, Latinx or of Spanish Origin": null,
-      "radio~Do you identify as transgender?": "I don't wish to answer",
-      "label:Non-binary": "checked",
-    },
-  }),
+  // r3c-ashby-superhuman-mtl retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "r3c-gh-twitch-vet",
     ats: "greenhouse",
@@ -713,6 +600,8 @@ export default [
     profile: MONTREAL_CHANGER,
     url: "https://jobs.lever.co/zoox/5f10dfaf-5920-4506-8a09-b39b29e6f48b/apply",
     expect: {
+      // "Do you plan to continue working for other employers during your contract at Zoox?": No (decision 64, round 6).
+      "name=cards[18631c8a-d2a4-41d9-ba8a-8fccf4193494][field3]": "No",
       "label:Full name": "Alex Côté-Tremblay",
       "label:They/them": "checked",
       "label:Email": "alex.cote@example.ca",

@@ -415,20 +415,7 @@ export default [
       "radio=QA_12476755": "YES",
     },
   }),
-  live({
-    id: "live-fresh-jobvite-cmpa",
-    ats: "jobvite",
-    url: "https://jobs.jobvite.com/acpm/job/oXWTAfw6/apply",
-    expect: {
-      "#jv-field-yCCLXfwG": "Maya",
-      "#jv-field-yDCLXfwH": "Tremblay",
-      "#jv-field-yECLXfwI": "maya.tremblay@example.com",
-      "#jv-field-yFCLXfwJ": "(416) 555-0142",
-      "#jv-field-yLHZ1fwc": "Toronto",
-      "#jv-field-yMHZ1fwd": "Ontario",
-      "#jv-field-yNHZ1fwe": "Canada",
-    },
-  }),
+  // live-fresh-jobvite-cmpa retired 2026-10-17: the posting closed (Jobvite sends its apply page to the job list, error=404); ACPM's open postings are r6d-jv-acpm-*.
   live({
     id: "live-fresh-rippling-fluidai",
     ats: "rippling",
@@ -455,6 +442,7 @@ export default [
     ats: "rippling",
     url: "https://ats.rippling.com/4ag/jobs/921801f5-ae83-4a49-a234-221a87d94fe7",
     expect: {
+      // 4AG republished its form on 2026-10-17: the same questions and answers under new ids.
       "#field-12": "Maya",
       "#field-16": "Tremblay",
       "#field-20": "maya.tremblay@example.com",
@@ -463,14 +451,14 @@ export default [
       // The dial code follows the number's own country, not the page's guess
       // from the BROWSER LOCALE ("+44 GB" under en-GB); choosing it mounts the
       // picker again under a new id (round 4).
-      "#field-113": "+1 CA",
+      "#field-112": "+1 CA",
       "#field-35": "416-555-0142",
       "#field-46": "Toronto, ON, Canada",
-      "name=customQuestions.6aac63371a4aff678633f468.66dbdb3f-e908-4c0c-b47b-ea16b1b07304": "checked",
-      "#field-74": "05/03/2027",
-      "#field-82": "2027",
-      "name=customQuestions.6aac63371a4aff678633f468.749bab17-7c86-4005-b027-7e289072621a": "checked",
-      "#field-100": "No – I do not consent to receiving text messages",
+      "name=customQuestions.6aac63371a4aff678633f468.b7475329-734e-411a-ba49-fa13e72cbb3c": "checked",
+      "#field-73": "05/03/2027",
+      "#field-81": "2027",
+      "name=customQuestions.6aac63371a4aff678633f468.f51c9692-d325-4545-847d-ae895575d415": "checked",
+      "#field-99": "No – I do not consent to receiving text messages",
       "radio=sms_opt_in": "false",
     },
   }),
