@@ -1,3 +1,348 @@
+# Round 6: iCIMS behind its frame, Workday to the account wall, Jobvite and new Greenhouse boards (2026-10-17)
+
+Branch `night/autofill-round6` (worktree `.worktrees/autofill-round6`), from
+main at f7796e3 (round 5 plus the profile-facts work). Local only: NOT
+pushed, NOT deployed, nothing uploaded, no release zip built. Nothing was
+submitted anywhere and no account was created: every live run blocks non-GET
+requests (GraphQL queries aside), and every page here stops at a POST.
+
+The biggest find: **iCIMS never worked past its job page.** Round 5 blamed the
+frame the job sits in; the entry search already reaches same-origin frames.
+The Apply button's hidden short label made its text "Apply for this job
+onlineApply", and once clicked, the candidate login opened inside the frame
+while the top frame's flow, finding no form of its own, stopped and cleared
+the state the frame resumes from. Thirteen iCIMS postings now reach the
+candidate login and fill it.
+
+## 1. Real users first
+
+Prod (read-only SELECT, branch main), 2026-10-17: **no autofill report since
+2026-10-03** (183 in all), no field captures, no pending questions, no
+feedback since 08-14, no extension sign-in code since 09-28; the only
+security events since 10-08 are ten token refreshes. One application was
+recorded since round 5: the owner's, a LinkedIn posting marked applied in the
+web app, with no questions. Vercel's runtime logs are still 403 to the MCP
+(the CLI is not installed). So P0 had no real fill to turn into a case.
+
+What prod lists instead (active postings, not duplicates): Workday 1,613,
+Greenhouse 572, Lever 216, SmartRecruiters 166, Ashby 144, iCIMS 89, Workable
+20, Jobvite 6. Round 6 went where that volume is and the tests were not:
+iCIMS, Workday, Jobvite, and the Greenhouse boards in no bank and no case
+(37 of prod's 117).
+
+## 2. Open from round 5
+
+### a. iCIMS: from the job page to the candidate login
+
+| cause | now | verified |
+| --- | --- | --- |
+| The Apply button holds a long label and a hidden short one ("Apply for this job onlineApply"), so the entry search never matched it | the entry search reads what a control shows (`shownText`), its title only when it shows no text | live, 13 postings |
+| The click opens iCIMS's login inside the posting's frame; the top frame's flow found no form, said "No application form found", and cleared the state the frame resumes from | the flow hands over to the frame that owns the form, and waits up to 6 s after an entry click for one to claim it | live |
+| A panel that had loaded the profile never gave it to a frame it adopted later | it does | live, and `overlayAdoptFrame.test.ts` |
+| The login's Next is disabled until the email and the privacy notice are in; a one-field step drew no form scope; the button is an `<input value=…>` | the flow waits up to 3 s for a disabled advance, scopes a lone field by its own form, reads an input button's value | live |
+| Kinaxis' login is a full page whose email box has `autofocus`: the reconciler took the page's focus for the user's and never wrote the email | a box is the user's only after the user's own click, tap or key (`userFocus.ts`) | live |
+| Schwab's login asks for a phone beside a "Country Code" link over 245 "(+93) Afghanistan" options: read to its 60th option, the only +1 left was Canada's; the top frame also scanned the frame's picker as its own | every option is read for resolution, the exact country name wins, the national number goes beside the picker, and a child page's controls are its own | live |
+| H&R Block's posting had closed: iCIMS showed its job search, and the Location filter took the applicant's state | a site's own job search is page chrome (`siteSearch.ts`) | live: nothing written |
+
+Behind the Apply on every posting: an email-first candidate login whose Next
+POSTs behind an invisible hCaptcha. Live runs block it, so no case goes
+further and no account is created. Thirteen postings are pinned (round 5's
+eight r5c-icims cases, six re-pointed at open postings, and five r6a-icims):
+the email, the privacy notice, Schwab's phone.
+
+### b. SmartRecruiters' label fallback (ServiceNow)
+
+Run alone, the session's first SmartRecruiters page (no DataDome page this
+time): **12/12, City "Toronto, Ontario, Canada".** But the labels were again
+read the ordinary way ("City*"), so the web-component fallback (1161e4b)
+still never fired live. It stays unit-tested only (section 9).
+
+### c. Lever's location wait, Databricks' Degree
+
+Both passed in the regression: Databricks 25/25 (its Degree dropdown), SEP
+17/17 and Wattpad 29/29 (Lever's location typeahead with its 8 s wait).
+
+### d. OneImaging's embed host page
+
+The posting is open again (Greenhouse's API answers 200 with its 14
+questions). Both cases are restored and pass live: `live-gh-oneimaging` and
+`live-gh-oneimaging-embedded`, 16/16 each, the second through the frame the
+panel adopts.
+
+### e. SuccessFactors
+
+Unchanged: its Apply POSTs to `/services/cas/createpayload/`, which live runs
+block. A manual check.
+
+## 3. New ground
+
+### Workday (1,613 active postings): to the account wall
+
+No GET-only question bank exists: Workday's questions load only inside a
+signed-in apply flow (its one pre-sign-in GET, `applyflowpages`, names the
+pages, not their questions). So thirteen postings ran live, as far as a run
+may go: the posting, Apply, the chooser, the create-account wall. **Twelve
+reach the wall and fill it:** the persona's email, a generated password
+twice, and the account consent where there is one ("I accept", AEP). Create
+Account POSTs and is blocked: no account was created. Adobe's "Apply
+Manually" starts with a POST, so its sign-in never draws (pinned with a note).
+The twelve are pinned (r6b-wd-*); passwords by shape, never by value.
+
+### Jobvite (six companies in prod): a question bank from the apply page
+
+Jobvite writes each form into its apply page (`preloadedData`: `applyFields`
+and `preScreeningFormFields`), so `tools/qbank-jobvite.mjs` builds a bank
+with GETs only: each company's job list for titles and places, each apply
+page for its form. **43 postings, 992 questions**, six personas, 5,952
+answers. Read blind first (`jobvite-review-1`), then every wrong answer and
+answerable blank fixed with a failing test first (`bankJobvite.test.ts`),
+then every bank re-run and every changed answer read (section 7). The builder
+renders Ross Video's "I Accept" (an `IAgreeCheckbox` under its data-consent
+paragraph) as the box it is.
+
+Thirteen of the bank's postings then ran live (r6d-jv-*). Every Jobvite form
+shows its first step and stops at a captcha (the flow pauses there, as it
+should), so the screening questions behind it stay the bank's to test. The
+first step verifies three bank fixes on the real pages: "Address 2" takes
+the unit ("Apt 12C", "Unit 805") on Ross Video, GEI and ActioNet; SRC's
+"Applicant Source" is "Internet Career Site" for a LinkedIn applicant and
+"Employee Referral" for a referral; ActioNet's highest education is "High
+School" for a bootcamp graduate. Eleven are pinned. Nutanix opens on a
+data-consent gate whose Accept POSTs: its two cases stay unpinned (section 9).
+
+### Greenhouse: thirteen boards in no bank and no case
+
+Of prod's 117 Greenhouse boards, 37 were in no bank and no case. Thirteen of
+them ran live blind (r6c-gh-*: Astera, Kensington, Tenstorrent, Figure,
+HeyGen, Point72, Everpure, Sigma, Justworks, Hasbro, CLEAR, Arc Institute,
+PDT), every write read. They found the sponsorship misread that said Yes for
+every citizen on Justworks, the visa-status box, the project essays, and four
+blanks a stated fact answers (section 5).
+
+Re-run live on the build with every answer fix (r6c-gh-2), the fixes hold
+on the real pages: Justworks' sponsorship No for a green-card holder, its
+documentation Yes, its spouse question declined; Sigma's visa status "US
+Citizen"; Everpure's deemed export No, "Not returning to a program" and the
+policy box checked; Kensington's former-employer No; PDT's essays left to the
+applicant. One new miss: Everpure's School took "Austin Peay State
+University" for "The University of Texas at Austin" (the blind run had found
+the right school; the search answered differently). The write path matched
+any shared word; it now matches a school by its own words (f2bdd5a, then
+9936317 for Ashby's results). All thirteen are pinned, Everpure's School to
+the school itself.
+
+## 4. Wrong answers fixed
+
+Live pages (the value written, and now):
+
+| page | question | wrote | now |
+| --- | --- | --- | --- |
+| iCIMS, every posting (13 live) | "Apply for this job online" | not found: "No application form found on this page" | clicked; the candidate login filled in its frame |
+| iCIMS Kinaxis | Email (the page's autofocus) | nothing: the focus read as the user's | the email |
+| iCIMS Schwab | Country Code, a Boston phone | "(+1) Canada" (the list read to its 60th option) | "(+1) United States" |
+| iCIMS Schwab | Phone | "+1 617 555 0148" beside the code picker | the national number |
+| iCIMS DocuSign (closed: the employer's job search) | "Search Keyword, Category or Job Title" | the applicant's title (a search ran); the filters and "Sort by" sent to the AI | untouched |
+| iCIMS H&R Block (closed: iCIMS's job search) | Location filter | the applicant's state | untouched |
+| Greenhouse Justworks | "Will you now or in the future require sponsorship … (e.g. H-1B status, etc.) …?" | Yes for everyone, a citizen and a green-card holder included | No for citizens and permanent residents, Yes for a visa holder |
+| Greenhouse Sigma | "What is your current visa status?" (a text box) | No | the applicant's own statement ("US Citizen") |
+| Greenhouse PDT | two "describe a project … that demonstrate(s) your data analysis experience/skills" boxes | "SQL, Python, Tableau" | blank: the applicant's essay |
+| Greenhouse Justworks | "Are you a spouse or domestic partner to a veteran?" | No, from the applicant's own service | "I don't wish to answer", the list's decline (decision 66) |
+| Greenhouse Everpure | School (a remote search), "The University of Texas at Austin" | "Austin Peay State University" (one run of two) | "University of Texas - Austin": a school is chosen by its own words |
+| Ashby Ramp, Grow Therapy, The Exploration Company (regression) | School, "University of Waterloo" | blank, from the fix above (f2bdd5a): Ashby's result is three boxes (name, country, domain) | "University of Waterloo", read by its first box |
+| Breezy Vagaro (closed: its /apply opens the company's 39 openings) | "Apply" | clicked the first job's (a Director of DevOps role in Ahmedabad) and filled that application | no entry: Apply buttons leading to several postings are a list (decision 69) |
+
+Question banks (each also a unit test, in `bankJobvite.test.ts` and
+`round6.test.ts`):
+
+| company | question | wrote | now |
+| --- | --- | --- | --- |
+| Ross Video, ActioNet (Jobvite) | "Address 2", "Address2" | the city line ("Seattle, WA") | the street's unit ("Unit 805"), or nothing |
+| Ross Video (Jobvite) | "…Export Administration Regulations… Can you confirm that you meet these requirements and are eligible to comply?" | No for a US citizen and an Indian citizen | Yes when every stated citizenship and home is known and none is embargoed (decision 8) |
+| Nutanix (Jobvite) | "Current Company / School" | a 2014 school for a working engineer | the current employer; a student's school; else nothing |
+| Nutanix, ActioNet (Jobvite) | how did you hear (LinkedIn; a job board) | "Girls in Tech Job Board"; Indeed | "Other - please list source below"; a job board: blank |
+| SRC (Jobvite) | "Applicant Source" (LinkedIn, a job board) | blank, then "Other" mid-round | "Internet Career Site" |
+| SRC (Jobvite) | a VEVRAA paragraph over two veteran options | read as salary: blank | "I AM NOT A PROTECTED VETERAN" |
+| 35 lists in the Greenhouse, Ashby and Lever banks | how did you hear (a job board) | a board nobody named (Indeed, Glassdoor, Handshake, "Diversity Job Board", …) | blank (decision 57) |
+| Moment Energy, Recidiviz (Greenhouse) | "Briefly articulate why you believe your skills are a fit…", "(In 2-3 sentences) What about Recidiviz's mission…" | the skills list | blank: an essay |
+| GenScript, Pacific Fusion (Greenhouse) | "I acknowledge that GenScript … will collect and process my personal information…", "I confirm that the information I've shared in this application and resume is accurate…" | blank: read as the résumé upload by "resume" | Yes |
+
+Caught mid-round by the bank re-runs, and fixed before anything shipped:
+"Some High School" for a bootcamp graduate with a diploma (Lucid, Clearway),
+"Less than high school" for a student with nothing completed yet (Wattpad),
+the applicant's job title for "Did anyone refer you to this position? if so,
+who?" (Syska Hennessy), and a check in Twilio's "…will reflect my own work"
+pledge box (decision 6 keeps it blank).
+
+## 5. Blanks now answered
+
+| page | question | now |
+| --- | --- | --- |
+| Greenhouse Everpure (live) | "Does the deemed export rule affect your employment by Everpure?" | No for a US citizen or permanent resident; anyone else answers it (decision 62) |
+| Greenhouse Everpure (live) | "Will you be returning to an undergraduate or graduate program after the internship if selected?" | "Not returning to a program" for a graduate (decision 63) |
+| Greenhouse Everpure (live) | "Personal Information Policy": one box, "Acknowledge/Confirm" | checked (decision 60) |
+| Greenhouse Justworks (live) | "If requested, would you be able to provide documentation reflecting the education and employment history listed on your resume?" | Yes (decision 61); it was read as the résumé upload |
+| Greenhouse Kensington (live) | "Have you previously been employed by any of our Range Group companies" | No, the profile showing none |
+| Greenhouse Fivetran (bank) | "Are you currently or have you ever provided services to Fivetran (or any of its global subsidiaries or affiliates)…?" | No, likewise |
+| Greenhouse Dr. Weng (bank) | "Please provide visa status and expiration if applicable." | the applicant's own statement (decision 58) |
+| Jobvite Ross Video (bank) | "Have you previously been employed by, or contracted to, Ross Video or any of its entities?" | No |
+| Jobvite Ross Video (bank) | "When would you be available to start a new opportunity?" (Immediately, With Reasonable Notice, Other) | Immediately without a job; With Reasonable Notice with one |
+| Jobvite Ross Video (bank) | "I Accept" under its data-consent paragraph | checked |
+| Jobvite GEI (bank) | "Have you ever filled out an application with us before?" | No |
+| Jobvite GEI (bank) | "If selected for this position will you continue to work for another employer?" | No (decision 64) |
+| Jobvite SRC (bank) | "What is your overall G.P.A.?" (Below 2.5, 2.6, …) | the stated GPA, on its own scale only |
+| Jobvite ACPM (bank) | "…Are you available for Full Time work?", "Are you available to work in a full-time position?" | Yes (decision 49), unless the applicant prefers part-time |
+| Jobvite Nutanix and ActioNet, Greenhouse Lucid and Clearway, Lever National Journal, Workable DISA (banks) | highest education, a bootcamp graduate with a high school diploma | the high school diploma (decision 67) |
+| GEI, Nutanix (Jobvite), internshiplist2000 (Greenhouse) | how did you hear, LinkedIn stated and not listed | Other |
+
+## 6. Decisions (one rule each, each easy to reverse)
+
+52. A site's own job search (its keyword box, its filters, sort and page
+    size) is page chrome, never an application field.
+53. A same-origin child page that runs its own content script owns its
+    controls; the top frame never fills them as its own.
+54. Focus the page gave a box (autofocus) is not the user's: only a click, a
+    tap or a key in the page makes a box the user's, and the fill stays out
+    of it then.
+55. iCIMS's candidate login is filled (the email, and its privacy notice
+    under the consent decisions); its submit is the step's Next whatever it
+    says. Live runs stop there (a POST behind hCaptcha), as at Workday's
+    account wall.
+56. Of several dialing codes naming the applicant's country, the one that is
+    exactly its name wins ("(+1) United States", not "…Minor Outlying
+    Islands").
+57. A generic source stated ("Job board") never picks a named board; a named
+    platform the list lacks is "Other"; a list's general job-site channel
+    ("Internet Career Site") takes any job site; a company website never
+    becomes "Other" beside a general career site.
+58. A visa, immigration, citizenship or residency status asked in words is
+    the applicant's own statement of it (the profile's work authorization),
+    never a yes or a no.
+59. Address line 2 is the street's second line: the unit, or nothing.
+60. A box that only says "Acknowledge" (or "Confirm", "I agree") answers its
+    own fieldset's legend: a notice or policy there is acknowledged;
+    pledges (decision 6) and waivers (decision 51) keep their own rules.
+61. Documents for the education and employment on the résumé, if requested:
+    Yes. Proof of a right to work is the work-authorization reader's.
+62. The deemed export rule: No for a US citizen or permanent resident;
+    anyone else answers it.
+63. Returning to a program after the internship: No for a graduate enrolled
+    nowhere; a student answers it.
+64. Keeping another employer if selected: No.
+65. "Current Company / School": the job still running, else the school
+    enrolled at, else nothing.
+66. A spouse's or family member's military service is never answered from
+    the applicant's own.
+67. "Some High School" is high school unfinished; a certificate or college
+    diploma implies the high school diploma when the list offers no closer
+    level.
+68. A status list offering both "authorized to work … for any employer" and
+    "I require sponsorship" takes the sponsorship option for a status that
+    ends (F-1 OPT, STEM OPT): the employer will have to sponsor, and that is
+    what the question is for (Vital Lyfe on Ashby, regression).
+69. Apply buttons that lead to two postings or more make a list of jobs, never
+    a posting: the flow opens none of them (Vagaro, regression).
+
+## 7. Regression
+
+**Question banks.** Every bank re-run on the final answer code, against round
+5's base (Jobvite against its own blind run), and every changed answer read:
+
+| bank | answers | changed since the base | in questions |
+| --- | --- | --- | --- |
+| Greenhouse 1 | 11,256 | 32 | 17 |
+| Greenhouse 2 | 10,068 | 38 | 13 |
+| Greenhouse 3 | 9,528 | 15 | 8 |
+| Ashby | 4,908 | 4 | 4 |
+| Lever | 6,732 | 12 | 6 |
+| Workable | 4,926 | 3 | 1 |
+| Jobvite (against the blind run) | 5,952 | 663 | 20 |
+
+The re-runs between fixes caught four regressions of this round's own, each
+fixed with a failing test first before the next run (section 4, last
+paragraph).
+
+**Live.** The first full run (240 pinned cases) was stopped after three
+batches: f2bdd5a's school matching had left every Ashby School blank (Ramp,
+Grow Therapy, The Exploration Company), Ashby's result being three boxes.
+Fixed in 9936317; the three passed live (15/15, 17/17, 18/18), and the whole
+regression ran again on that build, headful, 19 batches of 13: **216 of 240
+passed.** Every failure was read:
+
+| cause | cases | what now |
+| --- | --- | --- |
+| the posting closed (8 postings: Superhuman x2, ACPM's oXWTAfw6 x2, Vagaro, Syntiant, two of DISA's, Pryzm, Teleskope) | 10 | retired, each with why |
+| the page changed, the answers the same (4AG's new ids x2, CSC's label, Jeffrey M's removed export question and its Seattle-only on-site question, Vital Lyfe's new work-right list) | 5 | re-pinned |
+| answers round 6's decisions give where the case had none (Zoox x2 "continue working for other employers" No, Carvana's commute Yes, ActioNet's unit on Address 2, National Journal never Indeed for a stated job board) | 5 | pinned |
+| blank since main's work-authorization allow-list (D-61, owner decisions batch B; identical on f7796e3, before round 6): Credence's and OpenData's "U.S. citizen?" and Crest's "permanently authorized" for the H-1B persona, Genetec's "authorized to work in Austria?" for "German citizen (EU)" (Credence also asks a referral question now in place of how-you-heard: No) | 4 | pinned blank, with the reason |
+
+(A third Superhuman case was retired after the stopped run: 11 retired in
+all, 230 pinned cases left.) Rescored against the new pins, **all 230 remaining cases
+pass.** Vagaro's closed posting also showed a real bug: its /apply now opens
+the company's openings, and the flow applied to the first of 39 jobs. Fixed
+(5e5915e), and every pinned case that enters through an Apply button (41:
+iCIMS, Workday, BambooHR, Rippling, Oracle, Recruitee, Paylocity, Dayforce,
+Breezy, Pinpoint, Epic) ran again on the final build: **all 41 pass**.
+
+Round 5's watch items passed: Databricks 25/25 (its Degree dropdown), SEP
+17/17 and Wattpad 29/29 (Lever's location typeahead).
+
+## 8. Verification
+
+- Unit: 2,898 tests pass (1 skipped: the opt-in question bank), typecheck,
+  build, `scan-smoke`; every fix has its failing test first (`round6.test.ts`,
+  `bankJobvite.test.ts`, `applyEntry.test.ts`, `comboboxAsyncTypeahead.test.ts`,
+  `mainWorldDriver.test.ts`, `icimsLogin.test.ts`, `siteSearch.test.ts`,
+  `childFrameScan.test.ts`, `overlayAdoptFrame.test.ts`, …).
+- Banks: section 7.
+- Live, headful, GET and GraphQL queries only: iCIMS 13 (pinned), Workday 13
+  (12 pinned), Greenhouse r6c 13 twice (pinned), Jobvite 13 (11 pinned),
+  OneImaging 2, ServiceNow 1, the Ashby School three, the full regression
+  (240), the 41 Apply-entry cases.
+- Not run: CI's backend pytest and the frontend build (nothing outside
+  `chrome-extension/` and NOTES.md changed; run them before a push).
+
+## 9. Needs manual verification, or still open
+
+- **SmartRecruiters' label fallback** (1161e4b): ServiceNow ran alone as the
+  session's first SmartRecruiters page and City filled (12/12), but by its
+  ordinary label ("City*"): the web-component fallback still never fired
+  live. Unit-tested only.
+- **iCIMS past the candidate login**: Next POSTs behind an invisible
+  hCaptcha, which live runs block; what follows (a password, the profile,
+  the questions) is unexplored. Thirteen postings reach the login and fill
+  it correctly.
+- **Workday past the account wall**: Create Account POSTs; twelve postings
+  fill the wall. Adobe's "Apply Manually" starts with a POST, so its sign-in
+  never draws live.
+- **Jobvite's second step**: every Jobvite form stops at a captcha after its
+  first step, so the screening-question fixes (export confirmation, start
+  date, prior application, another employer, GPA, VEVRAA, full-time, I Accept)
+  are verified in the bank (jsdom) only; the first step's (Address 2,
+  Applicant Source, highest education) are verified live.
+- **Nutanix's Jobvite data-consent gate**: a location of residence and
+  language, its policy, then Accept (a POST). The extension selects nothing
+  there and the flow says "Done … Review and submit" on the gate. Not built:
+  nothing past it can be checked live.
+- **SuccessFactors**: unchanged; its Apply POSTs. A manual check.
+- **The work-authorization allow-list on main** (D-61, owner decisions batch
+  B; not this round's): no positive status from an answer holding a word
+  outside its vocabulary, by design. So "German citizen (EU)" is not read as
+  German citizenship (Genetec's "authorized to work in Austria?", the export
+  confirmation stay blank), and "H-1B visa (transfer required)" gives no
+  status (Credence's and OpenData's "U.S. citizen?", Crest's "permanently
+  authorized" stay blank). Four regression cases are pinned blank for it.
+  Worth a look by whoever owns D-61: these blanks cost real answers.
+- **OpenAI** (billing down since 08-12): essays and AI-only answers stay
+  blank. PDT's essay pins only forbid the skills list, so they keep passing
+  when the AI writes again.
+- **HeyGen's "portfolio of example videos"** takes the applicant's general
+  website: worth a look by the applicant.
+- **Carvana's custom selects** report "reverted" in telemetry while the page
+  holds the value (each is pinned and passes): the panel may call them
+  failed. Seen in the regression; not new this round.
+- **Prod**: no autofill report since 2026-10-03; Vercel's runtime logs are
+  403 to the MCP (the CLI is not installed).
+
 # Round 5: the open bugs, Ashby's Yes/No, two new question banks (2026-10-08, night)
 
 Branch `night/autofill-round5` (worktree `.worktrees/autofill-round5`),
