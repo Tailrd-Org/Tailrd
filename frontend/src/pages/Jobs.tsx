@@ -14,7 +14,6 @@ import { handleApplyLinkClick, isListingClosed, postedAgo } from "../lib/jobList
 import FitBadge from "../components/FitBadge";
 import {
   MagnifyingGlass,
-  Sliders,
   Clock,
   BookmarkSimple,
   MapPin,
@@ -125,7 +124,6 @@ export default function Jobs() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [rewriteJob, setRewriteJob] = useState<AIJob | null>(null);
   const [coverJob, setCoverJob] = useState<AIJob | null>(null);
-  const [filtersVisible, setFiltersVisible] = useState(true);
   const { registerApplyClick } = useApplyTracking();
   const [sidebar, setSidebar] = useState<SidebarData | null>(null);
   const [quickFilter, setQuickFilter] = useState<QuickFilter>(null);
@@ -488,31 +486,19 @@ export default function Jobs() {
 
       {/* Filter Bar */}
       <div className="jobs-toolbar">
-        <div className="jobs-toolbar-top">
-          <button
-            className="filter-toggle-btn"
-            onClick={() => setFiltersVisible(!filtersVisible)}
-            aria-label={filtersVisible ? "Hide filters" : "Show filters"}
-          >
-            <Sliders size={15} weight="bold" />
-            {filtersVisible ? "Hide Filters" : "Show Filters"}
-          </button>
-          {quickFilter && (
-            <span className="jobs-quick-filter">
-              {quickFilter.kind === "strong" ? "Strong matches only" : "New since your last visit"}
-              <button type="button" onClick={() => applyQuickFilter(null)} aria-label="Clear quick filter">
-                <X size={12} weight="bold" />
-              </button>
-            </span>
-          )}
+        <div data-tour="job-filters">
+          <JobFilterBar
+            filters={aggFilters}
+            onChange={(newFilters) => { setAggFilters(newFilters); setPage(1); }}
+          />
         </div>
-        {filtersVisible && (
-          <div data-tour="job-filters">
-            <JobFilterBar
-              filters={aggFilters}
-              onChange={(newFilters) => { setAggFilters(newFilters); setPage(1); }}
-            />
-          </div>
+        {quickFilter && (
+          <span className="jobs-quick-filter">
+            {quickFilter.kind === "strong" ? "Strong matches only" : "New since your last visit"}
+            <button type="button" onClick={() => applyQuickFilter(null)} aria-label="Clear quick filter">
+              <X size={12} weight="bold" />
+            </button>
+          </span>
         )}
       </div>
 
@@ -695,7 +681,6 @@ export default function Jobs() {
             onShowRemote={() => {
               applyQuickFilter(null);
               setAggFilters((f) => ({ ...f, work_type: ["remote"] }));
-              setFiltersVisible(true);
             }}
             onCompany={(company) => {
               applyQuickFilter(null);

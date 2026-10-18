@@ -526,47 +526,17 @@ h3 { letter-spacing: -0.4px; line-height: 1.15; }
   font-feature-settings: "ss01";
 }
 
-/* Toolbar: filter toggle + filter pills. The All/Liked tabs sit up in the
- * header next to the page title, so the toggle is alone on this row. */
+/* Toolbar: filter pills on one row, always visible, with the quick-filter chip
+ * (from the right rail) trailing on the same line. The All/Liked tabs sit up in
+ * the header next to the page title. */
 .jobs-toolbar {
   display: flex;
-  flex-direction: column;
-  gap: 0;
-  padding: 0.75rem 2rem 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0 10px;
+  padding: 0.25rem 2rem;
   background: var(--bg-white);
   border-bottom: 1px solid var(--border-light);
-}
-
-.jobs-toolbar-top {
-  display: flex;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 0.25rem;
-}
-
-.filter-toggle-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  padding: 0.4rem 0.85rem;
-  border-radius: 8px;
-  border: 1px solid var(--border);
-  background: var(--bg-white);
-  color: var(--text-secondary);
-  font-size: 0.78rem;
-  font-weight: 500;
-  cursor: pointer;
-  transition: all 0.15s;
-}
-
-.filter-toggle-btn:hover {
-  border-color: var(--accent);
-  color: var(--accent);
-  background: var(--accent-light);
-}
-
-.filter-toggle-btn i {
-  font-size: 0.72rem;
 }
 
 .jobs-tabs {
@@ -1575,12 +1545,7 @@ h3 { letter-spacing: -0.4px; line-height: 1.15; }
    * background. A floor here could only ever count the chrome it was told about,
    * and it was never told about the banner. */
 
-  .jobs-toolbar { padding: 0.75rem 1rem 0.5rem; }
-
-  .jobs-toolbar-top {
-    flex-wrap: wrap;
-    gap: 0.5rem;
-  }
+  .jobs-toolbar { padding: 0.25rem 1rem; }
 
   /* The tabs now sit on the header's fixed 64px line, which cannot grow a
    * second row, so they tighten instead of wrapping, and the search box
