@@ -227,6 +227,22 @@ function ariaLabelledByText(el: HTMLElement): string {
   );
 }
 
+/**
+ * A box's own <label>: the one naming it by `for`, else the nearest one
+ * wrapping it. Lever wraps a whole radio question in an outer <label> as well,
+ * so the first radio's `labels` begin with that outer one, whose text is the
+ * whole question: Azul's Race (live, round 7) read its first option as every
+ * option at once, "Decline to self-identify" included.
+ */
+export function ownLabel(box: HTMLInputElement): HTMLLabelElement | null {
+  const labels = Array.from(box.labels ?? []);
+  if (labels.length <= 1) return labels[0] ?? null;
+  const named = labels.find((l) => l.htmlFor && l.htmlFor === box.id);
+  if (named) return named;
+  const nearest = box.closest("label");
+  return nearest && labels.includes(nearest) ? nearest : labels[labels.length - 1];
+}
+
 /** Text of associated <label> elements (covers both for= and wrapping). */
 export function associatedLabelText(el: HTMLElement): string {
   const labels = (el as HTMLInputElement).labels;

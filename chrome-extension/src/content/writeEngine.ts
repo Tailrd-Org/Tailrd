@@ -16,6 +16,7 @@ import {
   dispatchCommitKeys,
   dispatchInputEvents,
   isPlaceholderFiller,
+  ownLabel,
   setNativeValue,
 } from "./domUtils";
 import type { RuntimeControl } from "./formScanner";
@@ -337,7 +338,7 @@ function classifyDatePartOptions(texts: string[]): DatePart | null {
 
 function matchRadio(radios: HTMLInputElement[], value: string): HTMLInputElement | null {
   const labelOf = (r: HTMLInputElement): string =>
-    cleanText(r.labels?.[0]?.textContent) || r.value;
+    cleanText(ownLabel(r)?.textContent) || r.value;
   return matchOption(radios, labelOf, (r) => r.value, value);
 }
 
@@ -349,7 +350,7 @@ function answerParts(value: string): string[] {
 }
 
 function matchCheckbox(boxes: HTMLInputElement[], value: string): HTMLInputElement | null {
-  const labelOf = (c: HTMLInputElement): string => cleanText(c.labels?.[0]?.textContent) || c.value;
+  const labelOf = (c: HTMLInputElement): string => cleanText(ownLabel(c)?.textContent) || c.value;
   return matchOption(boxes, labelOf, (c) => c.value, value);
 }
 
@@ -360,7 +361,7 @@ function matchCheckbox(boxes: HTMLInputElement[], value: string): HTMLInputEleme
  */
 function boxesFor(live: HTMLInputElement[], value: string): HTMLInputElement[] {
   const key = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
-  const whole = live.find((c) => key(cleanText(c.labels?.[0]?.textContent) || c.value) === key(value));
+  const whole = live.find((c) => key(cleanText(ownLabel(c)?.textContent) || c.value) === key(value));
   if (whole) return [whole];
   const out: HTMLInputElement[] = [];
   for (const part of answerParts(value)) {

@@ -6,6 +6,7 @@
  * options verbatim from each posting's /apply page (GET only).
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
 import { scanPage } from "../src/content/formScanner";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { detectJobPlace } from "../src/content/jobLocation";
@@ -91,6 +92,28 @@ describe("working proficiency in each language stated at that level (Behaviour I
   it("native and fluent are professional; basic and conversational are not", () => {
     const got = scanned(["MONTREAL_CHANGER", "UK_SENIOR", "BOOTCAMP_CAREER_GAP"], "Do you have professional working proficiency in:", ["English", "French"], "Montreal, QC", "checks");
     expect(got).toEqual({ MONTREAL_CHANGER: "French, English", UK_SENIOR: "English", BOOTCAMP_CAREER_GAP: "English" });
+  });
+});
+
+describe("Lever's race radios: each option is its own label (Azul)", () => {
+  // Lever wraps the whole Race question in a <label>, so the first radio's
+  // labels are that outer label and its own: read first, its text was the
+  // whole question, "Decline to self-identify" included. Two options then
+  // held a decline, and someone who states no race got nothing (decision 4
+  // of the day session gives the decline). Markup verbatim from the page.
+  const RACE = readFileSync("test/fixtures/lever/eeo-race-nested-label.html", "utf8");
+  const race = (who: string) => {
+    document.body.innerHTML = RACE;
+    return scanPage(persona(who), true).fields.find((f) => f.label === "Race");
+  };
+  it("the first option reads as itself", () => {
+    expect(race("US_F1_STUDENT")?.options?.[0]).toBe("Hispanic or LatinoA person of Cuban, Mexican, Puerto Rican, South or Central American, or other Spanish culture or origin regardless of race.");
+  });
+  it("someone who states no race declines", () => {
+    expect(race("US_F1_STUDENT")?.proposedValue).toBe("Decline to self-identify");
+  });
+  it("a stated race still takes its own option", () => {
+    expect(race("US_VETERAN")?.proposedValue).toMatch(/^Black or African American \(Not Hispanic or Latino\)/);
   });
 });
 

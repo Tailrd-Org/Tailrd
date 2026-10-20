@@ -22,6 +22,7 @@ import {
   isRequiredField,
   isVisible,
   nearbyText,
+  ownLabel,
   type FieldSignals,
 } from "./domUtils";
 import { isConsentOption } from "./answerKind";
@@ -382,8 +383,8 @@ function categoryOfOptions(options: string[], label = ""): { category: FieldCate
 /** The label of one radio button or checkbox: its own label, else the text
  *  printed right after it, else its value (never the browser's default "on"). */
 function radioOptionLabel(radio: HTMLInputElement): string {
-  const labels = radio.labels;
-  if (labels && labels.length > 0) return cleanText(labels[0].textContent);
+  const own = ownLabel(radio);
+  if (own) return cleanText(own.textContent);
   const aria = cleanText(radio.getAttribute("aria-label"));
   if (aria) return aria;
   // No <label>: Breezy prints <input type="checkbox"><span>C#</span>, and every
