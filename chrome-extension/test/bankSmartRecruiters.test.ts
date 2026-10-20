@@ -503,6 +503,9 @@ describe("defaults read the question asked", () => {
     // each, never the one the question leaves out, never a level ("Korean
     // (Native), English (Fluent)" was typed whole and matched nothing).
     expect(f.proposedValue).toBe("Korean");
+    // A transcription of the profile, filled on device like a school: as a
+    // judgment for the AI, it was never written while the AI was down.
+    expect(f.deterministic).toBe(true);
     const india = scanPage(persona("INDIA_NEW_GRAD"), true).fields.find((x) => x.label.startsWith("Please indicate which languages"))!;
     expect(india.proposedValue).toBe("Tamil, Kannada, Hindi");
     setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });

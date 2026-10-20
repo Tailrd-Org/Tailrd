@@ -621,7 +621,9 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
       .map((l) => l.replace(/\s*\(.*$/, "").trim())
       .filter((l) => l && l.toLowerCase() !== left);
     if (names.length === 0) return none(false, "languages:none-but-excluded");
-    value = [...new Set(names)].join(", ");
+    // Read off the profile, as a school or a degree is: filled on device
+    // (with the AI down it was never written at all).
+    return { value: [...new Set(names)].join(", "), kind, source: "question", rule: "languages:by-name", deviceAbstained: false };
   }
   // "What are your salary expectations (hourly)?" (StackAdapt, question bank
   // 2026-10-05) got "$185,000": a pay figure only in the unit it was asked in.

@@ -79,6 +79,7 @@ import { AUTOFILL_CONFIDENCE_THRESHOLD } from "../shared/constants";
 import { activateElement, comboboxDisplaysValue, fillAriaCombobox, harvestComboboxOptions, readComboboxValue } from "./comboboxEngine";
 import { SECTION_KINDS, MAX_ROWS, rowsPresent, rowsNeeded, findAddButton } from "./repeatingSections";
 import { driveField, setDialogSuppression } from "./mainWorldClient";
+import { driveEachItem, reactSelectChips } from "./multiDrive";
 import { dispatchFormOp, makeProxyCallbacks, shouldAdoptRemoteHost } from "./crossFrame";
 import { matchOption, verifyControl, writeControl } from "./writeEngine";
 import {
@@ -671,6 +672,23 @@ function initialize(): void {
       // a single value, so route it to the combobox engine's chip loop instead.
       if (control.multi && control.el) {
         const res = await fillAriaCombobox(control.el, t.value, { multi: true });
+        // A react-select that opens for no scripted event (Greenhouse's remix
+        // multi-select, Gallup, live, round 7): the page-world driver picks
+        // each item from the widget's own options instead.
+        if (!res.filled && control.driver === "react-select") {
+          const el = control.el;
+          const driver = control.driver;
+          const each = await driveEachItem(t.value, (item) => driveField(t.fieldId, item, driver, { placeHint: placeHintFor(t.fieldId) }), () => reactSelectChips(el));
+          if (each.added.length > 0) {
+            outcomes.push({ fieldId: t.fieldId, ok: true });
+            continue;
+          }
+          if (each.options?.length) {
+            outcomes.push({ fieldId: t.fieldId, ok: false, reason: res.reason });
+            reask.push({ fieldId: t.fieldId, options: each.options });
+            continue;
+          }
+        }
         outcomes.push({ fieldId: t.fieldId, ok: res.filled, reason: res.reason });
         if (!res.filled && res.options) reask.push({ fieldId: t.fieldId, options: res.options });
         continue;
