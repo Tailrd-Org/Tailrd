@@ -837,6 +837,7 @@ export function readComboboxValue(trigger: HTMLElement): string | undefined {
     activeDescendantText(trigger),
     ...valueContainerTexts(trigger),
     ownText && !isPlaceholderFiller(ownText) ? ownText : "",
+    isButtonLikeTrigger(trigger) ? textBesidePrompt(trigger) : "",
     siblingDisplayText(trigger),
   ];
   for (const c of candidates) {
@@ -875,6 +876,32 @@ function ownDisplayText(trigger: HTMLElement): string {
   trigger.childNodes.forEach(walk);
   const text = cleanText(parts.join(" "));
   return !text || /^-+$/.test(text) || isPlaceholderFiller(text) ? "" : text;
+}
+
+/**
+ * A button that keeps its prompt beside the pick, each in its own element:
+ * Carvana's shows "Select answer" above the chosen "Yes" (`select__label`,
+ * `select__inputValue`), so it reads "Select answerYes", a prompt by its first
+ * word, and every pick there read back empty while the page held it (four
+ * "reverted" questions, live 2026-10-17). Its text pieces that are no prompt;
+ * "" when no prompt is among them (the whole text already stands) or nothing
+ * else is.
+ */
+function textBesidePrompt(trigger: HTMLElement): string {
+  const pieces: string[] = [];
+  const walk = (node: Node): void => {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const t = cleanText(node.textContent);
+      if (t) pieces.push(t);
+      return;
+    }
+    if (!(node instanceof Element) || node.matches('[role="listbox"], [role="option"], svg, [aria-hidden="true"]')) return;
+    node.childNodes.forEach(walk);
+  };
+  trigger.childNodes.forEach(walk);
+  const prompt = (p: string): boolean => isPlaceholderFiller(p) || DISPLAY_PROMPT.test(p);
+  const rest = pieces.filter((p) => !prompt(p));
+  return rest.length > 0 && rest.length < pieces.length ? cleanText(rest.join(" ")) : "";
 }
 
 /** A trigger whose own text is its displayed value rather than a caption. */
