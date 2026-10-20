@@ -33,26 +33,7 @@ const live = (c) => ({ mode: "live", profile: P, trigger: { fillTimeoutMs: 18000
 export default [
   // ---------------------------------------------------------------- Ashby
   // live-heldout-ashby-superhuman retired 2026-10-17: the posting closed (Ashby's job-board API no longer lists it).
-  live({
-    id: "live-heldout-ashby-beacon",
-    ats: "ashby",
-    url: "https://jobs.ashbyhq.com/beaconsoftware/be0e101c-faba-41c2-996e-d70e98b9d4ee/application",
-    expect: {
-      // Ashby's Yes/No questions, answered since round 5 (read 2026-10-08). The
-      // office is in Toronto, where the applicant lives.
-      "yesno~Are you comfortable working onsite four days a week at one o": "Yes",
-      "#_systemfield_name": NAME,
-      "label:Email": P.email,
-      "label:Phone Number": PHONE,
-      "label:LinkedIn Profile": LINKEDIN,
-      "label:Start typing": TORONTO,
-      "label:How did you hear about Beacon?": "Online job board",
-      "label:What is your current age?": null,
-      "label:What is your gender identity?": "I prefer not to answer",
-      "radio~Do you identify as transgender?": "I prefer not to answer",
-      "all:checkbox~I prefer not to answer": "checked",
-    },
-  }),
+  // live-heldout-ashby-beacon retired 2026-10-20: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "live-heldout-ashby-gecko",
     ats: "ashby",
@@ -291,6 +272,10 @@ export default [
       "label:Are you local to or willing to relocate?": "Yes",
       "name=eeo[gender]": "Decline to self-identify",
       "name=eeo[veteran]": "I decline to self-identify for protected veteran status",
+      // "Do you have, or are you able to obtain, a S/SAR clearance?": a US clearance is for US citizens (decision 81, round 7).
+      "radio=cards[657522f5-cc60-482f-939e-1ce0f87d019a][field0]": "No",
+      // No race stated: the decline (day-session decision 4), read since round 7 fixed Lever's nested race label.
+      "radio=eeo[race]": "Decline to self-identify",
     },
   }),
   live({
@@ -505,26 +490,7 @@ export default [
       "radio~Disability": "I Don’t Wish To Answer",
     },
   }),
-  live({
-    id: "live-heldout2-lever-pcc-analyst",
-    ats: "lever",
-    url: "https://jobs.lever.co/pointclickcare/4df748a3-2864-4d8c-8393-85b185b16fa4/apply",
-    expect: {
-      "label:Full name": "Maya Tremblay",
-      "label:Email": "maya.tremblay@example.com",
-      "label:Phone": PHONE,
-      "label:Current location": { re: "^(Toronto, ON, CAN)?$" },
-      "label:Current company": "Kinaxis",
-      "label:LinkedIn URL": "https://www.linkedin.com/in/maya-tremblay",
-      "radio~Are you legally authorized to work in the US for our company": null,
-      "radio~Do you now, or will you in the future, require sponsorship f": null,
-      "radio~Gender Identity": "Prefer not to disclose",
-      "radio~Do you identify as a member of the LGBTQ+ Community?": "Prefer not to disclose",
-      "radio~Race/Ethnicity": "Prefer not to disclose",
-      "radio~Veteran Status": "Prefer not to disclose",
-      "radio~Disability": "I Don’t Wish To Answer",
-    },
-  }),
+  // live-heldout2-lever-pcc-analyst retired 2026-10-20: the posting closed (Lever's postings API answers 404).
   live({
     id: "live-heldout2-lever-csc",
     ats: "lever",

@@ -132,17 +132,7 @@ export default [
       "label:Verify New Password": { re: String.raw`^\S{8,}$` },
     },
   }),
-  live({
-    id: "r6b-wd-homedepot",
-    ats: "workday",
-    profile: SPARSE_CANADIAN,
-    url: "https://homedepot.wd5.myworkdayjobs.com/en-US/careerdepotcanada/job/CANADA-STORE-SUPPORT-CENTER---7000/Intern--Full-Stack-Software-Developer_Req195012", nextPages: 2,
-    expect: {
-      "label:Email Address": "maya.tremblay@example.com",
-      "#input-5": { re: String.raw`^\S{8,}$` },
-      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
-    },
-  }),
+  // r6b-wd-homedepot retired 2026-10-20: the posting closed (Workday shows "The page you are looking for doesn't exist.").
   // Adobe's Apply Manually starts the application with a POST, which live
   // runs block: the sign-in page never draws, and nothing is written.
   live({ id: "r6b-wd-adobe", ats: "workday", profile: US_F1_STUDENT, url: "https://adobe.wd5.myworkdayjobs.com/external_experienced/job/New-York/XMLNAME-2027-Intern---Enterprise-Architecture-Analyst_R171856", nextPages: 2 }),
@@ -167,6 +157,8 @@ export default [
       "label:Email Address": "dandre.jb@example.com",
       "#input-5": { re: String.raw`^\S{8,}$` },
       "label:Verify New Password": { re: String.raw`^\S{8,}$` },
+      // Workday's language picker, page chrome drawn after the first snapshot (2026-10-20).
+      "#languageSelectorButton": { re: String.raw`^(English)?$` },
     },
   }),
   live({

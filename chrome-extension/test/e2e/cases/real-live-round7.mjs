@@ -420,6 +420,7 @@ export default [
       "label:City": "Seattle, WA, US",
       "label:Phone number": "206 555 0131",
       "label:LinkedIn": "https://www.linkedin.com/in/thuha-nguyen",
+      "label=Country code": "+ 1",
     },
   }),
   live({
@@ -452,6 +453,7 @@ export default [
       "label:City": "Montreal, Quebec, Canada",
       "label:Phone number": "514 555 0186",
       "label:LinkedIn": "linkedin.com/in/alexcote",
+      "label=Country code": "+ 1",
     },
   }),
   live({
@@ -470,21 +472,7 @@ export default [
       "label:Website": "https://mayatremblay.dev",
     },
   }),
-  live({
-    id: "r7b-sr-ccsf",
-    ats: "smartrecruiters",
-    profile: US_VETERAN,
-    url: sr("CityAndCountyOfSanFrancisco1", "6466a5f2-b3c3-48b2-9030-d5056c3a1e11"), nextPages: 1,
-    expect: {
-      "label:First name": "Marcus",
-      "label:Last name": "Hill",
-      "label=Email*": "marcus.hill@example.com",
-      "label:Confirm your email": "marcus.hill@example.com",
-      "label:City": "Austin, TX, US",
-      "label:Country code": "+ 1",
-      "label:Phone number": "512 555 0143",
-    },
-  }),
+  // r7b-sr-ccsf retired 2026-10-20: the posting closed during the night (SmartRecruiters' posting API answers active: false); it passed page 1 live twice before.
   live({
     id: "r7b-sr-crb",
     ats: "smartrecruiters",

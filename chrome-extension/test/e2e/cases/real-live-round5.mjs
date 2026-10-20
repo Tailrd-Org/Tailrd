@@ -163,29 +163,7 @@ export default [
       "radio~Veteran Status": "I am not a protected veteran",
     },
   }),
-  live({
-    id: "r5a-ashby-basepower",
-    ats: "ashby",
-    profile: US_OPT_ANALYST,
-    url: ashby("base-power", "780f2eea-c6a1-42ef-8b5a-244c411fe07b"),
-    expect: {
-      "#_systemfield_name": "Ji-woo Park",
-      "label:Email": "jiwoo.park@example.com",
-      "label:Phone Number": "+1 617 555 0148",
-      "radio=communicationConsent": "No - I do not consent to receiving text messages",
-      "label:LinkedIn Profile URL": "https://www.linkedin.com/in/jiwoo-park-data",
-      "name=e0f13723-93ff-417a-aa63-d3185e2dec1e": "https://jiwoopark.io",
-      "label=Start typing...": "Boston, Massachusetts, United States",
-      "yesno~Base is a fully in-person work environment. This role requir": "Yes",
-      "label=Pick date...": { re: String.raw`^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}|\d{2} [A-Z][a-z]{2} \d{4})$` },
-      "label=Start typing...#2": "I currently hold STEM OPT and will require H-1B sponsorship in the future",
-      "label:Job Board (e.g., Indeed, Built In, AngelList, Handshake, 12T": "checked",
-      "label:Other": null,
-      "radio~Input gender": "Male",
-      "radio~Race": "Asian (Not Hispanic or Latino)",
-      "radio~Veteran Status": "I am not a protected veteran",
-    },
-  }),
+  // r5a-ashby-basepower retired 2026-10-20: the posting closed (Ashby's job-board API no longer lists it).
   live({
     id: "r5a-ashby-saronic",
     ats: "ashby",
@@ -366,6 +344,8 @@ export default [
       "radio~Do you consider yourself a member of the 2SLGBTQIA+ communit": "No",
       "radio~Do you require workplace accommodations due to a physical di": "No",
       "radio~Do you require workplace accommodations due to a mental heal": "No",
+      // "What is the highest degree that you have attained?": a student's is the diploma their program implies (decision 76, round 7).
+      "radio=surveysResponses[833af20f-2bcb-452d-9d12-c211b8a6459a][responses][field8]": "High school or equivalent",
     },
   }),
   live({
@@ -459,7 +439,7 @@ export default [
       "label:Portfolio URL": "https://jiwoopark.io",
       "label:Other website": "https://jiwoopark.io",
       "label:Are you willing to relocate?": "Yes",
-      "label:What is the earliest date you are available to start?": "Within 1 month",
+      "label:What is the earliest date you are available to start?": { re: String.raw`^(Within 2 weeks|Within 1 month|Immediately)$` },
       "label:What is the highest level of education you have completed?": "Master’s degree",
       "label:At which institution did you earn your highest degree?": "Northeastern University",
       // The list's select2 box, showing the choice.
