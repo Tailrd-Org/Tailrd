@@ -30,22 +30,27 @@ const only = opt("--only", "");
 const size = Number(opt("--size", "13"));
 
 const ids = [];
+// SmartRecruiters' bot check lets one page through per fresh browser on this
+// machine (round 7): each of its cases runs in a batch of its own.
+const alone = [];
 for (const f of readdirSync(path.join(e2e, "cases")).filter((f) => f.endsWith(".mjs")).sort()) {
   const mod = await import(pathToFileURL(path.join(e2e, "cases", f)).href);
   const list = typeof mod.default === "function" ? await mod.default() : mod.default;
   for (const c of list ?? []) {
     if (Object.keys(c.expect ?? {}).length === 0) continue; // exploration cases pin nothing
     if (only && !c.id.includes(only)) continue;
-    ids.push(c.id);
+    (c.ats === "smartrecruiters" ? alone : ids).push(c.id);
   }
 }
-if (ids.length === 0) {
+if (ids.length + alone.length === 0) {
   console.log("no pinned cases matched");
   process.exit(1);
 }
 
 const batches = [];
 for (let i = 0; i < ids.length; i += size) batches.push(ids.slice(i, i + size));
+for (const id of alone) batches.push([id]);
+ids.push(...alone);
 console.log(`${ids.length} pinned case(s) in ${batches.length} batch(es) of up to ${size}`);
 mkdirSync(path.join(e2e, "results"), { recursive: true });
 
