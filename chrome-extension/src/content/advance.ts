@@ -28,7 +28,13 @@ const APPLY_ENTRY_RE = /\b(apply now|apply|postuler|poser (sa|ma|votre) candidat
 // verb under exactly one of the two makes that impossible.
 const TERMINAL_RE = new RegExp(`${FINAL_SUBMIT_RE.source}|${APPLY_ENTRY_RE.source}`, "i");
 
-const BUTTON_SELECTOR = 'button, input[type="submit"], [role="button"]';
+// SmartRecruiters' step button is its design system's <spl-button> ("Next",
+// one-click page, live, round 7): the flow never saw it.
+const BUTTON_SELECTOR = 'button, input[type="submit"], [role="button"], spl-button';
+/** Another site's apply beside the form ("Apply With Indeed" on
+ *  SmartRecruiters' one-click page, live, round 7): never the form's own
+ *  submit, which it was taken for, ending the flow on page 1. */
+const OTHER_SITE_APPLY = /\bapply (with|using|via|through|on) (indeed|linkedin|seek|xing|glassdoor|google|ziprecruiter|monster|dice|handshake)\b/i;
 
 export interface FindAdvanceOpts {
   /** Extra advance verbs (account walls: create account / sign in / …). */
@@ -160,11 +166,12 @@ export function clickAdvance(el: HTMLElement): void {
 }
 
 function buttonText(el: HTMLElement): string {
-  return (
+  const text =
     cleanText(el.getAttribute("aria-label")) ||
     cleanText(el.textContent) ||
-    cleanText((el as HTMLInputElement).value ?? "")
-  );
+    cleanText((el as HTMLInputElement).value ?? "");
+  // Another site's apply reads as no button at all.
+  return OTHER_SITE_APPLY.test(text) || /\bexternal-apply\b/.test(el.getAttribute("class") ?? "") ? "" : text;
 }
 
 function isClickable(el: HTMLElement): boolean {

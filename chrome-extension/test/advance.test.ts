@@ -19,6 +19,26 @@ function scopeWith(html: string): HTMLElement {
   return document.getElementById("scope")!;
 }
 
+describe("SmartRecruiters' one-click page (live, round 7)", () => {
+  // Its step button is a web component, and beside the form sits the
+  // third-party "Apply With Indeed": the flow took that for the form's own
+  // submit and said "Review and submit" on page 1, before the screening
+  // questions. Markup from the page (Western Digital).
+  const PAGE =
+    `<oc-external-apply-button><button type="button" class="external-apply-button external-apply-button--indeed">Apply With Indeed</button></oc-external-apply-button>` +
+    `<footer data-test="footer" class="form-section form-section--clean"><div class="spl-flex flex-row spl-justify-between"><div></div><div><oc-button type="primary" data-test="footer-next"><spl-button data-test="" aria-label="" type="primary" stretch="no"><span>Next</span></spl-button></oc-button></div></div></footer>`;
+  it("Next is the step's advance; another site's Apply is never the form's submit", () => {
+    const hit = findAdvanceButton(scopeWith(PAGE), null);
+    expect(hit?.kind).toBe("advance");
+    expect(hit?.el.textContent?.trim()).toBe("Next");
+  });
+  it("apply-with buttons alone end nothing", () => {
+    for (const label of ["Apply With Indeed", "Apply with LinkedIn", "Apply using SEEK"]) {
+      expect(findAdvanceButton(scopeWith(`<button class="x">${label}</button>`), null), label).toBeNull();
+    }
+  });
+});
+
 describe("findAdvanceButton", () => {
   it("finds EN advance buttons (Next / Save & Continue)", () => {
     for (const label of ["Next", "Save & Continue", "Save and Continue", "Continue", "Next Step", "Review"]) {
