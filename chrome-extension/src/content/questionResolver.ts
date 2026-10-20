@@ -541,9 +541,18 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
   // "If you're not authorized to work at the stated location, what sponsorship
   // would you require for the role?" (Brex, live 2026-10-03) wants the TYPE,
   // and got the work-authorization statement ("Canadian citizen").
-  if (hasSponsor && SPONSOR_TYPE.test(n) && !isBooleanQuestion(q)) return abstain("sponsorship:type-unknown");
   const country = targetCountry(q, ctx, facts);
   const residence = residenceOf(facts);
+  // The need asked, its details only on Yes: "Would you require any form of
+  // Sponsorship or Visa? If Yes, please elaborate below." (Artera on Lever,
+  // live, round 7) was left blank for citizens as a question of the visa's
+  // type. No for someone who needs none; a Yes is theirs to explain.
+  if (hasSponsor && !isBooleanQuestion(q) && !(q.options ?? []).some((o) => o.trim()) && q.kind !== "number" && q.kind !== "date" && /^(would|will|do|does|are|is) you\b/.test(n) && /\bif (yes|so)\b[^?]*\b(elaborate|explain|specify|describe|list|provide|detail)\b/.test(n)) {
+    const s = needsSponsorshipIn(facts.workAuth, country, residence);
+    if (isHigh(s) && s.value === false && profile.requiresSponsorship?.trim()) return answer("No", "sponsorship:text-no");
+    return abstain("sponsorship:type-unknown");
+  }
+  if (hasSponsor && SPONSOR_TYPE.test(n) && !isBooleanQuestion(q)) return abstain("sponsorship:type-unknown");
 
   // "Are you prevented from lawfully becoming employed in the US because of
   // visa or immigration status?" (Barnes & Thornburg, Ashby bank 2026-10-08):

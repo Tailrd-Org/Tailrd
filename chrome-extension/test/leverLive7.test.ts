@@ -117,6 +117,19 @@ describe("Lever's race radios: each option is its own label (Azul)", () => {
   });
 });
 
+describe("a sponsorship need with its details asked only on Yes (Artera)", () => {
+  it("No for someone who needs none; a Yes is theirs to explain", () => {
+    // Blank for everyone: read as asking for the kind of visa.
+    const label = "Would you require any form of Sponsorship or Visa? If Yes, please elaborate below.";
+    document.body.innerHTML = `<h1 class="job__title">Role</h1><div class="job__location">Remote-US</div><form id="application-form"><div class="field"><label for="q0">${label}</label><textarea id="q0" name="q0"></textarea></div></form>`;
+    setResolveContext({ jobCountry: "US", jobCity: null, jobPlaces: null, company: "Artera" });
+    const of = (who: string) => scanPage(persona(who), true).fields.find((x) => x.label.startsWith("Would you require"))?.proposedValue ?? null;
+    expect(of("BOOTCAMP_CAREER_GAP")).toBe("No");
+    expect(of("US_H1B_SENIOR")).toBeNull();
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+  });
+});
+
 describe("a schedule the program sets is accepted by applying (Viget, decision 49)", () => {
   it("a standard 40-hour, Monday-Friday work week", () => {
     const got = scanned(["UK_SENIOR", "BOOTCAMP_CAREER_GAP"], "Are you able to commit to working a standard 40-hour, Monday-Friday work week during the program?", YN, "Boulder, CO");
