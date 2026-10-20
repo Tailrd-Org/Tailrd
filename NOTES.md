@@ -1,10 +1,11 @@
 # Round 7: Jobvite's consent gate, SmartRecruiters from a question bank to its screening step, new Greenhouse and Lever boards (2026-10-20)
 
 Branch `night/autofill-round7` (worktree `.worktrees/autofill-round7`), from
-main at 8574740 (round 6). Local only: NOT pushed, NOT deployed, nothing
-uploaded, no release zip built. Nothing was submitted anywhere and no account
-was created: every live run blocks non-GET requests (GraphQL queries aside),
-and Nutanix's consent stops at its POST.
+main at 8574740 (round 6), pushed to main on 2026-10-20 at the owner's request
+once CI's checks passed locally (section 8). Nothing uploaded, no release zip
+built. Nothing was submitted anywhere and no account was created: every live
+run blocks non-GET requests (GraphQL queries aside), and Nutanix's consent
+stops at its POST.
 
 The biggest find: **SmartRecruiters' screening questions were never read on a
 real page.** The one-click flow could not see the step's "Next" (a
@@ -324,8 +325,10 @@ is P1b's live check.
 - Banks: section 7. Live, headful, GET and GraphQL queries only: Greenhouse
   13 three times, Lever 13 twice, SmartRecruiters 13 twice plus the probe,
   Nutanix 2, the checks after each live fix, and the full regression.
-- Not run: CI's backend pytest and the frontend build (nothing outside
-  `chrome-extension/` and NOTES.md changed; run them before a push).
+- Before the push to main, CI's checks ran locally on the branch (origin/main
+  had not moved from 8574740): backend pytest from a scratch directory on
+  SQLite, 4,084 passed; extension typecheck, build, `scan-smoke` and the
+  2,979 unit tests; frontend `tsc` and `vite build`.
 
 ## 9. Needs manual verification, or still open
 
