@@ -1365,9 +1365,12 @@ export function scanPage(
         : undefined;
     // A skills combobox is multi-value ("Type to Add Skills"): the engine adds
     // one chip per skill rather than matching the joined list as one option.
+    // So is a react-select multi (its value container "--is-multi"): Gallup's
+    // "Please indicate which languages you speak…" on Greenhouse was read as a
+    // single choice, and the language rule never answered it (live, round 7).
     const multi =
       controlType === "combobox" &&
-      (category === "skills" || el.getAttribute("aria-multiselectable") === "true");
+      (category === "skills" || el.getAttribute("aria-multiselectable") === "true" || el.closest('[class*="value-container--is-multi"]') !== null);
     const control: RuntimeControl = { id, controlType, el, driver, multi };
     registry.set(id, control);
 

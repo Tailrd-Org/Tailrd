@@ -8,7 +8,7 @@
  * options verbatim.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { scanPage } from "../src/content/formScanner";
+import { resolveWithOptions, scanPage } from "../src/content/formScanner";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { detectJobPlace } from "../src/content/jobLocation";
 import * as P from "./e2e/profiles.mjs";
@@ -484,6 +484,21 @@ describe("defaults read the question asked", () => {
     expect(got.US_OPT_ANALYST).toBe("Korean");
     expect(got.BERLIN_STAFF).toBe("German");
     expect(got.INDIA_NEW_GRAD).toBe("Tamil (India), Kannada, Hindi");
+  });
+
+  it("Greenhouse's multi-select is a list of answers too, once its options are read (Gallup, live)", () => {
+    // The same question on the live page is a react-select multi
+    // (value-container--is-multi), read as a single choice: the language rule
+    // never applied and it went to the AI (blank, both live runs). Markup
+    // from the page's field capture.
+    const LANGS = ["English", "French", "German", "Hindi", "Kannada", "Korean", "Spanish", "Tamil (India)", "Vietnamese"];
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label id="question_7988717009[]-label" for="question_7988717009[]">Please indicate which languages you speak in addition to English:</label><div class="select-shell remix-css-b62m3t-container"><div><div class="select__control--outside-label select__control remix-css-13cymwt-control"><div class="select__value-container select__value-container--is-multi remix-css-hlgwow"><div class="select__placeholder remix-css-1jqq78o-placeholder" id="react-select-question_7988717009[]-placeholder">Select...</div><div class="select__input-container remix-css-19bb58m" data-value=""><input class="select__input" autocomplete="off" id="question_7988717009[]" tabindex="0" type="text" aria-autocomplete="list" aria-expanded="false" aria-haspopup="true" aria-labelledby="question_7988717009[]-label" aria-required="false" role="combobox" aria-activedescendant="" value=""></div></div><div class="select__indicators--outside-label select__indicators remix-css-1wy0on6"><button type="button" class="icon-button icon-button--sm" aria-label="Toggle flyout" tabindex="-1"></button></div></div></div></div></div></form>`;
+    setResolveContext({ jobCountry: "US", jobCity: "San Francisco", jobPlaces: null, company: "Gallup" });
+    const { fields, registry } = scanPage(persona("US_OPT_ANALYST"), true);
+    const f = fields.find((x) => x.label.startsWith("Please indicate which languages"))!;
+    expect(resolveWithOptions(f, registry, persona("US_OPT_ANALYST"), null, true, LANGS)).toBe("Korean");
+    expect(resolveWithOptions(f, registry, persona("INDIA_NEW_GRAD"), null, true, LANGS)).toBe("Tamil (India), Kannada, Hindi");
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
   });
 
   it("a box for one language takes one, without its level (SBT, City and County of San Francisco)", () => {
