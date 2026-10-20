@@ -606,6 +606,23 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     const first = value.split(/[,;\n]/)[0].replace(/\s*\([^)]*\)\s*$/, "").trim();
     if (first) value = first;
   }
+  // A multi-select of languages whose options are not read yet: Greenhouse's
+  // react-select opens only for a real click, and a harvest reads 60 of its
+  // 539 (Gallup, live, round 7), so "Korean (Native), English (Fluent)" was
+  // typed whole and matched nothing. Each stated language by name, one chip
+  // each; none stated at a beginner's level, none the question leaves out
+  // ("in addition to English").
+  if (source === "category" && category === "languages" && value && control.multi && !(options && options.length)) {
+    const left = /\b(?:in addition to|other than|besides|apart from|aside from|except|excluding|beyond)\s+([a-z]+)\b/i.exec(label)?.[1]?.toLowerCase() ?? null;
+    const names = value
+      .split(/[,;\n]+/)
+      .map((l) => l.trim())
+      .filter((l) => l && !/\((basic|beginner|elementary|limited|a1|a2)\b/i.test(l))
+      .map((l) => l.replace(/\s*\(.*$/, "").trim())
+      .filter((l) => l && l.toLowerCase() !== left);
+    if (names.length === 0) return none(false, "languages:none-but-excluded");
+    value = [...new Set(names)].join(", ");
+  }
   // "What are your salary expectations (hourly)?" (StackAdapt, question bank
   // 2026-10-05) got "$185,000": a pay figure only in the unit it was asked in.
   if (source === "category" && category === "salary" && value && (kind === "text" || kind === "number" || kind === "longText")) {

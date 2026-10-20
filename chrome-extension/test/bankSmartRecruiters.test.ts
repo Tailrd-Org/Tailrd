@@ -498,6 +498,13 @@ describe("defaults read the question asked", () => {
     const f = fields.find((x) => x.label.startsWith("Please indicate which languages"))!;
     expect(resolveWithOptions(f, registry, persona("US_OPT_ANALYST"), null, true, LANGS)).toBe("Korean");
     expect(resolveWithOptions(f, registry, persona("INDIA_NEW_GRAD"), null, true, LANGS)).toBe("Tamil (India), Kannada, Hindi");
+    // Before its options are read (the menu opens only for a real click, and
+    // a harvest reads 60 of its 539): each stated language by name, one chip
+    // each, never the one the question leaves out, never a level ("Korean
+    // (Native), English (Fluent)" was typed whole and matched nothing).
+    expect(f.proposedValue).toBe("Korean");
+    const india = scanPage(persona("INDIA_NEW_GRAD"), true).fields.find((x) => x.label.startsWith("Please indicate which languages"))!;
+    expect(india.proposedValue).toBe("Tamil, Kannada, Hindi");
     setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
   });
 
