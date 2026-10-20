@@ -125,6 +125,10 @@ function veteranClaim(text: string): VeteranClaim {
   if (!t) return null;
   if (DECLINE_PATTERNS.some((d) => t.includes(d)) || /\bdecline\b/.test(t)) return "decline";
   if (/\b(non|un) ?protected veterans?\b/.test(t)) return "veteran-unprotected";
+  // "I am a veteran but not a protected veteran" served (Veolia,
+  // SmartRecruiters bank, round 7): read as "not a protected veteran", it
+  // tied with that option, and a never-served applicant got neither.
+  if (/\bveterans?\b[^.]{0,20}\bbut\b[^.]{0,10}\bnot (a )?protected\b/.test(t)) return "veteran-unprotected";
   if (/\bnot (a )?protected veterans?\b|\bnot protected\b/.test(t)) return "not-protected";
   if (/\bprotected veterans?\b/.test(t)) return "protected";
   // "I am not a U.S. veteran" (Gopuff on Lever, question bank 2026-10-08).

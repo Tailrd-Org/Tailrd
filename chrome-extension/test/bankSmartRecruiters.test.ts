@@ -14,6 +14,7 @@ import { detectJobPlace } from "../src/content/jobLocation";
 import * as P from "./e2e/profiles.mjs";
 import type { UserApplicationProfile } from "../src/shared/types";
 import { stubLayout } from "./helpers/layout";
+import { veteranOption } from "../src/content/demographicMatch";
 
 let restore: () => void;
 beforeAll(() => {
@@ -126,5 +127,47 @@ describe("a former employer is asked about, not a hypothetical one", () => {
     // Read as "have you had an internship?": Yes for three applicants who
     // never worked at LLNL.
     expect(one({ label: "Have you had a job or internship paid by LLNL?", options: YN }, "Livermore, CA, United States", "Lawrence Livermore National Laboratory")).toEqual(every("No"));
+  });
+});
+
+describe("self-identification lists are read by their options (Veolia)", () => {
+  const INTRO =
+    "\"If you are applying for a job outside of U.S. and do not wish to participate, please select Decline to Self-Identify. You are invited to provide certain information in order to assist us, with meeting federal and state record-keeping requirements. Providing this information is voluntary. Any information provided will be kept confidential and will not adversely affect your employment or consideration for employment. We, are an Equal Opportunity Employer and do not discriminate in hiring or employment against any individual on the basis of race, religion, color, creed, gender, gender identity or expression, national origin, ancestry, age, marital status, citizenship, physical or mental disability, veteran status, sexual orientation, or status within any other group that is protected by anti-discrimination laws.\"";
+  const RACES = ["American Indian or Alaska Native", "Asian", "Black or African American", "Hispanic or Latino", "I do not wish to self identify", "Native Hawaiian or Other Pacific Islander", "Two or More Races", "White"];
+
+  it("a race list under an EEO paragraph that names gender identity is the race question", () => {
+    // Read as gender identity by the paragraph's words: blank for everyone
+    // who stated a race.
+    expect(one({ label: INTRO, options: RACES }, "Nanticoke, PA, United States")).toEqual({
+      COMPLETE_CANADIAN: "White",
+      US_H1B_SENIOR: "Asian",
+      BOOTCAMP_CAREER_GAP: "Black or African American",
+      US_OPT_ANALYST: "Asian",
+      BERLIN_STAFF: "White",
+      INDIA_NEW_GRAD: "I do not wish to self identify",
+    });
+  });
+
+  it("genders under 'Please select' are the gender question", () => {
+    // Unread, the list took its decline for applicants who stated a gender.
+    expect(one({ label: "Please select", options: ["Male", "Female", "Non-binary", "I do not wish to identify"] }, "Nanticoke, PA, United States")).toEqual({
+      COMPLETE_CANADIAN: "Female",
+      US_H1B_SENIOR: "Female",
+      BOOTCAMP_CAREER_GAP: "Male",
+      US_OPT_ANALYST: "Male",
+      BERLIN_STAFF: "Male",
+      INDIA_NEW_GRAD: "I do not wish to identify",
+    });
+  });
+
+  it("'a veteran but not a protected veteran' served: a never-served applicant is not a protected veteran", () => {
+    const VEVRAA =
+      "We are a Government contractor subject to the Vietnam Era Veterans Readjustment Assistance Act of 1974, as amended by the Jobs for Veterans Act of 2002, 38 U.S.C. 4212 VEVRAA, which requires Government contractors to take affirmative action to employ and advance in employment: 1. disabled veterans 2. recently separated veterans 3. active duty wartime or campaign badge veterans and 4. Armed Forces service medal veterans. For definitions click the help icon below. If you believe you belong to any of the categories of protected veterans listed, please indicate by checking the appropriate box below. As a Government contractor subject to VEVRAA, we request this information in order to measure the effectiveness of the outreach and positive recruitment efforts we undertake pursuant to VEVRAA.";
+    const OPTS = ["I am a protected veteran", "I am a veteran but not a protected veteran", "I am not a protected veteran", "I choose not to self-identify"];
+    expect(one({ label: VEVRAA, options: OPTS }, "Nanticoke, PA, United States")).toEqual({
+      ...every("I am not a protected veteran"),
+      INDIA_NEW_GRAD: "I choose not to self-identify",
+    });
+    expect(veteranOption("I identify as one or more of the classifications of a protected veteran", "Veteran Status", OPTS)).toBe("I am a protected veteran");
   });
 });

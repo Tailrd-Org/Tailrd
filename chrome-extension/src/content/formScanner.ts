@@ -311,6 +311,11 @@ function withOptionsEvidence(
   // ("…entitled to compensation…") read as salary over "I AM NOT A
   // PROTECTED VETERAN" | "I IDENTIFY AS ONE OR MORE…" (Jobvite bank 2026-10-17).
   if (!current.sensitive) return named;
+  // Of two self-ID topics, the options say which is asked: Veolia's race list
+  // sits under its EEO paragraph ("…gender, gender identity or expression…")
+  // and was read as gender identity, blank for everyone (SmartRecruiters
+  // bank, round 7).
+  if (named.sensitive && named.category !== current.category) return named;
   return current;
 }
 
@@ -361,6 +366,12 @@ function categoryOfOptions(options: string[], label = ""): { category: FieldCate
   // racial categories…" (SoFi) asks only those who did.
   if (!/^\s*if\b/i.test(label) && count(/^(white|black|caucasian|african american|hispanic|latin[oaex]|asian|east asian|south asian|southeast asian|indigenous|native american|pacific islander|middle eastern|arab)\b/) >= 4) {
     return { category: "eeoRace", confidence: 0.9, sensitive: true };
+  }
+  // A man's and a woman's option: "Please select" over Male | Female |
+  // Non-binary | I do not wish to identify (Veolia, SmartRecruiters bank,
+  // round 7) named no gender in its label, and took its decline.
+  if (count(/^\s*(cis(gender)? )?(male|man)\s*(\(.*\))?\s*$/) >= 1 && count(/^\s*(cis(gender)? )?(female|woman)\s*(\(.*\))?\s*$/) >= 1 && options.filter((o) => o.trim()).length <= 8) {
+    return { category: "eeoGender", confidence: 0.9, sensitive: true };
   }
   return null;
 }
