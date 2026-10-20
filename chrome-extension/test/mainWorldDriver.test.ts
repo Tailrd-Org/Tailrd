@@ -121,6 +121,23 @@ describe("fillReactSelect via Fiber", () => {
     expect(res.reason).toBe("no-match");
   });
 
+  it("waits for an async list that is slow to load (Greenhouse's Degree, round 7)", async () => {
+    // GCM Grosvenor's and Duolingo's education Degree lists load only after
+    // a search; in a batch of live pages they took more than the 3.5 s the
+    // driver gave them, and both Degrees were left blank ("Couldn't open the
+    // 'Bachelor' dropdown"). Nothing has loaded yet: keep waiting.
+    installDriver(window);
+    reactSelectWithFiber("rs-slow", []);
+    const container = document.querySelector<HTMLElement>('[data-ap-field="rs-slow"]')!;
+    const inst = ((container as unknown as Record<string, { stateNode: { props: { options: unknown[] } } }>)["__reactFiber$abc"]).stateNode;
+    setTimeout(() => {
+      inst.props.options = ["Associate's Degree", "Bachelor's Degree", "Master's Degree"].map((label) => ({ label, value: label }));
+    }, 5000);
+    const res = await drive("rs-slow", "Bachelor", "react-select");
+    expect(res.ok).toBe(true);
+    expect(res.committed).toBe("Bachelor's Degree");
+  }, 15_000);
+
   it("hands back the options it saw on a miss, for the re-ask to choose from", async () => {
     // Epic Games' Degree (react-select v3, live 2026-10-05): "Certificate" is
     // not in the list, and the fallback that followed could not open the
