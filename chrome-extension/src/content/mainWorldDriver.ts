@@ -169,15 +169,12 @@ async function fillReactSelect(el: HTMLElement, value: string, placeHint?: strin
     // No match yet: async selects (Places city lookup…) only load options after
     // the user types. Type the value through the real input and poll the
     // instance's props.options (they refresh on every load) before giving up.
-    // While nothing has loaded at all, wait longer: Greenhouse's education
-    // Degree loads only after the search, and in a batch of live pages it took
-    // more than 3.5 s (GCM Grosvenor, Duolingo, round 7: both left blank).
     if (!hit) {
       const input = rsInput(container);
       if (input) {
         input.focus();
         setNativeInputValue(input, value);
-        for (let waited = 0; !hit && (waited < 3500 || (waited < 8000 && labels().length === 0)); waited += 150) {
+        for (let waited = 0; !hit && waited < 3500; waited += 150) {
           await sleep(150);
           hit = pick();
         }
