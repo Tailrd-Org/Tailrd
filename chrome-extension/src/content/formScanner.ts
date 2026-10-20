@@ -315,7 +315,10 @@ function withOptionsEvidence(
   // sits under its EEO paragraph ("…gender, gender identity or expression…")
   // and was read as gender identity, blank for everyone (SmartRecruiters
   // bank, round 7).
-  if (named.sensitive && named.category !== current.category) return named;
+  // (A gender identity asked over Man | Woman | … stays gender identity: the
+  // label is the narrower of the two.)
+  const genderFamily = (c: FieldCategory): boolean => c === "eeoGender" || c === "eeoGenderIdentity";
+  if (named.sensitive && named.category !== current.category && !(genderFamily(named.category) && genderFamily(current.category))) return named;
   return current;
 }
 

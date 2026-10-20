@@ -147,7 +147,9 @@ function isBooleanQuestion(q: QuestionInput): boolean {
 // Country / place named by a question
 // ---------------------------------------------------------------------------
 
-const THIS_COUNTRY = /\b(this country|the country (in which|where) (this|the) (job|position|role)|country of employment|the country where you are applying|where this (job|role|position) is located)\b/i;
+// "…the country you’ll be employed in?" (Western Digital, SmartRecruiters
+// bank, round 7) too.
+const THIS_COUNTRY = /\b(this country|the country (in which|where) (this|the) (job|position|role)|country of employment|the country where you are applying|where this (job|role|position) is located|the country (that )?you(['’]ll| will| would|['’]d) be (employed|working|hired|based) in)\b/i;
 
 /**
  * The country a question asks about, from its own words. "U.S."/"US" only
@@ -267,8 +269,10 @@ const ASKS_RIGHT =
   /\b(are|is) (you|the applicant)\b[^?]{0,25}\b(authori[sz]ed|eligible|entitled|permitted|allowed|legally able)\b|\bdo you (have|hold|possess)\b[^?]{0,25}\b(right|authori[sz]ation|permit)\b/;
 /** Asks whether the work right is NEEDED ("do you require work authorization?",
  *  "will you need a work permit…"): the inverse of having it. */
+// ("…require a visa to work in the United States?", Circle Logistics on
+// SmartRecruiters, round 7: blank.)
 const NEEDS_RIGHT =
-  /\b(do|does|will|would|shall) you\b.{0,32}\b(require|need)\b.{0,30}\b(work authori[sz]ation|authori[sz]ation to work|work permit|work visa|employment authori[sz]ation)\b/;
+  /\b(do|does|will|would|shall) you\b.{0,32}\b(require|need)\b.{0,30}\b(work authori[sz]ation|authori[sz]ation to work|work permit|work visa|employment authori[sz]ation|a visa to (legally |lawfully )?work)\b/;
 /** Asks WHICH sponsorship or visa, not whether: no profile answer states it. */
 const SPONSOR_TYPE = /\b(what|which) (type of |kind of |form of )?(visa )?(sponsorship|visa|work permit)\b|\b(type|kind|form) of (visa |work )?(sponsorship|visa|permit)\b/;
 // Up to two kinds before it: "without employment visa sponsorship" (OnLogic,
@@ -520,7 +524,7 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
   // purpose. A work-right phrase counts when it is asked ("are you authorized…").
   const sponsorAsked = hasSponsor && REQUIRES_SPONSOR.test(n) && !ASKS_RIGHT.test(n) && !STATES_RIGHT.test(n);
   const hasRight = !sponsorAsked && (WORK_RIGHT.test(n) || isAbleToWorkInCountry(n, q.label));
-  if (!hasRight && !hasSponsor) return null;
+  if (!hasRight && !hasSponsor && !NEEDS_RIGHT.test(n)) return null;
   // "Will you require relocation assistance or visa sponsorship?" asks two
   // things; the sponsorship half alone cannot answer it.
   if (hasSponsor && /\brelocat/.test(n)) return abstain("sponsorship:compound-question");
@@ -842,6 +846,15 @@ function resolveCitizenship(q: QuestionInput, n: string, facts: ProfileFacts, ct
   // requirement?", Striveworks on Greenhouse, live 2026-10-03) is a yes/no
   // even before its options load: it was answered "Canada".
   const yesNoWords = /\b(do|are|can|will|would) you\b[^?]*\??\s*$|\bdo you meet\b/.test(n) && !/\b(which|what) (country|countries)\b/.test(n);
+  // A dual citizen holds two: "Are you a dual citizen (including U.S.
+  // citizenship) or a legal permanent resident of the United States?"
+  // (LLNL, SmartRecruiters bank, round 7) was Yes for a US citizen alone.
+  if (/\b(dual|multiple) (citizen|citizenship|national|nationality)\b|\bmore than one (citizenship|nationality)\b/.test(n) && isBooleanQuestion(q)) {
+    const held = [...known.entries()].filter(([, a]) => a.basis === "citizen").map(([c]) => c);
+    if (held.length >= 2) return booleanResult(true, q, "citizenship:dual");
+    if (/\bpermanent resident|green card\b/.test(n) && code && known.get(code)?.basis === "permanent_resident") return booleanResult(true, q, "citizenship:dual-or-pr");
+    return held.length === 1 ? booleanResult(false, q, "citizenship:one") : abstain("citizenship:unknown");
+  }
   if (isBooleanQuestion(q) || (yesNoWords && !(q.options && q.options.length))) {
     // Not allowed to work there: certainly not a citizen there.
     if (code && known.get(code)?.authorized === false) return booleanResult(false, q, "citizenship:not-authorized");
@@ -1586,10 +1599,16 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
   // your highest degree?" took "The Master's College" from a list of schools
   // (National Journal on Lever, question bank 2026-10-08).
   if (/\b(which|what) (institution|school|university|college)\b|\b(name of|where did you) (the |your )?(institution|school|university|college|earn|get|receive|obtain|complete)\b/.test(n)) return null;
+  // Nor is its subject: "In which area of study was the major coursework of
+  // your highest level of education?" (City and County of San Francisco,
+  // SmartRecruiters bank, round 7) got "Master's Degree" and "Diploma".
+  if (/\b(area|field|subject|discipline|major|concentration|speciali[sz]ation)s? of (study|studies)\b|\bmajor coursework\b|\b(what|which) (was |is )?(your |the )?(major|discipline|subject|concentration)\b/.test(n)) return null;
   const completedAsked = /\b(completed|attained|obtained|achieved|earned)\b/.test(n);
   // "What is your current degree program or highest level of education?"
-  // (Enfos on Workable, 2026-10-05): a degree in progress answers it.
-  const programAsked = /\bcurrent (degree|program|degree program|studies|course of study)\b/.test(n);
+  // (Enfos on Workable, 2026-10-05): a degree in progress answers it. So does
+  // "your current or most recently completed degree type" (Resultant,
+  // SmartRecruiters bank, round 7), first of all.
+  const programAsked = /\bcurrent (degree|program|degree program|studies|course of study)\b|\bcurrent or (most )?recent(ly completed)? (degree|program|education)\b/.test(n);
   const rank = programAsked && isHigh(ed.highestRank) ? ed.highestRank : ed.highestCompletedRank;
   // A degree in progress with none completed past high school: "Some College"
   // is the level held under either reading of "highest" (a bachelor's
@@ -1599,6 +1618,17 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
   if (studying && (!isHigh(rank) || rank.value <= 1) && q.options?.length) {
     const some = q.options.filter((o) => /\bsome (college|university|post ?secondary)\b/.test(qnorm(o)));
     if (some.length === 1) return answer(some[0], "education-level:some-college");
+    // Without it, the level COMPLETED is the high school diploma a degree
+    // program implies: "Please confirm your highest level of education
+    // completed." (EVERSANA), "…the highest level of education you have
+    // obtained to date?" (M3USA); SmartRecruiters bank, round 7: blank for a
+    // Waterloo student.
+    if (completedAsked && !programAsked) {
+      const school = q.options.filter((o) => optionRank(o) === 1);
+      const diploma = school.filter((o) => !/\bged\b/.test(qnorm(o)) || /\bhigh school\b|\bhs\b|\bsecondary\b/.test(qnorm(o)));
+      const pick = diploma.length === 1 ? diploma : school;
+      if (pick.length === 1) return answer(pick[0], "education-level:program-implies-high-school");
+    }
   }
   // Highest level with something still in progress above it: "completed"
   // questions take the completed level; ambiguous wording abstains.
@@ -1613,6 +1643,18 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
   // "High School" vs "GED", "Master's" vs "MBA": prefer the generic one.
   const generic = hits.filter((o) => !/\b(ged|mba|m b a|md|jd)\b/.test(qnorm(o)));
   if (generic.length === 1) return answer(generic[0], "education-level");
+  // Of a level's kinds, the degree's own: "Master of Science" beside "Master
+  // of Arts" for a Master of Science in Information Systems (Western Digital,
+  // SmartRecruiters bank, round 7: blank).
+  const own = ed.entries.filter((x) => x.rank === rank.value).map((x) => qnorm(x.degree));
+  const KINDS = /\bof (science|arts|engineering|applied science|business administration|fine arts|education|technology)\b/;
+  const kindOf = (t: string): string | null => KINDS.exec(t)?.[1] ?? null;
+  const ownKinds = new Set(own.map(kindOf).filter((k): k is string => k !== null));
+  if (ownKinds.size === 1) {
+    const kind = [...ownKinds][0];
+    const same = generic.filter((o) => kindOf(qnorm(o)) === kind);
+    if (same.length === 1) return answer(same[0], "education-level:kind");
+  }
   // A certificate or college diploma the list does not offer (a bootcamp
   // graduate on Nutanix's High School / Associate / … list, Jobvite bank
   // 2026-10-17): high school, which it implies, is the highest level listed.
@@ -1624,6 +1666,50 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
     if (pick.length === 1) return answer(pick[0], "education-level:certificate-implies-high-school");
   }
   return abstain("education-level:no-unique-option");
+}
+
+/**
+ * Class standing: "What is your current class standing?" [Freshman |
+ * Sophomore | Junior | Senior | Other] (Bosch), "What year of your program are
+ * you currently completing?" [1st Year | … | 4th Year or Above] (GDMSI);
+ * SmartRecruiters bank, round 7; "Please indicate your level of education
+ * during the Fall 2026 Semester:" (Gallup on Greenhouse, live). A bachelor's
+ * student who graduates within the academic year asked about is in their
+ * last: a senior, in their 4th year or above. Any earlier year turns on the
+ * program's length, which no profile holds. A graduate student is the list's
+ * graduate level; someone enrolled nowhere is none of them, where it says so.
+ */
+function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  const opts = (q.options ?? []).filter((o) => o.trim());
+  const t = opts.map((o) => qnorm(o));
+  const isYear = (o: string): boolean => /^(freshman|sophomore|junior|senior)\b|^(1st|2nd|3rd|4th|5th|first|second|third|fourth|fifth) year\b/.test(o);
+  if (t.filter(isYear).length < 3) return null;
+  if (!/\b(standing|year|level of education|academic level|classification|grade level)\b/.test(n)) return null;
+  const pick = (re: RegExp): string | null => {
+    const hits = opts.filter((_, i) => re.test(t[i]));
+    return hits.length === 1 ? hits[0] : null;
+  };
+  const entries = facts.education.entries;
+  const studying = entries.filter((x) => x.completed === false);
+  if (studying.length === 0) {
+    if (!(isHigh(facts.education.currentlyEnrolled) && facts.education.currentlyEnrolled.value === false)) return abstain("class-standing:unknown");
+    const none = pick(/^(none of the above|not (currently )?(a student|enrolled)|not applicable|n a|graduated|i have graduated|alumni?)\b/);
+    return none ? answer(none, "class-standing:not-enrolled") : abstain("class-standing:not-enrolled");
+  }
+  if (studying.some((x) => x.rank !== null && x.rank >= 5)) {
+    const grad = pick(/\bgraduate (level |school )?(student|program)\b|^graduate\b|\bmasters?\b/);
+    return grad ? answer(grad, "class-standing:graduate") : abstain("class-standing:graduate");
+  }
+  const bachelor = studying.find((x) => x.rank === 4);
+  if (!bachelor?.graduation) return abstain("class-standing:unknown");
+  // The academic year asked: a term named ("the Fall 2026 Semester"), else now.
+  const term = /\b(fall|autumn|winter|spring|summer)\s+((?:19|20)\d{2})\b/.exec(n);
+  const today = facts.today;
+  const start = term ? (/^(fall|autumn)$/.test(term[1]) ? Number(term[2]) : Number(term[2]) - 1) : today.getUTCMonth() >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+  const yearEnds = Date.UTC(start + 1, 7, 31);
+  if (bachelor.graduation.latest.getTime() > yearEnds) return abstain("class-standing:program-length-unknown");
+  const last = pick(/^senior\b/) ?? pick(/^(4th|fourth) year (or|and) (above|higher|more|beyond)\b|^(4th|fourth) year\+/) ?? (t.some((o) => /^(5th|fifth) year\b/.test(o)) ? null : pick(/^(4th|fourth) year\b/));
+  return last ? answer(last, "class-standing:final-year") : abstain("class-standing:no-unique-option");
 }
 
 /**
@@ -1642,7 +1728,9 @@ function resolveReturningToSchool(q: QuestionInput, n: string, facts: ProfileFac
 }
 
 function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
-  if (!/\b(currently|presently) (a |an )?(full time |part time )?(student|enrolled|attending|pursuing)\b|\bare you (a |an )?(current )?(full time |part time )?student\b|\benrolled (in|at)\b/.test(n)) return null;
+  // ("Do you currently attend a college or university within an 80-mile
+  // radius of San Francisco, CA?", Gallup on Greenhouse, live, round 7.)
+  if (!/\b(currently|presently) (a |an )?(full time |part time )?(student|enrolled|attending|attend|pursuing)\b|\bare you (a |an )?(current )?(full time |part time )?student\b|\benrolled (in|at)\b/.test(n)) return null;
   if (!isBooleanQuestion(q)) return null;
   // "...during the internship" / "...after graduation": another time, leave it.
   if (/\bduring\b|\bafter\b|\bthrough\b|\buntil\b/.test(n)) return abstain("enrollment:qualified");
@@ -1650,7 +1738,7 @@ function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): Qu
   // "...enrolled at a Canadian institution" / "...attending a college or
   // university in the US?" (Superhuman, left to the AI): more than
   // enrollment, unless the applicant is enrolled nowhere.
-  if (/\b(institution|university|college|school) (in|of|located)\b|\bpost secondary institution\b|\b(canadian|american|us|u s|united states) (institution|university|college|school)\b/.test(n)) {
+  if (/\b(institution|university|college|school) (in|of|located|within|near)\b|\bpost secondary institution\b|\b(canadian|american|us|u s|united states) (institution|university|college|school)\b/.test(n)) {
     return isHigh(e) && !e.value ? booleanResult(false, q, "enrollment:enrolled-nowhere") : abstain("enrollment:qualified");
   }
   // "…enrolled in an accredited 4-year Bachelor's degree program or have
@@ -1732,12 +1820,32 @@ function holdsF1Status(profile: UserApplicationProfile): boolean | null {
  * an H-1B holder and a citizen said Yes. CPT and OPT are an F-1 student's.
  */
 function resolvePracticalTraining(q: QuestionInput, n: string, profile: UserApplicationProfile): QuestionResult {
-  if (!/\b(cpt|opt|curricular practical training|optional practical training)\b/.test(n) || !isBooleanQuestion(q)) return null;
+  // ("…reply STOP to opt out" is no OPT: Lucid's SMS opt-in, round 7.)
+  if (!/\b(cpt|opt(?! (in|out)\b)|curricular practical training|optional practical training)\b/.test(n) || !isBooleanQuestion(q)) return null;
   // Holding it too: "Do you currently hold Optional Practical Training (OPT)
-  // work authorization?" (Resultant, SmartRecruiters bank, round 7) was read
-  // as "are you authorized?", Yes for an H-1B holder and a citizen.
-  if (!/\b(involve|involves|include|includes|based on|rely on|relies on|through|pursuant to|under|hold|holds|holding|on)\b/.test(n)) return null;
+  // work authorization?", "Are you currently on OPT or CPT?" (Resultant on
+  // SmartRecruiters, Profluent on Greenhouse; round 7) were read as "are you
+  // authorized?", Yes for an H-1B holder and a citizen. Only held right
+  // before it: "…temporary work authorization (e.g., OPT, CPT) and/or will
+  // you require…" (Salesloft) and "…on an ongoing basis … such as OPT"
+  // (Rave Aerospace) are other questions.
+  const held = /\b(hold|holds|holding|on)( (a|an|the|your|current|currently|valid|active))* (stem opt|opt|cpt|optional practical training|curricular practical training)\b(?! (in|out)\b)/.test(n);
+  if (!held && !/\b(involve|involves|include|includes|based on|rely on|relies on|through|pursuant to|under)\b/.test(n)) return null;
   const f1 = holdsF1Status(profile);
+  // A question for those whose right rests on OPT "or another nonimmigrant
+  // status" is not one for a citizen, a permanent resident or someone with
+  // no US right: its "Not Applicable" ("If your current employment
+  // eligibility is based on … OPT or another nonimmigrant status…, will you
+  // be seeking Company support…?", National Life on Greenhouse, live, round
+  // 7: No for a citizen). Another visa holder (H-1B) is asked: theirs.
+  if (f1 === false && /^if (your|you)\b/.test(n)) {
+    const na = (q.options ?? []).filter((o) => /^(not applicable|n\/?a|does not apply)\b/i.test(o.trim()));
+    if (na.length === 1) {
+      const stated = qnorm(profile.workAuthorization ?? "");
+      if (/\bnon ?immigrant\b|\banother (visa|status)\b/.test(n) && /\bh ?1 ?b\b|\btn\b|\be ?3\b|\bl ?1\b|\bo ?1\b|\bh ?4\b|\bj ?1\b|\bvisa\b/.test(stated)) return abstain("practical-training:other-status");
+      return answer(na[0], "practical-training:not-applicable");
+    }
+  }
   return f1 === null ? abstain("practical-training:unknown") : booleanResult(f1, q, "practical-training");
 }
 
@@ -1915,6 +2023,21 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
   const year = String(g.earliest.getUTCFullYear());
   const monthName = g.earliest.toLocaleString("en-US", { month: "long", timeZone: "UTC" });
   if (q.options && q.options.length) {
+    // A list of the months asks the month: "What is your expected graduation
+    // month?" (Resultant), "…expected (or actual) graduation month?" (Western
+    // Digital); SmartRecruiters bank, round 7: blank for an April 2027
+    // student. A graduate answers only the "actual" one.
+    const monthOf = (o: string): number => {
+      const t = qnorm(o);
+      const i = MONTH_WORDS.indexOf(t.slice(0, 3));
+      return i >= 0 && /^[a-z]+$/.test(t) && (t.length === 3 || t.startsWith(MONTH_WORDS[i])) ? i : -1;
+    };
+    if (q.options.filter((o) => monthOf(o) >= 0).length >= 10) {
+      if (g.precision === "year") return abstain("graduation:month-unknown");
+      if (primary?.completed === true && /\b(expected|anticipated|projected)\b/.test(n) && !/\bactual\b/.test(n)) return abstain("graduation:not-enrolled");
+      const month = q.options.filter((o) => monthOf(o) === g.earliest.getUTCMonth());
+      return month.length === 1 ? answer(month[0], "graduation:month") : abstain("graduation:no-unique-option");
+    }
     // Year-only options take the year; month-bearing options need the month.
     const yearOnly = q.options.filter((o) => new RegExp(`^\\s*${year}\\s*$`).test(o));
     if (yearOnly.length === 1) return answer(yearOnly[0], "graduation:year");
@@ -1943,9 +2066,12 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
     // compared with the whole span the graduation could be in.
     const first = g.earliest.getUTCFullYear() * 12 + g.earliest.getUTCMonth();
     const last = g.latest.getUTCFullYear() * 12 + g.latest.getUTCMonth();
+    // "Anything before Fall/Winter 2026" (Duolingo on Greenhouse, live) and
+    // "Prior to 2023", a bare year (Resultant, SmartRecruiters bank); round 7.
     const open = q.options.filter((o) => {
-      const m = /^(earlier than|before|prior to|later than|after)\b/.exec(qnorm(o));
-      const span = m ? optionMonthSpan(o) : null;
+      const m = /^(?:anything |any time |anytime |sometime )?(earlier than|before|prior to|later than|after)\b/.exec(qnorm(o));
+      const bare = /^\D*\b((?:19|20)\d{2})\b\D*$/.exec(o);
+      const span = m ? (optionMonthSpan(o) ?? (bare ? ([Number(bare[1]) * 12, Number(bare[1]) * 12 + 11] as [number, number]) : null)) : null;
       if (!m || !span) return false;
       return /^(earlier|before|prior)/.test(m[1]) ? last < span[0] : first > span[1];
     });
@@ -1978,6 +2104,13 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
     return g.precision === "year" ? abstain("graduation:month-unknown") : answer(`${monthName} ${year}`, "graduation:month-year");
   }
   if (q.kind === "date" || /\bdate\b/.test(n)) {
+    // A month and year asked as numbers: "(MM/YY)" (Bosch, SmartRecruiters
+    // bank, round 7) got "April 2027". A format with a day needs one.
+    const stated = statedDateFormat(q.placeholder || "") ?? statedDateFormat(q.label || "");
+    if (stated === "MM/YY" || stated === "MM/YYYY") {
+      return g.precision === "year" ? abstain("graduation:month-unknown") : answer(formatDateFor(g.earliest, q), "graduation:stated-format");
+    }
+    if (stated && g.precision !== "day") return abstain("graduation:day-unknown");
     if (g.precision === "year") return answer(year, "graduation:year-as-date", "high");
     // A month is not a day: "April 2027" suits a text box and a month control,
     // and a day-precise picker gets nothing (dateControl), never an invented
@@ -2226,6 +2359,10 @@ function durationRange(option: string): [number, number] | null {
  */
 function resolveStartBucket(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   if (!q.options || q.options.length < 2) return null;
+  // A length is no start: "What is the available term length for your
+  // upcoming co-op work term?" (GDMSI, SmartRecruiters bank, round 7) got
+  // "4 months" for applicants with no co-op at all.
+  if (/\b(term length|length of|how long|duration|how many (months|weeks))\b/.test(n)) return null;
   // A notice list too, by days: "If you receive an offer, how much notice
   // would you need…?" (FiscalNote on Lever, question bank 2026-10-08) matched
   // its options by text, "3 months" took "3-4 weeks".
@@ -2463,7 +2600,10 @@ function resolveLocalTo(q: QuestionInput, n: string, facts: ProfileFacts, profil
   // state, province or country as well as city. "If you are not local to
   // Colorado, are you willing to relocate?" stayed blank for a Seattle
   // applicant who will not move (Anduril on Greenhouse, live 2026-10-05).
-  const now = /^(?:are you|you are) (?:currently )?(?:local|located|based|living) (?:to|in|near) (?:the )?([a-z ]+?)(?: area| region)?$/.exec(n);
+  // "Are you CURRENTLY living in/around the Salt Lake City Metro area?"
+  // (Cricut, SmartRecruiters bank, round 7) too: blank for six applicants
+  // living in other metros or countries.
+  const now = /^(?:are you|you are) (?:currently )?(?:local|located|based|living|residing) (?:in or around|in or near|near or in|in around|within|around|near|to|in) (?:the )?(?:greater )?([a-z ]+?)(?: (?:metro|metropolitan))?(?: area| region)?$/.exec(n);
   // "Are you local to or willing to relocate?" (Shield AI on Lever) names no
   // place: the relocation rule's.
   if (now && isBooleanQuestion(q) && !/\b(or|relocat\w*|move|willing)\b/.test(now[1])) {
@@ -2480,6 +2620,12 @@ function resolveLocalTo(q: QuestionInput, n: string, facts: ProfileFacts, profil
     if (country && isHigh(home.country)) return booleanResult(home.country.value.code === country.code, q, "local:country");
     const city = isHigh(home.city) ? qnorm(home.city.value) : null;
     if (city && named === city) return booleanResult(true, q, "local:lives-there");
+    // A city this code knows: its metro, or its country, against the home's.
+    const hintRegion = regionHintForCity(named);
+    const cityCountry = countryHintForCity(named) ?? (hintRegion ? (regionFromText(hintRegion)?.country ?? null) : null);
+    if (cityCountry && isHigh(home.country) && home.country.value.code !== cityCountry) return booleanResult(false, q, "local:other-country");
+    const metro = city ? sameMetro(city, named) : null;
+    if (metro !== null) return booleanResult(metro, q, "local:metro");
     return abstain("local:unknown");
   }
   const m = /\bwill you (?:be|live|reside) (?:local|located|living|based) (?:to|in|near) (?:the )?([a-z ]+?)(?: area| region| office)?(?: for| during| this| next| by| in|$)/.exec(n);
@@ -2636,7 +2782,9 @@ function resolveRelocationChoice(q: QuestionInput, n: string, profile: UserAppli
 // "A United States Citizen" | … | "A protected individual" | "Other" (Shield
 // AI on Lever, question bank 2026-10-08).
 const US_STATUS_OPTION = /\b(u ?s citizen|united states citizen|citizen of the united states|national of the united states|u ?s national|lawful permanent resident|permanent resident of the u|green card|refugee|asylee|protected individual|daca|u ?s person|foreign person)\b/;
-const NONE = /^(\(?[a-z]\)?\s+)?other\b|\bnone of the above\b|\bforeign person\b|\bnot a u ?s (person|citizen)\b/;
+// "Not Applicable" beside the statuses too (AMCA's "ITAR Status" on
+// Greenhouse, live, round 7: blank for everyone who is no US person).
+const NONE = /^(\(?[a-z]\)?\s+)?other\b|\bnone of the above\b|\bforeign person\b|\bnot a u ?s (person|citizen)\b|^(not applicable|n a|does not apply)$/;
 /**
  * "Does the deemed export rule affect your employment by Everpure?" (Greenhouse,
  * live 2026-10-17): the rule governs foreign persons, so a US citizen or
@@ -2644,10 +2792,16 @@ const NONE = /^(\(?[a-z]\)?\s+)?other\b|\bnone of the above\b|\bforeign person\b
  * (it turns on the technology and on licences, not on the profile).
  */
 function resolveDeemedExport(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
-  if (!/\bdeemed exports?\b/.test(n) || !/\b(affect|affects|apply|applies|subject|impact|impacts|restrict|restricts)\b/.test(n)) return null;
-  if (!isBooleanQuestion(q)) return null;
+  if (!/\bdeemed exports?\b/.test(n) || !isBooleanQuestion(q)) return null;
   const basis = facts.workAuth.byCountry.get("US")?.basis;
-  return basis === "citizen" || basis === "permanent_resident" ? booleanResult(false, q, "deemed-export:us-person") : abstain("deemed-export:foreign-person");
+  const usPerson = basis === "citizen" || basis === "permanent_resident";
+  // "…would you meet the requirements for a deemed export license in order
+  // to access EAR-controlled technology?" (Axon on Greenhouse, live, round
+  // 7): a US person needs no license at all, so meets them; anyone else's
+  // license is the government's to grant.
+  if (/\b(meet|satisfy|fulfil+|qualify)\b[^?]{0,40}\brequirements?\b|\bqualify for\b/.test(n)) return usPerson ? booleanResult(true, q, "deemed-export:us-person-meets") : abstain("deemed-export:foreign-person");
+  if (!/\b(affect|affects|apply|applies|subject|impact|impacts|restrict|restricts)\b/.test(n)) return null;
+  return usPerson ? booleanResult(false, q, "deemed-export:us-person") : abstain("deemed-export:foreign-person");
 }
 
 function resolveUsPersonStatus(q: QuestionInput, facts: ProfileFacts, profile: UserApplicationProfile, fullLabel: string = q.label): QuestionResult {
@@ -2970,11 +3124,31 @@ export function formatDateFor(d: Date, q: QuestionInput): string {
   const day = d.getUTCDate();
   if (q.inputType === "date") return `${y}-${pad(m)}-${pad(day)}`;
   if (q.inputType === "month") return `${y}-${pad(m)}`;
-  const ph = (q.placeholder || "").toLowerCase();
-  if (/dd[./-]mm[./-]yyyy/.test(ph)) return `${pad(day)}/${pad(m)}/${y}`;
-  if (/yyyy[./-]mm[./-]dd/.test(ph)) return `${y}-${pad(m)}-${pad(day)}`;
-  if (/mm[./-]yyyy/.test(ph) && !/dd/.test(ph)) return `${pad(m)}/${y}`;
-  return `${pad(m)}/${pad(day)}/${y}`;
+  // The format the box shows, else the one its question states: "(JJ/MM/AAAA)
+  // … (DD/MM/YYYY)" (RodeoFX, SmartRecruiters bank, round 7) got 11/30/2026.
+  switch (statedDateFormat(q.placeholder || "") ?? statedDateFormat(q.label || "")) {
+    case "DD/MM/YYYY":
+      return `${pad(day)}/${pad(m)}/${y}`;
+    case "YYYY-MM-DD":
+      return `${y}-${pad(m)}-${pad(day)}`;
+    case "MM/YYYY":
+      return `${pad(m)}/${y}`;
+    case "MM/YY":
+      return `${pad(m)}/${String(y).slice(2)}`;
+    default:
+      return `${pad(m)}/${pad(day)}/${y}`;
+  }
+}
+
+/** The date format a placeholder or question states, if any. */
+export function statedDateFormat(text: string): "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" | "MM/YYYY" | "MM/YY" | null {
+  const t = text.toLowerCase();
+  if (/\b(dd|jj)[./-]mm[./-](yyyy|aaaa|yy|aa)\b/.test(t)) return "DD/MM/YYYY";
+  if (/\bmm[./-](dd|jj)[./-](yyyy|aaaa|yy|aa)\b/.test(t)) return "MM/DD/YYYY";
+  if (/\b(yyyy|aaaa)[./-]mm[./-](dd|jj)\b/.test(t)) return "YYYY-MM-DD";
+  if (/\bmm[./-](yyyy|aaaa)\b/.test(t)) return "MM/YYYY";
+  if (/\bmm[./-](yy|aa)\b/.test(t)) return "MM/YY";
+  return null;
 }
 
 function resolveAvailability(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
@@ -3136,11 +3310,27 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
     // holder is not ABLE to obtain one (Pinpoint, a green-card student, live
     // 2026-10-03). Willingness is another question.
     const usBasis = facts.workAuth.byCountry.get("US");
-    const notCitizen = usBasis !== undefined && ["permanent_resident", "work_permit", "student", "denied"].includes(usBasis.basis);
-    if (asked === "US" && /\b(able|eligible) to (obtain|get|acquire|hold|maintain)\b/.test(n) && notCitizen) {
+    // No citizen either: someone not authorized in the US, a stated visa or
+    // green card, a stated citizenship elsewhere and none of the US.
+    const citizenOf = [...facts.workAuth.byCountry.entries()].filter(([, a]) => a.basis === "citizen").map(([cc]) => cc);
+    const statedAuth = (profile.workAuthorization || "").toLowerCase();
+    const visaOrPr = /\b(h-?1 ?b|h-?4|l-?1|e-?3|o-?1|tn|f-?1|j-?1|m-?1|opt|cpt|visa|permanent resident|green card)\b/.test(statedAuth) && !/\b(u\.? ?s\.?|united states|american) citizen/.test(statedAuth);
+    const notCitizen =
+      usBasis?.basis !== "citizen" &&
+      (usBasis?.authorized === false ||
+        visaOrPr ||
+        (usBasis !== undefined && ["permanent_resident", "work_permit", "student", "denied"].includes(usBasis.basis)) ||
+        (citizenOf.length > 0 && !citizenOf.includes("US")));
+    // Whether one CAN be had: "This position may require security
+    // clearance. Can this be achieved?" (Boston Engineering, SmartRecruiters
+    // bank, round 7) was read as "do you hold one?", No for everyone.
+    // (Willing to obtain one is a willingness, never answered from citizenship.)
+    const canObtain = /\b(able|eligible) to (obtain|get|acquire|achieve|hold|maintain)\b|\bcan (this|it|that|one|a clearance|the clearance) be (achieved|obtained|attained|granted)\b|\b(could|can) you (obtain|get|achieve)\b/.test(n);
+    if (asked === "US" && canObtain && notCitizen) {
       return booleanResult(false, q, "clearance:us-citizens-only");
     }
-    if (/\b(able|eligible|willing) to (obtain|get|acquire)\b/.test(n)) return eligible || active ? booleanResult(true, q, "clearance:obtainable") : abstain("clearance:obtainable-unknown");
+    const obtainable = canObtain && !/\b(able|eligible) to (hold|maintain)\b/.test(n) || /\bwilling to (obtain|get|acquire)\b/.test(n);
+    if (obtainable) return eligible || active ? booleanResult(true, q, "clearance:obtainable") : abstain("clearance:obtainable-unknown");
     if (c === "none") return booleanResult(false, q, "clearance");
     if (active) return booleanResult(true, q, "clearance");
     if (eligible && /\b(active|current|hold|have)\b/.test(n)) return booleanResult(false, q, "clearance");
@@ -3377,7 +3567,9 @@ export function resolveQuestion(
     // "If no, will you require sponsorship in the future?" (Hermeus on Lever,
     // live 2026-10-03) is a question of its own after the condition: answered
     // when the profile settles it, whatever was answered before it.
-    const m = /^\s*if (?:yes|no|so)\s*[,:;-]?\s+(.+)$/i.exec(raw);
+    // ("If applicable, are you willing to relocate?" too: CRB and ServiceNow,
+    // SmartRecruiters bank, round 7, left it blank for everyone.)
+    const m = /^\s*if (?:yes|no|so|applicable|relevant)\s*[,:;-]?\s+(.+)$/i.exec(raw);
     if (m && /\?\W*$/.test(m[1]) && /^(will|would|do|does|are|is|can|could|have|has|did)\b/i.test(m[1].trim())) {
       const inner = resolveQuestion({ ...q, label: m[1] }, facts, profile, ctx);
       if (inner?.status === "answer") return inner;
@@ -3502,6 +3694,7 @@ export function resolveQuestion(
     resolveCurrentlyEmployed(sq, sn, facts) ??
     resolveYearsOfExperience(sq, sn, facts) ??
     resolvePursuedDegree(sq, sn, facts) ??
+    resolveClassStanding(sq, sn, facts) ??
     resolveEducationLevel(sq, sn, facts) ??
     resolveDegreeCandidate(sq, sn, facts) ??
     resolveF1Status(sq, sn, profile) ??
@@ -3561,5 +3754,32 @@ export function resolveQuestion(
     const min = Number(AGE_MIN.exec(n)?.slice(1).find(Boolean) ?? NaN);
     return min <= 18 && !AGE_UNDER.test(n) ? booleanResult(true, q, "default:adult") : resolved;
   }
-  return resolveDefault(q, n, profile, facts, ctx) ?? resolved;
+  const settled = resolveDefault(q, n, profile, facts, ctx) ?? resolved;
+  // The page's own word for a No: "…If so, please provide their name – if
+  // not type N/A." (M3USA, SmartRecruiters bank), "…If no or not applicable,
+  // type N/A." (National Life on Greenhouse, live); round 7, both blank. The
+  // question before it decides; a Yes leaves the details to the applicant.
+  if ((q.kind === "text" || q.kind === "longText") && !q.options?.length) {
+    const na = /\bif (?:not|no|none|not applicable|no or not applicable|no or n\/?a)\b[^.?]{0,20}?\b(?:type|enter|write|put|respond with|answer)\s*["“'‘]?(N\/A|NA|None|n\/a)["”'’]?/i.exec(raw);
+    const first = raw.split("?")[0].trim();
+    if (na && settled?.status === "answer" && optionPolarity(settled.value) === false) return answer(na[1], "default:not-applicable-instructed");
+    if (na && settled?.status !== "answer" && first && first !== raw.trim()) {
+      const inner = resolveQuestion({ ...q, label: `${first}?`, kind: "boolean", options: ["Yes", "No"], controlType: "radioGroup" }, facts, profile, ctx);
+      if (inner?.status === "answer" && optionPolarity(inner.value) === false) return answer(na[1], "default:not-applicable-instructed");
+    }
+  }
+  // A bare topic for a label asks what its description asks: "Onsite
+  // Availability" over "This job is 5 days a week onsite in El Segundo, CA.
+  // Please confirm that you are willing and able to be onsite 5 days a
+  // week." (AMCA on Greenhouse, live, round 7) went unanswered for everyone
+  // who would move. Read with it when the topic alone settled nothing.
+  if (settled?.status !== "answer" && raw.split(/\s+/).length <= 3 && !/\?/.test(raw)) {
+    const help = (q.helpText ?? "").trim();
+    const asking = sentencesOf(help).filter((s) => /\?\W*$/.test(s) || /^(please )?(confirm|indicate|select|tell us|let us know)\b/i.test(s));
+    if (asking.length > 0 && help.split(/\s+/).length <= 80) {
+      const read = resolveQuestion({ ...q, label: `${help}`, helpText: "" }, facts, profile, ctx);
+      if (read?.status === "answer") return read;
+    }
+  }
+  return settled;
 }

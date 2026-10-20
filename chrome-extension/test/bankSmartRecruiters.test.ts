@@ -86,6 +86,23 @@ describe("work-right rules claim only work-right questions", () => {
     });
   });
 
+  it("only a status held right there is OPT: never an example, an 'ongoing basis' or an SMS opt-out (bank re-runs)", () => {
+    // Caught by the bank re-runs while the OPT rule above was widened.
+    expect(one({ label: "Are you currently on OPT or CPT?", options: YN }).US_OPT_ANALYST).toBe("Yes");
+    expect(one({ label: "Are you currently on OPT or CPT?", options: YN }).US_H1B_SENIOR).toBe("No");
+    const salesloft =
+      "Do you currently hold temporary work authorization in the United States (e.g., OPT, CPT, etc.) and/or will you require visa sponsorship (e.g., H-1B, TN, O-1, etc.) to continue working in the U.S. in the future?";
+    const s = one({ label: salesloft, options: YN });
+    expect([s.COMPLETE_CANADIAN, s.US_H1B_SENIOR, s.BERLIN_STAFF, s.INDIA_NEW_GRAD]).toEqual(["Yes", "Yes", "Yes", "Yes"]);
+    const rave =
+      "Are you authorized to work in the United States on an ongoing basis without the need for employer sponsorship now or in the future (including after the expiration of any temporary work authorization such as OPT or CPT)?";
+    const r = one({ label: rave, options: YN });
+    expect([r.BOOTCAMP_CAREER_GAP, r.US_OPT_ANALYST]).toEqual(["Yes", "No"]);
+    const lucid =
+      "Would you like to receive communications via SMS and/or WhatsApp to the number provided on your application? Message & data rates may apply and message frequency may vary. If you select no, we will only communicate with you via email and/or telephone calls. If you select yes and change your mind, you can always reply STOP to opt out.";
+    expect(one({ label: lucid, options: YN })).toEqual(every("No"));
+  });
+
   it("an agreement restricting the right to work for the employer is a non-compete (Western Digital)", () => {
     // "…restricts your right to work for WD…" read as the right to work: Yes
     // for everyone authorized in the US.
@@ -169,5 +186,208 @@ describe("self-identification lists are read by their options (Veolia)", () => {
       INDIA_NEW_GRAD: "I choose not to self-identify",
     });
     expect(veteranOption("I identify as one or more of the classifications of a protected veteran", "Veteran Status", OPTS)).toBe("I am a protected veteran");
+  });
+});
+
+describe("education questions read as asked", () => {
+  it("the area of study of the highest level is the field, never the level (City and County of San Francisco)", () => {
+    // Got "Master's Degree", "Diploma", "Bachelor's Degree".
+    const got = one({ label: "In which area of study was the major coursework of your highest level of education?" }, "San Francisco, CA, United States");
+    for (const who of ALL) expect(got[who] ?? "", who).not.toMatch(/\b(degree|diploma|bachelor|master|high school|doctorate)\b/i);
+    expect(got.US_H1B_SENIOR).toBe("Information Systems");
+    expect(got.US_OPT_ANALYST).toBe("Data Science");
+  });
+
+  it("a student's highest level completed is the high school diploma a degree program implies (EVERSANA, M3USA)", () => {
+    const EVERSANA = ["None completed", "High School Diploma or GED", "Associate Degree (e.g. AA, AAS)", "Bachelor's Degree (e.g. BA, BS)", "Master's Degree (e.g. MA, MS, MBA)", "Professional Degree (e.g. MD, JD)", "Doctorate Degree (e.g. PhD, EdD)"];
+    expect(one({ label: "Please confirm your highest level of education completed.", options: EVERSANA }).COMPLETE_CANADIAN).toBe("High School Diploma or GED");
+    const M3 = ["High School Diploma", "Associate Degree", "Bachelor's Degree", "Masters Degree", "Doctorate or higher", "None of the Above"];
+    expect(one({ label: "What is the highest level of education you have obtained to date?", options: M3 }).COMPLETE_CANADIAN).toBe("High School Diploma");
+  });
+
+  it("a master's of science is the list's Master of Science, not its Master of Arts (Western Digital)", () => {
+    const WD = ["High School Diploma or Equivalent", "Associates Degree", "Bachelors of Science", "Bachelor of Arts", "Master of Science", "Master of Arts", "PhD", "MBA", "Other"];
+    const got = one({ label: "What is your highest level of education?", options: WD });
+    expect(got.US_H1B_SENIOR).toBe("Master of Science");
+    expect(got.US_OPT_ANALYST).toBe("Master of Science");
+  });
+
+  it("the current or most recently completed degree is the one in progress for a student (Resultant)", () => {
+    const OPTS = ["Vocational Certification", "Associate's Degree", "Bachelor's Degree", "MBA", "Master's Degree", "PhD", "Other"];
+    expect(one({ label: "What is your current or most recently completed degree type?", options: OPTS }, "Indianapolis, IN, United States").COMPLETE_CANADIAN).toBe("Bachelor's Degree");
+  });
+
+  it("a final-year student is a senior, in their 4th year or above; a graduate is none of them", () => {
+    const BOSCH = ["Freshman", "Sophomore", "Junior", "Senior", "Other"];
+    expect(one({ label: "What is your current class standing?", options: BOSCH }, "Charleston, SC, United States").COMPLETE_CANADIAN).toBe("Senior");
+    const GDMSI = ["1st Year", "2nd Year", "3rd Year", "4th Year or Above"];
+    expect(one({ label: "What year of your program are you currently completing?", options: GDMSI }, "Cole Harbour, NS, Canada").COMPLETE_CANADIAN).toBe("4th Year or Above");
+    // Gallup on Greenhouse (live): a graduate enrolled nowhere in the fall.
+    const GALLUP = ["1st year associates degree", "2nd year associates degree", "Freshman", "Sophomore", "Junior", "Senior", "Graduate-level student", "None of the above"];
+    const fall = one({ label: "Please indicate your level of education during the Fall 2026 Semester:", options: GALLUP }, "San Francisco, CA, United States");
+    expect(fall.COMPLETE_CANADIAN).toBe("Senior");
+    expect(fall.US_OPT_ANALYST).toBe("None of the above");
+    expect(fall.US_H1B_SENIOR).toBe("None of the above");
+  });
+
+  it("a graduation month list takes the month; an actual one a graduate too (Resultant, Western Digital)", () => {
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    expect(one({ label: "What is your expected graduation month?", options: MONTHS }).COMPLETE_CANADIAN).toBe("April");
+    const wd = one({ label: "What is your expected (or actual) graduation month?", options: MONTHS });
+    expect(wd.COMPLETE_CANADIAN).toBe("April");
+    expect(wd.US_OPT_ANALYST).toBe("May");
+    expect(wd.US_H1B_SENIOR).toBeNull();
+  });
+
+  it("an open range before a term takes an earlier graduation (Duolingo on Greenhouse, live)", () => {
+    const DUO = ["Anything before Fall/Winter 2026", "Fall/Winter 2026", "Spring/Summer 2027", "Fall/Winter 2027", "Spring/Summer 2028", "Fall/Winter 2028", "Spring/Summer 2029", "Anything AFTER Spring/Summer 2029"];
+    expect(one({ label: "What is your expected graduation timeline?", options: DUO }, "Pittsburgh, PA, United States").INDIA_NEW_GRAD).toBe("Anything before Fall/Winter 2026");
+  });
+
+  it("an older graduation year is the list's 'Prior to 2023' (Resultant)", () => {
+    const OPTS = ["Prior to 2023", "2023", "2024", "2025", "2026", "2027", "2028", "2029", "2030"];
+    const got = one({ label: "What is your expected graduation year?", options: OPTS }, "Indianapolis, IN, United States");
+    expect(got.COMPLETE_CANADIAN).toBe("2027");
+    expect(got.US_H1B_SENIOR).toBe("Prior to 2023");
+    expect(got.BERLIN_STAFF).toBe("Prior to 2023");
+  });
+});
+
+describe("presence and relocation", () => {
+  it("attending an onsite interview is travel, not a move (Versant)", () => {
+    // No for the two applicants who will not relocate.
+    const label = "This role requires a final-stage onsite interview at one of our office locations (Orlando, FL or Los Angeles, CA). Are you able and willing to attend an onsite interview at one of these locations?";
+    expect(one({ label, options: YN }, "Orlando, FL, United States", "Versant")).toEqual(every("Yes"));
+  });
+
+  it("'If applicable,' asks the question after it (CRB)", () => {
+    const got = one({ label: "If applicable, are you willing to relocate?", options: YN }, "Kansas City, MO, United States", "CRB");
+    expect(got.COMPLETE_CANADIAN).toBe("Yes");
+    expect(got.US_H1B_SENIOR).toBe("No");
+    expect(got.BOOTCAMP_CAREER_GAP).toBe("No");
+  });
+
+  it("living in or around a metro area elsewhere is No (Cricut)", () => {
+    const got = one({ label: "Are you CURRENTLY living in/around the Salt Lake City Metro area?", options: YN }, "South Jordan, UT, United States", "Cricut");
+    expect(got).toEqual(every("No"));
+  });
+
+  it("an onsite requirement asked in the description is answered like one asked in the label (AMCA on Greenhouse, live)", () => {
+    const got = one({ label: "Onsite Availability", options: YN, description: "This job is 5 days a week onsite in El Segundo, CA. Please confirm that you are willing and able to be onsite 5 days a week." }, "El Segundo, CA", "AMCA");
+    expect(got.BERLIN_STAFF).toBe("Yes");
+    expect(got.US_H1B_SENIOR).toBe("No");
+  });
+});
+
+describe("citizenship, clearance and export", () => {
+  it("a dual citizen holds two citizenships: a US citizen alone is not one (LLNL)", () => {
+    const got = one({ label: "Are you a dual citizen (including U.S. citizenship) or a legal permanent resident of the United States?", options: YN }, "Livermore, CA, United States");
+    expect(got.BOOTCAMP_CAREER_GAP).toBe("No");
+    expect(got.COMPLETE_CANADIAN).toBe("No");
+  });
+
+  it("whether a clearance can be achieved is eligibility, not a clearance held (Boston Engineering)", () => {
+    // Read as "do you hold one?": No for everyone. A US clearance goes to US
+    // citizens; a citizen who holds none answers the rest themselves (the
+    // standing rule for "able to obtain").
+    const got = one({ label: "This position may require security clearance. Can this be achieved?", options: YN }, "Waltham, MA, United States");
+    expect(got.BOOTCAMP_CAREER_GAP).toBeNull();
+    expect(got.COMPLETE_CANADIAN).toBe("No");
+    expect(got.INDIA_NEW_GRAD).toBe("No");
+    expect(got.US_H1B_SENIOR).toBe("No");
+  });
+
+  it("a citizen of the country of employment (Western Digital)", () => {
+    const got = one({ label: "Are you a citizen of the country you’ll be employed in?", options: YN }, "Rochester, MN, United States");
+    expect(got.BOOTCAMP_CAREER_GAP).toBe("Yes");
+    expect(got.COMPLETE_CANADIAN).toBe("No");
+    expect(got.INDIA_NEW_GRAD).toBe("No");
+  });
+
+  it("the country of birth is never in the profile (GDMSI)", () => {
+    const opts = ["Canada", "Prefer not to disclose", "Other", "Afghanistan", "Germany", "India", "United States"];
+    const description =
+      "Some programs may require personal information about your nationality, place of birth or other related information for security and trade related restrictions. Disclosure of this information is strictly voluntary.";
+    expect(one({ label: "Please state the country you were born in:", options: opts, description }, "Cole Harbour, NS, Canada")).toEqual(every(null));
+  });
+
+  it("an ITAR status list: a US citizen's, and Not Applicable for someone who is no US person (AMCA on Greenhouse, live)", () => {
+    const opts = ["U.S. Citizen", "U.S. Permanent Residence (“Green Card” holder)", "Status as a “protected person” under 8 U.S.C 1324b(a)(3)", "Not Applicable"];
+    const description =
+      "This position requires use of information which is subject to the International Traffic in Arms Regulations (ITAR). All applicants must be U.S. persons within the meaning of ITAR. ITAR defines a US person as a US citizen, permanent resident, or protected person under 8 U.S.C 1324b(a)(3).";
+    const got = one({ label: "ITAR Status", options: opts, description }, "El Segundo, CA");
+    expect(got.BOOTCAMP_CAREER_GAP).toBe("U.S. Citizen");
+    expect(got.COMPLETE_CANADIAN).toBe("Not Applicable");
+    expect(got.INDIA_NEW_GRAD).toBe("Not Applicable");
+  });
+
+  it("a US person meets a deemed export license's requirements (Axon on Greenhouse, live)", () => {
+    const got = one({ label: "Based on the below information, would you meet the requirements for a deemed export license in order to access EAR - controlled technology?", options: YN }, "Boston, Massachusetts, United States", "Axon");
+    expect(got.BOOTCAMP_CAREER_GAP).toBe("Yes");
+  });
+});
+
+describe("dates in the format the question states", () => {
+  it("DD/MM/YYYY when the label says so (RodeoFX)", () => {
+    const got = one({ label: "À quelle date seriez-vous disponible pour commencer ? (JJ/MM/AAAA) What is the earliest date you would be available to start? (DD/MM/YYYY)" }, "Montreal, QC, Canada");
+    expect(got.US_H1B_SENIOR).toBe("30/11/2026");
+    expect(got.BOOTCAMP_CAREER_GAP).toMatch(/^\d{2}\/1[01]\/2026$/);
+  });
+
+  it("MM/YY when the label says so, nothing from a bare year (Bosch)", () => {
+    const got = one({ label: "When is your expected graduation date? (If you have already graduated, please provide that date.) (MM/YY)" }, "Charleston, SC, United States");
+    expect(got.COMPLETE_CANADIAN).toBe("04/27");
+    expect(got.US_OPT_ANALYST).toBe("05/25");
+    expect(got.US_H1B_SENIOR).toBeNull();
+  });
+});
+
+describe("defaults read the question asked", () => {
+  it("a co-op term's length is no start date (GDMSI)", () => {
+    expect(one({ label: "What is the available term length for your upcoming co-op work term? (Multi Select)", options: ["4 months", "8 months", "12 months", "18 months"] }, "Cole Harbour, NS, Canada")).toEqual(every(null));
+  });
+
+  it("not using tobacco is the applicant's own to state (Wellmark)", () => {
+    const label =
+      "I acknowledge and understand that Wellmark, Inc. is a tobacco-free employer and that I do not use tobacco or tobacco-like products (examples include but are not limited to cigarettes, e-cigarettes, marijuana (in any smokable form), cigars, chewing tobacco, snuff, pipes, vaporizers, etc.) as written in its Tobacco-Free Workplace Policy. I further understand that Wellmark, Inc. is relying on my acknowledgement that I do not use tobacco or prohibited products as a condition of its consideration of my employment. More info about this policy in the FAQ's on our careers page I understand that false or misleading information given in my application, interview(s), or any supplemental information in the employment process may result in termination. I understand, also, that I am required to abide by all rules and policies of Wellmark, Inc. I have read and understand the statements above about Wellmark's policies";
+    expect(one({ label, options: YN }, "Des Moines, IA, United States", "Wellmark, Inc.")).toEqual(every(null));
+  });
+
+  it("a referral asked as 'refer you to this position' (Cricut, CRB)", () => {
+    const got = one({ label: "Did a Cricut employee refer you to this position?", options: YN }, "South Jordan, UT, United States", "Cricut");
+    expect(got.COMPLETE_CANADIAN).toBe("No");
+    expect(got.BERLIN_STAFF).toBe("Yes");
+    const crb = one({ label: "Have you been referred to this position by an existing CRB employee?", options: YN }, "Kansas City, MO, United States", "CRB");
+    expect(crb.COMPLETE_CANADIAN).toBe("No");
+  });
+
+  it("requiring a visa to work is the sponsorship question (Circle Logistics)", () => {
+    expect(one({ label: "Will you now or in the future require a visa to work in the United States?", options: YN }, "Fort Wayne, IN, United States")).toEqual({
+      COMPLETE_CANADIAN: "Yes",
+      US_H1B_SENIOR: "Yes",
+      BOOTCAMP_CAREER_GAP: "No",
+      US_OPT_ANALYST: "Yes",
+      BERLIN_STAFF: "Yes",
+      INDIA_NEW_GRAD: "Yes",
+    });
+  });
+
+  it("'if not, type N/A' takes N/A from an applicant it does not apply to (M3USA, National Life on Greenhouse)", () => {
+    expect(one({ label: "Did someone from our company suggest you apply? If so, please provide their name – if not type N/A." }, "Fort Washington, PA, United States", "M3USA").COMPLETE_CANADIAN).toBe("N/A");
+    const nl =
+      "Are you involved in any business activity that you would expect to continue during your employment with National Life Group? If yes, please explain in the space provided here. If no or not applicable, type N/A.";
+    expect(one({ label: nl, type: "textarea" }, "Addison, TX", "National Life Group")).toEqual(every("N/A"));
+  });
+
+  it("a status question for nonimmigrants is Not Applicable to a citizen (National Life on Greenhouse, live)", () => {
+    const label =
+      "If your current employment eligibility is based on F-1 student visa optional practical training (OPT) or another nonimmigrant status (e.g., TN, E-3, etc.), will you be seeking Company support for either STEM OPT eligibility or maintenance (once your current OPT expires) or H-1B lottery registration?";
+    expect(one({ label, options: ["Yes", "No", "Not Applicable"] }, "Addison, TX", "National Life Group").BOOTCAMP_CAREER_GAP).toBe("Not Applicable");
+  });
+
+  it("someone enrolled nowhere attends no college nearby (Gallup on Greenhouse, live)", () => {
+    const got = one({ label: "Do you currently attend a college or university within an 80-mile radius of San Francisco, CA?", options: YN }, "San Francisco, CA", "Gallup");
+    expect(got.US_OPT_ANALYST).toBe("No");
+    expect(got.US_H1B_SENIOR).toBe("No");
   });
 });

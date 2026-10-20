@@ -41,6 +41,12 @@ const REFERRER_UNKNOWN: QuestionResult = { status: "abstain", rule: "default:ref
 const AUTHORSHIP =
   /\b(this|the|my|your) application\b[^.?]{0,40}\b(myself|yourself|by a person|by a human|personally|on my own)\b|\bcompleted by a (person|human)\b|\b(used|using|use) an? (ai|artificial intelligence) tool\b|\bai (generated|assisted|written)\b|\b(my|your) own (words|work)\b|\bplagiari\w*/;
 const AUTHORSHIP_THEIRS: QuestionResult = { status: "abstain", rule: "default:authorship", blockBackend: true };
+/** A habit of the applicant's own, never ours to claim: "…I acknowledge …
+ *  that I do not use tobacco or tobacco-like products…" (Wellmark,
+ *  SmartRecruiters bank, round 7) was accepted as a consent, for everyone. */
+const PERSONAL_HABIT =
+  /\b(i (do not|don t|dont|never) (use|smoke|vape)|(do|did) you (currently |ever )?(use|smoke|vape)|are you a (smoker|tobacco user|nicotine user)|i am (not )?a (smoker|non ?smoker|tobacco user))\b[^?.]{0,40}\b(tobacco|nicotine|cigarettes?|cigars?|vap\w*|smok\w*|marijuana|cannabis|products?)\b|\b(tobacco|nicotine) (free|user|use|products?)\b[^?.]{0,80}\bi (do not|don t|dont|never) use\b/;
+const HABIT_THEIRS: QuestionResult = { status: "abstain", rule: "default:personal-habit", blockBackend: true };
 /** Needing an accommodation, for anyone who has not stated "no disability". */
 const ACCOMMODATION_THEIRS: QuestionResult = { status: "abstain", rule: "default:accommodation-theirs", blockBackend: true };
 /**
@@ -139,10 +145,17 @@ const OBSTACLE = /\b(challenges?|issues?|problems?|concerns?|difficult(y|ies)?|p
 const PRIOR_APPLICATION =
   /\b(have|did) you (ever |previously |already )?(applied|interviewed|submitted (an )?application|filed (an )?application|(filled|filed) out (an )?application|completed (an )?application)\b|\bpreviously (applied|interviewed)\b|\bapplied (here|before|previously)\b|\binterviewed (here|before|with us)\b/;
 /** "Were you referred by an employee?" (a yes/no; WHO referred stays unanswerable). */
-const REFERRED = /\b(were|was) you referred\b|\bwere you referred by\b|\breferred by (a|an|any) (current )?(employee|staff|team member|friend)\b|\bemployee referral\b/;
+// "Did a Cricut employee refer you to this position?", "Have you been
+// referred to this position by an existing CRB employee?", "Did someone from
+// our company suggest you apply?" (SmartRecruiters bank, round 7) too.
+const REFERRED =
+  /\b(were|was) you referred\b|\bwere you referred by\b|\breferred by (a|an|any) (current )?(employee|staff|team member|friend)\b|\bemployee referral\b|\b(have|had) you been referred\b|\b(did|has|have) (a|an|any|someone|anyone)\b[^?]{0,40}\b(refer|referred|recommend|recommended|suggest|suggested) (you|that you)\b/;
 const RELATIVES =
   /\b(relatives?|family members?|related to|spouse|domestic partner|immediate family|household members?|familial|personal relationships?)\b/;
-const CONFLICTS = /\bconflicts? of interest\b|\boutside (business|employment) (activit|interest)\w*/;
+// "Are you involved in any business activity that you would expect to
+// continue during your employment with National Life Group?" (Greenhouse,
+// live, round 7) too.
+const CONFLICTS = /\bconflicts? of interest\b|\boutside (business|employment) (activit|interest)\w*|\bany (other |outside )?business activit(y|ies)\b[^?]{0,80}\b(continue|during your employment|while employed)\b/;
 /** A statement affirming the NONE ("Affirmation: I affirm that I have not
  *  entered into any non-competition, non-solicitation, non-disclosure/
  *  confidentiality … agreement with a former employer", Saalex on Workable,
@@ -251,8 +264,12 @@ const IN_PERSON =
 
 /** Being there now and then rather than working there: team gatherings, an
  *  offsite, a few trips a year. Someone who will not relocate can still go. */
+// An interview there too: "This role requires a final-stage onsite interview
+// at one of our office locations… Are you able and willing to attend an
+// onsite interview…?" (Versant, SmartRecruiters bank, round 7: No for the two
+// applicants who will not move).
 const OCCASIONAL_PRESENCE =
-  /\b(occasional(ly)?|periodic(ally)?|from time to time|as needed|((a few|several|\d+|one|two|three|four) times|once|twice) (a|per|each) (year|quarter)|quarterly|annual(ly)?|yearly|off ?sites?|retreats?|gatherings?|summits?|meetups?|team (events?|weeks?)|company (events?|meetings?)|visits?|trips?)\b/;
+  /\b(occasional(ly)?|periodic(ally)?|from time to time|as needed|((a few|several|\d+|one|two|three|four) times|once|twice) (a|per|each) (year|quarter)|quarterly|annual(ly)?|yearly|off ?sites?|retreats?|gatherings?|summits?|meetups?|team (events?|weeks?)|company (events?|meetings?)|visits?|trips?|(on ?site|in ?person|final ?stage|final round|face to face) interviews?|interview (on ?site|in ?person))\b/;
 /** A schedule that makes it regular work after all ("hybrid, three days a
  *  week, with quarterly offsites"; "25% of the time"). */
 const REGULAR_PRESENCE =
@@ -618,6 +635,7 @@ export function resolveDefault(
     kind === "boolean" || kind === "choice" || q.controlType === "checkbox" || realOptions(q).length > 0 ||
     q.controlType === "combobox" || q.controlType === "customDropdown";
 
+  if (PERSONAL_HABIT.test(n)) return HABIT_THEIRS;
   // A follow-up STARTING with "if" ("If you heard about us through a referral,
   // please state…") is not the channel question; an "If referred, by who?"
   // add-on after it is (Kenect on Breezy, live 2026-10-03).
