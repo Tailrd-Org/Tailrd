@@ -439,6 +439,17 @@ describe("defaults read the question asked", () => {
     expect(crb.COMPLETE_CANADIAN).toBe("No");
   });
 
+  it("a government employee asked in the form's own words (ServiceNow)", () => {
+    // Blank for everyone: none of the three matched the government-employee
+    // reading. No profile here names a government employer.
+    for (const label of [
+      "A. Within the past 5 years, have you ever been an employee of the U.S. Federal Government?",
+      "C. Within the past 5 years, have you ever been an employee of a state, local, or municipal government entity in the U.S., or any governmental or quasi-governmental entity in another country?",
+    ]) {
+      expect(one({ label, options: YN }, "Santa Clara, CA, United States", "ServiceNow"), label).toEqual(every("No"));
+    }
+  });
+
   it("a referral by a government official is the government question, not a referral (Robinhood on Greenhouse)", () => {
     // Yes for the applicant an employee referred (bank r7d).
     const label =

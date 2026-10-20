@@ -184,8 +184,11 @@ const GOV_OFFICIAL =
 // "…a current employee of the U.S. Government (including U.S. Congress or
 // military) or any state or local government?" (Accenture Federal, live
 // 2026-10-05) as well as "a current or former government employee".
+// "…ever been an employee of the U.S. Federal Government?", "…an employee of a
+// state, local, or municipal government entity…" (ServiceNow, SmartRecruiters
+// bank and live, round 7: blank for everyone) too.
 const GOV_EMPLOYEE =
-  /\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) employees?\b|\b(an )?employee of (the )?(u ?s |united states |federal |state |local )?(government|congress|military)\b/;
+  /\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) employees?\b|\b(an )?employee of (the |a |an )?((u ?s|united states|federal|state|local|municipal|provincial|tribal|or) )*(government|congress|military)\b/;
 /** An employer that is a government body ("Public Services and Procurement
  *  Canada", "City of Ottawa", "U.S. Department of Energy"). Broad on purpose: a
  *  false hit only leaves the question to the applicant. */
