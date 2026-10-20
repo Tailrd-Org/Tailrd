@@ -151,8 +151,15 @@ const CONFLICTS = /\bconflicts? of interest\b|\boutside (business|employment) (a
 const AFFIRMS_NONE =
   /\bi (hereby )?(affirm|certify|confirm|attest|declare|represent|warrant)\b[^.?]{0,20}\b(have not|have never|am not|do not|never|have no)\b/;
 // "…employment agreements and/or post-employment restrictions…" (GitLab, live 2026-10-05).
-const NON_COMPETE =
-  /\bnon ?compet\w*|\bnon ?solicit\w*|\brestrictive covenants?\b|\b(agreements?|contracts?) that (would |may |might )?(restrict|prevent|limit|prohibit)\b|\bpost ?employment (restrictions?|obligations?|covenants?)\b/;
+// An agreement or obligation that restricts the right or the ability to work,
+// join or leave is one too: "…any employment, consulting or personal services
+// agreement that (i) restricts your right to terminate … or (ii) restricts
+// your right to work for WD…" (Western Digital, SmartRecruiters bank) and
+// "…any contractual obligations, agreements, relationships, or commitments …
+// that would impact, impede or interfere with your ability to join Axon?"
+// (Axon on Greenhouse, live); round 7.
+export const NON_COMPETE =
+  /\bnon ?compet\w*|\bnon ?solicit\w*|\brestrictive covenants?\b|\b(agreements?|contracts?) that (would |may |might )?(restrict|prevent|limit|prohibit)\b|\bpost ?employment (restrictions?|obligations?|covenants?)\b|\b(agreements?|contracts?|obligations?|commitments?)\b[^?]{0,120}\b(restricts?|restricting|prevents?|limits?|prohibits?|impedes?|impede|interferes?|interfere)\b[^?]{0,40}\b(right|ability|freedom) to (work|join|accept|start|terminate|be employed)\b/;
 const GOV_OFFICIAL =
   /\b(government|public|foreign) officials?\b|\bprocurement officials?\b|\bpolitically exposed\b|\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) officials?\b/;
 // "…a current employee of the U.S. Government (including U.S. Congress or

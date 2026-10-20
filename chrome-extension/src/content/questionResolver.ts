@@ -46,7 +46,7 @@ import { matchOption } from "./writeEngine";
 import { dialCodeOf, phoneCountryName } from "./phoneNumber";
 import { deriveFieldOfStudy } from "./fieldMatcher";
 import { schoolOffered, snapSchool } from "./schoolMatch";
-import { onsiteVerdict, resolveDefault } from "./defaultAnswers";
+import { NON_COMPETE, onsiteVerdict, resolveDefault } from "./defaultAnswers";
 import { STATEMENT_WORDS, askedOfStatement, sentencesOf } from "./statementText";
 
 export interface QuestionInput {
@@ -272,8 +272,10 @@ const NEEDS_RIGHT =
 /** Asks WHICH sponsorship or visa, not whether: no profile answer states it. */
 const SPONSOR_TYPE = /\b(what|which) (type of |kind of |form of )?(visa )?(sponsorship|visa|work permit)\b|\b(type|kind|form) of (visa |work )?(sponsorship|visa|permit)\b/;
 // Up to two kinds before it: "without employment visa sponsorship" (OnLogic,
-// Workable bank 2026-10-05) read as a plain work-right question.
-const WITHOUT_SPONSOR = /\bwithout (the )?(need (for|of) |needing |requiring |requirement (for|of) )?(any )?(current or future )?((visa|employer|employment|immigration|company) ){0,2}sponsor/;
+// Workable bank 2026-10-05) read as a plain work-right question; "without
+// required sponsorship now or in the future" (M3USA, SmartRecruiters bank,
+// round 7) too, and the H-1B and OPT holders said Yes.
+const WITHOUT_SPONSOR = /\bwithout (the )?(need (for|of) |needing |requiring |requirement (for|of) |required )?(any )?(current or future )?((visa|employer|employment|immigration|company) ){0,2}sponsor/;
 /** The applicant's own sentence states the right ("I am legally authorized to
  *  work in the United States and will not require visa sponsorship", DISA
  *  Technologies on Workable, 2026-10-05): Yes affirms all of it. */
@@ -472,6 +474,10 @@ function resolveRecentEmployer(q: QuestionInput, n: string, facts: ProfileFacts)
 
 function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFacts, profile: UserApplicationProfile, ctx: QuestionContext): QuestionResult {
   if (RIGHT_AS_CITIZEN(n)) return null;
+  // An agreement that "restricts your right to work for WD" (Western Digital,
+  // SmartRecruiters bank, round 7) is a non-compete, not a work right: Yes for
+  // everyone authorized. The non-compete default answers it.
+  if (NON_COMPETE.test(n)) return null;
   const h1b = resolveH1bHistory(q, n, profile);
   if (h1b) return h1b;
   const opt = resolveOptExtension(q, n, profile);
@@ -1727,7 +1733,10 @@ function holdsF1Status(profile: UserApplicationProfile): boolean | null {
  */
 function resolvePracticalTraining(q: QuestionInput, n: string, profile: UserApplicationProfile): QuestionResult {
   if (!/\b(cpt|opt|curricular practical training|optional practical training)\b/.test(n) || !isBooleanQuestion(q)) return null;
-  if (!/\b(involve|involves|include|includes|based on|rely on|relies on|through|pursuant to|under)\b/.test(n)) return null;
+  // Holding it too: "Do you currently hold Optional Practical Training (OPT)
+  // work authorization?" (Resultant, SmartRecruiters bank, round 7) was read
+  // as "are you authorized?", Yes for an H-1B holder and a citizen.
+  if (!/\b(involve|involves|include|includes|based on|rely on|relies on|through|pursuant to|under|hold|holds|holding|on)\b/.test(n)) return null;
   const f1 = holdsF1Status(profile);
   return f1 === null ? abstain("practical-training:unknown") : booleanResult(f1, q, "practical-training");
 }
@@ -2826,6 +2835,15 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
   if (/\b(are you|you are|is the applicant) (currently|presently) (employed|working)\b/.test(n) && !/\b(of|by|for|at|with)\b/.test(n)) return null;
   const history = resolveEmploymentHistoryChoice(q, n, raw, facts);
   if (history) return history;
+  // A hire that has not happened asks nothing about the past: "I understand
+  // also, if employed by Wellmark, I am required to abide by its Code of
+  // Conduct…" (Wellmark's certification, SmartRecruiters bank, round 7) was
+  // read as "have you been employed by Wellmark?" and answered No.
+  const hypothetical = /\bif (i am |you are |i was |you were |i become |you become )?(employed|hired|selected|engaged)\b/;
+  if (hypothetical.test(n)) {
+    n = n.replace(new RegExp(`${hypothetical.source}( (by|with|at) [^,;.?]+)?`, "g"), " ");
+    raw = raw.replace(/\bif (I am |you are |I was |you were |I become |you become )?(employed|hired|selected|engaged)\b( (by|with|at) [^,;.?]+)?/gi, " ");
+  }
   // "HISTORY WITH ANDURIL" [Yes | No] (Anduril on Greenhouse, live
   // 2026-10-05): a history with the company named, its jobs first.
   const withCo = /^(?:employment |work |prior |previous )?history with ([A-Za-z][\w&.'-]*(?:\s+[A-Za-z][\w&.'-]*){0,2})$/i.exec(raw.replace(/[\s*✱:?]+$/, "").trim());
@@ -2840,7 +2858,12 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
     // "Have you worked with us before?" (Paylocity, live 2026-10-05); "worked
     // with" anything else is usually a skill.
     // "Are you an internal employee of Flourish Research…?" (Workable bank).
-    /\b(current|former|past|previous|prior|internal|existing)(ly)?\b[^?]*\b(employee|employed|worked|contractor)\b|\bworked (for|at) (us|\w+)|\bworked with us\b|\b(ever|previously) (been )?(employed|worked)\b|\bemployed by\b|\b(provided|done|performed|did) (any )?(contract |consulting |freelance )?(work|services) for\b|\b(currently|presently) work (for|at)\b/.test(n);
+    /\b(current|former|past|previous|prior|internal|existing)(ly)?\b[^?]*\b(employee|employed|worked|contractor)\b|\bworked (for|at) (us|\w+)|\bworked with us\b|\b(ever|previously) (been )?(employed|worked)\b|\bemployed by\b|\b(provided|done|performed|did) (any )?(contract |consulting |freelance )?(work|services) for\b|\b(currently|presently) work (for|at)\b/.test(n) ||
+    // A job there: "Have you had a job or internship paid by LLNL?" (LLNL,
+    // SmartRecruiters bank, round 7) was read as "have you had an
+    // internship?", Yes for three applicants who never worked there.
+    // ("How did you learn about this specific role at Kobie?" is no such thing.)
+    /\b([Hh]ave|[Dd]id) you (ever |previously |already )?(had|have|held|hold|done|do|completed|complete)\b[^?]{0,20}\b(jobs?|internships?|co-?ops?|positions?|roles?)\b[^?]{0,30}\b(paid by|at|with|for)\s+(?:the\s+)?[A-Z]/.test(raw);
   // ("Do you currently work for Gopuff?", Lever bank 2026-10-08, the last.)
   if (!shape) return null;
   // ("…any of the Crest family of companies", Crest on Lever, live
