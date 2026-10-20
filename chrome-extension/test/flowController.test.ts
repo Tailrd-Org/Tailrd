@@ -904,3 +904,40 @@ describe("terminal re-scan before a page turn", () => {
     expect(log.some((l) => l.startsWith("click:"))).toBe(false);
   });
 });
+
+describe("a step that filled nothing never ends the flow as done", () => {
+  // Jobvite's data-consent gate (Nutanix, live 2026-10-17): nothing chosen,
+  // no button the flow knew, and it said "Done … Review and submit" there.
+  const empty = (): DetectedField => ({ ...field("1", "Location of Residence and Language:"), category: "location", currentValue: "" });
+  const held = (): DetectedField => ({ ...field("2", "First Name"), category: "firstName", currentValue: "Maya" });
+
+  it("stops, saying so, on a page with an empty field and no button", async () => {
+    const { deps, progress } = makeDeps([[empty()]], [null]);
+    deps.fillStep = async () => tally(0);
+    await drive(new FlowController(deps), progress);
+    const last = progress[progress.length - 1];
+    expect(last.phase).toBe("stopped");
+    expect(last.detail).toBe("Nothing on this page was filled");
+  });
+
+  it("stops, saying so, at a submit on a page it filled nothing on", async () => {
+    const { deps, progress } = makeDeps([[empty()]], [terminalBtn()]);
+    deps.fillStep = async () => tally(0);
+    await drive(new FlowController(deps), progress);
+    expect(progress[progress.length - 1].phase).toBe("stopped");
+  });
+
+  it("is still done where the page holds every answer already", async () => {
+    const { deps, progress } = makeDeps([[held()]], [terminalBtn()]);
+    deps.fillStep = async () => tally(0);
+    await drive(new FlowController(deps), progress);
+    expect(progress[progress.length - 1].phase).toBe("done");
+  });
+
+  it("is still done when the step filled something", async () => {
+    const { deps, progress } = makeDeps([[empty(), held()]], [null]);
+    deps.fillStep = async () => tally(1);
+    await drive(new FlowController(deps), progress);
+    expect(progress[progress.length - 1].phase).toBe("done");
+  });
+});

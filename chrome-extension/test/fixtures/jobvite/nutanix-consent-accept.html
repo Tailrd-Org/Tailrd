@@ -1,0 +1,47 @@
+<!-- Nutanix on Jobvite (jobs.jobvite.com/nutanix/job/oi8PAfwz/apply), the page's "Data Consent" gate as rendered (GET only, 2026-10-19). After "All Locations (English)": the policy text, Submit (the form POST) and I Decline. -->
+<article class="jv-page-body ng-scope" role="main" ng-controller="JVConsentForm">
+            <div class="jv-wrapper">
+            <h3>Data Consent</h3>
+    <br>   
+    <form ng-form-commit="" name="consentForm" class="jv-form ng-dirty ng-valid-parse ng-valid ng-valid-required" method="POST" action="/nutanix/job/oi8PAfwz/apply">
+        <div>
+            <label for="jv-country-select">
+Location of Residence and Language:
+            </label>
+        </div>
+        <br>
+        <select id="jv-country-select" jv-select-basic="state.consentPolicies" ng-model="consentPolicyId" ng-required="true" ng-change="getConsentFormDetails(consentForm)" class="ng-untouched ng-not-empty ng-dirty ng-valid-parse ng-valid ng-valid-required" required="required">
+            <option value="" selected="selected">Select your location of residence and language</option>
+            <!-- ngRepeat: policy in consentPolicies --><option ng-repeat="policy in consentPolicies" value="7bc984b0-7916-424b-97a2-816be6980885" class="ng-binding ng-scope">All Locations (English)</option><!-- end ngRepeat: policy in consentPolicies -->
+        </select>
+
+        <div ng-show="showBackButton" class="ng-hide">
+            <br>
+            <a class="jv-button" type="button" href="/nutanix/job/oi8PAfwz">
+                <i class="icon icon-arrow-3-left"></i>
+Back            </a>
+        </div>
+        <div ng-show="showConsentPolicyDetails" class="">
+            <br>
+            <p style="width:100%; white-space:pre-line;" class="ng-binding"> By clicking Submit, I acknowledge that I have read Nutanix's Job Applicant Privacy Notice (https://www.nutanix.com/legal/applicant-privacy-notice). </p>
+            <br>
+            <!-- ngIf: showAcceptReject --><div ng-if="showAcceptReject" class="ng-scope">
+                <button type="submit" class="jv-button jv-button-primary ng-binding">
+                    Submit
+                </button>
+                <a class="jv-button ng-binding" type="button" href="/nutanix/job/oi8PAfwz">
+                    I Decline
+                </a>
+                <input type="hidden" name="policyIds" value="{&quot;consentPolicyId&quot;:&quot;64d45545a6fc3a5c85eedf8c&quot;,&quot;applicationRetentionPolicyId&quot;:&quot;6400dea34d26254a3a7381fa&quot;,&quot;contactRetentionPolicyId&quot;:&quot;642485770d464e718cdea1cb&quot;}" autocomplete="off">
+            </div><!-- end ngIf: showAcceptReject -->
+            <div ng-show="showBackButton" class="ng-hide">
+                        <br>
+                        <a class="jv-button" type="button" href="/nutanix/job/oi8PAfwz">
+                            <i class="icon icon-arrow-3-left"></i>
+Back                        </a>
+            </div>
+        </div> 
+    </form>   
+
+            </div>
+    </article>

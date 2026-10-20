@@ -701,11 +701,26 @@ export default [
       "label:Applicant Source": "Internet Career Site",
     },
   }),
-  // Unpinned: Nutanix opens on a "Data Consent" gate (a location of residence
-  // and language, its policy, then Accept), and Accept POSTs, which live runs
-  // block. The form behind it is the bank's alone (round 6).
-  live({ id: "r6d-jv-nutanix-1", ats: "jobvite", profile: US_H1B_SENIOR, url: "https://jobs.jobvite.com/nutanix/job/oi8PAfwz/apply" }),
-  live({ id: "r6d-jv-nutanix-2", ats: "jobvite", profile: BOOTCAMP_CAREER_GAP, url: "https://jobs.jobvite.com/nutanix/job/olJUAfwi/apply" }),
+  // Nutanix opens on a "Data Consent" gate: a location of residence and
+  // language (one policy, "All Locations (English)"), its policy text, then
+  // its accept button, which reads "Submit" and POSTs the consent. Round 7:
+  // the residence is chosen and that button is the step's advance (decision
+  // 70); live runs block its POST, so the form behind it is the bank's alone.
+  live({
+    id: "r6d-jv-nutanix-1",
+    ats: "jobvite",
+    profile: US_H1B_SENIOR,
+    url: "https://jobs.jobvite.com/nutanix/job/oi8PAfwz/apply",
+    nextPages: 1,
+    expect: { "#jv-country-select": "All Locations (English)" },
+  }),
+  live({
+    id: "r6d-jv-nutanix-2",
+    ats: "jobvite",
+    profile: BOOTCAMP_CAREER_GAP,
+    url: "https://jobs.jobvite.com/nutanix/job/olJUAfwi/apply",
+    expect: { "#jv-country-select": "All Locations (English)" },
+  }),
   live({
     id: "r6d-jv-acpm-1",
     ats: "jobvite",

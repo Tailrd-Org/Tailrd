@@ -309,12 +309,12 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
 export function snapToOption(options: string[], value: string, category: FieldCategory): string | null {
   if (category === "school") return snapSchool(options, value);
   const direct = pick(options, value);
-  if (direct) return direct;
+  if (direct) return category === "country" || category === "location" ? sameplaceInEnglish(options, direct) : direct;
   if (category === "country" || category === "phoneCountryCode") {
     const want = countryFromName(value);
     if (want) {
-      const hits = options.filter((o) => countryFromName(o.replace(/\s*\(.*\)\s*$/, ""))?.code === want.code);
-      if (hits.length === 1) return hits[0];
+      const hit = onePlaceOption(options.filter((o) => countryFromName(o.replace(/\s*\(.*\)\s*$/, ""))?.code === want.code));
+      if (hit) return hit;
     }
   }
   // "What is your location?" over a list of countries (Hermeus on Lever, live
@@ -322,8 +322,8 @@ export function snapToOption(options: string[], value: string, category: FieldCa
   if (category === "location") {
     const code = placeOf(value).country;
     if (code) {
-      const hits = options.filter((o) => countryFromName(o.replace(/\s*\(.*\)\s*$/, ""))?.code === code);
-      if (hits.length === 1) return hits[0];
+      const hit = onePlaceOption(options.filter((o) => countryFromName(o.replace(/\s*\(.*\)\s*$/, ""))?.code === code));
+      if (hit) return hit;
     }
   }
   // A major the list does not carry ("Mechatronics Engineering" among Computer
@@ -347,6 +347,46 @@ export function snapToOption(options: string[], value: string, category: FieldCa
     }
   }
   return null;
+}
+
+/**
+ * The one option for a place. Several name it, each in its own language
+ * ("Canada (English)", "Canada (French)": a company's consent policies on
+ * Jobvite): the English one, the language the application is filled in.
+ */
+function onePlaceOption(hits: string[]): string | null {
+  if (hits.length === 1) return hits[0];
+  const english = hits.filter((o) => /\(\s*english\s*\)\s*$/i.test(o));
+  return english.length === 1 ? english[0] : null;
+}
+
+/** The chosen place's English option, when the list has it in several
+ *  languages: "Berlin, Germany" matched "Germany (German)" by its words. */
+function sameplaceInEnglish(options: string[], chosen: string): string {
+  const base = (o: string): string => o.replace(/\s*\(.*\)\s*$/, "").trim().toLowerCase();
+  const siblings = options.filter((o) => base(o) === base(chosen));
+  return siblings.length > 1 ? (onePlaceOption(siblings) ?? chosen) : chosen;
+}
+
+/** An option for every place a list does not name, once its "(Language)" is
+ *  off: "All Locations", "All Other Locations", "Rest of World". Never a bare
+ *  "Other", which a list may mean otherwise. */
+const ANY_PLACE = /^(all( other)? (locations|countries|regions)|(the )?rest of (the )?world|other (locations|countries|regions)|global|worldwide|international)$/i;
+
+/**
+ * Where the applicant lives, from a list that does not name their country:
+ * its option for every other place. Nutanix's data consent on Jobvite lists
+ * one policy, "All Locations (English)", under "Location of Residence and
+ * Language" (live 2026-10-17): nothing was chosen, so the consent and the
+ * application behind it never opened. Only for a known country no option
+ * names, and only where the question asks where they live.
+ */
+function anyPlaceOption(options: string[], value: string, label: string): string | null {
+  if (!/\bresiden(ce|t|cy)\b|\breside\b|\bwhere (do )?you (currently )?live\b/i.test(label)) return null;
+  const code = countryFromName(value)?.code ?? placeOf(value).country;
+  if (!code) return null;
+  if (options.some((o) => countryFromName(o.replace(/\s*\(.*\)\s*$/, ""))?.code === code)) return null;
+  return onePlaceOption(options.filter((o) => ANY_PLACE.test(o.replace(/\s*\(.*\)\s*$/, "").trim())));
 }
 
 /** A major in engineering, the sciences or computing. */
@@ -702,7 +742,10 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     if (grouped !== undefined) return { value: grouped, kind, source, rule: "eeo:grouped", deviceAbstained: false };
     // A demographic answer in other words ("Female" among Man / Woman, Ashby):
     // the on-device demographic matcher knows the synonyms.
-    const snapped = snapToOption(options, value, category) ?? (input.sensitive ? closestDemographicOption(category, value, options) : null);
+    const snapped =
+      snapToOption(options, value, category) ??
+      (input.sensitive ? closestDemographicOption(category, value, options) : null) ??
+      (category === "location" || category === "country" ? anyPlaceOption(options, value, label) : null);
     if (!snapped) return none(false, "no-confident-option");
     value = snapped;
   }

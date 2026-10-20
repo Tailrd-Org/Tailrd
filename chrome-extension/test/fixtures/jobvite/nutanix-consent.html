@@ -1,0 +1,39 @@
+<!-- Nutanix on Jobvite (jobs.jobvite.com/nutanix/job/oi8PAfwz/apply), the page's "Data Consent" gate as rendered (GET only, 2026-10-19). Before a choice: the policy text and its buttons are hidden. -->
+<article class="jv-page-body ng-scope" role="main" ng-controller="JVConsentForm">
+            <div class="jv-wrapper">
+            <h3>Data Consent</h3>
+    <br>   
+    <form ng-form-commit="" name="consentForm" class="jv-form ng-pristine ng-invalid ng-invalid-required" method="POST" action="/nutanix/job/oi8PAfwz/apply">
+        <div>
+            <label for="jv-country-select">
+Location of Residence and Language:
+            </label>
+        </div>
+        <br>
+        <select id="jv-country-select" jv-select-basic="state.consentPolicies" ng-model="consentPolicyId" ng-required="true" ng-change="getConsentFormDetails(consentForm)" class="ng-pristine ng-untouched ng-empty ng-invalid ng-invalid-required" required="required">
+            <option value="" selected="selected">Select your location of residence and language</option>
+            <!-- ngRepeat: policy in consentPolicies --><option ng-repeat="policy in consentPolicies" value="7bc984b0-7916-424b-97a2-816be6980885" class="ng-binding ng-scope">All Locations (English)</option><!-- end ngRepeat: policy in consentPolicies -->
+        </select>
+
+        <div ng-show="showBackButton">
+            <br>
+            <a class="jv-button" type="button" href="/nutanix/job/oi8PAfwz">
+                <i class="icon icon-arrow-3-left"></i>
+Back            </a>
+        </div>
+        <div ng-show="showConsentPolicyDetails" class="ng-hide">
+            <br>
+            <p style="width:100%; white-space:pre-line;" class="ng-binding">  </p>
+            <br>
+            <!-- ngIf: showAcceptReject -->
+            <div ng-show="showBackButton">
+                        <br>
+                        <a class="jv-button" type="button" href="/nutanix/job/oi8PAfwz">
+                            <i class="icon icon-arrow-3-left"></i>
+Back                        </a>
+            </div>
+        </div> 
+    </form>   
+
+            </div>
+    </article>

@@ -1579,7 +1579,8 @@ function initialize(): void {
         engine?.updateRegistry(registry);
       },
       findAdvance: (scope, extraAdvance) => findAdvanceButton(scope, lastAdapter, { extraAdvance }),
-      advancePending: (scope, extraAdvance) => findPendingAdvance(scope, { extraAdvance }) !== null,
+      advancePending: (scope, extraAdvance) =>
+        findPendingAdvance(scope, { extraAdvance }) !== null || lastAdapter?.advancePending?.(scope) === true,
       findPageTerminal: () => {
         const footer = lastAdapter?.advanceButton?.(document.body);
         if (!footer) return null;

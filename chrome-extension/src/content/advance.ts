@@ -40,6 +40,10 @@ export function findAdvanceButton(
   adapter: SiteAdapter | null,
   opts: FindAdvanceOpts = {}
 ): AdvanceButton | null {
+  // A gate before the application turns with its own button, whatever it says
+  // ("Submit" on Nutanix's data consent, Jobvite): it sends no application.
+  const gate = adapter?.gateAdvance?.(scope);
+  if (gate && isClickable(gate)) return { el: gate, kind: "advance" };
   const fromAdapter = adapter?.advanceButton?.(scope);
   if (fromAdapter && isClickable(fromAdapter)) {
     // Workday reuses one automation-id for Next AND the final Submit, the

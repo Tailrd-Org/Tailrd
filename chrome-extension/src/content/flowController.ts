@@ -187,6 +187,20 @@ export function pageTurned(filled: FlowSnapshot, now: FlowSnapshot): boolean {
   return kept / had.size < 0.5;
 }
 
+const NOTHING_FILLED = "Nothing on this page was filled";
+
+/**
+ * The step wrote nothing on a page that still shows an empty field: it did not
+ * get this page done, so the flow never says "Done" on it. Jobvite's
+ * data-consent gate (Nutanix, live 2026-10-17) chose nothing, offered no
+ * button the flow knew, and the flow said "Done … Review and submit" there. A
+ * page holding every answer already, or none to hold (Workday's Review), is
+ * still done.
+ */
+function filledNothing(tally: StepTally, snap: FlowSnapshot): boolean {
+  return tally.ok === 0 && snap.fields.some((f) => f.fillable && !(f.currentValue ?? "").trim());
+}
+
 /** This page's form belongs to a child frame: nothing here to fill or click. */
 function pageIsChildFrames(snap: FlowSnapshot): boolean {
   return snap.remoteForm === true && !snap.entry && !snap.fields.some((f) => f.category !== "unknown");
@@ -334,6 +348,7 @@ export class FlowController {
         if (!snap.scopeEl && recognized === 0) {
           return this.finish("stopped", "No application form found on this page");
         }
+        if (filledNothing(tally, snap)) return this.finish("stopped", NOTHING_FILLED);
         console.log("[Tailrd flow] no advance button, finishing done");
         return this.finish("done");
       }
@@ -341,6 +356,7 @@ export class FlowController {
         // Reached the real submit button, hand it to the caller for submit
         // tracking, then finish. The controller itself never clicks it.
         this.deps.onTerminal?.(adv.el);
+        if (filledNothing(tally, snap)) return this.finish("stopped", NOTHING_FILLED);
         return this.finish("done", "Ready to review and submit");
       }
 

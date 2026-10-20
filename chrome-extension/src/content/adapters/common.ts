@@ -92,7 +92,7 @@ export const COMMON_ATS: readonly AtsSpec[] = [
   { id: "ashby", host: /(^|\.)ashbyhq\.com$/i },
   { id: "workable", host: /(^|\.)workable\.com$/i },
   { id: "smartrecruiters", host: /(^|\.)smartrecruiters\.com$/i },
-  { id: "jobvite", host: /(^|\.)jobvite\.com$/i },
+  // Jobvite has its own module (jobvite.ts): its data-consent gate.
   { id: "rippling", host: /(^|\.)(rippling|rippling-ats)\.com$/i },
   { id: "bullhorn", host: /(^|\.)(bullhornstaffing|bullhorn|talentrackr)\.com$/i },
 

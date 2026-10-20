@@ -49,6 +49,13 @@ export interface SiteAdapter {
    *  selector. The generic text-based discovery runs when undefined. The
    *  returned button is still terminal-checked, a Submit is never clicked. */
   advanceButton?(scope: HTMLElement): HTMLElement | null;
+  /** A gate's own button before the application (Jobvite's data consent):
+   *  the step's advance whatever it says, since it sends no application.
+   *  Not terminal-checked: return only a button known to send none. */
+  gateAdvance?(scope: HTMLElement): HTMLElement | null;
+  /** The step's advance is still on its way: the gate's button renders once
+   *  the page has loaded what a choice asked for. The flow waits briefly. */
+  advancePending?(scope: HTMLElement): boolean;
   /** The job posting's apply-entry button (leads INTO the application), when
    *  the site has a reliable selector (Workday: adventureButton). Only
    *  consulted while the page has no recognized form fields. */
