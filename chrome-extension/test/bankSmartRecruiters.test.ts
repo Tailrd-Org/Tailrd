@@ -34,7 +34,7 @@ const YN = ["Yes", "No"];
 interface Q {
   label: string;
   options?: string[];
-  type?: "select" | "text" | "textarea" | "checkbox";
+  type?: "select" | "text" | "textarea" | "checkbox" | "multi";
   description?: string;
 }
 
@@ -47,6 +47,10 @@ function answers(questions: Q[], ask: string, location = "San Francisco, CA, Uni
     const desc = q.description ? `<div id="${id}-d" class="description">${esc(q.description)}</div>` : "";
     const aria = q.description ? ` aria-describedby="${id}-d"` : "";
     if (type === "checkbox") return `<div class="field">${desc}<input type="checkbox" id="${id}" name="sr_${i}" value="1"${aria}><label for="${id}">${esc(q.label)}</label></div>`;
+    if (type === "multi") {
+      const boxes = (q.options ?? []).map((o, j) => `<label><input type="checkbox" name="sr_${i}[]" value="${j}"> ${esc(o)}</label>`).join("");
+      return `<fieldset class="field" id="${id}"><legend>${esc(q.label)}</legend>${desc}${boxes}</fieldset>`;
+    }
     const control =
       type === "select"
         ? `<select id="${id}" name="sr_${i}"${aria}><option value="">Select...</option>${(q.options ?? []).map((o, j) => `<option value="${j}">${esc(o)}</option>`).join("")}</select>`
@@ -253,6 +257,16 @@ describe("education questions read as asked", () => {
   });
 });
 
+describe("an address asked whole", () => {
+  it("a mailing address is the whole address, where the profile has the street (Arcesium on Greenhouse, live)", () => {
+    // Got "Seattle, WA".
+    const got = one({ label: "Current Mailing Address" }, "New York", "Arcesium");
+    expect(got.US_H1B_SENIOR).toBe("1200 Westlake Ave N, Unit 805, Seattle, WA 98109");
+    // No street stated: the place, as before.
+    expect(got.COMPLETE_CANADIAN).toBe("Toronto, ON, Canada");
+  });
+});
+
 describe("presence and relocation", () => {
   it("attending an onsite interview is travel, not a move (Versant)", () => {
     // No for the two applicants who will not relocate.
@@ -383,6 +397,22 @@ describe("defaults read the question asked", () => {
     const label =
       "If your current employment eligibility is based on F-1 student visa optional practical training (OPT) or another nonimmigrant status (e.g., TN, E-3, etc.), will you be seeking Company support for either STEM OPT eligibility or maintenance (once your current OPT expires) or H-1B lottery registration?";
     expect(one({ label, options: ["Yes", "No", "Not Applicable"] }, "Addison, TX", "National Life Group").BOOTCAMP_CAREER_GAP).toBe("Not Applicable");
+  });
+
+  it("one option per language spoken, never one the question leaves out (Gallup on Greenhouse, live)", () => {
+    // Every option holding the word was ticked: fourteen "English (…)",
+    // "Creoles and pidgins, English based", "German, Old High".
+    const LANGS = [
+      "Creoles and pidgins, English based", "Creoles and pidgins, French-based", "English", "English (Australia)", "English (Canada)", "English (United States)",
+      "French", "French (Canada)", "French (France)", "German", "German (Germany)", "German (Switzerland)", "German, Middle High", "German, Old High", "Low German",
+      "Haitian", "Hindi", "Indian (Hindi)", "Indian (Kannada)", "Kannada", "Korean", "Spanish", "Spanish (Mexico)", "Tamil (Ceylon)", "Tamil (India)", "Vietnamese",
+    ];
+    const got = one({ label: "Please indicate which languages you speak in addition to English:", options: LANGS, type: "multi" }, "San Francisco, CA", "Gallup");
+    expect(got.COMPLETE_CANADIAN).toBe("French");
+    expect(got.US_H1B_SENIOR).toBe("Vietnamese");
+    expect(got.US_OPT_ANALYST).toBe("Korean");
+    expect(got.BERLIN_STAFF).toBe("German");
+    expect(got.INDIA_NEW_GRAD).toBe("Tamil (India), Kannada, Hindi");
   });
 
   it("someone enrolled nowhere attends no college nearby (Gallup on Greenhouse, live)", () => {

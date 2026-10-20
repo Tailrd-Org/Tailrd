@@ -591,7 +591,12 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
   // "What is your current full address?" (Riot) got no street (question bank
   // 2026-10-05). The parts the label asks for, in one line.
   if (source === "category" && (kind === "text" || kind === "longText") && (category === "addressCity" || category === "location" || category === "addressStreet")) {
-    const composed = composedAddress(label, profile);
+    // A box read as the whole location whose label names an address asks
+    // for all of it: "Current Mailing Address" (Arcesium on Greenhouse,
+    // live, round 7) got "Seattle, WA" from a profile with the street.
+    // (Read as the street, an "Address" box is a split form's first line.)
+    const whole = category === "location" && /^\s*(current |home |mailing |permanent |residential |physical |postal )+address\s*[*:]?\s*$/i.test(label);
+    const composed = composedAddress(whole ? `Full ${label}` : label, profile);
     if (composed) value = composed;
   }
   // "What are your salary expectations (hourly)?" (StackAdapt, question bank

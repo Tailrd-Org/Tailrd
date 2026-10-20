@@ -2731,7 +2731,7 @@ function resolveTestScore(q: QuestionInput, n: string): QuestionResult {
  * 2026-10-03: "English (ENG)", "French (FRA)", …): the profile's languages
  * among the options, any level but a beginner's.
  */
-function resolveLanguageChoice(q: QuestionInput, n: string, profile: UserApplicationProfile): QuestionResult {
+function resolveLanguageChoice(q: QuestionInput, n: string, profile: UserApplicationProfile, facts: ProfileFacts): QuestionResult {
   if (!/\blanguages?\b/.test(n) || !q.options?.length) return null;
   if (q.controlType !== "checkboxGroup" && q.kind !== "multiChoice") return null;
   const spoken = (profile.languages || "")
@@ -2741,8 +2741,34 @@ function resolveLanguageChoice(q: QuestionInput, n: string, profile: UserApplica
     .map((l) => qnorm(l.replace(/\(.*$/, "")))
     .filter(Boolean);
   if (spoken.length === 0) return abstain("language:unknown");
-  const picks = q.options.filter((o) => spoken.some((l) => (" " + qnorm(o) + " ").includes(" " + l + " ")));
-  return picks.length > 0 ? answer(picks.join(", "), "language:choice") : abstain("language:no-matching-option");
+  // One option per language, its own: Gallup's 539 (Greenhouse, live, round
+  // 7) ticked every option holding the word, fourteen "English (…)"s,
+  // "Creoles and pidgins, English based" and "German, Old High" among them,
+  // under "…which languages you speak in addition to English". The bare
+  // name, else its one variant for the applicant's country ("Tamil
+  // (India)"); none the question leaves out.
+  const left = /\b(?:in addition to|other than|besides|apart from|aside from|except|excluding|beyond)\s+([a-z]+)\b/.exec(n)?.[1] ?? null;
+  const home = isHigh(facts.location.country) ? facts.location.country.value.code : null;
+  const picks: string[] = [];
+  for (const l of spoken) {
+    if (l === left) continue;
+    const bare = q.options.filter((o) => qnorm(o) === l);
+    if (bare.length === 1) {
+      picks.push(bare[0]);
+      continue;
+    }
+    const variants = q.options.filter((o) => o.trim().toLowerCase().startsWith(`${l} (`));
+    if (variants.length === 1) {
+      picks.push(variants[0]);
+      continue;
+    }
+    const mine = variants.filter((o) => {
+      const paren = /\(([^)]*)\)/.exec(o)?.[1] ?? "";
+      return home !== null && countryFromName(paren)?.code === home;
+    });
+    if (mine.length === 1) picks.push(mine[0]);
+  }
+  return picks.length > 0 ? answer([...new Set(picks)].join(", "), "language:choice") : abstain("language:no-matching-option");
 }
 
 /**
@@ -3722,7 +3748,7 @@ export function resolveQuestion(
     resolveSchoolName(sq, sn, facts) ??
     resolveAvailability(sq, sn, facts) ??
     resolveRelocationChoice(sq, sn, profile, ctx) ??
-    resolveLanguageChoice(sq, sn, profile) ??
+    resolveLanguageChoice(sq, sn, profile, facts) ??
     resolveStatedFacts(sq, sn, profile, facts, ctx) ??
     resolvePhoneCode(sq, sn, facts, profile) ??
     null;

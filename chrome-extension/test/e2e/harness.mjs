@@ -318,6 +318,13 @@ export async function runCase(env, testCase) {
   const assets = new Map(Object.entries(testCase.assets ?? {}));
   const blocked = await installRouting(ctx, { apiUrl: api.url, pages, mode: testCase.mode ?? "fixture", assets, allowRequests: testCase.allowRequests });
   const page = await ctx.newPage();
+  // A slow machine, for a page whose late rendering is the point
+  // (SmartRecruiters' web components draw their labels after the page is
+  // up): Chromium's CPU throttling, for the whole case.
+  if (testCase.cpuThrottle) {
+    const cdp = await ctx.newCDPSession(page);
+    await cdp.send("Emulation.setCPUThrottlingRate", { rate: testCase.cpuThrottle });
+  }
   const consoleLines = [];
   const panel = { selected: 0, fields: 0, changedAt: Date.now(), beats: [] };
   page.__panel = panel;
