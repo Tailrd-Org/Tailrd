@@ -40,7 +40,7 @@ interface Q {
 
 /** A posting's questions as the bank renders them (one form, its place
  *  outside it); each persona's proposed answer to the question `ask`. */
-function answers(questions: Q[], ask: string, location = "San Francisco, CA, United States", company = "Acme"): Record<Who, string | null> {
+function scanAll(questions: Q[], ask: string, location = "San Francisco, CA, United States", company = "Acme"): Record<Who, { value: string | null; kept: boolean }> {
   const rows = questions.map((q, i) => {
     const id = `q${i}`;
     const type = q.type ?? (q.options?.length ? "select" : "text");
@@ -59,7 +59,7 @@ function answers(questions: Q[], ask: string, location = "San Francisco, CA, Uni
           : `<input type="text" id="${id}" name="sr_${i}"${aria}>`;
     return `<div class="field"><label for="${id}">${esc(q.label)}</label>${desc}${control}</div>`;
   });
-  const out = {} as Record<Who, string | null>;
+  const out = {} as Record<Who, { value: string | null; kept: boolean }>;
   for (const who of ALL) {
     document.body.innerHTML = `<h1 class="job__title">Role</h1><div class="job__location">${esc(location)}</div><form id="application-form">${rows.join("")}</form>`;
     const place = detectJobPlace(document);
@@ -67,11 +67,23 @@ function answers(questions: Q[], ask: string, location = "San Francisco, CA, Uni
     const { fields } = scanPage(persona(who), true);
     const holder = document.getElementById(`q${questions.findIndex((q) => q.label === ask)}`)?.closest(".field");
     const f = fields.find((x) => document.querySelector(`[data-ap-field="${x.id}"]`)?.closest(".field") === holder);
-    out[who] = f?.proposedValue ?? null;
+    out[who] = { value: f?.proposedValue ?? null, kept: Boolean(f?.deviceAbstained) };
   }
   setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
   return out;
 }
+
+/** Each persona's proposed answer to the question `ask`. */
+function answers(questions: Q[], ask: string, location?: string, company?: string): Record<Who, string | null> {
+  const all = scanAll(questions, ask, location, company);
+  return Object.fromEntries(ALL.map((w) => [w, all[w].value])) as Record<Who, string | null>;
+}
+
+/** Whether the device kept one question from the AI, per persona. */
+const keptBy = (q: Q, location?: string, company?: string): Record<Who, boolean> => {
+  const all = scanAll([q], q.label, location, company);
+  return Object.fromEntries(ALL.map((w) => [w, all[w].kept])) as Record<Who, boolean>;
+};
 
 /** One question alone. */
 const one = (q: Q, location?: string, company?: string): Record<Who, string | null> => answers([q], q.label, location, company);
@@ -243,6 +255,31 @@ describe("education questions read as asked", () => {
     expect(wd.US_H1B_SENIOR).toBeNull();
   });
 
+  it("a graduation month no profile holds stays the applicant's, kept from the AI (CTC, IMC on Greenhouse; Resultant, Western Digital)", () => {
+    // The bank's r7d run sent these to the AI: a graduate's year-only date
+    // has no month for anyone to read.
+    const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+    for (const label of ["What is your expected graduation month?", "What is your expected (or actual) graduation month?"]) {
+      const kept = keptBy({ label, options: MONTHS }, "Chicago, IL");
+      expect(kept.US_H1B_SENIOR, label).toBe(true);
+      expect(kept.BOOTCAMP_CAREER_GAP, label).toBe(true);
+      expect(kept.BERLIN_STAFF, label).toBe(true);
+    }
+  });
+
+  it("a term after a student's graduation finds them graduated (HAI Group on Greenhouse)", () => {
+    // "Senior" for a student who graduates in April 2027.
+    const HAI = ["Sophomore", "Junior", "Senior", "Graduate Student", "Other Advanced Degree Program", "I will have graduated college/university"];
+    const got = one({ label: "In summer 2027, what year will you be rising into?", options: HAI }, "Cheshire, CT");
+    expect(got.COMPLETE_CANADIAN).toBe("I will have graduated college/university");
+    // Graduates with a degree have graduated; a bootcamp and high school are no college.
+    expect(got.US_H1B_SENIOR).toBe("I will have graduated college/university");
+    expect(got.INDIA_NEW_GRAD).toBe("I will have graduated college/university");
+    expect(got.BOOTCAMP_CAREER_GAP).toBeNull();
+    // The summer before the final year: rising into it.
+    expect(one({ label: "In summer 2026, what year will you be rising into?", options: HAI }, "Cheshire, CT").COMPLETE_CANADIAN).toBe("Senior");
+  });
+
   it("an open range before a term takes an earlier graduation (Duolingo on Greenhouse, live)", () => {
     const DUO = ["Anything before Fall/Winter 2026", "Fall/Winter 2026", "Spring/Summer 2027", "Fall/Winter 2027", "Spring/Summer 2028", "Fall/Winter 2028", "Spring/Summer 2029", "Anything AFTER Spring/Summer 2029"];
     expect(one({ label: "What is your expected graduation timeline?", options: DUO }, "Pittsburgh, PA, United States").INDIA_NEW_GRAD).toBe("Anything before Fall/Winter 2026");
@@ -254,6 +291,30 @@ describe("education questions read as asked", () => {
     expect(got.COMPLETE_CANADIAN).toBe("2027");
     expect(got.US_H1B_SENIOR).toBe("Prior to 2023");
     expect(got.BERLIN_STAFF).toBe("Prior to 2023");
+  });
+});
+
+describe("a bot check, and who completed the form, stay the applicant's (Wellmark)", () => {
+  /** The scanned field of a one-question form: its answer and whether the
+   *  device kept it from the AI. */
+  function scanned(q: Q, who: Who = "COMPLETE_CANADIAN"): { value: string | null; kept: boolean } {
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label for="q0">${esc(q.label)}</label><select id="q0" name="sr_0"><option value="">Select...</option>${(q.options ?? []).map((o, j) => `<option value="${j}">${esc(o)}</option>`).join("")}</select></div></form>`;
+    setResolveContext({ jobCountry: "US", jobCity: "Des Moines", jobPlaces: null, company: "Wellmark, Inc." });
+    const f = scanPage(persona(who), true).fields.find((x) => x.label.startsWith(q.label.slice(0, 30)));
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    return { value: f?.proposedValue ?? null, kept: Boolean(f?.deviceAbstained) };
+  }
+
+  it("a question that tells people from bots is never answered, nor sent to the AI", () => {
+    const third = scanned({ label: "What is the third word in this sentence? *(used to monitor web traffic authenticity)*", options: ["yes", "the", "no", "sentence", "agile"] });
+    expect(third).toEqual({ value: null, kept: true });
+    const founded = scanned({ label: "What year was Wellmark founded? *(used to monitor web traffic authenticity)*", options: ["2032", "October", "Independent", "1939", "Candy"] });
+    expect(founded).toEqual({ value: null, kept: true });
+  });
+
+  it("whether an AI completed the form is never ours, nor the AI's", () => {
+    const opts = ["No - I am a human, and I am completing this form", "Yes - I am a human, and I used AI to help me complete this form", "Yes - AI automated the completion of this form on behalf of the applicant"];
+    expect(scanned({ label: "We support the responsible use of AI. Is this application form being completed by an AI tool?", options: opts })).toEqual({ value: null, kept: true });
   });
 });
 
@@ -298,6 +359,9 @@ describe("citizenship, clearance and export", () => {
     const got = one({ label: "Are you a dual citizen (including U.S. citizenship) or a legal permanent resident of the United States?", options: YN }, "Livermore, CA, United States");
     expect(got.BOOTCAMP_CAREER_GAP).toBe("No");
     expect(got.COMPLETE_CANADIAN).toBe("No");
+    // Not allowed to work in the US: neither a US citizen nor a US permanent
+    // resident (blank in r7d; No before round 7).
+    expect(got.BERLIN_STAFF).toBe("No");
   });
 
   it("whether a clearance can be achieved is eligibility, not a clearance held (Boston Engineering)", () => {
@@ -375,6 +439,13 @@ describe("defaults read the question asked", () => {
     expect(crb.COMPLETE_CANADIAN).toBe("No");
   });
 
+  it("a referral by a government official is the government question, not a referral (Robinhood on Greenhouse)", () => {
+    // Yes for the applicant an employee referred (bank r7d).
+    const label =
+      "Robinhood adheres to applicable laws and regulations in relation to government officials given inherent bribery and/or corruption risk. A government official is any person that performs a public function on any level or acts in any official capacity on behalf of a government or government owned entity. \na)  Do you currently hold or have you held, within the last 5 years, a position as a government official?\nb)  Have you been referred or recommended for this position by a government official?\nc)  Are you related to or have a close personal relationship with a government official?";
+    expect(one({ label, options: YN }, "New York, NY", "Robinhood")).toEqual(every("No"));
+  });
+
   it("requiring a visa to work is the sponsorship question (Circle Logistics)", () => {
     expect(one({ label: "Will you now or in the future require a visa to work in the United States?", options: YN }, "Fort Wayne, IN, United States")).toEqual({
       COMPLETE_CANADIAN: "Yes",
@@ -413,6 +484,14 @@ describe("defaults read the question asked", () => {
     expect(got.US_OPT_ANALYST).toBe("Korean");
     expect(got.BERLIN_STAFF).toBe("German");
     expect(got.INDIA_NEW_GRAD).toBe("Tamil (India), Kannada, Hindi");
+  });
+
+  it("a box for one language takes one, without its level (SBT, City and County of San Francisco)", () => {
+    // Got "English (Native), French (Professional)": a row of SmartRecruiters'
+    // language list asks one language, its level in the next box.
+    const got = one({ label: "Please type in a language that you speak" }, "Plano, TX, United States");
+    expect(got.COMPLETE_CANADIAN).toBe("English");
+    expect(got.US_H1B_SENIOR).toBe("Vietnamese");
   });
 
   it("someone enrolled nowhere attends no college nearby (Gallup on Greenhouse, live)", () => {

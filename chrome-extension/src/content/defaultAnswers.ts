@@ -38,8 +38,11 @@ const REFERRER_UNKNOWN: QuestionResult = { status: "abstain", rule: "default:ref
 // "…all the information and materials I submit … will reflect my own work and
 // experience." (Twilio, question bank) and "I agree to use only my own words"
 // (Canonical) are such pledges (decision 6 of round 4).
+// "We support the responsible use of AI. Is this application form being
+// completed by an AI tool?" [No - I am a human, … | Yes - … I used AI to help
+// me complete this form | …] (Wellmark, SmartRecruiters bank, round 7) too.
 const AUTHORSHIP =
-  /\b(this|the|my|your) application\b[^.?]{0,40}\b(myself|yourself|by a person|by a human|personally|on my own)\b|\bcompleted by a (person|human)\b|\b(used|using|use) an? (ai|artificial intelligence) tool\b|\bai (generated|assisted|written)\b|\b(my|your) own (words|work)\b|\bplagiari\w*/;
+  /\b(this|the|my|your) application\b[^.?]{0,40}\b(myself|yourself|by a person|by a human|personally|on my own)\b|\bcompleted by a (person|human)\b|\b(used|using|use) an? (ai|artificial intelligence) tool\b|\bai (generated|assisted|written)\b|\b(my|your) own (words|work)\b|\bplagiari\w*|\b(completed|filled out|filled in|written|generated|submitted) (by|with|using) (an? )?(ai|artificial intelligence)\b|\b(used|using|use) (an? )?(ai|artificial intelligence)( tools?)? to (help|assist|complete|write|fill)\b/;
 const AUTHORSHIP_THEIRS: QuestionResult = { status: "abstain", rule: "default:authorship", blockBackend: true };
 /** A habit of the applicant's own, never ours to claim: "…I acknowledge …
  *  that I do not use tobacco or tobacco-like products…" (Wellmark,
@@ -429,6 +432,10 @@ function unencumberedText(q: QuestionInput, n: string, profile: UserApplicationP
   if (q.kind !== "text" && q.kind !== "longText") return null;
   if (!/^(are|were|was|have|has|had|do|did|is) you\b|^(are|were|have|do|did) (any|you)\b/.test(n)) return null;
   if (PRIOR_APPLICATION.test(n)) return answer("No", "default:no-prior-application");
+  // Government officials first: a referral BY one, or a relative who is one,
+  // is the government question (Robinhood on Greenhouse, bank r7d).
+  const gov = notGovernment(n, profile);
+  if (gov !== null) return gov ? answer("No", "default:not-government-official") : GOVERNMENT_HISTORY;
   // A referral stated: by whom is the applicant's to write.
   if (REFERRED.test(n) || /^were you referred\b/.test(n)) {
     return /\breferr|\bemployee\b|\bfriend\b/.test(qn(profile.howDidYouHear ?? "")) ? null : answer("No", "default:not-referred");
@@ -436,8 +443,6 @@ function unencumberedText(q: QuestionInput, n: string, profile: UserApplicationP
   if (RELATIVES.test(n) && /\b(work|employ|empl|staff|board|director|officer|relationship)\w*/.test(n)) return answer("No", "default:no-relatives-inside");
   if (CONFLICTS.test(n)) return answer("No", "default:no-conflict");
   if (NON_COMPETE.test(n)) return AFFIRMS_NONE.test(n) ? null : answer("No", "default:no-non-compete");
-  const notGov = notGovernment(n, profile);
-  if (notGov !== null) return notGov ? answer("No", "default:not-government-official") : GOVERNMENT_HISTORY;
   return null;
 }
 
@@ -768,6 +773,11 @@ export function resolveDefault(
   if (/\b(previously|ever|formerly|before) (worked|been employed) (for|at|with|by) (us|this (company|organi[sz]ation|employer|firm)|our (company|organi[sz]ation))\b/.test(n)) {
     return polar(false, q, "default:not-former-employee");
   }
+  // Government officials first: "b) Have you been referred or recommended
+  // for this position by a government official?" was Yes for an applicant an
+  // employee referred (Robinhood on Greenhouse, bank r7d).
+  const notGov = notGovernment(n, profile);
+  if (notGov !== null) return notGov ? polar(false, q, "default:not-government-official") : GOVERNMENT_HISTORY;
   if (REFERRED.test(n)) {
     // Someone who said they were referred was ("Referral" chose "Employee
     // Referral" in a list, then No here; question bank 2026-10-05). A friend
@@ -787,8 +797,6 @@ export function resolveDefault(
   }
   if (CONFLICTS.test(n)) return polar(false, q, "default:no-conflict");
   if (NON_COMPETE.test(n)) return AFFIRMS_NONE.test(n) ? null : polar(false, q, "default:no-non-compete");
-  const notGov = notGovernment(n, profile);
-  if (notGov !== null) return notGov ? polar(false, q, "default:not-government-official") : GOVERNMENT_HISTORY;
   // "Are you currently conducting research related to…", "Do you currently
   // receive any active funding (grants, sponsorships)?" (Zoox on Lever, live
   // 2026-10-03): No for someone out of school; a student's lab or grant is theirs.

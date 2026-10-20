@@ -599,6 +599,13 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     const composed = composedAddress(whole ? `Full ${label}` : label, profile);
     if (composed) value = composed;
   }
+  // "Please type in a language that you speak" is one row of a language list,
+  // its level asked beside it (SmartRecruiters bank, round 7): it got "English
+  // (Native), French (Professional)". The first language, without its level.
+  if (source === "category" && category === "languages" && value && kind === "text" && /\b(a|one|1st|first|primary) language\b/i.test(label) && !/\blanguages\b/i.test(label)) {
+    const first = value.split(/[,;\n]/)[0].replace(/\s*\([^)]*\)\s*$/, "").trim();
+    if (first) value = first;
+  }
   // "What are your salary expectations (hourly)?" (StackAdapt, question bank
   // 2026-10-05) got "$185,000": a pay figure only in the unit it was asked in.
   if (source === "category" && category === "salary" && value && (kind === "text" || kind === "number" || kind === "longText")) {

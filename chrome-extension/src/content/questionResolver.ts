@@ -92,7 +92,7 @@ const answer = (value: string, rule: string, confidence: Confidence = "high"): Q
  */
 // "region-choice:outside-not-offered": another country's states, the
 // applicant's own not among them; any pick is a guess.
-const BLOCK_BACKEND_RULES = /^(work-auth|sponsorship|citizenship|age-gate|conditional:does-not-apply|clearance:other-country|graduation:not-enrolled|pursuing:not-enrolled|school-name:not-enrolled|discipline:no-degree-at-level|f1-status|clearance:level-unknown|high-school:not-in-profile|school-schedule:unknown|conditional-follow-up|phone-extension:not-in-profile|region-choice:outside-not-offered|school-level:none)/;
+const BLOCK_BACKEND_RULES = /^(work-auth|sponsorship|citizenship|age-gate|conditional:does-not-apply|clearance:other-country|graduation:not-enrolled|pursuing:not-enrolled|school-name:not-enrolled|discipline:no-degree-at-level|f1-status|clearance:level-unknown|high-school:not-in-profile|school-schedule:unknown|conditional-follow-up|phone-extension:not-in-profile|region-choice:outside-not-offered|school-level:none|graduation:month-unknown|bot-check)/;
 const abstain = (rule: string): QuestionResult => ({ status: "abstain", rule, blockBackend: BLOCK_BACKEND_RULES.test(rule) });
 
 /** Lowercase, accents stripped, apostrophes dropped, punctuation → space. */
@@ -853,6 +853,11 @@ function resolveCitizenship(q: QuestionInput, n: string, facts: ProfileFacts, ct
     const held = [...known.entries()].filter(([, a]) => a.basis === "citizen").map(([c]) => c);
     if (held.length >= 2) return booleanResult(true, q, "citizenship:dual");
     if (/\bpermanent resident|green card\b/.test(n) && code && known.get(code)?.basis === "permanent_resident") return booleanResult(true, q, "citizenship:dual-or-pr");
+    // "…(including U.S. citizenship) or a legal permanent resident of the
+    // United States?" for someone not allowed to work there, or there on a
+    // visa: neither (LLNL; bank r7d left BERLIN_STAFF's No blank).
+    if (code && known.get(code)?.authorized === false) return booleanResult(false, q, "citizenship:not-authorized");
+    if (code && (known.get(code)?.basis === "work_permit" || known.get(code)?.basis === "student")) return booleanResult(false, q, "citizenship:visa");
     return held.length === 1 ? booleanResult(false, q, "citizenship:one") : abstain("citizenship:unknown");
   }
   if (isBooleanQuestion(q) || (yesNoWords && !(q.options && q.options.length))) {
@@ -1689,11 +1694,17 @@ function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts):
     const hits = opts.filter((_, i) => re.test(t[i]));
     return hits.length === 1 ? hits[0] : null;
   };
+  // A graduate's option: "Graduated", "I will have graduated college/university"
+  // (HAI Group on Greenhouse), "Alumni".
+  const GRADUATED = /^(i )?(will have |have )?(already )?graduated\b|^alumn(i|us|a)\b/;
   const entries = facts.education.entries;
   const studying = entries.filter((x) => x.completed === false);
   if (studying.length === 0) {
     if (!(isHigh(facts.education.currentlyEnrolled) && facts.education.currentlyEnrolled.value === false)) return abstain("class-standing:unknown");
-    const none = pick(/^(none of the above|not (currently )?(a student|enrolled)|not applicable|n a|graduated|i have graduated|alumni?)\b/);
+    // Only a college degree graduates someone from a class-standing list: a
+    // bootcamp certificate and high school are no college.
+    const college = entries.some((x) => x.completed === true && x.rank !== null && x.rank >= 3);
+    const none = pick(/^(none of the above|not (currently )?(a student|enrolled)|not applicable|n a)\b/) ?? (college ? pick(GRADUATED) : null);
     return none ? answer(none, "class-standing:not-enrolled") : abstain("class-standing:not-enrolled");
   }
   if (studying.some((x) => x.rank !== null && x.rank >= 5)) {
@@ -1703,9 +1714,25 @@ function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts):
   const bachelor = studying.find((x) => x.rank === 4);
   if (!bachelor?.graduation) return abstain("class-standing:unknown");
   // The academic year asked: a term named ("the Fall 2026 Semester"), else now.
+  // A summer the student is "rising into" a year from opens the academic year
+  // after it ("In summer 2027, what year will you be rising into?", HAI Group
+  // on Greenhouse).
   const term = /\b(fall|autumn|winter|spring|summer)\s+((?:19|20)\d{2})\b/.exec(n);
+  const rising = /\b(rising|entering|going into|heading into)\b/.test(n);
   const today = facts.today;
-  const start = term ? (/^(fall|autumn)$/.test(term[1]) ? Number(term[2]) : Number(term[2]) - 1) : today.getUTCMonth() >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+  const start = term ? (/^(fall|autumn)$/.test(term[1]) || (term[1] === "summer" && rising) ? Number(term[2]) : Number(term[2]) - 1) : today.getUTCMonth() >= 7 ? today.getUTCFullYear() : today.getUTCFullYear() - 1;
+  if (term) {
+    // Graduated before the term begins: no year of it left (an April 2027
+    // graduate was a "Senior" in summer 2027). A graduation the term's start
+    // may fall either side of is theirs.
+    const y = Number(term[2]);
+    const begins = term[1] === "summer" ? Date.UTC(y, 5, 1) : /^(fall|autumn)$/.test(term[1]) ? Date.UTC(y, 8, 1) : Date.UTC(y, 0, 1);
+    if (bachelor.graduation.latest.getTime() < begins) {
+      const done = pick(GRADUATED);
+      return done ? answer(done, "class-standing:graduated-by-term") : abstain("class-standing:graduated-by-term");
+    }
+    if (bachelor.graduation.earliest.getTime() < begins) return abstain("class-standing:graduation-month-unknown");
+  }
   const yearEnds = Date.UTC(start + 1, 7, 31);
   if (bachelor.graduation.latest.getTime() > yearEnds) return abstain("class-standing:program-length-unknown");
   const last = pick(/^senior\b/) ?? pick(/^(4th|fourth) year (or|and) (above|higher|more|beyond)\b|^(4th|fourth) year\+/) ?? (t.some((o) => /^(5th|fifth) year\b/.test(o)) ? null : pick(/^(4th|fourth) year\b/));
@@ -2033,8 +2060,10 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
       return i >= 0 && /^[a-z]+$/.test(t) && (t.length === 3 || t.startsWith(MONTH_WORDS[i])) ? i : -1;
     };
     if (q.options.filter((o) => monthOf(o) >= 0).length >= 10) {
-      if (g.precision === "year") return abstain("graduation:month-unknown");
+      // A graduate is asked only an actual month; a month the profile does
+      // not hold is nobody's to read (bank r7d sent it to the AI).
       if (primary?.completed === true && /\b(expected|anticipated|projected)\b/.test(n) && !/\bactual\b/.test(n)) return abstain("graduation:not-enrolled");
+      if (g.precision === "year") return abstain("graduation:month-unknown");
       const month = q.options.filter((o) => monthOf(o) === g.earliest.getUTCMonth());
       return month.length === 1 ? answer(month[0], "graduation:month") : abstain("graduation:no-unique-option");
     }
@@ -3568,6 +3597,15 @@ const HIGH_SCHOOL = /\b(high ?school|secondary school)\b/;
 const HIGH_SCHOOL_DETAIL = /\b(name|year|graduat\w*|date|attend\w*|where|which|gpa|grades?|location|city)\b/;
 
 const PLACEHOLDER_OPTION = /^(select|choose|please select|please choose|select an option|select one|--)(\W|$)/i;
+/**
+ * A question that tells people from bots: "What is the third word in this
+ * sentence? *(used to monitor web traffic authenticity)*", "What year was
+ * Wellmark founded? *(…)*" (Wellmark, SmartRecruiters bank, round 7: the
+ * founding year was offered to the AI). The applicant's to answer, never
+ * ours or the AI's (decision 79).
+ */
+const BOT_CHECK =
+  /\b(web )?traffic authenticity\b|\b(bot|spam|robot) (check|detection|prevention|protection|filter)\b|\banti ?(spam|bot)\b|\bcaptcha\b|\bprove (that )?(you are|you re|youre) (a )?(human|not a (robot|bot))\b|\bare you (a )?(robot|bot)\b|\bwhat is the (first|second|third|fourth|fifth|last) word (in|of) this (sentence|question)\b|^what is \d+ ?(plus|minus|times|\+|-|x) ?\d+\b/;
 
 export function resolveQuestion(
   q: QuestionInput,
@@ -3578,6 +3616,7 @@ export function resolveQuestion(
   const raw = (q.label || "").trim();
   if (!raw) return null;
   const n = qnorm(raw);
+  if (BOT_CHECK.test(n)) return abstain("bot-check");
   // A "Select..." placeholder is no option: "Yes | No | Not Applicable" under
   // one went unanswered (Baselayer; question bank 2, 2026-10-05). Every shape
   // sees the real options.
