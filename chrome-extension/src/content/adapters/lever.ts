@@ -37,8 +37,10 @@ function setInput(el: HTMLInputElement, value: string): void {
 }
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
-/** How long Lever's location search may take to list suggestions. */
-const SUGGESTION_WAIT_MS = 8000;
+/** How long Lever's location search may take to list suggestions: a city's
+ *  first search answered after more than 5 s (round 7, a plain browser), and
+ *  Waabi's Toronto went blank once under the 8 s this was. */
+const SUGGESTION_WAIT_MS = 12000;
 /** Type like a user: key events around a native-setter write + input event,
  *  which is what Lever's typeahead listens to before it searches. */
 function typeLikeUser(input: HTMLInputElement, text: string): void {

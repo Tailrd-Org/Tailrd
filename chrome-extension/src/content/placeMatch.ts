@@ -118,5 +118,17 @@ export function pickPlaceOption(suggestions: string[], wanted: string): number {
   const explicit = hits.filter(
     ({ place }) => (!want.region || place.region === want.region) && (!want.country || place.country === want.country)
   );
-  return explicit.length === 1 ? explicit[0].i : -1;
+  if (explicit.length === 1) return explicit[0].i;
+  // One city under two districts is one place as far as the profile can say:
+  // Lever lists "Bengaluru, Bengaluru Urban, Karnataka, IND" and "Bengaluru,
+  // Bangalore, Karnataka, IND" (and two villages of the name elsewhere), and
+  // the tie left the box empty (Brillio, live, round 7). Every word of the
+  // wanted place between its city and its country ("Karnataka", a region with
+  // no code here) must be a part of the suggestion; of those left, the
+  // search's own first.
+  const parts = (s: string): string[] => s.split(",").map((p) => norm(p)).filter(Boolean);
+  const middle = parts(wanted).slice(1).filter((p) => !(p.length > 2 && countryFromName(p)));
+  if (explicit.length < 2 || middle.length === 0) return -1;
+  const agree = explicit.filter(({ i }) => middle.every((w) => parts(suggestions[i]).includes(w)));
+  return agree.length > 0 ? agree[0].i : -1;
 }

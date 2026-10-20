@@ -143,6 +143,20 @@ describe("leverAdapter location typeahead (live markup)", () => {
     }
   });
 
+  it("waits out a cold search too (round 7: Waabi's Toronto went blank once; Lever's first search for a city answered after more than 5 s)", async () => {
+    vi.useFakeTimers();
+    try {
+      const { input, hidden } = mountLiveLocation((q) => (q.toLowerCase().startsWith("toronto") ? ["Toronto, ON, CAN"] : []), 10000);
+      const pending = leverAdapter.fillOperation!(fillCtx(input, "Toronto, ON, Canada"))!;
+      await vi.advanceTimersByTimeAsync(13000);
+      const result = await pending;
+      expect(result.filled).toBe(true);
+      expect(JSON.parse(hidden.value).name).toBe("Toronto, ON, CAN");
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("refuses an ambiguous list rather than pick the wrong Toronto", async () => {
     const { input, hidden } = mountLiveLocation(() => ["Toronto, Ohio, United States", "Toronto, Kansas, United States"]);
     const result = await leverAdapter.fillOperation!(fillCtx(input, "Toronto, ON, Canada"))!;
@@ -171,5 +185,13 @@ describe("pickLocationSuggestion: Lever's real suggestion format", () => {
   });
   it("a bare city with several namesakes picks none", () => {
     expect(pickLocationSuggestion(live, "Toronto")).toBe(-1);
+  });
+  it("one city listed under two districts is still one place: the search's first (Brillio, live, round 7)", () => {
+    // Verbatim from jobs.lever.co/searchLocations?text=Bengaluru, 2026-10-20:
+    // the two Karnataka entries left the box empty on two runs.
+    const bengaluru = ["Bengaluru, Bengaluru Urban, Karnataka, IND", "Bengaluru, Bangalore, Karnataka, IND", "Beṅgalurū, Almel, Vijyāpurā, Karnaatak, IND", "Beṅgalurū, Paramākūdī, Ramānāthpuram, Tamilnaadu, IND"];
+    expect(pickLocationSuggestion(bengaluru, "Bengaluru, Karnataka, India")).toBe(0);
+    // Namesakes in different regions stay apart.
+    expect(pickLocationSuggestion(["Springfield, IL, USA", "Springfield, MO, USA"], "Springfield, United States")).toBe(-1);
   });
 });
