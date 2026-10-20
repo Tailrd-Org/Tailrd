@@ -14,7 +14,9 @@ export const STATEMENT_WORDS = 40;
 const REQUEST = /^(please )?(select|indicate|enter|provide|list|choose|confirm|specify|state|share|tell|describe|type|write|check|mark|tick|identify|initial|sign)\b/i;
 const NOTE = /^(\*+\s*)?(please )?(note|nb|n\.b\.)\b/i;
 
-const ABBREVIATIONS = ["e.g", "i.e", "etc", "vs", "approx", "incl", "u.s", "u.k", "inc", "ltd", "corp", "co", "st", "mr", "mrs", "ms", "dr", "jr", "sr", "a.m", "p.m"];
+// "…as defined by 8 U.S.C. 1324b(a)(3)…" (CFS Energy on Lever, live, round 7)
+// ended its question at "U.S.C.", and only the rest was read.
+const ABBREVIATIONS = ["e.g", "i.e", "etc", "vs", "approx", "incl", "u.s", "u.s.c", "u.s.a", "c.f.r", "u.k", "inc", "ltd", "corp", "co", "st", "mr", "mrs", "ms", "dr", "jr", "sr", "a.m", "p.m"];
 /** An abbreviation in either case, letter by letter: a flag would make the
  *  capital the next sentence starts with any letter, and "Did anyone refer you
  *  to this position? if so, who?" (Syska Hennessy, question bank 2026-10-17)

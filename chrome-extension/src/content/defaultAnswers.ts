@@ -126,8 +126,11 @@ const APPLICANT_RECORDED =
 // The third person too: "The candidate acknowledges that…" (Coveo, live 2026-10-05).
 const ACK_VERB =
   /\b(acknowledges?|agrees?|understands?|confirms?|accepts?|comfortable|okay|ok|willing|able|open|prepared|available|can you|will you be able|are you able|works? for you)\b/;
+// A work week too: "…commit to working a standard 40-hour, Monday-Friday work
+// week during the program?" (Viget on Lever, live, round 7).
+const WORK_WEEK = /\bwork ?weeks?\b|\bmonday (to |through |thru )?friday\b|\b\d+ ?h(ours?|rs?)? (per |a |each )?week\b/;
 const REQUIREMENT =
-  /\b(in ?office|on ?site|in ?person|hybrid|office|commut\w*|travel\w*|relocat\w*|shifts?|weekends?|overtime|nights?|evenings?|holidays?|background (check|screen\w*|investigation)s?|drug (test\w*|screen\w*)|essential (functions|duties)|lift\w*|schedule|days (per|a|each) week|hours (per|a|each) week|requirement|requirements|move to the location|moving to the location)\b/;
+  /\b(in ?office|on ?site|in ?person|hybrid|office|commut\w*|travel\w*|relocat\w*|shifts?|weekends?|overtime|nights?|evenings?|holidays?|background (check|screen\w*|investigation)s?|drug (test\w*|screen\w*)|essential (functions|duties)|lift\w*|schedule|days (per|a|each) week|hours (per|a|each) week|work ?weeks?|monday (to |through |thru )?friday|\d+ ?h(?:ours?|rs?)? (?:per |a |each )?week|requirement|requirements|move to the location|moving to the location)\b/;
 /** A request rather than a requirement ("Will you require relocation
  *  assistance?"): the applicant's to make, never defaulted. */
 // "Support" is help only as a noun of it ("relocation support"): "travel as
@@ -895,6 +898,8 @@ export function resolveDefault(
     if (located) return located;
     const refusesMove = /\brelocat|\b(move|moving) to\b/.test(n) && /^no\b/i.test((profile.willingToRelocate ?? "").trim());
     if (refusesMove) return polar(false, q, "relocation:stated");
+    // Full-time hours for someone after part-time work: theirs.
+    if (WORK_WEEK.test(n) && /\bpart ?time\b/.test(qn(profile.workPreference ?? ""))) return null;
     // In person where nobody said: "This position is onsite in the studio
     // location listed in the posting. Are you willing to work onsite in that
     // location?" (Larian on Lever, question bank 2026-10-08, its place not on

@@ -1757,7 +1757,9 @@ function resolveReturningToSchool(q: QuestionInput, n: string, facts: ProfileFac
 function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   // ("Do you currently attend a college or university within an 80-mile
   // radius of San Francisco, CA?", Gallup on Greenhouse, live, round 7.)
-  if (!/\b(currently|presently) (a |an )?(full time |part time )?(student|enrolled|attending|attend|pursuing)\b|\bare you (a |an )?(current )?(full time |part time )?student\b|\benrolled (in|at)\b/.test(n)) return null;
+  // ("Are you currently a University student in the Atlanta area pursuing an
+  // Engineering degree?", SoloPulse on Lever, live, round 7.)
+  if (!/\b(currently|presently) (a |an )?(full time |part time )?(university |college |undergraduate |graduate )?(student|enrolled|attending|attend|pursuing)\b|\bare you (a |an )?(current )?(full time |part time )?(university |college )?student\b|\benrolled (in|at)\b/.test(n)) return null;
   if (!isBooleanQuestion(q)) return null;
   // "...during the internship" / "...after graduation": another time, leave it.
   if (/\bduring\b|\bafter\b|\bthrough\b|\buntil\b/.test(n)) return abstain("enrollment:qualified");
@@ -1765,7 +1767,9 @@ function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): Qu
   // "...enrolled at a Canadian institution" / "...attending a college or
   // university in the US?" (Superhuman, left to the AI): more than
   // enrollment, unless the applicant is enrolled nowhere.
-  if (/\b(institution|university|college|school) (in|of|located|within|near)\b|\bpost secondary institution\b|\b(canadian|american|us|u s|united states) (institution|university|college|school)\b/.test(n)) {
+  // A student "in the Atlanta area" too (decision 48: where a student's school
+  // is, the profile does not say).
+  if (/\b(institution|university|college|school) (in|of|located|within|near)\b|\bpost secondary institution\b|\b(canadian|american|us|u s|united states) (institution|university|college|school)\b|\b(student|students|enrolled|attending|attend)\b[^?]{0,15}\b(in|near|within|around) (the )?([a-z]+ ){1,3}(area|region|metro|radius)\b/.test(n)) {
     return isHigh(e) && !e.value ? booleanResult(false, q, "enrollment:enrolled-nowhere") : abstain("enrollment:qualified");
   }
   // "…enrolled in an accredited 4-year Bachelor's degree program or have
@@ -2413,6 +2417,43 @@ function resolveStartBucket(q: QuestionInput, n: string, facts: ProfileFacts): Q
   return later.length > 0 ? answer(later[0].o, "start-bucket:next-later") : abstain("start-bucket:no-matching-option");
 }
 
+/**
+ * A start asked as a year or a quarter: "In which year would you be available
+ * to start at Galatea?" [2026 | … | 2030] and "In which quarter would you be
+ * available to start?" [January - March (Q1) | …] (Galatea Associates on
+ * Lever, live, round 7: blank). The stated earliest start's year, its months.
+ */
+function resolveStartCalendar(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  const opts = (q.options ?? []).filter((o) => o.trim());
+  if (opts.length < 2) return null;
+  if (!/\b(availab\w*|start|starting|join|joining|begin|commence)\b/.test(n) || /\b(graduat\w*|end|ending|finish\w*|until)\b/.test(n)) return null;
+  const yearOf = (o: string): number | null => {
+    const m = /^\s*((?:19|20)\d{2})\s*$/.exec(o);
+    return m ? Number(m[1]) : null;
+  };
+  const monthsOf = (o: string): number[] => {
+    const out: number[] = [];
+    for (const w of qnorm(o).split(" ")) {
+      const i = MONTH_WORDS.indexOf(w.slice(0, 3));
+      if (i >= 0 && /^[a-z]+$/.test(w) && (w.length === 3 || w.startsWith(MONTH_WORDS[i]))) out.push(i);
+    }
+    return out;
+  };
+  const yearList = opts.every((o) => yearOf(o) !== null);
+  const monthList = !yearList && opts.every((o) => monthsOf(o).length === 2 && !/\b(19|20)\d{2}\b/.test(o));
+  if (!yearList && !monthList) return null;
+  const av = facts.availability.earliestStart;
+  if (!isHigh(av)) return abstain("start-calendar:unknown");
+  const at = new Date(Math.max(av.value.getTime(), facts.today.getTime()));
+  const hits = yearList
+    ? opts.filter((o) => yearOf(o) === at.getUTCFullYear())
+    : opts.filter((o) => {
+        const [a, b] = monthsOf(o);
+        return a <= at.getUTCMonth() && at.getUTCMonth() <= b;
+      });
+  return hits.length === 1 ? answer(hits[0], "start-calendar") : abstain("start-calendar:no-matching-option");
+}
+
 /** Time zones by region; a state split between zones is left out (not guessed). */
 const ZONE_OF_REGION: Record<string, string> = {
   // Canada
@@ -2760,13 +2801,26 @@ function resolveTestScore(q: QuestionInput, n: string): QuestionResult {
  * 2026-10-03: "English (ENG)", "French (FRA)", …): the profile's languages
  * among the options, any level but a beginner's.
  */
+/** A language's name, the whole option or its first word ("Tamil (India)"). */
+const LANGUAGE_NAME =
+  /^(english|french|spanish|german|mandarin|chinese|cantonese|portuguese|italian|japanese|korean|hindi|arabic|punjabi|tagalog|filipino|vietnamese|russian|dutch|polish|turkish|hebrew|greek|swedish|norwegian|danish|finnish|czech|hungarian|romanian|ukrainian|bengali|urdu|tamil|telugu|kannada|malayalam|marathi|gujarati|persian|farsi|thai|indonesian|malay|swahili|haitian|irish|welsh|catalan|croatian|serbian|slovak|bulgarian)\b/;
+
 function resolveLanguageChoice(q: QuestionInput, n: string, profile: UserApplicationProfile, facts: ProfileFacts): QuestionResult {
-  if (!/\blanguages?\b/.test(n) || !q.options?.length) return null;
+  if (!q.options?.length) return null;
+  // A list of languages under a proficiency question names none: "Do you have
+  // professional working proficiency in:" [English | French] (Behaviour
+  // Interactive on Lever, live, round 7) was blank.
+  const named = q.options.filter((o) => LANGUAGE_NAME.test(qnorm(o))).length;
+  if (!/\blanguages?\b/.test(n) && !(named >= 2 && /\b(proficien\w*|fluen\w*|speak|bilingual)\b/.test(n))) return null;
   if (q.controlType !== "checkboxGroup" && q.kind !== "multiChoice") return null;
+  // A level asked ("professional working proficiency", "business fluent"):
+  // only a language stated at that level; one with no level stated is theirs.
+  const levelAsked = /\bproficien\w*|\bfluen\w*|\bbilingual\b/.test(n);
   const spoken = (profile.languages || "")
     .split(/[,;\n]+/)
     .map((l) => l.trim())
     .filter((l) => l && !/\((basic|beginner|elementary|limited|a1|a2)\b/i.test(l))
+    .filter((l) => !levelAsked || /\((native|fluent|bilingual|professional|full|advanced|c1|c2|mother tongue|first language)\b/i.test(l))
     .map((l) => qnorm(l.replace(/\(.*$/, "")))
     .filter(Boolean);
   if (spoken.length === 0) return abstain("language:unknown");
@@ -3350,7 +3404,6 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
   }
   if (/\bclearance\b/.test(n) && !/\b(customs|credit|medical)\b/.test(n)) {
     const c = (profile.securityClearance || "").trim().toLowerCase();
-    if (!c) return abstain("clearance:unknown");
     // A clearance is a national credential, held where it was granted, taken
     // as the applicant's own country. A question in another country's words
     // ("Public Trust") or on a job abroad is not answered from it: a Canadian
@@ -3358,7 +3411,6 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
     // (ActioNet on Jobvite, a real profile, 2026-10-03). "None" holds anywhere.
     const home = isHigh(facts.location.country) ? facts.location.country.value.code : null;
     const asked = clearanceCountry(n) ?? ctx.jobCountry;
-    if (c !== "none" && home && asked && asked !== home) return abstain("clearance:other-country");
     const active = /\bactive\b/.test(c);
     const eligible = /\beligible|previously\b/.test(c);
     // A U.S. clearance goes to U.S. citizens: a permanent resident or visa
@@ -3381,10 +3433,17 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
     // bank, round 7) was read as "do you hold one?", No for everyone.
     // (Willing to obtain one is a willingness, never answered from citizenship.)
     const canObtain = /\b(able|eligible) to (obtain|get|acquire|achieve|hold|maintain)\b|\bcan (this|it|that|one|a clearance|the clearance) be (achieved|obtained|attained|granted)\b|\b(could|can) you (obtain|get|achieve)\b/.test(n);
+    // Whatever clearance the profile states, or none: "Are you able to hold a
+    // U.S. Security Clearance?" (SoloPulse on Lever, live, round 7) was blank
+    // for a Canadian whose profile names no clearance.
     if (asked === "US" && canObtain && notCitizen) {
       return booleanResult(false, q, "clearance:us-citizens-only");
     }
-    const obtainable = canObtain && !/\b(able|eligible) to (hold|maintain)\b/.test(n) || /\bwilling to (obtain|get|acquire)\b/.test(n);
+    if (!c) return abstain("clearance:unknown");
+    if (c !== "none" && home && asked && asked !== home) return abstain("clearance:other-country");
+    // Able to HOLD one is eligibility, like able to obtain one: a citizen who
+    // holds none was told No.
+    const obtainable = canObtain || /\bwilling to (obtain|get|acquire)\b/.test(n);
     if (obtainable) return eligible || active ? booleanResult(true, q, "clearance:obtainable") : abstain("clearance:obtainable-unknown");
     if (c === "none") return booleanResult(false, q, "clearance");
     if (active) return booleanResult(true, q, "clearance");
@@ -3777,6 +3836,7 @@ export function resolveQuestion(
     resolveTestScore(sq, sn) ??
     resolveStartDateChoice(sq, sn, facts) ??
     resolveStartBucket(sq, sn, facts) ??
+    resolveStartCalendar(sq, sn, facts) ??
     resolveTimezone(sq, sn, facts) ??
     resolveZoneAvailability(sq, sn, facts) ??
     resolveDidGraduate(sq, sn, facts) ??
