@@ -18,6 +18,7 @@ import {
   isPlaceholderFiller,
   ownLabel,
   setNativeValue,
+  slottedQueryAll,
 } from "./domUtils";
 import type { RuntimeControl } from "./formScanner";
 import { matchOption } from "./optionMatch";
@@ -384,10 +385,11 @@ function writeCheckboxGroup(checkboxes: HTMLInputElement[], value: string): Writ
 // the matching radio; the framework flips its aria-checked. Ashby's Yes/No is
 // the same group made of buttons that flip aria-pressed instead.
 function ariaRadiosOf(group: HTMLElement): HTMLElement[] {
-  const radios = group.querySelectorAll('[role="radio"]');
-  return Array.from(radios.length ? radios : group.querySelectorAll("button[aria-pressed]")).filter(
+  // Slotted radios too (SmartRecruiters' screening step, round 7).
+  const radios = slottedQueryAll(group, '[role="radio"]');
+  return (radios.length ? radios : Array.from(group.querySelectorAll<HTMLElement>("button[aria-pressed]"))).filter(
     (r) => r.getAttribute("aria-disabled") !== "true" && !(r as HTMLButtonElement).disabled
-  ) as HTMLElement[];
+  );
 }
 
 function isChosen(option: HTMLElement): boolean {
@@ -397,7 +399,7 @@ function isChosen(option: HTMLElement): boolean {
 function findAriaRadio(group: HTMLElement, value: string): HTMLElement | null {
   return matchOption(
     ariaRadiosOf(group),
-    (r) => cleanText(r.getAttribute("aria-label")) || cleanText(r.textContent),
+    (r) => cleanText(r.getAttribute("aria-label")) || cleanText(r.getAttribute("label")) || cleanText(r.textContent),
     (r) => r.getAttribute("data-value") ?? r.getAttribute("value") ?? "",
     value
   );

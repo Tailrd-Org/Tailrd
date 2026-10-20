@@ -215,16 +215,50 @@ function ariaLabelledByText(el: HTMLElement): string {
   const ids = el.getAttribute("aria-labelledby");
   if (!ids) return "";
   const doc = el.ownerDocument;
+  // The id is looked up in the element's own tree first: SmartRecruiters'
+  // radio group names a label inside the same shadow root (round 7).
+  const root = el.getRootNode() as Document | ShadowRoot;
   return cleanText(
     ids
       .split(/\s+/)
       .map((id) => {
-        const ref = doc.getElementById(id);
+        const ref = (root !== doc ? (root as ShadowRoot).getElementById?.(id) : null) ?? doc.getElementById(id);
         if (!ref || el.contains(ref)) return "";
-        return ref.textContent ?? "";
+        return composedText(ref);
       })
       .join(" ")
   );
+}
+
+/**
+ * A node's text as it shows: a <slot> reads as what is slotted into it.
+ * SmartRecruiters' screening labels hold only `<slot name="label-content">`,
+ * the question slotted in from the page, so their own text was empty and 29
+ * questions were read by their ids or not at all (Western Digital, live,
+ * round 7).
+ */
+export function composedText(node: Node): string {
+  if (node.nodeType === Node.TEXT_NODE) return node.textContent ?? "";
+  if (node.nodeType !== Node.ELEMENT_NODE) return "";
+  const el = node as Element;
+  if (el.tagName === "SLOT") {
+    const assigned = (el as HTMLSlotElement).assignedNodes?.({ flatten: true }) ?? [];
+    return (assigned.length ? assigned : Array.from(el.childNodes)).map(composedText).join("");
+  }
+  return Array.from(el.childNodes).map(composedText).join("");
+}
+
+/** Matches under `root`, slotted ones included: SmartRecruiters' radios are
+ *  slotted into the radio group its shadow root draws (round 7). */
+export function slottedQueryAll(root: Element, selector: string): HTMLElement[] {
+  const out = new Set<HTMLElement>(Array.from(root.querySelectorAll<HTMLElement>(selector)));
+  for (const slot of Array.from(root.querySelectorAll("slot"))) {
+    for (const n of (slot as HTMLSlotElement).assignedElements?.({ flatten: true }) ?? []) {
+      if (n.matches(selector)) out.add(n as HTMLElement);
+      for (const m of Array.from(n.querySelectorAll<HTMLElement>(selector))) out.add(m);
+    }
+  }
+  return [...out];
 }
 
 /**
@@ -247,7 +281,7 @@ export function ownLabel(box: HTMLInputElement): HTMLLabelElement | null {
 export function associatedLabelText(el: HTMLElement): string {
   const labels = (el as HTMLInputElement).labels;
   if (labels && labels.length > 0) {
-    return cleanText(Array.from(labels).map((l) => l.textContent ?? "").join(" "));
+    return cleanText(Array.from(labels).map((l) => composedText(l)).join(" "));
   }
   const wrapping = el.closest("label");
   if (wrapping) return cleanText(wrapping.textContent);

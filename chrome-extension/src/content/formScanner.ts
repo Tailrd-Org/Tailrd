@@ -23,6 +23,7 @@ import {
   isVisible,
   nearbyText,
   ownLabel,
+  slottedQueryAll,
   type FieldSignals,
 } from "./domUtils";
 import { isConsentOption } from "./answerKind";
@@ -277,9 +278,12 @@ export function selectOptions(el: HTMLSelectElement, limit = 60): string[] {
 const MAX_GROUP_OPTIONS = 300;
 
 function ariaRadioOptions(group: HTMLElement): string[] {
-  const radios = group.querySelectorAll('[role="radio"]');
-  return Array.from(radios.length ? radios : group.querySelectorAll("button[aria-pressed]"))
-    .map((r) => cleanText(r.getAttribute("aria-label")) || cleanText(r.textContent))
+  // Slotted radios too, named by their own label attribute: SmartRecruiters'
+  // <spl-radio label="Yes"> are slotted into the group its shadow root draws
+  // (screening step, live, round 7: no options read).
+  const radios = slottedQueryAll(group, '[role="radio"]');
+  return (radios.length ? radios : Array.from(group.querySelectorAll<HTMLElement>("button[aria-pressed]")))
+    .map((r) => cleanText(r.getAttribute("aria-label")) || cleanText(r.getAttribute("label")) || cleanText(r.textContent))
     .filter((t) => t.length > 0)
     .slice(0, MAX_GROUP_OPTIONS);
 }
@@ -1701,9 +1705,9 @@ function currentValueOf(el: HTMLElement, controlType: ControlType): string | und
     return readComboboxValue(el);
   }
   if (controlType === "ariaRadioGroup") {
-    const checked = el.querySelector('[role="radio"][aria-checked="true"], button[aria-pressed="true"]') as HTMLElement | null;
+    const checked = slottedQueryAll(el, '[role="radio"][aria-checked="true"], button[aria-pressed="true"]')[0];
     if (!checked) return undefined;
-    return (cleanText(checked.getAttribute("aria-label")) || cleanText(checked.textContent)) || undefined;
+    return (cleanText(checked.getAttribute("aria-label")) || cleanText(checked.getAttribute("label")) || cleanText(checked.textContent)) || undefined;
   }
   return undefined;
 }
