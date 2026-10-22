@@ -341,3 +341,12 @@ describe("the job's place from SmartRecruiters' top bar", () => {
     expect(got).toEqual({ US_OPT_ANALYST: "No", BOOTCAMP_CAREER_GAP: null });
   });
 });
+
+describe("the degree being obtained (Bosch, SmartRecruiters bank re-run, round 8)", () => {
+  it("someone obtaining no degree takes no Other for a finished certificate", () => {
+    // BOOTCAMP_CAREER_GAP finished a bootcamp certificate in 2022; the re-run
+    // gave "Other" (decision 96 is the row's own Degree list).
+    const got = scanned(as("BOOTCAMP_CAREER_GAP"), "Can you please confirm the current degree that you are obtaining?", ["BA", "BS", "Ph.D", "Other"]);
+    expect(got).toEqual({ BOOTCAMP_CAREER_GAP: null });
+  });
+});

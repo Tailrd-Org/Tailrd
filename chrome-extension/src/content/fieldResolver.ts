@@ -317,6 +317,17 @@ function demographicSnap(category: FieldCategory, value: string, options: string
   return closestDemographicOption(category, value, options) ?? (severalHold(value, options) ? null : snapToOption(options, value, category));
 }
 
+/** Whether the education row a field answers for (its own, else the main
+ *  one: in progress, else the most recent) is finished. */
+function rowFinished(profile: UserApplicationProfile, groupIndex: number | null): boolean {
+  const edu = profileFacts(profile).education;
+  const rows = profile.education ?? [];
+  const main = edu.primary;
+  const row = groupIndex !== null ? rows[groupIndex] : rows.find((e) => main && (e.school || "").trim() === main.school && (e.degree || "").trim() === main.degree) ?? rows[0];
+  if (!row) return false;
+  return edu.entries.find((e) => e.school === (row.school || "").trim() && e.degree === (row.degree || "").trim())?.completed === true;
+}
+
 /** A degree field asked at one level of study ("Law Degree", "Undergraduate
  *  Degree", "Graduate Degree"), not a row's own Degree list. */
 export function degreeAtALevel(label: string): boolean {
@@ -763,8 +774,11 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
   // A degree asked at one level ("Law Degree", "Undergradute Degree",
   // "Graduate Degree": Barnes & Thornburg on Ashby, question bank, round 8)
   // is no row's Degree list: a bootcamp's certificate took each list's
-  // "Other" there. Decision 96 is for the row's own Degree list.
-  if (source === "category" && category === "degree" && value && /^other\b/i.test(value.trim()) && degreeAtALevel(label)) {
+  // "Other" there. Decision 96 is for the row's own Degree list. Nor is a
+  // degree being obtained one finished ("Can you please confirm the current
+  // degree that you are obtaining?", Bosch on SmartRecruiters, bank).
+  const asksCurrentDegree = /\b(current(ly)?|obtaining|pursuing|working towards?|in progress)\b/i.test(label);
+  if (source === "category" && category === "degree" && value && /^other\b/i.test(value.trim()) && (degreeAtALevel(label) || (asksCurrentDegree && profile && rowFinished(profile, control.groupIndex ?? null)))) {
     return none(false, "degree:level-asked");
   }
 
