@@ -155,7 +155,11 @@ for (const spec of SPECS) {
       continue;
     }
     taken++;
-    raw.push({ board: company, id, uuid: posting.uuid, title: clean(posting.name), company: clean(posting.company?.name ?? company), location: placeOf(posting.location), screening: ctx.screeningConfiguration ?? null });
+    // What page 1 itself requires (resumeRequired, experienceRequired, …): a
+    // run can fill page 1 but never upload, so only a posting whose résumé is
+    // optional reaches its screening questions live.
+    const required = Object.fromEntries(Object.entries(ctx.features ?? {}).filter(([k]) => /Required$/.test(k)));
+    raw.push({ board: company, id, uuid: posting.uuid, title: clean(posting.name), company: clean(posting.company?.name ?? company), location: placeOf(posting.location), required, screening: ctx.screeningConfiguration ?? null });
     await sleep(1500);
   }
 }
@@ -163,7 +167,8 @@ if (!RECONVERT) writeFileSync(RAW, JSON.stringify(raw, null, 1));
 const bank = [];
 for (const r of raw) {
   const questions = toQuestions(r.screening);
-  console.log(r.board, r.id, questions.length, "|", r.title.slice(0, 60), "|", r.location);
+  const needs = Object.entries(r.required ?? {}).filter(([, v]) => v).map(([k]) => k.replace(/Required$/, "")).join("+");
+  console.log(r.board, r.id, questions.length, "|", r.title.slice(0, 60), "|", r.location, "| requires:", needs || "?");
   if (questions.length) bank.push({ board: r.board, id: r.id, title: r.title, company: r.company, location: r.location, questions });
 }
 writeFileSync(OUT, JSON.stringify(bank, null, 1));
