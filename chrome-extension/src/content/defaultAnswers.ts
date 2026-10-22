@@ -403,7 +403,8 @@ const SOURCE_SYNONYMS: Array<[RegExp, RegExp]> = [
   // "Connection in the Company". An option naming an employee alone ("Former
   // Employee", Accenture Federal; "Current/Former Employee", Roku; "Current
   // Fox Employee", Tubi) says who the APPLICANT is, never a referral.
-  [/\breferr\w*|\bemployee\b|\bfriend\b/, /\breferr\w*|\bfriend\b|\bknow someone\b|\bsomeone (who|that) works\b|\b(connection|contact)s? (in|at|within) the company\b/],
+  // "Word of mouth" too (1Password on Ashby, bank, round 8).
+  [/\breferr\w*|\bemployee\b|\bfriend\b/, /\breferr\w*|\bfriend\b|\bknow someone\b|\bsomeone (who|that) works\b|\b(connection|contact)s? (in|at|within) the company\b|\bword of mouth\b/],
   // Then an unqualified "Appian Employee" (heard from one); a current, former
   // or ex- employee is the applicant, and a "LinkedIn Employee Post" a channel.
   // An employees' event is a channel, not a referral: "Employee Presentation"
@@ -491,6 +492,13 @@ function unencumberedText(q: QuestionInput, n: string, profile: UserApplicationP
   return null;
 }
 
+/** The list's own "Other" ("Other", "Other (please specify)", "Other - please
+ *  list source below"), never a channel named "Other …": "Other Job Boards"
+ *  took a stated referral and social media (Commure on Ashby, bank, round 8). */
+function listOther(opts: string[]): string[] {
+  return opts.filter((o) => /^other\b/.test(qn(o)) && !/^other (job|jobs|social|recruit\w*|events?|websites?|search|boards?|media|platforms?|channels?|sources?|sites?|online|referrals?)\b/.test(qn(o)));
+}
+
 function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company = ""): QuestionResult {
   const opts = realOptions(q);
   const stated = qn(profile.howDidYouHear ?? "");
@@ -524,7 +532,11 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
           ? // A forum, a community or a blog online is no board ("Online
             // Forum or Community", Coveo).
             (o: string) => !outreach(o) && !otherBoard(o) && !/\b(forum|forums|communit\w*|groups?|blogs?|news|articles?|events?|webinars?|podcasts?)\b/.test(qn(o))
-          : (o: string) => !outreach(o);
+          : /social/.test(said.source)
+            ? // Social media is no one platform's: "LinkedIn Social Post" took it
+              // (1Password on Ashby, bank, round 8; decision 9).
+              (o: string) => !outreach(o) && !NAMED_SOURCE.test(qn(o))
+            : (o: string) => !outreach(o);
       const hit = unique(offered, keep);
       if (hit) return answer(hit, "source:stated");
       // Several of that kind ("Coveo Employee Referral" | "Friend or Former
@@ -557,7 +569,7 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
       const GENERIC_SITE = /^(internet|online|web|career|careers|employment|site|sites|website|websites|page|pages|portal|job|jobs|the|an?|official)$/;
       const genericSite = (o: string): boolean => /\b(career|careers|employment) (site|sites|website|websites|page|pages|portal)\b/.test(qn(o)) && qn(o).split(" ").every((w) => GENERIC_SITE.test(w));
       if (/\bwebsite\b|\bsite\b|\bcareers? page\b/.test(stated) && opts.some(genericSite)) return null;
-      const other = opts.filter((o) => /^other\b/.test(qn(o)));
+      const other = listOther(opts);
       return other.length === 1 ? answer(other[0], "source:stated-other") : null;
     }
     // A job site stated and none of the list's matching ones unique: only a
@@ -591,12 +603,12 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
     // stays the applicant's: which one it was, nobody said.
     const named = brandOf(stated);
     if (named && !opts.some((o) => brandOf(o) === named)) {
-      const other = opts.filter((o) => /^other\b/.test(qn(o)));
+      const other = listOther(opts);
       if (other.length === 1) return answer(other[0], "source:stated-other");
     }
     // A list with no online channel at all (Figma: FigFest | a partnership |
     // an on-campus event | a virtual event | Other): the job site is "Other".
-    const other = opts.filter((o) => /^other\b/.test(qn(o)));
+    const other = listOther(opts);
     if (other.length === 1 && !opts.some((o) => o !== other[0] && /\b(job|jobs|board|search|posting|online|website|site|internet|web|career|careers|social|linked ?in|indeed|glassdoor)\b/.test(qn(o)))) {
       return answer(other[0], "source:stated-other");
     }

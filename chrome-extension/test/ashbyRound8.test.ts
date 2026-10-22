@@ -157,3 +157,20 @@ describe("work eligibility in two countries (the Ashby bank, round 8)", () => {
     expect(ask("US_OPT_ANALYST", "Are you legally able to work in Canada or the US without sponsorship?", YN, "Clearco", "CA")).toBe("No");
   });
 });
+
+describe("source lists in the new Ashby bank (round 8)", () => {
+  const ONEPW = ["Agency", "Black Professionals in Tech Network", "Blog / news article", "Campus event / job portal", "Canadian Cybersecurity Jobs", "CLOC", "Dribble", "Facebook", "Glassdoor", "hired.com", "IDPro", "Indeed", "Instagram", "Ladders", "LinkedIn Jobs", "LinkedIn Social Post", "Newsletter", "Other", "Otta", "Previously worked at 1Password", "Queertech", "Word of mouth", "X (formerly Twitter)", "Youtube"];
+  const COMMURE = ["LinkedIn", "Company Website", "Recruiter Outreach", "Podcast/Blog", "Industry Conference", "Tech Community/Forum", "Fireside Chat/Event", "Other Job Boards"];
+  it("social media is no one platform's post (decision 9): 1Password's Other", () => {
+    expect(ask("BOOTCAMP_CAREER_GAP", "What brought you to this job posting", ONEPW, "1Password", "CA")).toBe("Other");
+  });
+  it("a referral is word of mouth", () => {
+    expect(ask("BERLIN_STAFF", "What brought you to this job posting", ONEPW, "1Password", "CA")).toBe("Word of mouth");
+  });
+  it("'Other Job Boards' is a channel, not the list's Other (Commure)", () => {
+    // Social media and a referral both took it.
+    expect(ask("BOOTCAMP_CAREER_GAP", "How did you hear about Commure?", COMMURE, "Commure")).toBeNull();
+    expect(ask("BERLIN_STAFF", "How did you hear about Commure?", COMMURE, "Commure")).toBeNull();
+    expect(ask("US_OPT_ANALYST", "How did you hear about Commure?", COMMURE, "Commure")).toBe("Other Job Boards");
+  });
+});
