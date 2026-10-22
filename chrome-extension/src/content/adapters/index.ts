@@ -6,6 +6,7 @@ import "./greenhouse";
 import "./workday";
 import "./lever";
 import "./jobvite";
+import "./janestreet";
 import "./common";
 export { getAdapter, resolveAdapter, ADAPTERS } from "./registry";
 export type { SiteAdapter, FieldContext, AnswerContext, FillContext, AdapterFillResult } from "./types";
