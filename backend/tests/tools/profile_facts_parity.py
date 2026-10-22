@@ -200,7 +200,8 @@ def python_result(case: dict) -> Any:
         a = port.work_auth_facts(case["profile"])
         return {
             "byCountry": [
-                [code, {"authorized": v.authorized, "needsSponsorship": v.needs_sponsorship, "basis": v.basis}]
+                [code, {"authorized": v.authorized, "needsSponsorship": v.needs_sponsorship, "basis": v.basis,
+                        **({"employerTied": True} if v.employer_tied else {})}]
                 for code, v in a.by_country.items()
             ],
             "statedSponsorship": a.stated_sponsorship,

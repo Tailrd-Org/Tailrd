@@ -327,6 +327,11 @@ LOCATIONS = [
         street=("1055 W Georgia St", "high", "address:parsed-street"),
         city=("Vancouver", "high", "address:city"), region=("BC", "high", "address:region"),
         postal_code=("V6E 3P3", "high", "address:postal"), country=("CA", "high", "address:country")),
+    # Its last part is a neighbourhood, not the stated city: the street stays whole (round 8).
+    Loc("a-neighbourhood-is-no-city-beside-the-stated-one",
+        dict(addressStreet="14, 5th Cross, Indiranagar", addressCity="Bengaluru"),
+        street=("14, 5th Cross, Indiranagar", "high", "profile:addressStreet"),
+        city=("Bengaluru", "high", "profile:addressCity")),
     Loc("stated-country-beats-the-default-location", dict(location="United States", country="Canada"),
         country=("CA", "high", "profile:country")),
     Loc("country-given-as-an-iso-code", dict(country="CA"), country=("CA", "high", "profile:country")),
@@ -652,6 +657,9 @@ BRANCHES = [
     _b("free-movement_german-citizen_asked-norway",
        {"workAuthorization": "German citizen", "requiresSponsorship": "Yes"}, "NO", "DE",
        auth=(True, "high", "work-auth:free-movement"), spons=(False, "high", "sponsorship:free-movement")),
+    # The union named as a whole: "Are you authorized to work in the EU?" (round 8).
+    _b("free-movement_german-citizen_asked-the-eu", {"workAuthorization": "German citizen"}, "EU", "DE",
+       auth=(True, "high", "work-auth:free-movement"), spons=(False, "high", "sponsorship:free-movement")),
     # "EU" is outside the allow-list vocabulary (D-61 amendment): the citizenship is unknown.
     _b("free-movement_needs-a-recognised-citizenship", {"workAuthorization": "German citizen (EU)"}, "AT", "DE"),
     _b("free-movement_stops-at-the-uk", {"workAuthorization": "German citizen (EU)"}, "GB", "DE"),
@@ -727,10 +735,20 @@ def test_every_branch_of_authorized_in_and_needs_sponsorship_in(b):
     assert fact3(needs_sponsorship_in(a, b.country, b.residence)) == b.spons
 
 
+def test_a_visa_an_employer_sponsors_is_tied_to_that_employer():
+    """TS: employerTied (JazzHR bank, round 8: "Is your work visa currently being sponsored by an
+    employer?" is Yes for an H-1B). An explicit Yes for the US keeps it; a citizen has none."""
+    us = work_auth_facts({"workAuthorization": "H-1B"}).by_country["US"]
+    assert (us.basis, us.needs_sponsorship, us.employer_tied) == ("work_permit", True, True)
+    assert work_auth_facts({"workAuthorization": "H-1B", "authorizedUS": "Yes"}).by_country["US"].employer_tied is True
+    assert work_auth_facts({"workAuthorization": "US citizen"}).by_country["US"].employer_tied is False
+
+
 def test_free_movement_group_is_the_eu_the_eea_and_switzerland():
-    """TS: FREE_MOVEMENT in profileFacts.ts (31 codes); the UK left in 2020 and is not in it."""
-    assert len(FREE_MOVEMENT) == 31
-    assert {"DE", "AT", "FR", "IE", "NO", "IS", "LI", "CH"} <= FREE_MOVEMENT
+    """TS: FREE_MOVEMENT in profileFacts.ts (31 countries, and "EU" for the union named as a
+    whole); the UK left in 2020 and is not in it."""
+    assert len(FREE_MOVEMENT) == 32
+    assert {"DE", "AT", "FR", "IE", "NO", "IS", "LI", "CH", "EU"} <= FREE_MOVEMENT
     assert not ({"GB", "US", "CA", "TR", "UA"} & FREE_MOVEMENT)
 
 
@@ -918,8 +936,8 @@ def test_the_facts_copy_pickle_serialise_and_hash():
 
     as_data = {
         "by_country": {
-            "CA": {"authorized": True, "needs_sponsorship": False, "basis": "citizen"},
-            "US": {"authorized": False, "needs_sponsorship": True, "basis": "stated"},
+            "CA": {"authorized": True, "needs_sponsorship": False, "basis": "citizen", "employer_tied": False},
+            "US": {"authorized": False, "needs_sponsorship": True, "basis": "stated", "employer_tied": False},
         },
         "stated_sponsorship": None,
         "unscoped_authorized": None,
@@ -1163,7 +1181,8 @@ def test_a_status_belongs_to_the_countries_of_its_own_clause():
     """
     a = work_auth_facts(profile(workAuthorization="Canadian citizen with H-1B in the US"))
     assert a.by_country["CA"] == CountryAuth(True, False, "citizen")
-    assert a.by_country["US"] == CountryAuth(True, True, "work_permit")
+    # An H-1B is held for its sponsoring employer only (TS: employerTied, round 8).
+    assert a.by_country["US"] == CountryAuth(True, True, "work_permit", employer_tied=True)
     assert needs_sponsorship_in(a, "US", "CA") == Fact(True, "high", "sponsorship:work_permit")
 
 

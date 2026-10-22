@@ -204,6 +204,9 @@ class CountryAuth:
     #: Needs sponsorship now or in the future there.
     needs_sponsorship: Optional[bool]
     basis: AuthBasis
+    #: The right is a visa an employer sponsors (H-1B, L-1, E-3, O-1, TN): held for that
+    #: employer only, not for any employer (TS: ``employerTied``).
+    employer_tied: bool = False
 
 
 class _ReadOnlyDict(dict):
@@ -471,11 +474,11 @@ _CITY_COUNTRY: Mapping[str, str] = MappingProxyType({
 })
 
 # The EU, the rest of the EEA and Switzerland: a citizen of one may work in any other
-# (freedom of movement).
+# (freedom of movement). "EU" is the union named as a whole ("authorized to work in the EU?").
 FREE_MOVEMENT: frozenset[str] = frozenset(
     {
         "AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT",
-        "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "CH",
+        "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "CH", "EU",
     }
 )
 
@@ -692,7 +695,12 @@ def location_facts(profile: ProfileInput) -> LocationFacts:
     address_street = _text(profile, "addressStreet")
     from_street = parse_address(address_street)
     from_location = parse_address(_text(profile, "location"))
-    street_has_more = bool(from_street.city or from_street.region or from_street.country or from_street.postal)
+    # A last plain-word part is a city only when it is the stated one (or none is stated):
+    # "14, 5th Cross, Indiranagar" ends on its neighbourhood, and read as a city it took the
+    # whole street (Profound Medical on BambooHR, live, round 8).
+    stated_city = _trim(_text(profile, "addressCity")).lower()
+    street_city = bool(from_street.city) and (not stated_city or from_street.city.lower() == stated_city)
+    street_has_more = bool(street_city or from_street.region or from_street.country or from_street.postal)
 
     # Street: the structured field, minus any city/region/country it carried.
     street: Optional[Fact[str]] = None
@@ -1869,7 +1877,7 @@ def work_auth_facts(profile: ProfileInput) -> WorkAuthFacts:
         elif f.pr and not f.student and not f.permit:
             auth = CountryAuth(True, False, "permanent_resident")
         elif f.sponsoredVisa:
-            auth = CountryAuth(True, True, "work_permit")
+            auth = CountryAuth(True, True, "work_permit", employer_tied=True)
         elif f.student:
             auth = CountryAuth(None, None, "student")
         elif f.permit:
@@ -1926,6 +1934,7 @@ def _apply_explicit_countries(profile: ProfileInput, by_country: dict[str, Count
             authorized=p,
             needs_sponsorship=(prev.needs_sponsorship if prev is not None else None) if p else True,
             basis=prev.basis if (p and prev is not None) else "stated",
+            employer_tied=bool(p and prev is not None and prev.employer_tied),
         )
 
 
