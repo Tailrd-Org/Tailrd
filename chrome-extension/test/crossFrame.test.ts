@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { shouldAdoptRemoteHost, makeProxyCallbacks, dispatchFormOp } from "../src/content/crossFrame";
+import { shouldAdoptFrame, shouldAdoptRemoteHost, makeProxyCallbacks, dispatchFormOp } from "../src/content/crossFrame";
 import type { OverlayCallbacks } from "../src/content/overlay";
 
 describe("shouldAdoptRemoteHost", () => {
@@ -7,6 +7,19 @@ describe("shouldAdoptRemoteHost", () => {
     expect(shouldAdoptRemoteHost(0, 5)).toBe(true);
     expect(shouldAdoptRemoteHost(3, 5)).toBe(false); // top owns its own form → keep local
     expect(shouldAdoptRemoteHost(0, 0)).toBe(false); // remote has nothing either
+  });
+});
+
+describe("shouldAdoptFrame", () => {
+  it("a panel shown for the posting's own Apply button adopts the form its Apply opens in a frame (Comeet, live, round 8)", () => {
+    // The top frame mounted for "Apply for this job" with no form of its own;
+    // the form then opened in comeet.co's frame, and was never adopted.
+    expect(shouldAdoptFrame({ adopted: false, panelShown: true }, 0, 14)).toBe(true);
+    expect(shouldAdoptFrame({ adopted: false, panelShown: false }, 0, 14)).toBe(true);
+  });
+  it("never a second frame, nor beside a form of the top's own", () => {
+    expect(shouldAdoptFrame({ adopted: true, panelShown: true }, 0, 14)).toBe(false);
+    expect(shouldAdoptFrame({ adopted: false, panelShown: true }, 3, 14)).toBe(false);
   });
 });
 

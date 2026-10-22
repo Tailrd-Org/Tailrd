@@ -51,6 +51,17 @@ export function shouldAdoptRemoteHost(localRecognized: number, remoteRecognized:
 }
 
 /**
+ * Whether the top frame adopts a child frame's form now: one frame only, and
+ * only beside no form of its own. A panel already shown for the posting's own
+ * page adopts too: Comeet's job page mounted it for "Apply for this job", the
+ * form then opened in comeet.co's frame, and the Autofill found "No
+ * application form found on this page" (live, round 8).
+ */
+export function shouldAdoptFrame(state: { adopted: boolean; panelShown: boolean }, localRecognized: number, remoteRecognized: number): boolean {
+  return !state.adopted && shouldAdoptRemoteHost(localRecognized, remoteRecognized);
+}
+
+/**
  * An OverlayCallbacks whose every method marshals to `send(op, args)` and
  * returns the unwrapped value. Void methods (rescan / profile-resolved) fire
  * and forget, the host pushes fields back over the update channel.

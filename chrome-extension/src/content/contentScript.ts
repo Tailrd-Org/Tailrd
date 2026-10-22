@@ -81,7 +81,7 @@ import { activateElement, comboboxDisplaysValue, fillAriaCombobox, harvestCombob
 import { SECTION_KINDS, MAX_ROWS, rowsPresent, rowsNeeded, findAddButton } from "./repeatingSections";
 import { driveField, setDialogSuppression } from "./mainWorldClient";
 import { driveEachItem, reactSelectChips } from "./multiDrive";
-import { dispatchFormOp, makeProxyCallbacks, shouldAdoptRemoteHost } from "./crossFrame";
+import { dispatchFormOp, makeProxyCallbacks, shouldAdoptFrame } from "./crossFrame";
 import { matchOption, verifyControl, writeControl } from "./writeEngine";
 import {
   showOverlay,
@@ -2466,11 +2466,11 @@ function initialize(): void {
 
         case "REMOTE_FORM_AVAILABLE": {
           // A child frame owns a form. Adopt it only if WE have no form of our
-          // own and haven't already mounted a panel for it.
+          // own and haven't already adopted one; a panel shown for this page's
+          // Apply button switches to the form that Apply opened in a frame.
           if (
             isTopFrame &&
-            !overlayShown &&
-            shouldAdoptRemoteHost(recognizedCount(lastFields), message.recognized)
+            shouldAdoptFrame({ adopted: adoptedRemote, panelShown: overlayShown }, recognizedCount(lastFields), message.recognized)
           ) {
             const frameId = message.frameId;
             const send = (op: FormOpName, args: unknown[]): Promise<FormOpResult> =>

@@ -26,12 +26,16 @@ const ashby = (board, id) => `https://jobs.ashbyhq.com/${board}/${id}/applicatio
 const lever = (board, id) => `https://jobs.lever.co/${board}/${id}/apply`;
 
 /** Comeet's job page opens its form in a frame of its own when "Apply for
- *  this job" is clicked: the user's click, then the frame. */
+ *  this job" is clicked: the user's click, then the form, as the user waits
+ *  for it (the first run started filling before the frame had one). */
 async function userOpensComeetForm(page) {
   const apply = page.locator('button:has-text("Apply for this job")').first();
   await apply.waitFor({ state: "attached", timeout: 15000 });
   await apply.evaluate((el) => el.click());
-  await page.waitForSelector('iframe[src*="/apply?"]', { state: "attached", timeout: 15000 });
+  const frameEl = await page.waitForSelector('iframe[src*="/apply?"]', { state: "attached", timeout: 15000 });
+  const frame = await frameEl.contentFrame();
+  if (frame) await frame.waitForSelector("input:not([type=hidden])", { state: "visible", timeout: 20000 });
+  await new Promise((r) => setTimeout(r, 2500));
 }
 
 export default [
