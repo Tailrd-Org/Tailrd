@@ -229,3 +229,20 @@ describe("Gusto's metro areas (live, round 8)", () => {
     expect(metro("US_OPT_ANALYST")).toBe("Other");
   });
 });
+
+describe("Insomniac's veteran list once its lazy options load (live, round 8)", () => {
+  // Verbatim from the page (the final run).
+  const VETERAN = ["I identify as one or more of the above categories of “protected veteran”", "I do not fall into one of the above categories of “protected veteran”", "I previously served in the military (US), but none of the above apply to me.", "I don't wish to answer"];
+  it("someone who never served is no protected veteran (the self-ID snap left it blank)", () => {
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label id="q7-label" for="q7">Are you a protected veteran? *</label><div class="select__control"><input id="q7" role="combobox" aria-haspopup="true" aria-expanded="false" aria-autocomplete="list" aria-labelledby="q7-label"></div></div></form>`;
+    const p = persona("COMPLETE_CANADIAN");
+    const { fields, registry } = scanPage(p, true);
+    expect(resolveWithOptions(fields[0], registry, p, null, true, VETERAN)).toBe(VETERAN[1]);
+  });
+  it("a protected veteran is the first, not the one who served outside the categories", () => {
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label id="q7-label" for="q7">Are you a protected veteran? *</label><div class="select__control"><input id="q7" role="combobox" aria-haspopup="true" aria-expanded="false" aria-autocomplete="list" aria-labelledby="q7-label"></div></div></form>`;
+    const p = persona("US_VETERAN");
+    const { fields, registry } = scanPage(p, true);
+    expect(resolveWithOptions(fields[0], registry, p, null, true, VETERAN)).toBe(VETERAN[0]);
+  });
+});

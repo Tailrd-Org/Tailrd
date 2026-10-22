@@ -136,7 +136,16 @@ function veteranClaim(text: string): VeteranClaim {
   // SmartRecruiters bank, round 7): read as "not a protected veteran", it
   // tied with that option, and a never-served applicant got neither.
   if (/\bveterans?\b[^.]{0,20}\bbut\b[^.]{0,10}\bnot (a )?protected\b/.test(t)) return "veteran-unprotected";
+  // Served, outside the categories listed: "I previously served in the
+  // military (US), but none of the above apply to me." (Insomniac on
+  // Greenhouse, live, round 8: read as a veteran, it tied with the
+  // protected veteran's option).
+  if (/\bserved\b[^.]{0,60}\bbut\b[^.]{0,20}\bnone of the above\b/.test(t)) return "veteran-unprotected";
   if (/\bnot (a )?protected veterans?\b|\bnot protected\b/.test(t)) return "not-protected";
+  // A protected veteran negated further back: "I do not fall into one of the
+  // above categories of 'protected veteran'" (Insomniac) read as protected,
+  // and someone who never served got no option at all.
+  if (/\b(do not|don t|does not|am not|is not)\b[^.]{0,60}\bprotected veterans?\b/.test(t)) return "not-protected";
   if (/\bprotected veterans?\b/.test(t)) return "protected";
   // "I am not a U.S. veteran" (Gopuff on Lever, question bank 2026-10-08).
   if (/\bnever served\b|\bno military (service|experience)\b|\bnot (a |an )?(u s |us |american )?veterans?\b|\bnon ?veterans?\b/.test(t)) return "never-served";
