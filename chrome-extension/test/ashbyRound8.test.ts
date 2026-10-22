@@ -141,3 +141,19 @@ describe("a degree asked at one level (Barnes & Thornburg, Ashby bank, round 8)"
     expect(ask("BOOTCAMP_CAREER_GAP", "Degree", ["Associate Degree", "Bachelor's Degree", "Master's Degree", "Phd", "Other"], "Quora")).toBe("Other");
   });
 });
+
+describe("work eligibility in two countries (the Ashby bank, round 8)", () => {
+  it("a heading naming two countries is no one-country question (Jane)", () => {
+    // The heading rule asked only the job's country: a Canadian citizen got
+    // "No, I'm not eligible".
+    const opts = ["I’m eligible to work in Canada", "I’m eligible to work in the United States", "I’m eligible to work in both countries", "No, I'm not eligible"];
+    expect(ask("COMPLETE_CANADIAN", "Work Eligibility in Canada or the United States", opts, "Jane", "US")).toBe(opts[0]);
+    expect(ask("US_VETERAN", "Work Eligibility in Canada or the United States", opts, "Jane", "US")).toBe(opts[1]);
+  });
+  it("either country's work right is a Yes (Clearco)", () => {
+    // A Canadian citizen said No to "…in Canada or the US without sponsorship?".
+    expect(ask("COMPLETE_CANADIAN", "Are you legally able to work in Canada or the US without sponsorship?", YN, "Clearco", "CA")).toBe("Yes");
+    expect(ask("US_VETERAN", "Are you legally able to work in Canada or the US without sponsorship?", YN, "Clearco", "CA")).toBe("Yes");
+    expect(ask("US_OPT_ANALYST", "Are you legally able to work in Canada or the US without sponsorship?", YN, "Clearco", "CA")).toBe("No");
+  });
+});

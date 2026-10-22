@@ -600,6 +600,21 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
   // "I am authorized … and will not require visa sponsorship" affirms the same.
   if (hasRight && (WITHOUT_SPONSOR.test(n) || (STATES_RIGHT.test(n) && hasSponsor && NEGATED_NEED.test(n)))) {
     if (!isBooleanQuestion(q)) return abstain("work-auth-without-sponsorship:not-boolean");
+    // "…in Canada or the US without sponsorship?" (Clearco, Ashby bank): the
+    // right without sponsorship in either one. A Canadian citizen said No,
+    // judged on the job's country alone.
+    const named = countriesNamedIn(q.label);
+    if (named.length >= 2 && /\bor\b/.test(n)) {
+      const each = named.map((c) => {
+        const ca = authorizedIn(facts.workAuth, c, residence);
+        const cs = needsSponsorshipIn(facts.workAuth, c, residence);
+        if (isHigh(ca) && ca.value === true && isHigh(cs) && cs.value === false) return true;
+        return (isHigh(ca) && ca.value === false) || (isHigh(cs) && cs.value === true) ? false : null;
+      });
+      if (each.includes(true)) return booleanResult(true, q, "work-auth-without-sponsorship:either");
+      if (each.every((v) => v === false)) return booleanResult(false, q, "work-auth-without-sponsorship:either");
+      return abstain("work-auth-without-sponsorship:unknown");
+    }
     const a = authorizedIn(facts.workAuth, country, residence);
     const s = needsSponsorshipIn(facts.workAuth, country, residence);
     if (isHigh(a) && a.value === false) return booleanResult(false, q, "work-auth-without-sponsorship:not-authorized");
@@ -778,7 +793,10 @@ function resolveCountryEligibility(q: QuestionInput, facts: ProfileFacts, reside
   // employer" / "…for my present employer only" both name the US).
   const asked = countriesNamedIn(q.label);
   if (asked.length < 2 || !/\bor\b/.test(qnorm(q.label))) return null;
-  const opts = (q.options ?? []).filter((o) => o.trim()).map((o) => ({ raw: o, pol: optionPolarity(o), places: countriesNamedIn(o) }));
+  // A statement of the right with no "Yes" in it is one too: "I'm eligible
+  // to work in Canada" (Jane, Ashby bank, round 8).
+  const affirms = (o: string): boolean => /\b(eligible|authori[sz]ed|permitted|allowed|entitled)\b/.test(qnorm(o)) && !/\b(not|no|ineligible|unable)\b/.test(qnorm(o));
+  const opts = (q.options ?? []).filter((o) => o.trim()).map((o) => ({ raw: o, pol: optionPolarity(o) ?? (affirms(o) ? true : null), places: countriesNamedIn(o) }));
   const yes = opts.filter((o) => o.pol === true && o.places.length === 1 && asked.includes(o.places[0]));
   if (yes.length < 2 || new Set(yes.map((o) => o.places[0])).size !== yes.length) return null;
   const may = yes.map((o) => ({ o, a: authorizedIn(facts.workAuth, o.places[0], residence) }));
@@ -3977,7 +3995,13 @@ export function resolveQuestion(
   // "Work Eligibility in the United States 🇺🇸" over "Yes, I'm eligible to
   // work in the United States" | "No, I'm not eligible" (Jane on Ashby, live,
   // round 8): a heading that is the question it heads.
-  const heading = /^(?:work|employment) (?:eligibility|authori[sz]ation)(?: status)? in (?:the )?([a-z .]+?)\s*$/.exec(n);
+  // The places in the label's own words: "Work Eligibility in Canada or the
+  // United States" over "I'm eligible to work in Canada" | … | "No, I'm not
+  // eligible" (Jane, Ashby bank) was asked in lower case, its countries went
+  // unread, and the job's country alone made a Canadian citizen's "No".
+  const heading = /^(?:work|employment) (?:eligibility|authori[sz]ation)(?: status)? in (?:the )?([a-z .]+?)\s*$/.test(n)
+    ? /\bin\s+(?:the\s+)?([A-Za-z][A-Za-z .]*?)[\s\W]*$/.exec(raw)
+    : null;
   if (heading && (q.options ?? []).filter((o) => o.trim()).length >= 2) {
     const inner = resolveQuestion({ ...q, label: `Are you eligible to work in ${heading[1]}?` }, facts, profile, ctx);
     if (inner?.status === "answer") return inner;
