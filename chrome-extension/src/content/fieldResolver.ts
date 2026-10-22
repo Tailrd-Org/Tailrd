@@ -667,6 +667,16 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     if (adjusted === null) return none(true, "employment:not-current");
     if (adjusted !== undefined) value = adjusted;
   }
+  // A self-ID answer never goes in a long-text box that only mentions the
+  // topic: "Other than your ethnicity, gender, and disability status (survey
+  // below), is there anything you would like to share with us, or
+  // information to help us accommodate you?" (1Password on Ashby, live,
+  // round 8) got "Female".
+  if (input.sensitive && kind === "longText" && (isProsePrompt(label) || /\bother than\b/i.test(label))) return none(true, "eeo:not-asked-here");
+  // A follow-up for those who chose another option ("If you selected
+  // 'Other', you can describe your gender in your own words below", Jane on
+  // Ashby, live, round 8, got "Non-binary" beside the list that held it).
+  if (input.sensitive && /^\W*(?:optional\W*)?if (?:you (?:selected|chose|answered|checked|picked|indicated|said)|your (?:answer|selection|choice|response)|other|not listed)\b/i.test(label)) return none(true, "eeo:follow-up");
   if (input.sensitive) {
     const refined = refineGenderIdentity(category, label, options, profile);
     if (refined !== undefined) value = refined;

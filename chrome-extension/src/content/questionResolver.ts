@@ -2958,6 +2958,46 @@ function resolveListedPlaces(q: QuestionInput, raw: string, facts: ProfileFacts,
   return inner?.status === "answer" ? inner : abstain("listed-places:resident");
 }
 
+const MONTHS_FULL = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/**
+ * A start the posting sets, against the stated earliest start, read over the
+ * whole text: "This Internship requires you to be able to start no later than
+ * Monday January 4th, 2027. Are you able to start on this date?" (Pebl on
+ * Ashby, live, round 8: blank for someone who starts in May). A weekday and a
+ * day of the month are allowed; "before" excludes the day, "by", "no later
+ * than" and "on" include it.
+ */
+function resolveStartBound(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!isBooleanQuestion(q)) return null;
+  const m = /\b(?:start|begin|join|commence)\w*\b[^?]{0,40}?\b(no later than|by|before|on)\s+(?:(?:monday|tuesday|wednesday|thursday|friday|saturday|sunday)\s+)?(january|february|march|april|may|june|july|august|september|october|november|december)\s+(?:(\d{1,2})(?:st|nd|rd|th)?\s+)?((?:19|20)\d{2})\b/.exec(n);
+  if (!m || !m[3]) return null;
+  const av = facts.availability;
+  if (!isHigh(av.earliestStart)) return abstain("start-bound:unknown");
+  const day = Date.UTC(Number(m[4]), MONTHS_FULL.indexOf(m[2]), Number(m[3]));
+  const limit = m[1] === "before" ? day : day + 86400000;
+  return booleanResult(av.earliestStart.value.getTime() < limit, q, "start-bound");
+}
+
+/**
+ * "Are you available to start immediately? If not, when?" (Regent on Ashby,
+ * live, round 8: sent to the AI). Yes for an earliest start within a week,
+ * the span "Immediately" stands for in start lists (durationRange); later is
+ * No. A window the question names ("immediately or within two weeks") is
+ * not this question, nor is a legal right to start ("would you be legally
+ * eligible to begin employment immediately?", Twitch: work authorization).
+ */
+function resolveStartImmediately(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!isBooleanQuestion(q)) return null;
+  if (!/\b(start|begin|join|commence|availab)\w*\b[^?]{0,30}\b(immediately|right away|asap|as soon as possible)\b|\bimmediate(ly)? (start|availab\w*)\b/.test(n)) return null;
+  if (/\bwithin\b|\b\d+\s*(day|week|month)s?\b|\bnotice\b/.test(n)) return null;
+  if (/\b(legal\w*|lawful\w*|eligib\w*|authori[sz]\w*|permitted|allowed|entitled)\b/.test(n)) return null;
+  const av = facts.availability.earliestStart;
+  if (!isHigh(av)) return abstain("start-immediately:unknown");
+  const days = Math.ceil((av.value.getTime() - facts.today.getTime()) / 86400000);
+  return booleanResult(days <= 7, q, "start-immediately");
+}
+
 /** "Which location are you applying for?": one of the posting's own places. */
 const POSTING_LOCATION =
   /\b(which|what) (location|office|site|city|hub|work location)s? (are|is) (you|your application) (applying|interested)\b|\b(location|office|site)s? (that )?you (are |re )?applying (for|to)\b|\bapplying (for|to) (which|what) (location|office)\b/;
@@ -3252,7 +3292,10 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
     // "Have you worked with us before?" (Paylocity, live 2026-10-05); "worked
     // with" anything else is usually a skill.
     // "Are you an internal employee of Flourish Research…?" (Workable bank).
-    /\b(current|former|past|previous|prior|internal|existing)(ly)?\b[^?]*\b(employee|employed|worked|contractor)\b|\bworked (for|at) (us|\w+)|\bworked with us\b|\b(ever|previously) (been )?(employed|worked)\b|\bemployed by\b|\b(provided|done|performed|did) (any )?(contract |consulting |freelance )?(work|services) for\b|\b(currently|presently) work (for|at)\b/.test(n) ||
+    // "Are you currently working with Amplify Education, Inc.?" (Ashby, live,
+    // round 8) too: working WITH a company, when the name is the hiring
+    // company's or a company's (below).
+    /\b(current|former|past|previous|prior|internal|existing)(ly)?\b[^?]*\b(employee|employed|worked|contractor)\b|\bworked (for|at) (us|\w+)|\bworked with us\b|\b(ever|previously) (been )?(employed|worked)\b|\bemployed by\b|\b(provided|done|performed|did) (any )?(contract |consulting |freelance )?(work|services) for\b|\b(currently|presently) work (for|at)\b|\b(currently|presently) working (for|at|with)\b/.test(n) ||
     // A job there: "Have you had a job or internship paid by LLNL?" (LLNL,
     // SmartRecruiters bank, round 7) was read as "have you had an
     // internship?", Yes for three applicants who never worked there.
@@ -3274,12 +3317,22 @@ function resolveFormerEmployee(q: QuestionInput, n: string, raw: string, facts: 
   // ("…employed by, or contracted to, Ross Video…" names it after a comma;
   // "…by any of our Range Group companies" after "our": Jobvite and
   // Greenhouse, 2026-10-17.)
+  // A name may start with digits ("1Password", "3M"; Ashby, live, round 8).
+  const NAME = String.raw`(?:[A-Z][\w&.'-]*|\d+[A-Za-z][\w&.'-]*)`;
+  // Employed, engaged or contracted WITH a company names it too ("…employed
+  // with Amplify?", "…engaged with Pebl…?"; Ashby, live, round 8); "worked
+  // with" anything else is usually a skill.
+  const viaWith = new RegExp(String.raw`\b(?:employed|engaged|contracted|working)\s+with\s+(?:the\s+)?(${NAME}(?:\s+[A-Z][\w&.'-]*){0,3})`).exec(raw);
   const named =
-    /\b(?:of|by|for|at|to)\s*,?\s+(?:any of\s+)?(?:(?:the|our)\s+)?([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,3})/.exec(raw) ??
+    new RegExp(String.raw`\b(?:of|by|for|at|to)\s*,?\s+(?:any of\s+)?(?:(?:the|our)\s+)?(${NAME}(?:\s+[A-Z][\w&.'-]*){0,3})`).exec(raw) ??
+    viaWith ??
     // "a current MongoDB employee" (MongoDB's embedded form, live 2026-10-03):
     // a qualifier may sit between the article and the name, or two ("a
     // current or former Alphabet employee", Waymo, live 2026-10-05).
-    /\b(?:a|an)\s+(?:(?:current|former|past|previous|prior|full[- ]time|part[- ]time)(?:\s*(?:or|and|\/)\s*(?:current|former|past|previous|prior))?\s+)?([A-Z][\w&.'-]*(?:\s+[A-Z][\w&.'-]*){0,2})\s+(?:employee|contractor|intern)\b/.exec(raw);
+    new RegExp(String.raw`\b(?:a|an)\s+(?:(?:current|former|past|previous|prior|full[- ]time|part[- ]time)(?:\s*(?:or|and|\/)\s*(?:current|former|past|previous|prior))?\s+)?(${NAME}(?:\s+[A-Z][\w&.'-]*){0,2})\s+(?:employee|contractor|intern)\b`).exec(raw);
+  // Working with something that is no company ("…working with Python?") is a
+  // skill: only the hiring company, or a name a company carries, counts.
+  if (named && named === viaWith && /\bworking\s+with\b/i.test(named[0]) && !(ctx.company && sameCompany(named[1], ctx.company)) && !/\b(inc|llc|ltd|corp|corporation|company|co|plc|gmbh|group)\b\.?/i.test(named[1] + raw.slice((named.index ?? 0) + named[0].length, (named.index ?? 0) + named[0].length + 12))) return null;
   const pointsHere = /\b(for us|with us|here|this company|our company|the company|this organi[sz]ation|our organi[sz]ation)\b/.test(n);
   // "Are you a current or former employee?" (Carvana's embedded Greenhouse,
   // live 2026-10-05) names no company and no other place: on the employer's
@@ -3845,8 +3898,20 @@ export function resolveQuestion(
     }
     return abstain("conditional-follow-up");
   }
+  // "Work Eligibility in the United States 🇺🇸" over "Yes, I'm eligible to
+  // work in the United States" | "No, I'm not eligible" (Jane on Ashby, live,
+  // round 8): a heading that is the question it heads.
+  const heading = /^(?:work|employment) (?:eligibility|authori[sz]ation)(?: status)? in (?:the )?([a-z .]+?)\s*$/.exec(n);
+  if (heading && (q.options ?? []).filter((o) => o.trim()).length >= 2) {
+    const inner = resolveQuestion({ ...q, label: `Are you eligible to work in ${heading[1]}?` }, facts, profile, ctx);
+    if (inner?.status === "answer") return inner;
+  }
   const listed = resolveListedPlaces(q, raw, facts, profile, ctx);
   if (listed) return listed;
+  const startBound = resolveStartBound(q, n, facts);
+  if (startBound) return startBound;
+  const startNow = resolveStartImmediately(q, n, facts);
+  if (startNow) return startNow;
   const conditional = resolveConditional(q, raw, facts, profile, ctx);
   if (conditional !== undefined) return conditional;
   // An attention check names its answer: "To be considered, please choose

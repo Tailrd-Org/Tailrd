@@ -191,13 +191,16 @@ const GOV_OFFICIAL =
 // "…ever been an employee of the U.S. Federal Government?", "…an employee of a
 // state, local, or municipal government entity…" (ServiceNow, SmartRecruiters
 // bank and live, round 7: blank for everyone) too.
+// "Do you currently work or have you in the past 24 months worked for a
+// local educational agency/school district or a state education agency?"
+// (Amplify on Ashby, live, round 8): public school bodies are government.
 const GOV_EMPLOYEE =
-  /\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) employees?\b|\b(an )?employee of (the |a |an )?((u ?s|united states|federal|state|local|municipal|provincial|tribal|or) )*(government|congress|military)\b/;
+  /\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) employees?\b|\b(an )?employee of (the |a |an )?((u ?s|united states|federal|state|local|municipal|provincial|tribal|or) )*(government|congress|military)\b|\b(work|worked|working|employed)\b[^?]{0,40}\b((local|state) (educational|education) agenc(y|ies)|school districts?)\b/;
 /** An employer that is a government body ("Public Services and Procurement
  *  Canada", "City of Ottawa", "U.S. Department of Energy"). Broad on purpose: a
  *  false hit only leaves the question to the applicant. */
 const GOV_EMPLOYER =
-  /\b(government|gouvernement|ministry|ministere|department of|dept of|federal|provincial|municipal|municipality|city of|town of|county of|region of|province of|state of|public services?|public sector|procurement|parliament|senate|house of commons|legislative|legislature|treasury|revenue agency|border services|armed forces|army|navy|air force|marine corps|coast guard|national guard|police|rcmp|crown corporation)\b|\b(health|transport|statistics|service|parks|environment|justice|finance|heritage|agriculture|immigration|fisheries|infrastructure|natural resources|global affairs|veterans affairs|public safety|indigenous services|shared services|library and archives|elections) canada\b|\bcanada (revenue|border|post)\b|\b(nasa|noaa|usps|fbi|cia|nsa)\b|\b(u s|united states) (department|army|navy|air force|government)\b/;
+  /\bschool (district|board)s?\b|\bpublic schools?\b|\bboard of education\b|\beducation(al)? agenc(y|ies)\b|\b(government|gouvernement|ministry|ministere|department of|dept of|federal|provincial|municipal|municipality|city of|town of|county of|region of|province of|state of|public services?|public sector|procurement|parliament|senate|house of commons|legislative|legislature|treasury|revenue agency|border services|armed forces|army|navy|air force|marine corps|coast guard|national guard|police|rcmp|crown corporation)\b|\b(health|transport|statistics|service|parks|environment|justice|finance|heritage|agriculture|immigration|fisheries|infrastructure|natural resources|global affairs|veterans affairs|public safety|indigenous services|shared services|library and archives|elections) canada\b|\bcanada (revenue|border|post)\b|\b(nasa|noaa|usps|fbi|cia|nsa)\b|\b(u s|united states) (department|army|navy|air force|government)\b/;
 /** A title naming an official's role, not just a job at a government body. */
 const OFFICIAL_TITLE = /\b(official|officer|minister|commissioner|contracting|procurement|purchasing|buyer|director general)\b/;
 
@@ -223,6 +226,11 @@ function governmentHistory(profile: UserApplicationProfile): { employer: boolean
 const GOV_BODY =
   /\b(government|governmental|public sector|civil service|military|armed forces)\b|\b(federal|state|local|municipal|provincial|tribal) (agenc(y|ies)|entit(y|ies)|bod(y|ies)|employees?)\b/;
 const FAMILY_GOVERNMENT: QuestionResult = { status: "abstain", rule: "default:family-government-employment", blockBackend: true };
+
+/** Taking the job itself, or an offer of it: the applicant's decision
+ *  (decision 97), never a consent to terms. */
+const OFFER_ACCEPTANCE = /\baccept\w* (the |this |an |a |our |any )?(job )?(position|offer|job|role)\b(?! (application|description|posting|terms|conditions|polic\w*))/;
+const OFFER_DECISION: QuestionResult = { status: "abstain", rule: "default:offer-acceptance", blockBackend: true };
 
 /**
  * A relative's government EMPLOYMENT: "D. Within the past 5 years, has a
@@ -254,7 +262,8 @@ const CONTACT_METHOD = /\b(contact|communication) (method|preference|channel)s?\
 const HOW_HEARD =
   // "Where did you first see this position?" (Iambic), "How'd you hear about
   // Range?" (Ashby bank 2026-10-08).
-  /\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|applicant|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
+  // "What brought you to this job posting" (1Password on Ashby, live, round 8).
+  /\bwhat (brought|led) you to (this|the|our) (job )?(posting|listing|advert\w*|ad)\b|\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|applicant|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
 // ("From which job site did you see this posting?", Data Lab on Lever, live
 // 2026-10-08, the last alternative.)
 
@@ -781,6 +790,12 @@ export function resolveDefault(
   if (/\b(available|able) to work (during|for|throughout|over) the (work |internship |co ?op |program |employment )?(period|dates|term|duration|session)\b[^?]{0,60}\b(specified|stated|listed|outlined|described|posted|posting)\b/.test(n)) {
     return polar(true, q, "default:posted-period-accepted");
   }
+  // "This is a full-time 12 week internship. Are you able to commit to the
+  // full duration?" (Pebl on Ashby, live, round 8): the posting's own length,
+  // accepted by applying (decision 86) unless the applicant prefers part-time.
+  if (/\b(commit|committed|available|stay) (to|for) the (full|entire|whole|complete) (duration|length|term|period|program|programme|internship|co ?op)\b/.test(n)) {
+    return /\bpart ?time\b/.test(qn(profile.workPreference ?? "")) ? null : polar(true, q, "default:posted-duration-accepted");
+  }
   // "If requested, would you be able to provide documentation reflecting the
   // education and employment history listed on your resume?" (Justworks on
   // Greenhouse, live 2026-10-17): the history is the applicant's own, and so
@@ -843,6 +858,10 @@ export function resolveDefault(
     return entries.length > 0 && entries.every((e) => e.completed === true) ? polar(false, q, "default:no-research-or-funding") : null;
   }
 
+  // "Do you accept the position at the salary & terms stated, if offered?"
+  // (Regent on Ashby, live, round 8) was a consent to "terms": Yes for
+  // everyone. Whether the job and its pay suit is the applicant's to say.
+  if (OFFER_ACCEPTANCE.test(n)) return OFFER_DECISION;
   // Consent-only options, after the opt-outs above: the acknowledgement is
   // given whatever its paragraph mentions (an EEO statement, the ADA).
   if (consentOnly && !RECORDING.test(n)) return polar(true, q, "default:consent");
