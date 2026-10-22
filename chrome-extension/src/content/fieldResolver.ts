@@ -317,6 +317,12 @@ function demographicSnap(category: FieldCategory, value: string, options: string
   return closestDemographicOption(category, value, options) ?? (severalHold(value, options) ? null : snapToOption(options, value, category));
 }
 
+/** A degree field asked at one level of study ("Law Degree", "Undergraduate
+ *  Degree", "Graduate Degree"), not a row's own Degree list. */
+export function degreeAtALevel(label: string): boolean {
+  return /\b(law|undergrad\w*|bachelor\w*|graduate|post ?grad\w*|master\w*|doctor\w*|doctoral|ph ?d|mba)\b/i.test(label);
+}
+
 export function snapToOption(options: string[], value: string, category: FieldCategory): string | null {
   if (category === "school") return snapSchool(options, value);
   const direct = pick(options, value);
@@ -753,6 +759,13 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
   // sport?" (Hudl), "…your experience in product marketing" (Wikimedia).
   if (source === "category" && category === "experience" && !GENERAL_EXPERIENCE.test(label)) {
     return none(false, "wrong-kind:experience-of-a-kind");
+  }
+  // A degree asked at one level ("Law Degree", "Undergradute Degree",
+  // "Graduate Degree": Barnes & Thornburg on Ashby, question bank, round 8)
+  // is no row's Degree list: a bootcamp's certificate took each list's
+  // "Other" there. Decision 96 is for the row's own Degree list.
+  if (source === "category" && category === "degree" && value && /^other\b/i.test(value.trim()) && degreeAtALevel(label)) {
+    return none(false, "degree:level-asked");
   }
 
   // 4. Gate. Single checkboxes keep their own intent logic (checkboxIntent),

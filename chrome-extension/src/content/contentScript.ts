@@ -70,7 +70,7 @@ import { loadWorkableGuesses, workableShortcode } from "./pageGuesses";
 import { defaultSelectedIds, fillSelection, isDefaultSelected } from "../shared/selection";
 import { extractJobContext, extractJobIdentity } from "./jobContext";
 import { detectJobPlace, sanitizeCompany, type JobPlace } from "./jobLocation";
-import { EEO_DECLINE, getResolveContext, setResolveContext } from "./fieldResolver";
+import { degreeAtALevel, EEO_DECLINE, getResolveContext, setResolveContext } from "./fieldResolver";
 import { formCountryHint } from "./questionResolver";
 import { isHigh, profileFacts } from "./profileFacts";
 import { aiFillCandidates, isBoolish, needsOptionHarvest, planAiFill, planFillRoute, planOnDeviceReask, planReaskFields, planSensitiveReask, tallyOutcomes, toAiFillField, type PlannedAnswer, type ReaskCandidate } from "./aiFillPlanner";
@@ -746,7 +746,9 @@ function initialize(): void {
     const f = lastFields.find((x) => x.id === fieldId);
     if (!f || f.category !== "degree" || !lastProfile) return null;
     const edu = educationEntryFor(lastProfile, f.groupIndex ?? null);
-    return edu?.degree ? degreeTitleOption(options, edu.degree) : null;
+    const titled = edu?.degree ? degreeTitleOption(options, edu.degree) : null;
+    // A list asked at one level takes no "Other" for the row's certificate.
+    return titled && /^other\b/i.test(titled.trim()) && degreeAtALevel(f.label) ? null : titled;
   }
 
   /** A self-identification field's category: its list is chosen from by the

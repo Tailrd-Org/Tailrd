@@ -125,3 +125,19 @@ describe("Amplify's school-district employment", () => {
     expect(ask("LEA_TEACHER", LEA, YN, "Amplify")).toBeNull();
   });
 });
+
+describe("a degree asked at one level (Barnes & Thornburg, Ashby bank, round 8)", () => {
+  it("a bootcamp's certificate takes no level's Other (decision 96 is the row's own Degree list)", () => {
+    // BOOTCAMP_CAREER_GAP: a bootcamp certificate and a high school diploma.
+    // The bank's re-run gave "Other", "Other bachelor's degree", "Other".
+    const lists: Array<[string, string[]]> = [
+      ["Law Degree", ["JD", "LLM", "LLB", "Other"]],
+      ["Undergradute Degree", ["No degree completed", "Some college/undergraduate coursework", "Associate Degree", "Bachelor of Arts (B.A.)", "Bachelor of Science (B.S.)", "Other bachelor's degree"]],
+      ["Graduate Degree", ["MA", "MS", "MBA", "MFA", "MEd", "MSW", "MPH", "Ph.D.", "Ed.D.", "M.D.", "Pharm.D.", "Other"]],
+    ];
+    for (const [label, opts] of lists) expect(ask("BOOTCAMP_CAREER_GAP", label, opts, "Barnes & Thornburg"), label).toBeNull();
+  });
+  it("the row's own Degree list still takes its Other", () => {
+    expect(ask("BOOTCAMP_CAREER_GAP", "Degree", ["Associate Degree", "Bachelor's Degree", "Master's Degree", "Phd", "Other"], "Quora")).toBe("Other");
+  });
+});

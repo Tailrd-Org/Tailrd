@@ -24,6 +24,16 @@ const DECLINE_PATTERNS = [
 
 const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
+/** A decline option: one that declines, never one that answers Yes or No
+ *  ("Yes, I have a disability but do not want to provide specifics",
+ *  Hootsuite on Greenhouse, question bank 3: a stated "Prefer not to say" took
+ *  it). */
+const isDeclineOption = (n: string): boolean => DECLINE_PATTERNS.some((d) => n.includes(d)) && !/^(yes|no)\b/.test(n);
+
+/** An option's own words before its description: "White - A person having
+ *  origins…" is "white", "East Asian (inclusive of…)" is "east asian". */
+const headOf = (raw: string): string => norm(raw.split(/\s+[-\u2013\u2014:]\s*|\s*\(|,/)[0] ?? "");
+
 /** `needle` appears in `hay` as whole words. Substrings read "male" inside
  *  "female" and "man" inside "woman" (2026-10-03). */
 const hasWords = (hay: string, needle: string): boolean => ` ${hay} `.includes(` ${needle} `);
@@ -32,7 +42,8 @@ const hasWords = (hay: string, needle: string): boolean => ` ${hay} `.includes(`
  *  ("Asian" in East, South and Southeast Asian). No pick, by any matcher. */
 export function severalHold(value: string, options: string[]): boolean {
   const v = norm(value);
-  return Boolean(v) && options.filter((o) => hasWords(norm(o), v)).length > 1;
+  const holding = v ? options.filter((o) => hasWords(norm(o), v)) : [];
+  return holding.length > 1 && holding.filter((o) => headOf(o) === v).length !== 1;
 }
 
 /** Priority-ordered option substrings for a normalized profile value. */
@@ -259,7 +270,7 @@ export function isDeclineText(text: string): boolean {
 /** The option that declines to answer ("I don't wish to answer", "Decline To
  *  Self Identify"), when the list has exactly one. */
 export function declineOption(options: string[]): string | null {
-  const hits = options.filter((o) => DECLINE_PATTERNS.some((d) => norm(o).includes(d)));
+  const hits = options.filter((o) => isDeclineOption(norm(o)));
   return hits.length === 1 ? hits[0] : null;
 }
 
@@ -282,7 +293,15 @@ export function closestDemographicOption(
   const exact = opts.find((o) => o.n === v);
   if (exact) return exact.raw;
   const holding = opts.filter((o) => hasWords(o.n, v));
-  if (holding.length > 0) return holding.length === 1 ? holding[0].raw : null;
+  if (holding.length === 1) return holding[0].raw;
+  // Several hold it, and one STARTS with it: the others carry it in a
+  // description ("Two or More Races - refers to 2 or more races other than
+  // White" beside "White - A person having origins…", Webflow on Greenhouse,
+  // question bank 3: White was left blank).
+  if (holding.length > 1) {
+    const led = holding.filter((o) => headOf(o.raw) === v);
+    return led.length === 1 ? led[0].raw : null;
+  }
   const inside = opts.filter((o) => hasWords(v, o.n));
   // "Gay or Lesbian" holds both "Gay" and "Lesbian": an either-or names
   // neither (Superhuman ticked "Lesbian", round 3, 2026-10-03).
@@ -307,6 +326,6 @@ export function closestDemographicOption(
   //    the list cannot hold ("Two or More Races" on a mark-all-that-apply list)
   //    is left to the applicant, never declined on their behalf.
   if (!isDeclineText(value)) return null;
-  const decline = opts.find((o) => DECLINE_PATTERNS.some((d) => o.n.includes(d)));
+  const decline = opts.find((o) => isDeclineOption(o.n));
   return decline ? decline.raw : null;
 }

@@ -9,6 +9,7 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { pickOption } from "../src/content/mainWorldDriver";
 import { fillAriaCombobox } from "../src/content/comboboxEngine";
+import { closestDemographicOption, declineOption } from "../src/content/demographicMatch";
 import { stubLayout } from "./helpers/layout";
 
 // Verbatim from Gusto's posting (Greenhouse job board API, 2026-10-22).
@@ -109,5 +110,21 @@ describe("the combobox engine's pick for a self-ID list", () => {
     const res = await fillAriaCombobox(input, "White", { ...fast, demographic: "eeoRace" });
     expect(res.filled).toBe(true);
     expect(shown()).toBe("White");
+  });
+});
+
+describe("the self-ID matcher on lists with descriptions (Greenhouse bank 3, round 8)", () => {
+  // Verbatim from Webflow's and Hootsuite's postings (question bank 3).
+  const WEBFLOW = ["American Indian or Alaska Native - A person having origins in any of the original peoples of North and South America (including Central America) and who maintain tribal affiliation or community attachment", "Asian - A person having origins in any of the original peoples of the Far East, Southeast Asia, or the Indian subcontinent", "Black - A person having origins in any of the Black racial groups of Africa", "Hispanic or LatinX  - A person of Cuban, Mexican, Puerto Rican, South or Central American, or other Spanish culture or origin regardless of race", "Native Hawaiian or Other Pacific Islander- A person having origins in any of the original peoples of Hawaii, Guam, Samoa, or other Pacific Islands", "Two or More Races - refers to 2 or more races other than White also known as multiracial", "White - A person having origins in any of the original people of Europe, the Middle East, or North Africa", "I do not wish to disclose", "Not Specified"];
+  const HOOTSUITE = ["Legally Blind, Low Vision, partially sighted and or totally Blind", "Episodic disabilities (Chronic illness or pain)", "Deaf, hearing loss", "Other", "Yes, I have a disability but do not want to provide specifics", "No, I don’t have a disability", "Prefer not to answer"];
+  it("the option that starts with the answer, where another names it in passing", () => {
+    // White was left blank: "Two or More Races … other than White" holds it too.
+    expect(closestDemographicOption("eeoRace", "White", WEBFLOW)).toBe(WEBFLOW[6]);
+    expect(closestDemographicOption("eeoRace", "Asian", GUSTO_RACE)).toBeNull();
+  });
+  it("a decline is no option that answers Yes or No", () => {
+    // "Prefer not to say" took "Yes, I have a disability but do not want to provide specifics".
+    expect(closestDemographicOption("eeoDisability", "Prefer not to say", HOOTSUITE)).toBe("Prefer not to answer");
+    expect(declineOption(HOOTSUITE)).toBe("Prefer not to answer");
   });
 });
