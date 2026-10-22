@@ -170,12 +170,12 @@ async function fillReactSelect(el: HTMLElement, value: string, placeHint?: strin
     // Degree and Discipline (live, round 8) load nothing while typed into
     // closed, so every try waited out 3.5 s and the ARIA fallback raced the
     // same lazy list under load ("Couldn't open the 'Bachelor' dropdown").
-    // Open it as a click does; a list that starts loading is waited for, one
-    // that does not (a lookup that searches only what is typed) is typed into
-    // at once.
+    // Open it as a click does (on GCM's page only the whole sequence on the
+    // input opened it: a lone mousedown or a focus left it shut); a list that
+    // starts loading is waited for, one that does not (a lookup that searches
+    // only what is typed) is typed into at once.
     if (!hit && missOptions.length === 0) {
-      const control = container.querySelector<HTMLElement>('[class*="-control"], [class*="__control"]') ?? rsInput(container) ?? container;
-      fireMouse(control, "mousedown");
+      pressLikeClick(rsInput(container) ?? container);
       let loading = false;
       for (let waited = 0; waited < 3000; waited += 50) {
         await sleep(50);
@@ -269,6 +269,24 @@ function fireMouse(el: HTMLElement, type: string): void {
   const view = typeof Window !== "undefined" && window instanceof Window ? window : undefined;
   el.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view }));
 }
+/** A person's click, as the content script's activateElement sends it: focus,
+ *  then pointer and mouse down and up, then click, at the element's centre. */
+function pressLikeClick(el: HTMLElement): void {
+  const rect = el.getBoundingClientRect();
+  const at = { bubbles: true, cancelable: true, composed: true, button: 0, clientX: rect.left + rect.width / 2, clientY: rect.top + rect.height / 2 };
+  try {
+    el.focus({ preventScroll: true });
+  } catch {
+    // not focusable: the sequence below still reaches its handlers
+  }
+  const PE = typeof PointerEvent === "function" ? PointerEvent : null;
+  if (PE) el.dispatchEvent(new PE("pointerdown", { ...at, buttons: 1 }));
+  el.dispatchEvent(new MouseEvent("mousedown", { ...at, buttons: 1 }));
+  if (PE) el.dispatchEvent(new PE("pointerup", { ...at, buttons: 0 }));
+  el.dispatchEvent(new MouseEvent("mouseup", { ...at, buttons: 0 }));
+  el.dispatchEvent(new MouseEvent("click", { ...at, buttons: 0 }));
+}
+
 function fireKey(el: HTMLElement, key: string): void {
   el.dispatchEvent(new KeyboardEvent("keydown", { key, bubbles: true, cancelable: true }));
 }

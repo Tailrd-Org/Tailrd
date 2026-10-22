@@ -218,7 +218,9 @@ function lazyReactSelect(fieldId: string, firstPage: string[], search: (q: strin
   const set = (labels: string[]): void => {
     instance.props = { ...instance.props, options: labels.map((label) => ({ label, value: label })), isLoading: false };
   };
-  control.addEventListener("mousedown", () => {
+  // Opened by a click, as on GCM's page (a lone mousedown or a focus, the
+  // driver's first try, left it shut).
+  control.addEventListener("click", () => {
     if (instance.props.menuIsOpen) return;
     instance.props = { ...instance.props, menuIsOpen: true, isLoading: true };
     setTimeout(() => set(firstPage), 120);
