@@ -264,8 +264,9 @@ const CONTACT_METHOD = /\b(contact|communication) (method|preference|channel)s?\
 const HOW_HEARD =
   // "Where did you first see this position?" (Iambic), "How'd you hear about
   // Range?" (Ashby bank 2026-10-08).
-  // "What brought you to this job posting" (1Password on Ashby, live, round 8).
-  /\bwhat (brought|led) you to (this|the|our) (job )?(posting|listing|advert\w*|ad)\b|\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|applicant|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
+  // "What brought you to this job posting" (1Password on Ashby, live, round 8),
+  // "Where have you learned about Samsara?" (Greenhouse, live, round 8).
+  /\bwhat (brought|led) you to (this|the|our) (job )?(posting|listing|advert\w*|ad)\b|\bhow (did )?you (first |originally )?(hear|heard|find|found|learn|learned|come across|came across|discover|discovered|connect|connected)\b|\bwhere did you (first |originally )?(hear|see|find|learn|come across|discover)\b|\bwhere have you (first |originally )?(heard|seen|found|learned|learnt|come across|discovered)\b|\bhowd you (first )?(hear|find|learn|discover)\b|\bhow were you (referred|introduced)\b|\b(referral|application|applicant|candidate|job) source\b|\bsource of (application|referral)\b|\bhow did you get to know\b|\b(which|what) (job |career )?(site|board|website|platform)\b[^?]{0,30}\b(see|saw|find|found|hear|heard|learn|discover)\b/;
 // ("From which job site did you see this posting?", Data Lab on Lever, live
 // 2026-10-08, the last alternative.)
 

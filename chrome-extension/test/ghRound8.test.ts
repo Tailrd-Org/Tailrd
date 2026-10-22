@@ -203,3 +203,15 @@ describe("Gusto's race list once its lazy options load (live, round 8)", () => {
     expect(resolveWithOptions(fields[0], registry, p, null, true, RACE)).toBe("Black / of African or African-American descent");
   });
 });
+
+describe("Samsara's source list (live, round 8)", () => {
+  // Verbatim from Samsara's posting (Greenhouse job board API, 2026-10-22).
+  const WHERE = ["LinkedIn", "Samsara blog or website", "News or press coverage", "Podcast", "Industry event or conference", "Word of mouth (friend, family, or colleague)", "A current Samsara employee", "Glassdoor or Blind", "X / Twitter", "Instagram", "Facebook", "YouTube", "Tiktok", "Other", "I wasn't familiar with Samsara before applying"];
+  it("where someone learned about the company is how they heard of it", () => {
+    // COMPLETE_CANADIAN heard through LinkedIn: sent to the AI live.
+    document.body.innerHTML = `<form id="application-form">${select("q5", "Where have you learned about Samsara? Select all that apply.", WHERE)}</form>`;
+    setResolveContext({ jobCountry: "US", jobCity: null, jobPlaces: null, company: "Samsara" });
+    const f = scanPage(persona("COMPLETE_CANADIAN"), true).fields.find((x) => x.label.startsWith("Where have you"));
+    expect(f?.proposedValue ?? null).toBe("LinkedIn");
+  });
+});
