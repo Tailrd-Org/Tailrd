@@ -1136,6 +1136,9 @@ export default [
     ats: "greenhouse",
     profile: UK_SENIOR,
     url: gh("janestreet", "8599917002"),
+    // Its pronoun options keep the pick in their "checked" class; the page's
+    // own submit-time function writes them into the input (nothing is sent).
+    submitTransform: (page) => page.evaluate(() => window.formatPronounsSubmission?.()),
     expect: {
       "label:Legal first name": "Siobhán",
       "label:Preferred first name": "Siobhán",
@@ -1143,8 +1146,8 @@ export default [
       "#email": "siobhan.oneill@example.co.uk",
       "label:Email confirmation": "siobhan.oneill@example.co.uk",
       "label:Phone": "+44 20 7946 0958",
-      // Jane Street's own pronoun widget: typed into its self-describe box (open, NOTES round 8).
-      "label:Pronouns (Select one or more.)": "She/Her",
+      // Jane Street's own pronoun widget: the stated set's option, clicked (round 8).
+      "label:Pronouns (Select one or more.)": "she/her/hers",
       "#linkedin_profile": "https://www.linkedin.com/in/siobhan-oneill",
       "label:Current or most recent employer": "Monzo",
       "radio~Have you interviewed with Jane Street before?": "No",

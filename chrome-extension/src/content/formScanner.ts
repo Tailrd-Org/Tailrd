@@ -1445,11 +1445,12 @@ export function scanPage(
       // does a box still showing what the page guessed from the visitor's
       // location (Workable's Address, pageGuesses.ts).
       currentValue:
-        (category === "phoneCountryCode" && isDialPicker(el)) ||
+        adapter?.currentValue?.(el) ??
+        ((category === "phoneCountryCode" && isDialPicker(el)) ||
         (category === "phone" && /^\s*\+\s?\d{1,4}\s*$/.test((el as HTMLInputElement).value ?? "")) ||
         holdsPageGuess(el)
           ? undefined
-          : currentValueOf(el, controlType),
+          : currentValueOf(el, controlType)),
       ...resolutionFlags(resolved),
       ...(consentTick ? { deterministic: true } : {}),
     });

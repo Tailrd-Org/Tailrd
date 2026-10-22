@@ -390,6 +390,10 @@ export async function runCase(env, testCase) {
       await page.evaluate(() => (document.activeElement instanceof HTMLElement ? document.activeElement.blur() : undefined)).catch(() => {});
       await sleep(600);
     }
+    // A page that writes a widget's picks into its input only at submit (Jane
+    // Street's pronoun options): the case's hook runs the page's own function
+    // for it, which sets the input and sends nothing.
+    if (testCase.submitTransform) await testCase.submitTransform(page).catch(() => {});
     const after = await dumpAllFrames(page);
     // Debugging hook: inspect the filled page (a widget's real DOM) before it closes.
     if (testCase.afterFill) await testCase.afterFill(page, consoleLines);
