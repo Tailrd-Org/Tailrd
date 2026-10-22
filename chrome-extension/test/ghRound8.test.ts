@@ -5,7 +5,7 @@
  * through the scan path.
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { scanPage } from "../src/content/formScanner";
+import { resolveWithOptions, scanPage } from "../src/content/formScanner";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { degreeTitleOption } from "../src/content/fieldMatcher";
 import * as P from "./e2e/profiles.mjs";
@@ -142,5 +142,25 @@ describe("salary requirements asked as current", () => {
   it("a requirement is the expectation; the pay now stays unanswered", () => {
     expect(ask("US_VETERAN", "What are your current salary requirements? *")).toBe("$135,000");
     expect(ask("US_VETERAN", "What is your current salary?")).toBeNull();
+  });
+});
+
+describe("Bracebridge's self-ID list under a questionnaire heading (live, round 8)", () => {
+  it("gender options under the heading are the gender question (decision 90)", () => {
+    // Its label is the section heading; the stated gender was passed over for
+    // the decline.
+    document.body.innerHTML = `<form id="application-form">${select("q1", "Voluntary Equal Employment Opportunity Questionnaire:", ["Male", "Female", "I choose not to disclose"])}</form>`;
+    const f = scanPage(persona("US_GREENCARD_STUDENT"), true).fields.find((x) => x.label.startsWith("Voluntary"));
+    expect(f?.proposedValue ?? null).toBe("Female");
+  });
+  it("the same list read once its lazy options load (the re-ask)", () => {
+    // Live, the list was a react-select: no options at scan, so the heading
+    // read as another self-ID topic and its re-ask took the decline.
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label id="q2-label" for="q2">Voluntary Equal Employment Opportunity Questionnaire:</label><div class="select__control"><input id="q2" role="combobox" aria-haspopup="true" aria-expanded="false" aria-autocomplete="list" aria-labelledby="q2-label"></div></div></form>`;
+    const p = persona("US_GREENCARD_STUDENT");
+    const { fields, registry } = scanPage(p, true);
+    const f = fields.find((x) => x.label.startsWith("Voluntary"))!;
+    expect(f.sensitive).toBe(true);
+    expect(resolveWithOptions(f, registry, p, null, true, ["Male", "Female", "I choose not to disclose"])).toBe("Female");
   });
 });

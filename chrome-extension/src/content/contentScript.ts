@@ -33,6 +33,7 @@ import type {
   JobPlaceResponse,
   FormOpName,
   FormOpResult,
+  FieldCategory,
   JobContext,
   OverridesResponse,
   GenerateCoverLetterResponse,
@@ -641,7 +642,7 @@ function initialize(): void {
       // A street address box with suggestions takes the street as typed when
       // none of them is it (Paylocity's "Address Line 1", live 2026-10-03).
       const freeText = lastFields.find((f) => f.id === t.fieldId)?.category === "addressStreet";
-      const res = await fillAriaCombobox(el, t.value, { multi: control?.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId), freeText });
+      const res = await fillAriaCombobox(el, t.value, { multi: control?.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId), freeText, demographic: demographicFor(t.fieldId) });
       // Carry the specific reason (couldn't-open / no-match / didn't-commit) into
       // telemetry, otherwise a dropdown failure is logged with an empty reason.
       outcomes.push({ fieldId: t.fieldId, ok: res.filled, reason: res.reason });
@@ -671,14 +672,14 @@ function initialize(): void {
       // A multi-value widget (skills) takes one chip per item, the driver sets
       // a single value, so route it to the combobox engine's chip loop instead.
       if (control.multi && control.el) {
-        const res = await fillAriaCombobox(control.el, t.value, { multi: true });
+        const res = await fillAriaCombobox(control.el, t.value, { multi: true, demographic: demographicFor(t.fieldId) });
         // A react-select that opens for no scripted event (Greenhouse's remix
         // multi-select, Gallup, live, round 7): the page-world driver picks
         // each item from the widget's own options instead.
         if (!res.filled && control.driver === "react-select") {
           const el = control.el;
           const driver = control.driver;
-          const each = await driveEachItem(t.value, (item) => driveField(t.fieldId, item, driver, { placeHint: placeHintFor(t.fieldId) }), () => reactSelectChips(el));
+          const each = await driveEachItem(t.value, (item) => driveField(t.fieldId, item, driver, { placeHint: placeHintFor(t.fieldId), demographic: demographicFor(t.fieldId) }), () => reactSelectChips(el));
           if (each.added.length > 0) {
             outcomes.push({ fieldId: t.fieldId, ok: true });
             continue;
@@ -693,7 +694,7 @@ function initialize(): void {
         if (!res.filled && res.options) reask.push({ fieldId: t.fieldId, options: res.options });
         continue;
       }
-      let res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
+      let res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId), demographic: demographicFor(t.fieldId) });
       // A list of degree titles the scan could not see (Greenhouse's Degree
       // loads when opened): the row's own title from the list the driver
       // loaded, "Master of Science" where "Master" named several (Arcesium,
@@ -715,7 +716,7 @@ function initialize(): void {
         continue;
       }
       // Driver miss: best-effort ARIA fallback: may fill, or harvest options.
-      const fb = await fillAriaCombobox(control.el, t.value, { multi: control.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
+      const fb = await fillAriaCombobox(control.el, t.value, { multi: control.multi, placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId), demographic: demographicFor(t.fieldId) });
       outcomes.push({ fieldId: t.fieldId, ok: fb.filled, reason: fb.reason });
       if (!fb.filled && fb.options) reask.push({ fieldId: t.fieldId, options: fb.options });
     }
@@ -746,6 +747,14 @@ function initialize(): void {
     if (!f || f.category !== "degree" || !lastProfile) return null;
     const edu = educationEntryFor(lastProfile, f.groupIndex ?? null);
     return edu?.degree ? degreeTitleOption(options, edu.degree) : null;
+  }
+
+  /** A self-identification field's category: its list is chosen from by the
+   *  self-ID rules in the widget, never by a word an option shares ("Asian"
+   *  took "East Asian" on Gusto's race list, live, round 8). */
+  function demographicFor(fieldId: string): FieldCategory | undefined {
+    const f = lastFields.find((x) => x.id === fieldId);
+    return f?.sensitive ? f.category : undefined;
   }
 
   /** A school field: its list is chosen from by the school's own words. */

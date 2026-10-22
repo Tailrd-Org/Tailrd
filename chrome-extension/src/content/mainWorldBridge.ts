@@ -27,6 +27,9 @@ export interface MwFillDetail {
   placeHint?: string;
   /** A school field: an option is chosen by the school's own words only. */
   school?: boolean;
+  /** A self-identification field's category ("eeoRace"): its option is
+   *  chosen by the self-ID rules (demographicMatch.ts) only. */
+  demographic?: string;
 }
 
 export interface MwResultDetail {

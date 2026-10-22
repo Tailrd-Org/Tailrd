@@ -23,6 +23,8 @@ import { normalize } from "./fieldMatcher";
 import { matchOption } from "./writeEngine";
 import { looksLikePlaces, pickPlaceOption } from "./placeMatch";
 import { snapSchool } from "./schoolMatch";
+import { closestDemographicOption } from "./demographicMatch";
+import type { FieldCategory } from "../shared/types";
 import { regionFromText } from "./geo";
 import {
   MULTISELECT_CONTAINER_FRAGMENT as WD_MULTISELECT_CONTAINER_FRAGMENT,
@@ -64,6 +66,11 @@ export interface FillComboboxOptions {
    *  suggestion is the value, the typed value stays and counts. Paylocity's
    *  "Address Line 1" suggests nothing for a UK street (live 2026-10-03). */
   freeText?: boolean;
+  /** A self-identification field's category ("eeoRace"): an option is chosen
+   *  by the self-ID rules (demographicMatch.ts), never by a word it shares.
+   *  "Asian" took "East Asian" among East, South and Southeast Asian (Gusto
+   *  on Greenhouse, live, round 8). */
+  demographic?: FieldCategory;
 }
 
 const DEFAULTS = { openWaitMs: 1500, commitWaitMs: 2500, pollMs: 50 };
@@ -196,7 +203,7 @@ async function selectOne(
     open(trigger);
     listbox = await waitFor(() => getListbox(trigger), sleep, openWaitMs, pollMs);
   }
-  let option = listbox ? findOption(listbox, value, opts.placeHint, opts.school) : null;
+  let option = listbox ? findOption(listbox, value, opts.placeHint, opts.school, opts.demographic) : null;
   if (input && isTypeahead(input) && !option) {
     // Progressively broader filter texts: the full answer; the answer as a
     // search list spells it, without accents or a leading "The"; its leading
@@ -233,7 +240,7 @@ async function selectOne(
       const preTypeKey = optionsKey(getListbox(trigger));
       lastTyped = text;
       typeInto(input, text);
-      const hit = await pollForMatch(trigger, value, text, preTypeKey, sleep, openWaitMs, pollMs, opts.placeHint, opts.school);
+      const hit = await pollForMatch(trigger, value, text, preTypeKey, sleep, openWaitMs, pollMs, opts.placeHint, opts.school, opts.demographic);
       if (hit) {
         listbox = hit.lb;
         option = hit.opt;
@@ -436,7 +443,8 @@ async function pollForMatch(
   budgetMs: number,
   pollMs: number,
   placeHint?: string,
-  school?: boolean
+  school?: boolean,
+  demographic?: FieldCategory
 ): Promise<{ lb: HTMLElement; opt: HTMLElement } | null> {
   const reactionWindowMs = Math.min(budgetMs, 800);
   let lastKey = preTypeKey;
@@ -444,7 +452,7 @@ async function pollForMatch(
   let stablePolls = 0;
   for (let elapsed = 0; ; elapsed += pollMs) {
     const lb = getListbox(trigger);
-    const opt = lb ? findOption(lb, target, placeHint, school) : null;
+    const opt = lb ? findOption(lb, target, placeHint, school, demographic) : null;
     if (lb && opt) return { lb, opt };
     const key = optionsKey(lb);
     // An EMPTY option list is the widget mid-flight, never its answer.
@@ -646,10 +654,15 @@ function hasOptions(listbox: HTMLElement): boolean {
   return optionsIn(listbox).length > 0;
 }
 
-function findOption(listbox: HTMLElement, value: string, placeHint?: string, school?: boolean): HTMLElement | null {
+function findOption(listbox: HTMLElement, value: string, placeHint?: string, school?: boolean, demographic?: FieldCategory): HTMLElement | null {
   const options = optionsIn(listbox).filter(
     (o) => o.getAttribute("aria-disabled") !== "true"
   );
+  if (demographic) {
+    const texts = options.map((o) => optionText(o));
+    const hit = closestDemographicOption(demographic, value, texts);
+    return hit === null ? null : options[texts.indexOf(hit)];
+  }
   // A school by its own words: none of them, no option (the search goes on).
   // An option is read by its first box too, where a result shows the name
   // before its country and domain (Ashby).

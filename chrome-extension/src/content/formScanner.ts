@@ -1186,9 +1186,17 @@ export function resolveWithOptions(
   const control = registry.get(field.id);
   const el = control?.el ?? control?.radios?.[0] ?? control?.checkboxes?.[0];
   if (!el || !profile || options.length === 0) return null;
+  // A self-ID topic is the options' once they load, as the scan reads a list
+  // it can see (decision 90): Bracebridge's "Voluntary Equal Employment
+  // Opportunity Questionnaire:" over Male | Female | … loaded only when opened
+  // and took the decline for a stated Female (Greenhouse, live, round 8). Only
+  // between self-ID topics: a field the scan did not hold sensitive stays as
+  // it was read.
+  const topic = field.sensitive ? withOptionsEvidence({ category: field.category, confidence: field.confidence, sensitive: true }, options, field.label) : null;
+  const category = topic?.sensitive ? topic.category : field.category;
   const resolved = resolveField({
     adapter,
-    category: field.category,
+    category,
     sensitive: field.sensitive,
     profile,
     control: { controlType: field.controlType, options, groupIndex: field.groupIndex ?? null, multi: control?.multi },

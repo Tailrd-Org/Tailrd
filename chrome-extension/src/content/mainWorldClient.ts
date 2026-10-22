@@ -49,7 +49,7 @@ export async function driveField(
   fieldId: string,
   value: string,
   kind: FillDriver,
-  opts: { timeoutMs?: number; placeHint?: string; school?: boolean } = {}
+  opts: { timeoutMs?: number; placeHint?: string; school?: boolean; demographic?: string } = {}
 ): Promise<DriverResult> {
   // If the MAIN-world driver couldn't be injected into this frame, fail fast to
   // needs-manual instead of dispatching into the void and waiting out the full
@@ -79,7 +79,7 @@ export async function driveField(
     };
     const timer = setTimeout(() => finish({ ok: false, reason: "driver-timeout" }), timeoutMs);
     window.addEventListener(MW_RESULT_EVENT, onResult);
-    const detail: MwFillDetail = { id, fieldId, value, kind, ...(opts.placeHint ? { placeHint: opts.placeHint } : {}), ...(opts.school ? { school: true } : {}) };
+    const detail: MwFillDetail = { id, fieldId, value, kind, ...(opts.placeHint ? { placeHint: opts.placeHint } : {}), ...(opts.school ? { school: true } : {}), ...(opts.demographic ? { demographic: opts.demographic } : {}) };
     window.dispatchEvent(new CustomEvent(MW_FILL_EVENT, { detail }));
   });
 }

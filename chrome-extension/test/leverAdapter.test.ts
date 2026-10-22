@@ -195,3 +195,13 @@ describe("pickLocationSuggestion: Lever's real suggestion format", () => {
     expect(pickLocationSuggestion(["Springfield, IL, USA", "Springfield, MO, USA"], "Springfield, United States")).toBe(-1);
   });
 });
+
+describe("pickLocationSuggestion: a namesake whose region shares the city's name (Humble Robotics, live, round 8)", () => {
+  // Verbatim from jobs.lever.co/searchLocations?text=San%20Jose, 2026-10-22:
+  // "San Jose, CA" (US_GREENCARD_STUDENT) left the box empty.
+  const live = ["San Jose, San José, CRI", "San Jose, CA, USA", "São José, Braço do Norte, Santa Catarina, BRA", "San Jose, Occidental Mindoro, Mimaropa, PHL", "São José, Santa Catarina, BRA"];
+  it("the state the profile names picks the city", () => {
+    expect(pickLocationSuggestion(live, "San Jose, CA")).toBe(1);
+    expect(pickLocationSuggestion(live, "San Jose, California, United States")).toBe(1);
+  });
+});
