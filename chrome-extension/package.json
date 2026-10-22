@@ -1,6 +1,6 @@
 {
   "name": "applypilot-chrome-extension",
-  "version": "0.5.1",
+  "version": "0.6.0",
   "private": true,
   "type": "module",
   "description": "Tailrd Chrome extension: fills the repetitive fields of job applications from your Tailrd profile; you review and submit.",

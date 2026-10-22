@@ -1,10 +1,12 @@
 # Round 8: SmartRecruiters' screening step on thirteen live postings, Greenhouse's lazy education lists, the remix multi-selects, 47 new boards, and banks for seven smaller ATSs (2026-10-22)
 
 Branch `night/autofill-round8` (worktree `.worktrees/autofill-round8`), from
-origin/main at 9cb84b0 (round 7). **Not pushed, not deployed**: nobody asked
-this round. Nothing uploaded, no release zip built. Nothing was submitted
-anywhere and no account was created: every live run blocks non-GET requests
-(GraphQL queries aside), and every check of a posting was a GET.
+origin/main at 9cb84b0 (round 7). **Pushed to main on request (2026-10-22)**,
+after CI's checks (section 8), with the extension at 0.6.0 and its Store
+package prepared for the owner to upload (`docs/store-submission.md`):
+nothing was uploaded from here. Nothing was submitted anywhere and no account
+was created: every live run blocks non-GET requests (GraphQL queries aside),
+and every check of a posting was a GET.
 
 The biggest finds:
 
@@ -618,9 +620,14 @@ report):
   (Humble's location).
 - The harness's read at the click (ffb341e) on a local page that renders its
   form 11 s after load: failed before the change, passes after.
-- Not run: CI's backend pytest and frontend checks. Nothing outside
-  `chrome-extension/` changed this round (NOTES.md aside), and nothing was
-  pushed; before a push, run them as the brief says.
+- CI's checks before the push: backend pytest on SQLite from a scratch
+  directory, the extension's (above) and the frontend's tsc and vite build.
+  The backend run caught what nothing else here runs: the Python port of
+  `profileFacts` (`backend/services/profile_facts.py`, held to the
+  TypeScript by `test_profile_facts_parity.py`) had not followed this
+  round's TypeScript: the street kept whole beside a stated city, "EU" in
+  the free-movement group, and the employer-tied visa. All three ported, with
+  unit cases asked of the TypeScript itself; then the whole backend suite.
 
 ## 9. Needs manual verification, or still open
 
@@ -704,8 +711,9 @@ report):
 - **OpenAI** (billing down since 08-12): essays and AI-only answers stay
   blank.
 - **Prod**: no autofill report since 2026-10-03.
-- **CI's checks** were not run: nothing was pushed. Before a push, run them as
-  the brief says.
+- **The Store package 0.6.0** is built and checked, not uploaded: the owner
+  uploads it (`docs/store-submission.md`). The résumé edits and cover-letter
+  ideas a reviewer may try need OpenAI's billing back first.
 
 # Round 7: Jobvite's consent gate, SmartRecruiters from a question bank to its screening step, new Greenhouse and Lever boards (2026-10-20)
 

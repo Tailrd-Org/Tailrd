@@ -3,7 +3,90 @@
 Everything below is ready to paste into the CWS developer dashboard
 (https://chrome.google.com/webstore/devconsole).
 
-## Release 0.5.0 (prepared 2026-10-05, NOT uploaded)
+## Release 0.6.0 (prepared 2026-10-22)
+
+The Store still serves 0.4.0 (listing checked 2026-10-22: "Version 0.4.0",
+"Updated July 15, 2026", 3 users). Neither 0.5.0 nor 0.5.1 was uploaded, and
+0.6.0 supersedes both: it carries autofill rounds 4 to 8 and 0.5.1's
+null-safe tailor card. **Never upload `tailrd-extension-0.5.0.zip`** (it
+predates that fix); no 0.5.1 zip was ever built.
+
+**What to upload:** `chrome-extension/tailrd-extension-0.6.0.zip`
+(git-ignored), built from main at the commit that moved the version to 0.6.0
+(`git log -1 -- chrome-extension/manifest.json`). Dashboard > the Tailrd item >
+Package > Upload new package, then Submit for review. To rebuild it: from
+`chrome-extension/`, `node build.mjs && python scripts/make-store-zip.py`.
+
+**What changes in the dashboard**
+- Version 0.4.0 to 0.6.0.
+- Name: "Tailrd: Job Application Assistant" (0.4.0's title carries an em dash
+  and says "Autofill"). The listing title follows the manifest.
+- Permissions, host permissions, content scripts, CSP and background:
+  identical to 0.4.0 (compared field by field on 2026-10-22), so existing
+  users get no permission prompt and the update installs silently.
+- Data use: unchanged. Diagnostic capture is on for one account only, the
+  owner's admin account (prod `user_settings`, checked 2026-10-22), so the
+  "never field values" disclosure stays true for every Store user.
+- Listing description: the two lines the 0.5.0 section flags are still live
+  (checked 2026-10-22). The description below has both edits applied.
+
+**What's new since 0.4.0** (the dashboard has no release-notes field for an
+extension; this is for your records or an announcement):
+
+```
+Tailrd 0.6.0
+- One Autofill click carries a multi-page application to its review page.
+  Each filled page turns by itself after a 2-second countdown; Pause, or
+  clicking into the page, holds it. It never clicks Submit.
+- Screening questions are answered on your device from your profile, and
+  far more of them correctly: work authorization by country, sponsorship
+  now and later, relocation and in-office questions, start dates, education
+  (degree in progress or finished, majors, graduation month and year),
+  languages, years of experience, how you heard about the job.
+- Applications reach their screening steps on more sites, your résumé
+  attaches where the form asks for it, and education rows, multi-select
+  lists and searchable dropdowns fill more reliably.
+- Answers are only ever chosen from the options a form offers; questions
+  your profile cannot answer stay blank, and the panel asks you about them.
+- The tailoring card never shows a raw score where none was computed.
+- Demographic answers still never leave your device.
+```
+
+**Description (long), updated: paste in place of the live text**
+
+```
+Tailrd helps you fill job applications, and you stay in control of every answer.
+
+It never submits an application by itself. The final Submit is always yours.
+It never makes up facts about you. Answers come from your profile; standard questions (acknowledging a policy, consent boxes) get the usual answer, and anything else is left blank for you to complete.
+
+Applying online means retyping the same details into a new form for every role. Tailrd keeps that information in one profile and puts it into the form in front of you, so you can spend your time on the parts of the application that actually need you.
+
+WHAT IT DOES
+• Recognizes an application form when you open one, on company career sites and on the hiring platforms they run on, and offers to fill it.
+• Fills the fields it can answer from your Tailrd profile: contact details, work history, education, links, work authorization, and screening questions you've already answered in your profile.
+• Works through applications that span several pages: one click fills each page and moves to the next, stopping at the review page. If the site asks you to create an account first, Tailrd fills that step with the email and password you saved for it.
+• Answers dropdowns and multiple-choice questions only with options the form actually offers. If your profile does not answer a question, Tailrd leaves it blank for you to complete.
+• Attaches the résumé from your account, suggests résumé edits for the job, and offers talking points and ideas for your cover letter.
+
+WHAT IT NEVER DOES
+• Demographic (EEO) answers never leave your device: they are stored locally and filled locally.
+
+You need a free Tailrd account (www.tailrd.ca) to sync your profile.
+```
+
+**Before submitting:** the résumé edits and cover-letter ideas call OpenAI,
+whose billing has been down since 2026-08-12. A reviewer who tries them sees
+them fail; the test instructions below keep to the autofill, which needs no
+AI. Fix the billing first, or expect a question from review.
+
+**Checked on this build** (2026-10-22): type check clean; unit tests 3,183
+(176 files); `node test/scan-smoke.mjs` passed; build; the zip's manifest has
+no `key` and no `localhost`, description 129 characters; permissions as
+0.4.0. CI's other jobs on the same tree: backend pytest and the frontend's
+tsc and vite build.
+
+## Release 0.5.0 (prepared 2026-10-05, NOT uploaded; superseded by 0.6.0)
 
 The Store still serves 0.4.0, the July build (listing checked 2026-10-05:
 "Version 0.4.0", "Updated July 15, 2026", 3 users). Every real fill in prod
@@ -264,8 +347,8 @@ creditworthiness.
 - [x] Store installs can connect: completed Store-id handshakes in prod on
       2026-07-14, 08-07, 09-14 and 09-28 (see "Extension IDs"). This item was
       marked BLOCKING in July; the prod handshakes show it was resolved.
-- [ ] 0.5.0: upload `tailrd-extension-0.5.0.zip`, consider the two description
-      edits, submit for review.
+- [ ] 0.6.0: upload `tailrd-extension-0.6.0.zip`, paste the updated
+      description, submit for review. (0.5.0 is superseded: never upload it.)
 
 ## Test instructions (paste into the dashboard's "Test instructions" form)
 
