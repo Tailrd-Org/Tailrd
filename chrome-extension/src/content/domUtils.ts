@@ -663,16 +663,33 @@ export function isUploadAffordance(el: HTMLElement): boolean {
 export function uploadZoneText(el: HTMLElement): string {
   if (!(el instanceof HTMLInputElement) || el.type !== "file") return "";
   const DOC = /resume|résumé|curriculum vitae|\bcv\b|cover letter/i;
-  let node: HTMLElement | null = el.parentElement;
+  // The climb crosses shadow roots: SmartRecruiters' file input lives in its
+  // <spl-dropzone>'s shadow root, and what it takes is named outside it (the
+  // section's "Resume" title, data-test="resume-upload"; round 8).
+  const up = (n: HTMLElement): HTMLElement | null => {
+    if (n.parentElement) return n.parentElement;
+    const root = n.getRootNode();
+    return root instanceof ShadowRoot ? (root.host as HTMLElement) : null;
+  };
+  let node: HTMLElement | null = up(el);
   let widest = "";
-  for (let i = 0; i < 5 && node; i++) {
+  for (let i = 0; i < 6 && node; i++) {
+    // A box that reads a résumé to fill the form in ("Apply with resume",
+    // SmartRecruiters) is no document field: attached there, the page would
+    // overwrite the answers with its own parse.
+    if (RESUME_PREFILL.test(node.tagName) || RESUME_PREFILL.test(node.getAttribute("data-test") ?? "")) return "";
     const t = cleanText(node.textContent).slice(0, 300);
     if (t && DOC.test(t)) return t; // explicit document text → best signal
+    const marker = `${node.getAttribute("data-test") ?? ""} ${node.getAttribute("data-testid") ?? ""}`.replace(/[-_]+/g, " ").trim();
+    if (marker && DOC.test(marker)) return marker;
     if (t && t.length <= 300) widest = t;
-    node = node.parentElement;
+    node = up(node);
   }
   return widest;
 }
+
+/** A résumé-parsing prefill box ("Apply with resume"), by its tag or test id. */
+const RESUME_PREFILL = /apply[-_ ]?with[-_ ]?(resume|cv)/i;
 
 /**
  * A web component's own label attribute. SmartRecruiters' `<spl-input

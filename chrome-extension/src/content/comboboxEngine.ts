@@ -975,8 +975,12 @@ function valueContainerTexts(trigger: HTMLElement): string[] {
     // Climbed past our widget into a container holding other dropdowns, any
     // value found from here would be a NEIGHBOR field's selection, not ours.
     if (node.querySelectorAll('[role="combobox"], [aria-haspopup="listbox"]').length > 1) break;
-    const texts = Array.from(node.querySelectorAll(VALUE_DISPLAY_SELECTOR))
-      .map((e) => cleanText(e.textContent))
+    // Into shadow roots too, and a tag named by its own `label`:
+    // SmartRecruiters' multi-select keeps each pick as an <spl-tag label="…">
+    // in its <spl-tags-list>'s shadow root (Western Digital's major, live,
+    // round 8, read "didn't stick" while the page held it).
+    const texts = deepQueryAll(node, `${VALUE_DISPLAY_SELECTOR}, spl-tag[label]`)
+      .map((e) => cleanText(e.textContent) || cleanText(e.getAttribute("label")))
       .filter(Boolean);
     if (texts.length > 0) return texts;
   }

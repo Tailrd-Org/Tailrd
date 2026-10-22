@@ -7,7 +7,7 @@
  */
 import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { scanPage } from "../src/content/formScanner";
-import { readComboboxOptions } from "../src/content/comboboxEngine";
+import { fillAriaCombobox, readComboboxOptions } from "../src/content/comboboxEngine";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { detectJobPlace } from "../src/content/jobLocation";
 import * as P from "./e2e/profiles.mjs";
@@ -192,5 +192,128 @@ describe("Western Digital's and Intuitive's screening steps (live, round 8)", ()
     // written again here (Intuitive, live).
     const got = scanned(as("INDIA_NEW_GRAD", "COMPLETE_CANADIAN"), "If your selection is not your most recent Citizenship or Permanent Residence, please indicate your most recent Citizenship or Permanent Residence below:", [], "Sunnyvale, CA, United States");
     expect(got).toEqual({ INDIA_NEW_GRAD: null, COMPLETE_CANADIAN: null });
+  });
+});
+
+/**
+ * SmartRecruiters' page 1 as served (round 8): "Apply with resume" (a box that
+ * parses a résumé to fill the form) at the top, and the application's own
+ * "Resume" section below it. Each upload is an <spl-dropzone> whose file input
+ * and "Choose a file / or drop it here" label live in its shadow root; the
+ * section's "Resume" title and the dropzone's data-test="resume-upload" are
+ * outside it. The scan never saw a résumé field, so no résumé was ever
+ * attached on SmartRecruiters, where most postings require one.
+ */
+function splDropzone(testId: string, n: number): HTMLElement {
+  const dz = document.createElement("spl-dropzone");
+  dz.setAttribute("data-test", testId);
+  dz.setAttribute("label", "");
+  dz.attachShadow({ mode: "open" }).innerHTML =
+    `<div class="c-spl-dropzone-wrapper c-spl-dropzone"><slot name="icon"></slot>` +
+    `<label for="spl-dropzone-file-input-${n}"><span class="c-spl-dropzone-label c-spl-dropzone-label-browse">Choose a file</span><span class="c-spl-dropzone-label">or drop it here</span></label>` +
+    `<input type="file" id="spl-dropzone-file-input-${n}" accept=".doc, .pdf" aria-describedby="spl-dropzone-restriction-label-${n}">` +
+    `<span class="c-spl-dropzone-label c-spl-dropzone-label-restrict" id="spl-dropzone-restriction-label-${n}">10MB size limit</span></div><ul class="c-spl-file-list"></ul>`;
+  const field = document.createElement("spl-form-field");
+  field.append(dz);
+  return field;
+}
+
+describe("SmartRecruiters' résumé upload is found across its shadow root, never the parse box", () => {
+  it("the Resume section's dropzone is the résumé field; Apply with resume is not", () => {
+    document.body.innerHTML = `<h1 class="job__title">Role</h1><div id="app"><form></form></div>`;
+    const form = document.querySelector("form")!;
+    const apply = document.createElement("oc-apply-with-resume");
+    const applyBox = document.createElement("div");
+    applyBox.className = "spl-flex spl-flex-col";
+    applyBox.append(splDropzone("apply-with-resume", 2));
+    apply.append(applyBox);
+    const top = document.createElement("div");
+    top.className = "form-section";
+    top.append(apply);
+    const resume = document.createElement("oc-resume-upload");
+    resume.innerHTML = `<div data-test="resume-upload-container" class="form-section"><spl-typography-title variant="lg" data-test="section-title">Resume</spl-typography-title></div>`;
+    resume.firstElementChild!.append(splDropzone("resume-upload", 1));
+    const name = document.createElement("div");
+    name.innerHTML = `<label for="fn">First name</label><input id="fn" type="text">`;
+    form.append(top, name, resume);
+    const { fields } = scanPage(persona("US_F1_STUDENT"), true);
+    const resumes = fields.filter((f) => f.category === "resumeUpload");
+    expect(resumes.length).toBe(1);
+    const input = resume.querySelector("spl-dropzone")!.shadowRoot!.querySelector("input")!;
+    expect(resumes[0].id).toBe(input.getAttribute("data-ap-field"));
+  });
+});
+
+/**
+ * SmartRecruiters' multi-select (Western Digital's "What is your major?", live,
+ * round 8): a pick becomes an <spl-tag label="…"> inside <spl-tags-list>'s
+ * own shadow root and the box empties. The engine looked for the pick as text
+ * beside the box, found none, and reported "Selection didn't stick" for a
+ * major the page held.
+ */
+function splMultiselect(options: string[]): HTMLInputElement {
+  const host = document.createElement("spl-multiselect-autocomplete");
+  host.id = "question_major";
+  const sr = host.attachShadow({ mode: "open" });
+  const trigger = document.createElement("div");
+  trigger.className = "c-spl-multiselect-autocomplete-trigger";
+  const tags = document.createElement("spl-tags-list");
+  tags.className = "c-spl-multiselect-autocomplete-tags";
+  const tagsRoot = tags.attachShadow({ mode: "open" });
+  tagsRoot.innerHTML = `<div class="c-spl-tags-list"><div class="c-spl-tags-list-items" role="listbox" aria-label="Tags list"></div></div>`;
+  const wrap = document.createElement("div");
+  wrap.className = "c-spl-multiselect-autocomplete-input-wrapper";
+  const input = document.createElement("input");
+  input.type = "text";
+  input.className = "c-spl-multiselect-autocomplete-input";
+  input.setAttribute("role", "combobox");
+  input.setAttribute("aria-autocomplete", "list");
+  input.setAttribute("aria-controls", "menu-question_major");
+  input.setAttribute("aria-expanded", "false");
+  wrap.append(input);
+  trigger.append(tags, wrap);
+  const menu = document.createElement("div");
+  menu.id = "menu-question_major";
+  menu.setAttribute("role", "listbox");
+  menu.hidden = true;
+  const render = (): void => {
+    menu.innerHTML = "";
+    for (const o of options.filter((x) => x.toLowerCase().includes(input.value.toLowerCase()))) {
+      const item = splDropdownItem(o);
+      item.shadowRoot!.querySelector('[role="option"]')!.addEventListener("click", () => {
+        const holder = document.createElement("div");
+        holder.setAttribute("role", "presentation");
+        holder.className = "c-spl-tags-list-item c-spl-tags-list-item--tag";
+        const tag = document.createElement("spl-tag");
+        tag.setAttribute("label", o);
+        tag.attachShadow({ mode: "open" }).innerHTML = `<span class="c-spl-tag"><span class="c-spl-tag-label"><slot></slot></span></span>`;
+        holder.append(tag);
+        tagsRoot.querySelector(".c-spl-tags-list-items")!.append(holder);
+        input.value = "";
+        menu.hidden = true;
+        input.setAttribute("aria-expanded", "false");
+      });
+      menu.append(item);
+    }
+  };
+  const openMenu = (): void => {
+    render();
+    menu.hidden = false;
+    input.setAttribute("aria-expanded", "true");
+  };
+  input.addEventListener("click", openMenu);
+  input.addEventListener("input", openMenu);
+  sr.append(trigger, menu);
+  document.body.append(host);
+  return input;
+}
+
+describe("a SmartRecruiters multi-select's pick is its tag (Western Digital's major)", () => {
+  it("a pick shown as an spl-tag sticks", async () => {
+    document.body.innerHTML = "";
+    const input = splMultiselect(["Business Administration", "Accounting", "Computer Science/Software Engineering", "Computer Engineering", "Other"]);
+    const r = await fillAriaCombobox(input, "Computer Science/Software Engineering", { sleep: async () => {}, openWaitMs: 100, commitWaitMs: 100, pollMs: 5 });
+    expect(r.reason ?? "").toBe("");
+    expect(r.filled).toBe(true);
   });
 });
