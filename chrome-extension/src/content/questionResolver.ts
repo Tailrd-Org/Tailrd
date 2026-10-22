@@ -709,7 +709,7 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
     return (
       resolveCountryEligibility(q, facts, residence) ??
       resolveStatusChoice(q, facts, country) ??
-      resolveAuthorizationStatement(q, facts, country, residence) ??
+      resolveAuthorizationStatement(q, facts, country, residence, profile.workAuthorization ?? "") ??
       abstain("work-auth-status:unknown")
     );
   }
@@ -730,7 +730,7 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
  * 2026-10-03: two options read as a yes, so a green-card holder went to the
  * AI). The one the profile's authorization and sponsorship make true.
  */
-function resolveAuthorizationStatement(q: QuestionInput, facts: ProfileFacts, country: string | null, residence: string | null): QuestionResult {
+function resolveAuthorizationStatement(q: QuestionInput, facts: ProfileFacts, country: string | null, residence: string | null, stated = ""): QuestionResult {
   const opts = (q.options ?? []).map((o) => ({ raw: o, n: qnorm(o), pol: optionPolarity(o) }));
   type Opt = (typeof opts)[number];
   const one = (keep: (o: Opt) => boolean): string | null => {
@@ -750,6 +750,13 @@ function resolveAuthorizationStatement(q: QuestionInput, facts: ProfileFacts, co
   // opposite of authorized (Lyft).
   const yn = (o: Opt): boolean | null => (/^(yes|no)\b/.test(o.n) ? o.pol : null);
   const fitsRight = (o: Opt) => !isHigh(a) || yn(o) === null || yn(o) === a.value;
+  // Authorized under OPT or CPT, said so, over an option that says it: "I am
+  // currently authorized to work under OPT/CPT" (Switchboard on Ashby, bank,
+  // round 8) is the current status, before the sponsorship it will need.
+  if (/\b(opt|cpt)\b/i.test(stated) && (!isHigh(a) || a.value === true)) {
+    const pick = one((o) => /\b(opt|cpt)\b/.test(o.n) && !requires(o) && !notAuthorized(o) && yn(o) !== false);
+    if (pick) return answer(pick, "work-auth-statement:opt");
+  }
   // A need the applicant STATED decides, whatever the work right (a student
   // visa's is unclear); one only inferred from "not authorized" does not, and
   // the literal answer is then "not authorized".
@@ -774,7 +781,8 @@ function resolveAuthorizationStatement(q: QuestionInput, facts: ProfileFacts, co
     return pick ? answer(pick, "work-auth-statement:needs-sponsorship") : null;
   }
   const pick =
-    one((o) => /\b(authorized|eligible|permitted)\b/.test(o.n) && /\bany employer\b/.test(o.n) && !/\bnot\b/.test(o.n)) ??
+    // "…without restrictions" is "for any employer" (Switchboard).
+    one((o) => /\b(authorized|eligible|permitted)\b/.test(o.n) && /\bany employer\b|\bwithout (any )?restrictions?\b|\bunrestricted\b|\bno restrictions?\b/.test(o.n) && !/\bnot\b/.test(o.n)) ??
     // "Yes, no restriction." beside "Yes, but I will need sponsorship…" (Datadog).
     one((o) => o.pol === true && !/\bsponsor/.test(o.n) && !/\b(present|current) employer only\b/.test(o.n));
   return pick ? answer(pick, "work-auth-statement:any-employer") : null;

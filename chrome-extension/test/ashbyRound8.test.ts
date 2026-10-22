@@ -197,3 +197,16 @@ describe("an office named in a first-person statement (Commure, Ashby bank, roun
     expect(ask("COMPLETE_CANADIAN", Q, YN, "Commure")).toBe("Yes");
   });
 });
+
+describe("a work authorization status list (Switchboard, Ashby bank, round 8)", () => {
+  const OPTS = ["I am authorized to work in the United States without restrictions", "I require sponsorship to work in the United States (e.g., H-1B, E-3, etc.)", "I am currently authorized to work under OPT/CPT"];
+  const Q = "What is your current work authorization status?";
+  it("each applicant's own status", () => {
+    // The citizen got nothing ("without restrictions" unread), the OPT
+    // holder the sponsorship statement.
+    expect(ask("BOOTCAMP_CAREER_GAP", Q, OPTS, "Switchboard")).toBe(OPTS[0]);
+    expect(ask("US_OPT_ANALYST", Q, OPTS, "Switchboard")).toBe(OPTS[2]);
+    expect(ask("US_H1B_SENIOR", Q, OPTS, "Switchboard")).toBe(OPTS[1]);
+    expect(ask("COMPLETE_CANADIAN", Q, OPTS, "Switchboard")).toBe(OPTS[1]);
+  });
+});
