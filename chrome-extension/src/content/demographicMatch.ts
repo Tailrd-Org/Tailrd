@@ -309,17 +309,20 @@ const raceGroupsOf = (n: string): Set<string> => new Set(RACE_GROUPS.filter(([re
 
 /** A mixed option, two races in one ("Asian And White", the UK's "Black And
  *  White Caribbean"), never one race's answer: "Asian And White" was chosen
- *  for two Asian applicants (White Swan on Pinpoint, bank, round 8). */
-const mixedFor = (category: FieldCategory, v: string, o: string): boolean => {
+ *  for two Asian applicants (White Swan on Pinpoint, bank, round 8). Read by
+ *  the option's own words, before its description: "Black or African-American
+ *  (A person of African, Caribbean, West Indian descent)" (Instacart on
+ *  Greenhouse, bank, round 8) names one race. */
+const mixedFor = (category: FieldCategory, v: string, raw: string): boolean => {
   if (category !== "eeoRace") return false;
   const mine = raceGroupsOf(v);
-  return mine.size === 1 && !mine.has("mixed") && raceGroupsOf(o).size > 1;
+  return mine.size === 1 && !mine.has("mixed") && raceGroupsOf(headOf(raw)).size > 1;
 };
 
 /** The options one stated race can be: none of the mixed ones. */
 export function raceCandidates(category: FieldCategory, value: string, options: string[]): string[] {
   const v = norm(value);
-  return options.filter((o) => !mixedFor(category, v, norm(o)));
+  return options.filter((o) => !mixedFor(category, v, o));
 }
 
 /** The answer's synonym held by several options ("Black British", "Black
@@ -328,7 +331,7 @@ export function raceCandidates(category: FieldCategory, value: string, options: 
  *  Swan on Pinpoint, bank, round 8). */
 export function synonymTie(category: FieldCategory, value: string, options: string[]): boolean {
   const v = norm(value);
-  const opts = options.map(norm).filter((o) => o && !mixedFor(category, v, o));
+  const opts = options.filter((o) => !mixedFor(category, v, o)).map(norm).filter(Boolean);
   for (const cand of tableFor(category)?.[v] ?? []) {
     if (opts.includes(cand)) return false;
     const hits = opts.filter((o) => hasWords(o, cand));
@@ -343,7 +346,7 @@ export function closestDemographicOption(
   options: string[]
 ): string | null {
   const v = norm(value);
-  const opts = options.map((o) => ({ raw: o, n: norm(o) })).filter((o) => o.n.length > 0 && !mixedFor(category, v, o.n));
+  const opts = options.map((o) => ({ raw: o, n: norm(o) })).filter((o) => o.n.length > 0 && !mixedFor(category, v, o.raw));
   if (opts.length === 0 || !v) return null;
 
   // 1. The answer itself, then the one option holding it ("Asian" in "Asian

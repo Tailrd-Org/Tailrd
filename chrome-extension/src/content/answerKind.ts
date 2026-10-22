@@ -119,9 +119,11 @@ export function isBooleanOptionSet(options: string[] | undefined): boolean {
  * A question that ALSO asks for detail ("If so, please list", "If yes, who?")
  * is not boolean: a bare Yes/No would not answer it.
  */
-// "…, is this something that will work for you?" (Solace on BambooHR, bank,
-// round 8) asks a yes or no of "this".
-const AUX_START = /^(are|is|do|does|did|have|has|had|will|would|can|could|should|may|might|were|was|shall)\s+(you|your|u|the applicant|the candidate|they|this|that|it)\b/;
+// Whether "this" or "that" suits them is one too: "…, is this something that
+// will work for you?" (Solace on BambooHR, bank, round 8), "Does that work
+// for you?" (Clay on Ashby). "Was it a job board or an employee?" (Credence on
+// Workable) asks which.
+const AUX_START = /^(are|is|do|does|did|have|has|had|will|would|can|could|should|may|might|were|was|shall)\s+(you|your|u|the applicant|the candidate|they)\b|^(is|does|will|would|can|could)\s+(this|that|it)\s+(?:\w+\s+){0,4}?(work|works|suit|suits|fit|fits|acceptable|okay|ok|feasible|possible)\b/;
 const DETAIL_FOLLOWUP = /\b(if (so|yes|applicable|not)|please (list|explain|describe|specify|provide|indicate|elaborate|share|tell)|which one|who|what (is|was|are)|where|when|how many|how long|please state)\b/;
 
 export function isYesNoQuestion(label: string): boolean {

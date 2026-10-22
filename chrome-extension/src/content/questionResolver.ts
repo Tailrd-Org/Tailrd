@@ -2306,7 +2306,17 @@ const STEM_DEGREE =
  */
 function resolveStemMajor(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   if (!/\b(major|majored|degree|field of study|studied|study)\b[^?]{0,30}\bstem\b|\bstem (major|degree|field|discipline)s?\b/.test(n) || !isBooleanQuestion(q)) return null;
+  // A major pursued now is a student's: "Are you currently pursuing a Major
+  // in one of the following disciplines: … or a related STEM field" (Appian
+  // on Greenhouse, bank, round 8) was Yes for four graduates.
+  const now = /\b(currently|presently|now) (pursuing|studying|majoring|enrolled)\b|\bare you (pursuing|majoring|studying)\b/.test(n) && !/\bor (have|has|had) (you )?(completed|graduated|earned|obtained)\b|\bor completed\b/.test(n);
   const colleges = facts.education.entries.filter((e) => (e.rank ?? 0) >= 3 || (e.rank === null && /\b(universit\w*|college|institute|polytechnic|hochschule|[ée]cole)\b/i.test(e.school ?? "")));
+  if (now) {
+    const studying = colleges.filter((e) => e.completed === false);
+    const e = facts.education.currentlyEnrolled;
+    if (studying.length === 0) return isHigh(e) && e.value === false ? booleanResult(false, q, "stem-major:not-enrolled") : abstain("stem-major:unknown");
+    return booleanResult(studying.some((x) => STEM_DEGREE.test(qnorm(x.degree))), q, "stem-major:pursuing");
+  }
   if (colleges.length === 0) return abstain("stem-major:no-college");
   return booleanResult(colleges.some((e) => STEM_DEGREE.test(qnorm(e.degree))), q, "stem-major");
 }
@@ -2658,13 +2668,19 @@ function resolveDisciplineAtLevel(q: QuestionInput, n: string, facts: ProfileFac
   if (!/\b(discipline|disciplines|major|majors|field of study|area of study|concentration)\b/.test(n) || isBooleanQuestion(q)) return null;
   // "Field of Study: Graduate/MBA/PhD Degree" (Axtria on JazzHR, bank, round
   // 8) too: it took a bachelor's field, a bootcamp's, a student's.
+  // A doctorate's alone when no other graduate degree is named: "…describe
+  // your PhD program, including your research focus, specialization…"
+  // (Pinterest on Greenhouse, bank, round 8) took two master's fields.
+  const doctoral = /\b(phd|ph d|doctoral|doctorate)\b/.test(n) && !/\b(master s|masters|graduate|grad school|mba)\b/.test(n);
   const level = /\b(undergrad|undergraduate|bachelor s|bachelors|bachelor)\b/.test(n)
     ? 4
-    : /\b(master s|masters|graduate|grad school|mba|phd|ph d|doctoral|doctorate)\b/.test(n)
-      ? 5
-      : null;
+    : doctoral
+      ? 6
+      : /\b(master s|masters|graduate|grad school|mba)\b/.test(n)
+        ? 5
+        : null;
   if (level === null) return null;
-  const entries = facts.education.entries.filter((e) => (level === 4 ? e.rank === 4 : (e.rank ?? 0) >= 5));
+  const entries = facts.education.entries.filter((e) => (level === 4 ? e.rank === 4 : level === 6 ? e.rank === 6 : (e.rank ?? 0) >= 5));
   if (entries.length === 0) {
     return facts.education.entries.length > 0 && facts.education.entries.every((e) => e.rank !== null)
       ? abstain("discipline:no-degree-at-level")

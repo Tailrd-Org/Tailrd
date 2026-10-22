@@ -128,7 +128,10 @@ export function matchOption<T>(
   // in "12+ weeks from offer acceptance" (Striveworks, live 2026-10-03: right
   // only by luck; a start next week would have landed there too).
   const isDate = /^\d{4}-\d{1,2}(-\d{1,2})?$|^\d{1,2}[/.-]\d{1,2}[/.-]\d{4}$/.test(target.trim());
-  const targetNum = isDate ? null : firstNumber(expandThousands(target.replace(/,/g, "")));
+  // An amount with thousands dots ("€120.000", Berlin's salary: NISC's "k"
+  // list on Greenhouse, bank, round 8, read it as 120, "less than 25k").
+  const amount = /[€£$¥₹]|\b(eur|usd|gbp|cad|inr|chf)\b/i.test(target) ? target.replace(/(\d)\.(?=\d{3}(?!\d))/g, "$1") : target;
+  const targetNum = isDate ? null : firstNumber(expandThousands(amount.replace(/,/g, "")));
   if (targetNum !== null && ranged.length > 0) {
     const hits = ranged.filter((item) => {
       const range = parseRange(getText(item))!;

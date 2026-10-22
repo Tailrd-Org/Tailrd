@@ -1,0 +1,93 @@
+// @vitest-environment-options {"url": "https://job-boards.greenhouse.io/qbank/jobs/1"}
+/**
+ * What the last re-run of every bank (round 8, after the smaller ATSs'
+ * fixes) caught: answers right before those fixes and wrong after them.
+ * Labels and options verbatim from each bank (GET only). Tested through the
+ * scan path.
+ */
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { scanPage } from "../src/content/formScanner";
+import { setResolveContext } from "../src/content/fieldResolver";
+import { detectJobPlace } from "../src/content/jobLocation";
+import * as P from "./e2e/profiles.mjs";
+import type { UserApplicationProfile } from "../src/shared/types";
+import { stubLayout } from "./helpers/layout";
+
+let restore: () => void;
+beforeAll(() => {
+  restore = stubLayout();
+});
+afterAll(() => restore());
+beforeEach(() => {
+  document.body.innerHTML = "";
+});
+
+const persona = (who: string) => (P as Record<string, unknown>)[who] as UserApplicationProfile;
+const esc = (s: string): string => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+const ALL = ["COMPLETE_CANADIAN", "US_H1B_SENIOR", "BOOTCAMP_CAREER_GAP", "US_OPT_ANALYST", "BERLIN_STAFF", "INDIA_NEW_GRAD"];
+const YN = ["Yes", "No"];
+const each = (values: (string | null)[]): Record<string, string | null> => Object.fromEntries(ALL.map((w, i) => [w, values[i]]));
+
+type Shape = "select" | "text" | "textarea" | "boxes";
+
+/** One question on a page placed in `location`: each persona's proposed
+ *  answer (null when blank). */
+function scanned(label: string, options: string[], location: string, shape: Shape = options.length ? "select" : "text"): Record<string, string | null> {
+  const row =
+    shape === "boxes"
+      ? `<fieldset class="field" id="q0"><legend>${esc(label)}</legend>${options.map((o, j) => `<label><input type="checkbox" name="q0[]" value="${j}"> ${esc(o)}</label>`).join("")}</fieldset>`
+      : shape === "select"
+        ? `<div class="field"><label for="q0">${esc(label)}</label><select id="q0" name="q0"><option value="">Select...</option>${options.map((o, i) => `<option value="${i}">${esc(o)}</option>`).join("")}</select></div>`
+        : shape === "textarea"
+          ? `<div class="field"><label for="q0">${esc(label)}</label><textarea id="q0" name="q0"></textarea></div>`
+          : `<div class="field"><label for="q0">${esc(label)}</label><input type="text" id="q0" name="q0"></div>`;
+  const out: Record<string, string | null> = {};
+  for (const w of ALL) {
+    document.body.innerHTML = `<h1 class="job__title">Role</h1><div class="job__location">${esc(location)}</div><form id="application-form">${row}<div class="field"><label for="em">Email Address</label><input type="text" id="em" name="cEmail"></div></form>`;
+    const place = detectJobPlace(document);
+    setResolveContext({ jobCountry: place.country, jobCity: place.city, jobPlaces: place.places ?? null, company: "Acme" });
+    const squash = (s: string): string => s.replace(/\s+/g, " ").trim();
+    const f = scanPage(persona(w), true).fields.find((x) => squash(x.label).startsWith(squash(label).slice(0, 40)));
+    out[w] = f?.proposedValue ?? null;
+  }
+  setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+  return out;
+}
+
+describe("the last bank re-run (round 8)", () => {
+  it("a major being pursued now is a student's: No for a graduate (Appian)", () => {
+    const L = "Are you currently pursuing a Major in one of the following disciplines: Computer Science, Data Science, Information Systems, Economics, Systems Engineering, Mathematics or a related STEM field";
+    expect(scanned(L, YN, "McLean, Virginia")).toEqual(each(["Yes", "No", "No", "No", "No", "No"]));
+  });
+  it("a PhD program's field is a doctorate's, never a master's (Pinterest)", () => {
+    const L = "In 1–2 sentences, please describe your PhD program, including your research focus, specialization, or primary area of study.";
+    expect(scanned(L, [], "San Francisco, CA, US", "textarea")).toEqual(each([null, null, null, null, null, null]));
+  });
+  it("a race option's own description names no second race ('…West Indian descent', Instacart)", () => {
+    const options = [
+      "White / Caucasian (A person having origins in any of the original peoples of Europe, the Middle East, or North Africa)",
+      "Hispanic or Latinx (A person of Cuban, Mexican, Puerto Rican, South or Central American or other Spanish culture or origin regardless of race)",
+      "Black or African-American (A person of African, Caribbean, West Indian descent)",
+      "Asian or Asian-American (A person having origins in any of the original peoples of Asia and the Indian subcontinent including all 48 Asian countries - ie. Cambodia, China, India, Japan, Korea, Malaysia, Pakistan, the Philippine Islands, Thailand, Vietnam)",
+      "Native Hawaiian or other Pacific Islander (A person having origins in any of the original peoples of Hawaii, Guam, Samoa, or other Pacific Islands)",
+      "Indigenous Peoples (A person having origins in any of the original peoples including Aboriginal People, American Indian, Alaska Native, First Nations, Native American, or Alaska Native, Indigenous peoples from non-US countries)",
+      "A race, ethnicity, or origin not shown",
+      "I don't wish to answer",
+    ];
+    expect(scanned("What is your race and/or ethnicity? Please check all that apply.", options, "United States - Remote", "boxes")).toEqual(
+      each([options[0], options[3], options[2], options[3], options[0], options[7]])
+    );
+  });
+  it("a salary written with thousands dots ('€120.000') is 120,000 in a list of 'k' ranges (NISC)", () => {
+    const options = ["less than 25k", "26-30k", "31-35k", "36-40k", "41-45k", "46-50k", "51-55k", "56-60k", "61-65k", "66-70k", "71-75k", "76-80k", "81-85k", "86-90k", "91-95k", "96-100k", "101-110k", "111-120k", "121-130K", "131-140K", "141-150K", "151-160K", "161-170K", "171K+"];
+    // A list whose currency nothing names, on a posting whose place is not
+    // read: each figure by its number.
+    expect(scanned("Target Compensation", options, "Any NISC Location")).toEqual(each(["91-95k", "171K+", "81-85k", "91-95k", "111-120k", null]));
+    // In the US: dollars, so no Canadian dollars or euros.
+    expect(scanned("Target Compensation", options, "Lake St. Louis, MO")).toEqual(each([null, "171K+", "81-85k", "91-95k", null, null]));
+  });
+  it("an either-or after the question is no yes or no: how they heard (Credence)", () => {
+    const L = "How did you hear about us? Was it a job board or an employee? Do tell....";
+    expect(scanned(L, [], "McLean, Virginia, United States")).toEqual(each(["LinkedIn", "Company website", "Social media", "Job board", "Referral", "LinkedIn"]));
+  });
+});
