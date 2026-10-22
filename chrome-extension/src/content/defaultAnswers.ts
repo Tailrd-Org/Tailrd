@@ -156,8 +156,10 @@ const PRIOR_APPLICATION =
 // our company suggest you apply?" (SmartRecruiters bank, round 7) too.
 const REFERRED =
   /\b(were|was) you referred\b|\bwere you referred by\b|\breferred by (a|an|any) (current )?(employee|staff|team member|friend)\b|\bemployee referral\b|\b(have|had) you been referred\b|\b(did|has|have) (a|an|any|someone|anyone)\b[^?]{0,40}\b(refer|referred|recommend|recommended|suggest|suggested) (you|that you)\b/;
+// "Do you have a Family or Close Friend relationship with anyone employed by
+// WD?" (Western Digital on SmartRecruiters, live, round 8) too.
 const RELATIVES =
-  /\b(relatives?|family members?|related to|spouse|domestic partner|immediate family|household members?|familial|personal relationships?)\b/;
+  /\b(relatives?|family members?|related to|spouse|domestic partner|immediate family|household members?|familial|personal relationships?|family (or (close )?friends?|relationships?)|close friends?)\b/;
 // "Are you involved in any business activity that you would expect to
 // continue during your employment with National Life Group?" (Greenhouse,
 // live, round 7) too.
@@ -769,6 +771,13 @@ export function resolveDefault(
   // (decision 49) unless the applicant prefers part-time work.
   if (/\bare you (available|able) (to work )?(for |in )?(a |the )?full ?time( work| position| role| basis| employment| job)?\b|\bavailable (to work )?(for |in )?(a )?full ?time\b/.test(n)) {
     return /\bpart ?time\b/.test(qn(profile.workPreference ?? "")) ? null : polar(true, q, "default:full-time-accepted");
+  }
+  // "Are you available to work during the work period specified in the
+  // eligibility section of the job posting?" (Intuitive on SmartRecruiters,
+  // live, round 8: blank for everyone): the posting's own dates, accepted by
+  // applying (decision 49).
+  if (/\b(available|able) to work (during|for|throughout|over) the (work |internship |co ?op |program |employment )?(period|dates|term|duration|session)\b[^?]{0,60}\b(specified|stated|listed|outlined|described|posted|posting)\b/.test(n)) {
+    return polar(true, q, "default:posted-period-accepted");
   }
   // "If requested, would you be able to provide documentation reflecting the
   // education and employment history listed on your resume?" (Justworks on

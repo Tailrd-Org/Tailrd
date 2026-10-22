@@ -714,6 +714,10 @@ function flatText(node: Node): string {
   }
   if (node instanceof Element) {
     if (/^(STYLE|SCRIPT|TEMPLATE)$/.test(node.tagName)) return "";
+    // A tooltip repeats what it annotates: SmartRecruiters' items keep their
+    // text in <spl-truncate>, whose <spl-tooltip> holds it again, and every
+    // option read as its label twice ("WA WA"; Intuitive, live, round 8).
+    if (node.getAttribute("role") === "tooltip") return "";
     // A host renders its SHADOW tree (whose slots pull the light children
     // in); walking both would count projected text twice.
     const shadow = (node as HTMLElement).shadowRoot;

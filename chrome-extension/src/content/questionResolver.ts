@@ -1758,7 +1758,9 @@ function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts):
  */
 function resolveReturningToSchool(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   if (!/\b(return|returning|go back|going back)\b[^?]{0,40}\b(school|program|programme|studies|university|college|degree|undergraduate|graduate)\b/.test(n)) return null;
-  if (!/\bafter\b[^?]{0,30}\b(internship|co ?op|placement|work term|term)\b/.test(n)) return null;
+  // "Following the completion of your internship, will you be returning to
+  // school…?" (ServiceNow, SmartRecruiters, live, round 8) asks the same.
+  if (!/\b(after|following|upon|on completion of|at the end of)\b[^?]{0,30}\b(internship|co ?op|placement|work term|term)\b/.test(n)) return null;
   if (!isBooleanQuestion(q)) return null;
   const e = facts.education.currentlyEnrolled;
   return isHigh(e) && !e.value ? booleanResult(false, q, "returning-to-school:graduated") : abstain("returning-to-school:student");
@@ -2890,6 +2892,59 @@ function resolveRelocationChoice(q: QuestionInput, n: string, profile: UserAppli
   return abstain("relocation:choice-unknown");
 }
 
+/** "If you live in one of these states, …": a question for residents of the places just listed. */
+const LISTED_CONDITION =
+  /\bif you (currently )?(live|reside|are located|are based|are living|are residing) in (one of |any of )?(these|those|the (above|listed|following)) (states|provinces|countries|locations|regions|areas)\b/i;
+
+/**
+ * "Preference will be given to qualified candidates who do not reside, or plan
+ * to reside, in Alabama, Arkansas, … or Tennessee.If you live in one of these
+ * states, would you consider relocation?" [Yes | No | N/A, I do not live in
+ * one of these states] (Intuitive, SmartRecruiters, live, round 8: blank for
+ * a Seattle and an Austin applicant). Someone living in none of the places
+ * takes the not-applicable option; someone living in one answers the question
+ * after the condition.
+ */
+function resolveListedPlaces(q: QuestionInput, raw: string, facts: ProfileFacts, profile: UserApplicationProfile, ctx: QuestionContext): QuestionResult {
+  const m = LISTED_CONDITION.exec(raw);
+  if (!m) return null;
+  const regions = new Set<string>();
+  const countries = new Set<string>();
+  for (const piece of raw.slice(0, m.index).split(/[,;:()]|\.(?=\s|[A-Z]|$)|\s(?:or|and)\s/)) {
+    const words = piece.trim().split(/\s+/).filter(Boolean);
+    // The place ends the piece ("…reside, in Alabama"): its last words.
+    for (let k = Math.min(4, words.length); k >= 1; k--) {
+      const said = words.slice(-k).join(" ");
+      const region = regionFromText(said);
+      if (region && geoNorm(said) === geoNorm(region.name)) {
+        regions.add(`${region.country}:${region.code}`);
+        break;
+      }
+      const country = countryFromName(said);
+      if (country && geoNorm(said) === geoNorm(country.name)) {
+        countries.add(country.code);
+        break;
+      }
+    }
+  }
+  if (regions.size + countries.size < 2) return null;
+  const opts = (q.options ?? []).filter((o) => o.trim());
+  const na = opts.filter((o) => !/^(yes|no)\b/i.test(o.trim()) && NOT_APPLICABLE.test(qnorm(o)));
+  const loc = facts.location;
+  if (!isHigh(loc.country)) return abstain("listed-places:unknown");
+  const country = loc.country.value.code;
+  const home = isHigh(loc.region) ? `${loc.region.value.country}:${loc.region.value.code}` : null;
+  const lives = countries.has(country) || (home !== null && regions.has(home));
+  // Outside them: a state named elsewhere, or a country none of them is in.
+  const outside = !lives && (home !== null || ![...regions].some((r) => r.startsWith(`${country}:`)));
+  if (outside) return na.length === 1 ? answer(na[0], "listed-places:not-a-resident") : abstain("listed-places:not-a-resident");
+  if (!lives) return abstain("listed-places:unknown");
+  const rest = raw.slice(m.index + m[0].length).replace(/^\s*[,;:]?\s*/, "").trim();
+  if (!/\?/.test(rest)) return abstain("listed-places:resident");
+  const inner = resolveQuestion({ ...q, label: rest, options: opts.filter((o) => !na.includes(o)) }, facts, profile, ctx);
+  return inner?.status === "answer" ? inner : abstain("listed-places:resident");
+}
+
 /** "Which location are you applying for?": one of the posting's own places. */
 const POSTING_LOCATION =
   /\b(which|what) (location|office|site|city|hub|work location)s? (are|is) (you|your application) (applying|interested)\b|\b(location|office|site)s? (that )?you (are |re )?applying (for|to)\b|\bapplying (for|to) (which|what) (location|office)\b/;
@@ -3097,6 +3152,13 @@ function resolveSchoolName(q: QuestionInput, n: string, facts: ProfileFacts): Qu
     // A school listed once per campus is listed: which campus is theirs
     // (Palantir on Lever: University of Washington - Seattle | - Bothell).
     if (schoolOffered(q.options, entry.school)) return abstain("school-name:which-campus");
+    // "…If unlisted, please select 'Other'" (ServiceNow on SmartRecruiters,
+    // live, round 8: blank for every school abroad): the page says what a
+    // school it does not list takes (decision 95).
+    if (/\bif (it is |its |your (school|university|college|institution) is )?(unlisted|not listed|not (in|on) (the|this) list)\b[^.?]{0,40}\b(select|choose|pick)\b|\bif you (do not|dont|cannot|cant) (see|find) (it|your (school|university|college|institution))\b[^.?]{0,40}\b(select|choose|pick)\b/.test(n)) {
+      const other = q.options.filter((o) => /^other\b/i.test(o.trim()));
+      if (other.length === 1) return answer(other[0], "school-name:unlisted-other");
+    }
     if (q.controlType === "select") {
       const unlisted = q.options.filter((o) => /\bnot (listed|in (the|this) list|found)\b|\bunlisted\b/i.test(o));
       if (unlisted.length === 1) return answer(unlisted[0], "school-name:not-listed");
@@ -3587,7 +3649,7 @@ const UNANSWERABLE =
 // "If not currently in the Bay Area, …" (Replit, Ashby bank 2026-10-08) is a
 // condition on where the applicant lives (resolveConditional), not a follow-up.
 const FOLLOW_UP =
-  /^if ([a-z] )?(yes|no|so|other|applicable|not(?! (currently |presently )?(in|located|based|living|residing|near|within)\b)|not applicable|you (answered|selected|chose|checked|said|indicated|replied|ticked|heard)|your answer|the answer|any of the above|none of the above|referred|referral)\b/;
+  /^if ([a-z] )?(yes|no|so|other|applicable|not(?! (currently |presently )?(in|located|based|living|residing|near|within)\b)|not applicable|you (answered|selected|chose|checked|said|indicated|replied|ticked|heard)|your answer|your (selection|choice|response)|the answer|any of the above|none of the above|referred|referral)\b/;
 
 // ---------------------------------------------------------------------------
 // Conditional questions: "If you <condition>, <question>"
@@ -3770,6 +3832,8 @@ export function resolveQuestion(
     }
     return abstain("conditional-follow-up");
   }
+  const listed = resolveListedPlaces(q, raw, facts, profile, ctx);
+  if (listed) return listed;
   const conditional = resolveConditional(q, raw, facts, profile, ctx);
   if (conditional !== undefined) return conditional;
   // An attention check names its answer: "To be considered, please choose

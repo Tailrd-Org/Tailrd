@@ -78,6 +78,14 @@ export function matchOption<T>(
     return null;
   }
 
+  // An option naming alternatives with a slash is each of them exactly:
+  // "Electrical/Electronics Engineering" is "Electrical Engineering", which
+  // took the broad "Engineering" beside it (ServiceNow on SmartRecruiters,
+  // live, round 8); "Computer Science/Software Engineering" is "Software
+  // Engineering" too.
+  const alternatives = items.filter((item) => slashAlternatives(getText(item)).includes(t));
+  if (alternatives.length === 1) return alternatives[0];
+
   // Bucketed numeric options ("0-1 year", "1-3 years") are matched by range
   // only: as words, "1" is inside both "0-1 year" and "1-3 years".
   const ranged = items.filter((item) => parseRange(getText(item)) !== null);
@@ -167,6 +175,22 @@ export function matchOption<T>(
     }
   }
   return best && !tied ? best.item : null;
+}
+
+/**
+ * The readings of an option with a slash between words, normalized: each side
+ * whole ("Computer Science/Software Engineering": "computer science",
+ * "software engineering"), and each word of the pair with the words around
+ * it ("Electrical/Electronics Engineering": "electrical engineering",
+ * "electronics engineering"). None without a slash.
+ */
+function slashAlternatives(text: string): string[] {
+  const m = /^(.*?)(\S+)\s*\/\s*(\S+)(.*)$/.exec(text.trim());
+  if (!m) return [];
+  const [, before, left, right, after] = m;
+  // Words on both sides: a date ("05/2027") or "N/A" names no alternatives.
+  if (!/\p{L}{2,}/u.test(left) || !/\p{L}{2,}/u.test(right)) return [];
+  return [...new Set([`${before}${left}`, `${right}${after}`, `${before}${left}${after}`, `${before}${right}${after}`].map(normalize).filter(Boolean))];
 }
 
 /** `needle`'s words appear contiguously, in order, inside `hay`. */

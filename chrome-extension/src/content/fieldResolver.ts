@@ -332,7 +332,7 @@ export function snapToOption(options: string[], value: string, category: FieldCa
   if (category === "fieldOfStudy") {
     // "Computing" is Computer Science (Imperial's MSc in Computing got "Other"
     // on Palantir's major list, live 2026-10-03).
-    if (/^(computing|informatics|informatique)$/i.test(value.trim())) {
+    if (/^(computing|informatics|informatique|informatik)$/i.test(value.trim())) {
       const cs = options.filter((o) => /^computer science$/i.test(o.trim()));
       if (cs.length === 1) return cs[0];
     }

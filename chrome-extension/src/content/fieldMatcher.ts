@@ -832,7 +832,30 @@ const DEGREE_PREFIX_RE =
  * on a single-value Field of Study the first subject is the honest answer
  * anyway.
  */
+/** A German Diplom title's field ("Diplom-Informatiker", "Dipl.-Ing."). */
+const DIPLOM_FIELDS: ReadonlyArray<[RegExp, string]> = [
+  [/^wirtschaftsinformatik/, "Information Systems"],
+  [/^informatik/, "Computer Science"],
+  [/^ing(enieur)?$/, "Engineering"],
+  [/^(kaufmann|kauffrau|kfm|betriebswirt)/, "Business Administration"],
+  [/^volkswirt/, "Economics"],
+  [/^physik/, "Physics"],
+  [/^mathematik/, "Mathematics"],
+  [/^chemik/, "Chemistry"],
+  [/^biolog/, "Biology"],
+  [/^psycholog/, "Psychology"],
+];
+
 export function deriveFieldOfStudy(degree: string): string | null {
+  // A German Diplom names its field by the graduate's title: "Diplom-
+  // Informatiker" is computer science (the SmartRecruiters bank, round 8: no
+  // major at all from it).
+  const diplom = /^\s*(?:dipl(?:om)?\.?)[\s-]+([a-zäöüß]+)/i.exec(degree || "");
+  if (diplom) {
+    const title = diplom[1].toLowerCase();
+    const field = DIPLOM_FIELDS.find(([re]) => re.test(title));
+    if (field) return field[1];
+  }
   // "<qualification> in <subject>": the subject follows " in ", whatever the
   // qualification says. The prefix list below cannot name every "of X"
   // variant: "Bachelor of Applied Science in Mechatronics Engineering" left
