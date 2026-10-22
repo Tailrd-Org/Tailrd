@@ -185,3 +185,74 @@ describe("fillWorkday via Fiber onChange", () => {
     expect(chosen).toBe("Female");
   });
 });
+
+/**
+ * Greenhouse's education School, Degree and Discipline (remix react-selects,
+ * live, round 8): the list is supplied only when the menu OPENS (a mousedown
+ * on the control, as a person's click). Typed into while closed, nothing
+ * loads: the driver waited out 3.5 s on each, then the ARIA fallback raced the
+ * same lazy list, and under a batch of live pages it lost ("Couldn't open the
+ * 'Bachelor' dropdown" on GCM Grosvenor; its Discipline the next time).
+ */
+function lazyReactSelect(fieldId: string, firstPage: string[], search: (q: string) => string[]): { display: HTMLElement; instance: { props: Record<string, unknown> } } {
+  const container = document.createElement("div");
+  container.className = "select__container";
+  container.setAttribute(FIELD_ID_ATTR, fieldId);
+  const control = document.createElement("div");
+  control.className = "select__control";
+  const single = document.createElement("div");
+  single.className = "select__single-value";
+  const input = document.createElement("input");
+  input.id = `${fieldId}-input`;
+  input.setAttribute("role", "combobox");
+  control.append(single, input);
+  container.append(control);
+  document.body.append(container);
+  const instance = {
+    props: { options: [] as { label: string; value: string }[], isLoading: false, menuIsOpen: false, getOptionLabel: (o: { label: string }) => o.label } as Record<string, unknown>,
+    selectOption: (o: { label: string }) => {
+      single.textContent = o.label;
+      instance.props = { ...instance.props, menuIsOpen: false };
+    },
+  };
+  const set = (labels: string[]): void => {
+    instance.props = { ...instance.props, options: labels.map((label) => ({ label, value: label })), isLoading: false };
+  };
+  control.addEventListener("mousedown", () => {
+    if (instance.props.menuIsOpen) return;
+    instance.props = { ...instance.props, menuIsOpen: true, isLoading: true };
+    setTimeout(() => set(firstPage), 120);
+  });
+  // A search runs only while the menu is open; typed into a closed menu, the
+  // input changes and nothing loads.
+  input.addEventListener("input", () => {
+    if (!instance.props.menuIsOpen) return;
+    instance.props = { ...instance.props, isLoading: true };
+    setTimeout(() => set(input.value ? search(input.value) : firstPage), 120);
+  });
+  const fiber = { return: null, stateNode: instance, memoizedProps: instance.props };
+  (container as unknown as Record<string, unknown>)["__reactFiber$abc"] = fiber;
+  return { display: single, instance };
+}
+
+describe("fillReactSelect: a list supplied when its menu opens (Greenhouse's education, round 8)", () => {
+  const DEGREES = ["Associate's Degree", "Bachelor's Degree", "Master's Degree", "Doctor of Philosophy (Ph.D.)", "Engineer's Degree", "High School"];
+  it("opens the menu, then picks from the list it loads", async () => {
+    installDriver(window);
+    const { display } = lazyReactSelect("rs-lazy", DEGREES, (q) => DEGREES.filter((d) => d.toLowerCase().includes(q.toLowerCase())));
+    const t0 = Date.now();
+    const res = await drive("rs-lazy", "Bachelor", "react-select");
+    expect(res.ok).toBe(true);
+    expect(display.textContent).toBe("Bachelor's Degree");
+    // No 3.5 s spent typing into a closed menu.
+    expect(Date.now() - t0).toBeLessThan(2000);
+  });
+  it("searches the open menu when the first page does not hold the answer", async () => {
+    installDriver(window);
+    const schools = ["Aalborg University", "Aalto University", "Aarhus University"];
+    const { display } = lazyReactSelect("rs-lazy-school", schools, (q) => (/waterloo/i.test(q) ? ["University of Waterloo", "Wilfrid Laurier University (Waterloo)"] : []));
+    const res = await drive("rs-lazy-school", "University of Waterloo", "react-select");
+    expect(res.ok).toBe(true);
+    expect(display.textContent).toBe("University of Waterloo");
+  });
+});

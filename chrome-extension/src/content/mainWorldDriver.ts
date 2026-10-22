@@ -166,6 +166,26 @@ async function fillReactSelect(el: HTMLElement, value: string, placeHint?: strin
     };
     missOptions = labels();
     let hit = pick();
+    // A list supplied only when its menu opens: Greenhouse's education School,
+    // Degree and Discipline (live, round 8) load nothing while typed into
+    // closed, so every try waited out 3.5 s and the ARIA fallback raced the
+    // same lazy list under load ("Couldn't open the 'Bachelor' dropdown").
+    // Open it as a click does; a list that starts loading is waited for, one
+    // that does not (a lookup that searches only what is typed) is typed into
+    // at once.
+    if (!hit && missOptions.length === 0) {
+      const control = container.querySelector<HTMLElement>('[class*="-control"], [class*="__control"]') ?? rsInput(container) ?? container;
+      fireMouse(control, "mousedown");
+      let loading = false;
+      for (let waited = 0; waited < 3000; waited += 50) {
+        await sleep(50);
+        if (labels().length > 0) break;
+        if ((inst.props as { isLoading?: boolean }).isLoading) loading = true;
+        else if (!loading && waited >= 400) break;
+      }
+      if (labels().length > 0) missOptions = labels();
+      hit = pick();
+    }
     // No match yet: async selects (Places city lookup…) only load options after
     // the user types. Type the value through the real input and poll the
     // instance's props.options (they refresh on every load) before giving up.
