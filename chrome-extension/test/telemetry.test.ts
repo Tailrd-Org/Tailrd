@@ -147,6 +147,17 @@ describe("successes are recorded too", () => {
 });
 
 describe("revertedFields", () => {
+  it("a self-ID answer the widget took in the list's own words holds (Gusto, live, round 8)", () => {
+    // "Prefer not to say" became "I don't wish to answer", "Female" "Woman":
+    // the same answer, reported as reverted.
+    const same = (want: string, got: string, demographic: "eeoSexualOrientation" | "eeoGender") =>
+      revertedFields([{ fieldId: "a", value: want }], [{ fieldId: "a", value: got, choice: true, demographic }], new Set(["a"])).length === 0;
+    expect(same("Prefer not to say", "I don't wish to answer", "eeoSexualOrientation")).toBe(true);
+    expect(same("Female", "Woman", "eeoGender")).toBe(true);
+    // Another answer is still a change.
+    expect(same("Female", "Man", "eeoGender")).toBe(false);
+  });
+
   it("catches a value the framework cleared after the write verified", () => {
     const out = revertedFields(
       [{ fieldId: "a", value: "Yes" }],

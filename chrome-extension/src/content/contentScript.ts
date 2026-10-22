@@ -1473,6 +1473,7 @@ function initialize(): void {
       value: f.currentValue ?? "",
       ...(f.controlType === "checkbox" ? { checkbox: true } : {}),
       ...(CHOICE.has(f.controlType) ? { choice: true } : {}),
+      ...(f.sensitive ? { demographic: f.category } : {}),
     }));
   }
 

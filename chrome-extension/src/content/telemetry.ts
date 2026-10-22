@@ -38,9 +38,10 @@ import { placeOf } from "./placeMatch";
 import { optionPolarity } from "./answerKind";
 import { countryFromName, DIAL_CODES, regionFromText } from "./geo";
 import { matchOption } from "./optionMatch";
+import { closestDemographicOption } from "./demographicMatch";
 import { parseDateSpan } from "./profileFacts";
 import type {
-  AutofillTelemetry, DetectedField, FieldCaptureRecord, FieldOutcomeRecord, FillDurations,
+  AutofillTelemetry, DetectedField, FieldCaptureRecord, FieldCategory, FieldOutcomeRecord, FillDurations,
 } from "../shared/types";
 import type { FieldReport } from "./reconciler";
 
@@ -100,6 +101,9 @@ export interface ObservedField {
   checkbox?: boolean;
   /** A control that only takes one of its options (select, dropdown, radios). */
   choice?: boolean;
+  /** A self-identification field's category: its answer reads back in the
+   *  list's own words ("Prefer not to say" as "I don't wish to answer"). */
+  demographic?: FieldCategory;
 }
 
 /** What one field was asked to hold. */
@@ -243,6 +247,10 @@ export function revertedFields(
     // veteran" as the list's "…of protected veteran" (Workday replica,
     // 2026-10-05). Options only: in a text box a near-match is a change.
     if (seen.choice && now && matchOption([now], (o) => o, (o) => o, value) !== null) continue;
+    // So is the option the self-ID rules pick for it: the widget now takes a
+    // self-ID answer by them, and "Prefer not to say" committed as "I don't
+    // wish to answer" was reported as reverted (Gusto, live, round 8).
+    if (seen.choice && now && seen.demographic && closestDemographicOption(seen.demographic, value, [now]) !== null) continue;
     out.push({ fieldId, cleared: now === "" });
   }
   return out;
