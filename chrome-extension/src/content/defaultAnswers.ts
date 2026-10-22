@@ -662,7 +662,11 @@ function chooseLocated(q: QuestionInput, profile: UserApplicationProfile, facts:
   const local = Boolean(city && ctx.jobCity && qn(ctx.jobCity) === city);
   if (local) return answer(here[0], "located:here");
   const refuses = /^no\b/i.test((profile.willingToRelocate ?? "").trim());
-  if (refuses) return no.length === 1 ? answer(no[0], "located:not-relocating") : null;
+  // Of two No options, the one about the move ("NO, I am not able to relocate
+  // for this role." beside "NO, I am looking for a remote-only job.", Zendar
+  // on Breezy, bank, round 8: blank for everyone who will not move).
+  const staying = no.length > 1 ? no.filter((o) => /\b(relocat\w*|move|moving)\b/.test(qn(o))) : no;
+  if (refuses) return staying.length === 1 ? answer(staying[0], "located:not-relocating") : null;
   return answer(move[0], profile.willingToRelocate ? "located:relocate-stated" : "located:relocate-default");
 }
 
@@ -945,6 +949,13 @@ export function resolveDefault(
     return choosePlaceOption(q, profile, facts);
   }
   if (!occasional) {
+    // Options that answer through location are the choice before any yes or
+    // no: "elsewhere" picked no option among Zendar's two Nos (Breezy, bank,
+    // round 8).
+    if (REQUIREMENT.test(n) || IN_PERSON.test(n)) {
+      const located = chooseLocated(q, profile, facts, ctx);
+      if (located) return located;
+    }
     const onsite = onsiteVerdict(q.label, profile, facts, ctx);
     if (onsite === "local") return polar(true, q, "default:in-person-local");
     if (onsite === "elsewhere") return polar(false, q, "default:in-person-not-relocating");

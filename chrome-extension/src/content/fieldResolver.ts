@@ -306,8 +306,13 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
     return [street, city, [region, postal].filter(Boolean).join(" "), country].filter(Boolean).join(", ");
   }
   if (/\bcity\b[^?]{0,20}\b(state|province|region)\b/i.test(label)) {
-    if (!city || !region || (zip && !postal)) return null;
-    return `${city}, ${region}${zip ? ` ${postal}` : ""}`;
+    // A state the region table does not know is the profile's own words:
+    // "Bengaluru, Karnataka" (JND on Breezy, bank, round 8: the city alone).
+    const state = region ?? (profile.addressState?.trim() || null);
+    if (!city || !state || (zip && !postal)) return null;
+    // A city that is its own state (Berlin) once.
+    if (state.toLowerCase() === city.toLowerCase()) return `${city}${zip ? ` ${postal}` : ""}`;
+    return `${city}, ${state}${zip ? ` ${postal}` : ""}`;
   }
   return null;
 }
@@ -664,6 +669,10 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     const composed = composedAddress(whole ? `Full ${label}` : label, profile);
     if (composed) value = composed;
   }
+  // A skills list never answers why the applicant fits: "What makes you a
+  // good fit for this position? What unique skill or contribution…" (Zendar
+  // on Breezy, bank, round 8) got "Python, C++, ROS". The AI's, once it can.
+  if (source === "category" && category === "skills" && /\b(why|what makes you|good fit|contribution|tell us|describe|explain|how (would|do|did) you)\b/i.test(label)) return none(false, "skills:not-a-list");
   // "Please type in a language that you speak" is one row of a language list,
   // its level asked beside it (SmartRecruiters bank, round 7): it got "English
   // (Native), French (Professional)". The first language, without its level.

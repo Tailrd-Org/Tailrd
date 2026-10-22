@@ -1301,7 +1301,11 @@ function resolveLocalOrRelocate(q: QuestionInput, facts: ProfileFacts, profile: 
     local = local.filter((x) => onlyRemote(x) === remote);
   }
   if (local.length !== 1) return null;
-  const no = opts.filter((x) => x !== move[0] && x !== local[0] && optionPolarity(x.o) === false && !LOCAL_OPTION.test(x.t));
+  let no = opts.filter((x) => x !== move[0] && x !== local[0] && optionPolarity(x.o) === false && !LOCAL_OPTION.test(x.t));
+  // Of two No options, the one about the move: "NO, I am not able to relocate
+  // for this role." beside "NO, I am looking for a remote-only job." (Zendar
+  // on Breezy, bank, round 8: blank for everyone who will not move).
+  if (no.length > 1) no = no.filter((x) => /\brelocat\w*|\bmove\b/.test(x.t));
   // Every place named counts: "…Santa Barbara, Kansas City, or the Seattle
   // metropolitan area" is a Yes for Seattle.
   const named = placesIn(local[0].o).length ? placesIn(local[0].o) : placesIn(q.label);
@@ -2260,7 +2264,19 @@ function degreeLevelsNamed(n: string): number[] {
 
 /** A degree in the sciences, engineering or mathematics, by its own words. */
 const STEM_DEGREE =
-  /\b(engineering|engineer|computer|computing|comput\w*|software|science|sciences|scientist|math\w*|physics|statistics|statistical|data|economics|econometrics|informatics|information systems|electrical|mechanical|mechatronics|chemistry|chemical|biology|bioinformatics|technology|basc|bsc|beng|btech|msc|meng)\b/;
+  /\b(engineering|engineer|computer|computing|comput\w*|software|science|sciences|scientist|math\w*|physics|statistics|statistical|data|economics|econometrics|informatics|informatik\w*|information systems|electrical|mechanical|mechatronics|chemistry|chemical|biology|bioinformatics|technology|basc|bsc|beng|btech|msc|meng)\b/;
+
+/**
+ * "Did you major in STEM (Science, Technology, Engineering, Math)?" (JND on
+ * Breezy, bank, round 8: blank for everyone): a college degree in a STEM
+ * field among those held. Without a college degree there is no major.
+ */
+function resolveStemMajor(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!/\b(major|majored|degree|field of study|studied|study)\b[^?]{0,30}\bstem\b|\bstem (major|degree|field|discipline)s?\b/.test(n) || !isBooleanQuestion(q)) return null;
+  const colleges = facts.education.entries.filter((e) => (e.rank ?? 0) >= 3 || (e.rank === null && /\b(universit\w*|college|institute|polytechnic|hochschule|[ée]cole)\b/i.test(e.school ?? "")));
+  if (colleges.length === 0) return abstain("stem-major:no-college");
+  return booleanResult(colleges.some((e) => STEM_DEGREE.test(qnorm(e.degree))), q, "stem-major");
+}
 
 /** Is the applicant in a program at that level (or one of those levels) right now? From the rows in progress. */
 function programAtLevel(q: QuestionInput, level: number | number[], facts: ProfileFacts, rule: string): QuestionResult {
@@ -3191,6 +3207,39 @@ function resolveLanguageLevel(q: QuestionInput, n: string, profile: UserApplicat
   return hits.length === 1 ? answer(hits[0], "language-level") : abstain("language-level:unknown");
 }
 
+/**
+ * One language besides another, fluently: "Do you have the ability to read,
+ * write, speak, and communicate fluently in any language other than
+ * English?" [No | Spanish | … | Hindi | Arabic | Other] (JND on Breezy, bank,
+ * round 8: "Hindi" for a conversational Hindi speaker whose Tamil is native).
+ * The language stated at a fluent level (native, fluent, professional,
+ * bilingual) the list names, else "Other"; none at that level is "No".
+ */
+function resolveOtherLanguage(q: QuestionInput, n: string, profile: UserApplicationProfile): QuestionResult {
+  if (!q.options?.length || q.controlType === "checkboxGroup" || q.kind === "multiChoice") return null;
+  const left = /\b(?:other than|besides|apart from|aside from|except)\s+([a-z]+)\b/.exec(n)?.[1];
+  if (!left || !/\b(fluen\w*|proficien\w*|speak|communicate)\b/.test(n) || q.options.filter((o) => LANGUAGE_NAME.test(qnorm(o))).length < 2) return null;
+  if (!(profile.languages || "").trim()) return abstain("language-other:unknown");
+  const fluent = (profile.languages || "")
+    .split(/[,;\n]+/)
+    .map((l) => l.trim())
+    .filter((l) => /\((native|fluent|bilingual|professional|full|advanced|c1|c2|mother tongue|first language)\b/i.test(l))
+    .map((l) => qnorm(l.replace(/\(.*$/, "")))
+    .filter((l) => l && l !== left);
+  const pick = (re: RegExp): string[] => q.options!.filter((o) => re.test(o.trim()));
+  if (fluent.length === 0) {
+    const no = pick(/^no\b/i);
+    return no.length === 1 ? answer(no[0], "language-other:none") : abstain("language-other:none-unlisted");
+  }
+  const listed = q.options.filter((o) => fluent.includes(qnorm(o)));
+  if (listed.length === 1 && fluent.length === 1) return answer(listed[0], "language-other");
+  if (listed.length === 0) {
+    const other = pick(/^other\b/i);
+    return other.length === 1 ? answer(other[0], "language-other:other") : abstain("language-other:unlisted");
+  }
+  return abstain("language-other:several");
+}
+
 function resolveLanguageChoice(q: QuestionInput, n: string, profile: UserApplicationProfile, facts: ProfileFacts): QuestionResult {
   if (!q.options?.length) return null;
   // A list of languages under a proficiency question names none: "Do you have
@@ -3548,7 +3597,9 @@ function resolveSchoolName(q: QuestionInput, n: string, facts: ProfileFacts): Qu
       if (!span || !g || g.latest.getUTCFullYear() * 12 + g.latest.getUTCMonth() < span[0]) entry = null;
     }
     if (!entry) return abstain("school-name:not-enrolled");
-  } else if (/\bcurrently attend(ing)?\b|currently enrolled|\b(do|will) you attend\b|\b(school|university|college|institution) you attend\b|\bare you attending\b/.test(n)) {
+  // "What school are you enrolled at?" (Gastronomous on Breezy, bank, round 8)
+  // too: five graduates got their old schools.
+  } else if (/\bcurrently attend(ing)?\b|currently enrolled|\b(do|will) you attend\b|\b(school|university|college|institution) you attend\b|\bare you attending\b|\bare you (currently )?(enrolled|studying)\b/.test(n)) {
     entry = entries.find((e) => e.completed === false) ?? null;
     if (!entry) return abstain("school-name:not-enrolled");
   } else if (/\bhighest (degree|level|qualification)\b/.test(n)) {
@@ -4019,6 +4070,11 @@ function resolveStatedFacts(q: QuestionInput, n: string, profile: UserApplicatio
     if (c !== "none" && home && asked && asked !== home) return abstain("clearance:other-country");
     // Able to HOLD one is eligibility, like able to obtain one: a citizen who
     // holds none was told No.
+    // Willing to go through the process is the posting's requirement, accepted
+    // by applying (decision 49): "Are you willing to undergo a security
+    // clearance process?" (VetsEZ on Breezy, bank, round 8) was No for all,
+    // read as "do you hold one?".
+    if (/\bwilling to (undergo|go through|complete|submit to|participate in|be subject to)\b/.test(n) && (isBooleanQuestion(q) || isYesNoDropdown(q, n))) return booleanResult(true, q, "clearance:willing");
     const obtainable = canObtain || /\bwilling to (obtain|get|acquire)\b/.test(n);
     if (obtainable) return eligible || active ? booleanResult(true, q, "clearance:obtainable") : abstain("clearance:obtainable-unknown");
     if (c === "none") return booleanResult(false, q, "clearance");
@@ -4260,6 +4316,11 @@ export function resolveQuestion(
   // one went unanswered (Baselayer; question bank 2, 2026-10-05). Every shape
   // sees the real options.
   if (q.options?.some((o) => PLACEHOLDER_OPTION.test(o.trim()))) q = { ...q, options: q.options.filter((o) => !PLACEHOLDER_OPTION.test(o.trim())) };
+  // Details of the applicant's own conditions are theirs to write: "(Optional)
+  // Please provide details if there are any conditions or restrictions for
+  // employment lasting more than 2 years." (JND on Breezy, bank, round 8),
+  // described "e.g., VISA Sponsorship…", took the profile's sponsorship "No".
+  if (!q.options?.length && /\b(provide|give|list|describe|explain|share)\b[^?.]{0,25}\bdetails?\b[^?.]{0,40}\b(conditions?|restrictions?|limitations?)\b/.test(n)) return abstain("work-auth:details");
   // Conditional follow-ups ("If 'Other' selected…", "If yes, please explain"):
   // what they ask depends on an answer we did not give. A condition on the
   // APPLICANT ("If you are currently enrolled…, what is your GPA?") is an
@@ -4429,6 +4490,7 @@ export function resolveQuestion(
     resolveYearsOfExperience(sq, sn, facts) ??
     resolvePursuedDegree(sq, sn, facts) ??
     resolveClassStanding(sq, sn, facts) ??
+    resolveStemMajor(sq, sn, facts) ??
     resolveEducationLevel(sq, sn, facts) ??
     resolveDegreeCandidate(sq, sn, facts) ??
     resolveF1Status(sq, sn, profile) ??
@@ -4457,6 +4519,7 @@ export function resolveQuestion(
     resolveSchoolName(sq, sn, facts) ??
     resolveAvailability(sq, sn, facts) ??
     resolveRelocationChoice(sq, sn, profile, ctx) ??
+    resolveOtherLanguage(sq, sn, profile) ??
     resolveLanguageLevel(sq, sn, profile) ??
     resolveLanguageChoice(sq, sn, profile, facts) ??
     resolveStatedFacts(sq, sn, profile, facts, ctx) ??
