@@ -111,3 +111,25 @@ describe("the last bank re-run (round 8)", () => {
     expect(scanned(L, [], "McLean, Virginia, United States")).toEqual(each(["LinkedIn", "Company website", "Social media", "Job board", "Referral", "LinkedIn"]));
   });
 });
+
+/** What the final live regression of round 8 caught, from the same fixes:
+ *  options verbatim from each posting's Greenhouse API (GET). */
+describe("the final live regression (round 8)", () => {
+  it("a level of education being pursued is a student's: blank for a graduate (Tenstorrent)", () => {
+    // "Highest Degree Earned/Pursuing" (Axtria) counts a degree in progress;
+    // this asks only for one, and graduates got their finished degree.
+    const options = ["High School", "Associate's Degree", "Bachelor's Degree", "Master's Degree", "Master of Business Administration (M.B.A.)", "Juris Doctor (J.D.)", "Doctor of Philosophy (Ph.D.)", "Other"];
+    expect(scanned("Current level of education pursuing", options, "Toronto, Ontario, Canada")).toEqual(each(["Bachelor's Degree", null, null, null, null, null]));
+  });
+  it("relocation support asked is the applicant's request, though its options say where they live (Scopely; the day session's decision 2)", () => {
+    const options = [
+      "Yes – I would be relocating for this role. (Choose this option if you do not currently reside in the required city or country and would need relocation support.)",
+      "No – I am already based in the required location. (Choose this option if you already live in the city or country where the role is based.)",
+      "No - I am not willing to relocate.",
+    ];
+    // Refusing to move asks for nothing: the stated No stays.
+    expect(scanned("Will you require relocation support?", options, "US - San Francisco, California, United States")).toEqual(
+      each([null, options[2], options[2], null, null, null])
+    );
+  });
+});

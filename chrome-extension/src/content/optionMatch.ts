@@ -152,9 +152,10 @@ export function matchOption<T>(
   let best: { item: T; score: number } | null = null;
   let tied = false;
   for (const item of items) {
-    const tokens = normalize(getText(item))
-      .split(" ")
-      .filter((w) => w.length > 2);
+    // Each word once: "August 2026 - December 2026" shares ONE word with
+    // "June 2026", not two of four (DV Trading on Greenhouse, final
+    // regression, round 8: a June graduate took it).
+    const tokens = [...new Set(normalize(getText(item)).split(" ").filter((w) => w.length > 2))];
     if (tokens.length === 0) continue;
     // A token overlaps on equality OR as a morphological variant ("canada" ↔
     // "canadian"): AI answers often use one. A variant shares at least 5

@@ -86,6 +86,15 @@ describe("matchOption: ambiguity is refused", () => {
     expect(pick(opts, "2029")).toBe("2029");
     expect(pick(["Class of 2026", "Class of 2027", "Class of 2028"], "2027")).toBe("Class of 2027");
   });
+
+  it("a word an option repeats is shared once (DV Trading on Greenhouse, round 8's final regression)", () => {
+    // "June 2026" shared "2026" twice with "August 2026 - December 2026",
+    // two words of four: a June graduate took a range that ends without
+    // June. Left blank, the list's real options go back to the resolver.
+    const opts = ["I've already graduated", "August 2026 - December 2026", "January 2027 - July 2027", "August 2027 - December 2027", "After January 2029"];
+    expect(pick(opts, "June 2026")).toBeNull();
+    expect(pick(opts, "August 2026 - December 2026")).toBe("August 2026 - December 2026");
+  });
 });
 
 describe("matchOption: unchanged behaviour", () => {

@@ -932,7 +932,8 @@ function remapRepeatingRows(
   registry: Map<string, RuntimeControl>,
   profile: UserApplicationProfile | null,
   adapter: SiteAdapter | null,
-  fillEEO: boolean
+  fillEEO: boolean,
+  educationEnds: ReadonlySet<DetectedField> = new Set()
 ): void {
   if (!profile) return;
   for (const cats of REPEAT_CATEGORIES) {
@@ -947,6 +948,15 @@ function remapRepeatingRows(
       f.groupIndex = pos;
       const control = registry.get(f.id);
       if (!control?.el) continue;
+      // An education row's end date is its graduation, split into the parts
+      // the row's index now names. Resolved again as a bare graduation year,
+      // a month box got the year: "2027" (Waymo's career site, whose ids
+      // read as row 4; final regression, round 8).
+      if (educationEnds.has(f)) {
+        delete f.deviceAbstained;
+        graduationDatePart(f, control.el, profile);
+        continue;
+      }
       // Every option, not the panel's capped copy (see scanPage).
       const allOptions = everyOption(control.el, f.controlType, f.options);
       f.proposedValue = guardConstrainedOption(
@@ -1076,7 +1086,8 @@ function reclassifyEducationRowDates(
   fields: DetectedField[],
   registry: Map<string, RuntimeControl>,
   profile: UserApplicationProfile | null
-): void {
+): Set<DetectedField> {
+  const ends = new Set<DetectedField>();
   for (const f of fields) {
     const control = registry.get(f.id);
     const el = control?.el ?? control?.checkboxes?.[0] ?? null;
@@ -1093,31 +1104,48 @@ function reclassifyEducationRowDates(
     const isEnd = f.category === "experienceEndDate";
     f.category = isEnd ? "graduationYear" : "unknown";
     f.proposedValue = null;
-    if (!isEnd || !profile) continue;
-    // A row still in progress with its own "Still Student?" box: the box is
-    // ticked and the page DISABLES the end date (Ashby; a year written first
-    // was left disabled beside a month the page picked: "October 2027", live
-    // 2026-10-03). The end date stays the page's, and away from the AI.
-    if (educationRowFacts(profile, f.groupIndex)?.completed === false && hasStillStudentBox(el)) {
-      f.deviceAbstained = true;
-      continue;
-    }
-    const grad = splitGreenhouseDate(graduationOfRow(profile, educationRowIndex(profile, f.groupIndex)));
-    if (!grad) continue;
-    // Ashby keeps ONE date per row: choosing only the year set the month to
-    // today's ("October 2017"), only the month today's year (Superhuman, live
-    // 2026-10-03). A part the profile lacks would be the page's invention, so
-    // neither part is written, nor asked of the AI.
-    if ((!grad.month || !grad.year) && el.closest(".ashby-application-form-input-dropdown")) {
-      f.deviceAbstained = true;
-      continue;
-    }
-    const key = `${el.id} ${el.getAttribute("name") ?? ""} ${f.label}`.toLowerCase();
-    const part = /month/.test(key) ? "month" : /year/.test(key) ? "year" : datePartOfOptions(f.options);
-    const value = part === "month" ? grad.month : part === "year" ? grad.year : "";
-    if (!value) continue;
-    f.proposedValue = f.options && f.options.length ? snapToOption(f.options, value, "graduationYear") : value;
+    if (!isEnd) continue;
+    ends.add(f);
+    if (profile) graduationDatePart(f, el, profile);
   }
+  return ends;
+}
+
+const MONTH_NAMES = ["january", "february", "march", "april", "may", "june", "july", "august", "september", "october", "november", "december"];
+
+/** An education row's end date control: the row's graduation month or year. */
+function graduationDatePart(f: DetectedField, el: HTMLElement, profile: UserApplicationProfile): void {
+  f.proposedValue = null;
+  // A row still in progress with its own "Still Student?" box: the box is
+  // ticked and the page DISABLES the end date (Ashby; a year written first
+  // was left disabled beside a month the page picked: "October 2027", live
+  // 2026-10-03). The end date stays the page's, and away from the AI.
+  if (educationRowFacts(profile, f.groupIndex)?.completed === false && hasStillStudentBox(el)) {
+    f.deviceAbstained = true;
+    return;
+  }
+  const grad = splitGreenhouseDate(graduationOfRow(profile, educationRowIndex(profile, f.groupIndex)));
+  if (!grad) return;
+  // Ashby keeps ONE date per row: choosing only the year set the month to
+  // today's ("October 2017"), only the month today's year (Superhuman, live
+  // 2026-10-03). A part the profile lacks would be the page's invention, so
+  // neither part is written, nor asked of the AI.
+  if ((!grad.month || !grad.year) && el.closest(".ashby-application-form-input-dropdown")) {
+    f.deviceAbstained = true;
+    return;
+  }
+  const key = `${el.id} ${el.getAttribute("name") ?? ""} ${f.label}`.toLowerCase();
+  const part = /month/.test(key) ? "month" : /year/.test(key) ? "year" : datePartOfOptions(f.options);
+  let value = part === "month" ? grad.month : part === "year" ? grad.year : "";
+  if (!value) return;
+  // A number box "MM" takes the month's number: "April" is no number (Waymo's
+  // career site, round 8).
+  if (part === "month" && el instanceof HTMLInputElement && (el.type === "number" || /^mm?$/i.test(el.placeholder.trim()))) {
+    const n = MONTH_NAMES.indexOf(value.toLowerCase()) + 1;
+    if (n < 1) return;
+    value = el.type === "number" ? String(n) : String(n).padStart(2, "0");
+  }
+  f.proposedValue = f.options && f.options.length ? snapToOption(f.options, value, "graduationYear") : value;
 }
 
 /** The profile education row a page row means: its own index, or for an
@@ -1563,10 +1591,10 @@ export function scanPage(
   assignRowsByPosition(fields, registry, profile, adapter, fillEEO);
   // Flat questionnaires asking for a school or employer more than once.
   assignQuestionnaireRows(fields, registry, profile, adapter, fillEEO);
-  reclassifyEducationRowDates(fields, registry, profile);
+  const educationEnds = reclassifyEducationRowDates(fields, registry, profile);
 
   // Repeating-section rows → positional indices (Workday's instance-numbered rows).
-  remapRepeatingRows(fields, registry, profile, adapter, fillEEO);
+  remapRepeatingRows(fields, registry, profile, adapter, fillEEO, educationEnds);
   dropRunningJobEndDates(fields, registry);
 
   // Scope to the application-form container; anything outside is noise even

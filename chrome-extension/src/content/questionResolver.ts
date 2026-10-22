@@ -2352,7 +2352,14 @@ function programAtLevel(q: QuestionInput, level: number | number[], facts: Profi
  * and kept from the AI, which could only pick a degree they are not taking.
  */
 function resolvePursuedDegree(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
-  if (!/\b(which|what)\b.*\b(degree|program|level)\b.*\b(pursuing|working towards?|enrolled in|studying for)\b/.test(n)) return null;
+  // Or a label alone: "Current level of education pursuing" (Tenstorrent on
+  // Greenhouse, final regression, round 8) gave graduates their finished
+  // degree.
+  if (
+    !/\b(which|what)\b.*\b(degree|program|level)\b.*\b(pursuing|working towards?|enrolled in|studying for)\b/.test(n) &&
+    !/^(current |currently )?((level|type) of )?(education|degree|program|study)( level| type)? (currently )?(being )?(pursuing|pursued)$/.test(n)
+  )
+    return null;
   // "The highest degree level you are currently pursuing" (CTC, question bank
   // 2026-10-05) is still the one in progress: graduates got their old degree.
   if (/\bor (have |has )?(completed|graduated|earned|obtained)\b|\bmost recent\b/.test(n) || (/\bhighest\b/.test(n) && !/\bcurrently pursuing\b/.test(n))) return null;

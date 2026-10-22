@@ -963,6 +963,12 @@ export function resolveDefault(
     // round 8).
     if (REQUIREMENT.test(n) || IN_PERSON.test(n)) {
       const located = chooseLocated(q, profile, facts, ctx);
+      // Help with the move is the applicant's to ask for (the day session's
+      // decision 2): "Will you require relocation support?" took "Yes – I
+      // would be relocating for this role. (… would need relocation
+      // support.)" (Scopely on Greenhouse, final regression, round 8).
+      // Living there, or refusing to move, asks for nothing.
+      if (located?.status === "answer" && located.rule.startsWith("located:relocate") && ASSISTANCE.test(question)) return null;
       if (located) return located;
     }
     const onsite = onsiteVerdict(q.label, profile, facts, ctx);

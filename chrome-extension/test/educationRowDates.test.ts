@@ -279,3 +279,60 @@ describe("Ashby's education rows are told apart by position (Superhuman, live 20
     expect(school.map((f) => f?.groupIndex)).toEqual([0, 1]);
   });
 });
+
+/**
+ * A career site's own rendering of Greenhouse's education block (Waymo's,
+ * read by GET in round 8; ids, classes and attributes verbatim, names
+ * trimmed). Its ids carry the question set's number ("question_7_0_4_1_0_…",
+ * read as row 4), and each date is a NUMBER box "MM" (1 to 12) beside a
+ * "YYYY" box. Row 4 became row 0 only after the dates were read, and both
+ * boxes were then resolved again as a graduation year: the month box got
+ * "2027" (final regression, round 8).
+ */
+const CAREER_SITE_EDU = (() => {
+  const q = "question_7_0_4_1_0";
+  const head = (forId: string, label: string) =>
+    `<label for="${forId}" class="form-template-field-label"><span class="ada-label-text rich-text-label" data-turbo="false">${label} <small class="question-label-required">(required)</small></span><span class="ada-unique-content">55c9bf58</span></label>`;
+  const select = (part: string, label: string, placeholder: string, forId = `${q}_${part}_--template--`) =>
+    `<div class="form-group ${part}"><div class="d-flex justify-content-between">${head(forId, label)}</div><select name="f[][${part}_id]" id="${q}_${part}_--template--" class="form-control greenhouse-selectize-dropdown" required="required" placeholder="${placeholder}"><option value="" label=" "></option></select></div>`;
+  const date = (part: string, label: string) =>
+    `<div class="form-group ${part}-date">${head(`${q}_${part}_month_--template--`, label)}<div class="row" data-controller="call-to-action--greenhouse--education-date">` +
+    `<div class="col-md-6 form-group"><input type="number" name="f[][${part}_date][month]" id="${q}_${part}_month_--template--" value="" class="form-control month-selector" placeholder="MM" required="required" min="1" max="12" /></div>` +
+    `<div class="col-md-6 form-group"><input type="number" name="f[][${part}_date][year]" id="${q}_${part}_year_--template--" value="" class="form-control" placeholder="YYYY" required="required" min="1900" max="2100" /></div></div></div>`;
+  return `<form><div class="form-template-field-question-set form-template-field-question-set-education" id="question_set_7_0_4_1">
+  <div class="form-group application-questions educations greenhouse-education" data-kind="vendor_specific" data-controller="call-to-action--greenhouse--education">
+  <div class="education-question-container" id="${q}_education_question_container"><div class="education-question-group" id="${q}_education_question_group_--template--">
+    ${select("school_name", "School", "Start typing your school's name…", `${q}_school_--template--`)}
+    <input type="hidden" name="f[][school_name]" id="${q}_school_name_--template--" value="" class="school-name" />
+    ${select("degree", "Degree", "Start typing your degree's name…")}
+    ${select("discipline", "Discipline", "Start typing your discipline's name…")}
+    ${date("start", "Start date")}
+    ${date("end", "End date")}
+  </div></div></div></div></form>`;
+})();
+
+describe("a career site's Greenhouse education block: month and year boxes (Waymo, final regression, round 8)", () => {
+  const scanSite = (profile: typeof SPARSE_CANADIAN) => {
+    document.body.innerHTML = CAREER_SITE_EDU;
+    const fields = scanPage(profile, false).fields;
+    return (part: string) => fields.find((f) => document.getElementById(`question_7_0_4_1_0_${part}_--template--`)?.getAttribute("data-ap-field") === f.id);
+  };
+
+  it("the end date's month box takes the graduation month as a number, its year box the year", () => {
+    const f = scanSite({ ...SPARSE_CANADIAN, expectedGraduation: "2027-04" });
+    expect(f("end_month")?.proposedValue).toBe("4");
+    expect(f("end_year")?.proposedValue).toBe("2027");
+  });
+
+  it("a bare graduation year leaves the month box blank, never the year in it", () => {
+    const f = scanSite(SPARSE_CANADIAN);
+    expect(f("end_month")?.proposedValue ?? null).toBeNull();
+    expect(f("end_year")?.proposedValue).toBe("2027");
+  });
+
+  it("the start date stays blank (the profile has none)", () => {
+    const f = scanSite({ ...SPARSE_CANADIAN, expectedGraduation: "2027-04" });
+    expect(f("start_month")?.proposedValue ?? null).toBeNull();
+    expect(f("start_year")?.proposedValue ?? null).toBeNull();
+  });
+});
