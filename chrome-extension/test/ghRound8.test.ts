@@ -185,3 +185,21 @@ describe("Canonical's nationality list (live, round 8)", () => {
     expect(f?.proposedValue ?? null).toBeNull();
   });
 });
+
+describe("Gusto's race list once its lazy options load (live, round 8)", () => {
+  // Verbatim from Gusto's posting (Greenhouse job board API, 2026-10-22).
+  const RACE = ["Alaskan Native / American Indian / Indigenous American / Native American", "Black / of African or African-American descent", "East Asian (inclusive of Chinese, Japanese, Korean, Mongolian, Tibetan, and Taiwanese)", "Latino/a/x/Hispanic (inclusive of the United States of America, South America, Central America, and the Caribbean)", "Latino/a/x/Hispanic (inclusive of Canada, South America, Central America, and the Caribbean)", "Middle Eastern", "Pacific Islander or Native Hawaiian", "South Asian (inclusive of Afghani, Bangladeshi, Bhutanese, Indian, Nepali, Pakistani, and Sri Lankan)", "Southeast Asian (inclusive of Burmese, Cambodian, Filipino, Hmong, Indonesian, Laotian, Malaysian, Mien, Singaporean, Thai, and Vietnamese)", "White", "I prefer to self-describe", "I don't wish to answer"];
+  const lazy = (): string => `<form id="application-form"><div class="field"><label id="q4-label" for="q4">I identify my race/ethnicity as (mark all that apply):</label><div class="select__control"><input id="q4" role="combobox" aria-haspopup="true" aria-expanded="false" aria-autocomplete="list" aria-labelledby="q4-label"></div></div></form>`;
+  it("a stated race three options narrow is left for the applicant (the re-ask took East Asian)", () => {
+    document.body.innerHTML = lazy();
+    const p = persona("US_OPT_ANALYST");
+    const { fields, registry } = scanPage(p, true);
+    expect(resolveWithOptions(fields[0], registry, p, null, true, RACE)).toBeNull();
+  });
+  it("a race one option names is that option", () => {
+    document.body.innerHTML = lazy();
+    const p = persona("BOOTCAMP_CAREER_GAP");
+    const { fields, registry } = scanPage(p, true);
+    expect(resolveWithOptions(fields[0], registry, p, null, true, RACE)).toBe("Black / of African or African-American descent");
+  });
+});

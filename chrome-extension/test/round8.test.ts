@@ -107,3 +107,13 @@ describe("local to the DMV (Significance on Lever, live, round 8)", () => {
     expect(at("Virginia Beach, VA", "Virginia Beach", "VA")).toBeNull();
   });
 });
+
+describe("a select's question a paragraph long (Stand Together on Lever, live, round 8)", () => {
+  it("is the select's label, not the card's heading above it", () => {
+    const Q = "Koch Internship Program (KIP) participants attend programming hosted online by Stand Together Fellowships on Thursdays from 1-4 pm ET, attend an on-site summit in Arlington, VA, and work with one of Stand Together Fellowships’ non-profit partner organizations (national think tanks or state policy organizations). Are you available to attend all online and on-site KIP programming and work with a partner organization either part time or full time for the duration of the program as required for participation?";
+    // Lever's markup, verbatim but for the card id.
+    document.body.innerHTML = `<form id="application-form"><div class="section page-centered application-form" data-qa="additional-cards"><h4 data-qa="card-name">ST Fellowships - Koch Internship Program</h4><ul><li class="application-question custom-question"><div><div class="application-label full-width dropdown"><div class="text">${Q}<span class="required">✱</span></div></div><div class="application-field full-width required-field"><div class="application-dropdown"><select name="cards[2e05ab8f][field1]" required=""><option value="">Select...</option><option value="Yes">Yes</option><option value="No">No</option></select></div></div></div></li></ul></div></form>`;
+    const f = scanPage(persona("US_OPT_ANALYST"), true).fields[0];
+    expect(f.label.startsWith("Koch Internship Program (KIP) participants attend")).toBe(true);
+  });
+});

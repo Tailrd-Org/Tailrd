@@ -25,7 +25,7 @@ import { resolveQuestion, type QuestionContext, type QuestionInput, type Questio
 import { countryFromName } from "./geo";
 import { snapSchool } from "./schoolMatch";
 import { placeOf } from "./placeMatch";
-import { closestDemographicOption, declineOption, groupedEthnicityOption, hispanicRaceOption, veteranOption } from "./demographicMatch";
+import { closestDemographicOption, declineOption, groupedEthnicityOption, hispanicRaceOption, severalHold, veteranOption } from "./demographicMatch";
 import { matchOption } from "./writeEngine";
 import { sentencesOf } from "./statementText";
 
@@ -306,6 +306,17 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
  * Snap `value` onto one of `options`, strictly. Country names get their
  * spelling variants first ("Canada" ↔ "CA", "USA" ↔ "United States of America").
  */
+/**
+ * A self-ID answer's option, by the self-ID rules first: "Asian" names none
+ * of East, South and Southeast Asian, and the general matcher took the
+ * shortest of them, "East Asian (inclusive of …)" (Gusto's race list on
+ * Greenhouse, live, round 8). Only an answer no option holds goes on to the
+ * general matcher.
+ */
+function demographicSnap(category: FieldCategory, value: string, options: string[]): string | null {
+  return closestDemographicOption(category, value, options) ?? (severalHold(value, options) ? null : snapToOption(options, value, category));
+}
+
 export function snapToOption(options: string[], value: string, category: FieldCategory): string | null {
   if (category === "school") return snapSchool(options, value);
   const direct = pick(options, value);
@@ -766,7 +777,7 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
       const whole = options.filter((o) => key(o) === said);
       if (whole.length === 1) return { value: whole[0], kind, source, rule, deviceAbstained: false };
       const parts = value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
-      const hits = parts.map((p) => snapToOption(options, p, category) ?? (input.sensitive ? closestDemographicOption(category, p, options) : null));
+      const hits = parts.map((p) => (input.sensitive ? demographicSnap(category, p, options) : snapToOption(options, p, category)));
       // One option, once: "No, I do not have a disability" splits on its own
       // comma, and both halves land on the same box ("No, I do not have a
       // disability and have not had one in the past" twice over).
@@ -784,8 +795,7 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
     // A demographic answer in other words ("Female" among Man / Woman, Ashby):
     // the on-device demographic matcher knows the synonyms.
     const snapped =
-      snapToOption(options, value, category) ??
-      (input.sensitive ? closestDemographicOption(category, value, options) : null) ??
+      (input.sensitive ? demographicSnap(category, value, options) : snapToOption(options, value, category)) ??
       (category === "location" || category === "country" ? anyPlaceOption(options, value, label) : null);
     if (!snapped) return none(false, "no-confident-option");
     value = snapped;

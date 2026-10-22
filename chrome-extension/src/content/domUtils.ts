@@ -482,10 +482,46 @@ function blockQuestionText(block: HTMLElement, el: HTMLElement): string {
   let text = cleanText(visibleText(block));
   if (own && text.endsWith(own)) text = cleanText(text.slice(0, -own.length));
   if (text && text.length <= 300 && !isPlaceholderFiller(text)) return text;
+  // Longer: a question a paragraph long, or one with its description. The
+  // block's first part outside the control is the question, as for an option
+  // group: Stand Together's 470-character Koch Internship Program question
+  // (Lever, live, round 8) was labelled with its card's heading.
+  if (text.length > 300) {
+    const head = firstTextOutside(block, el);
+    if (head && !isPlaceholderFiller(head)) return head;
+  }
 
   // The question sits OUTSIDE the block (a heading above it). nearbyText from
   // the block (not from the control) is the one that can see it.
   return nearbyText(block);
+}
+
+/** A block's first part with text, up to a paragraph long: its own text when
+ *  it has no element inside, else its first child with text. */
+export function firstTextPart(el: Element, depth = 0): string {
+  const own = cleanText(el.textContent);
+  if (!own) return "";
+  const kids = Array.from(el.children).filter((c) => cleanText(c.textContent));
+  // Text of its own beside the children ("Question? <span>✱</span>"): the whole.
+  const loose = Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim());
+  if (kids.length === 0 || loose || depth >= 3) return own.length <= 800 ? own : "";
+  return firstTextPart(kids[0], depth + 1);
+}
+
+/** The first part with text in `block` that is not the control `el` (nor
+ *  holds it): Lever's <div class="application-label"> beside the field. */
+function firstTextOutside(block: Element, el: Element, depth = 0): string {
+  if (depth > 5) return "";
+  for (const child of Array.from(block.children)) {
+    if (child === el || hiddenFromReaders(child)) continue;
+    if (child.contains(el)) {
+      const inner = firstTextOutside(child, el, depth + 1);
+      if (inner) return inner;
+      continue;
+    }
+    if (cleanText(child.textContent)) return firstTextPart(child);
+  }
+  return "";
 }
 
 /**

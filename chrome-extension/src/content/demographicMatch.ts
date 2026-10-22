@@ -28,6 +28,13 @@ const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").
  *  "female" and "man" inside "woman" (2026-10-03). */
 const hasWords = (hay: string, needle: string): boolean => ` ${hay} `.includes(` ${needle} `);
 
+/** Several options each holding the whole answer: each NARROWER than it
+ *  ("Asian" in East, South and Southeast Asian). No pick, by any matcher. */
+export function severalHold(value: string, options: string[]): boolean {
+  const v = norm(value);
+  return Boolean(v) && options.filter((o) => hasWords(norm(o), v)).length > 1;
+}
+
 /** Priority-ordered option substrings for a normalized profile value. */
 const RACE: Record<string, string[]> = {
   "arab": ["middle eastern", "north african", "mena", "white"],

@@ -70,7 +70,7 @@ import { loadWorkableGuesses, workableShortcode } from "./pageGuesses";
 import { defaultSelectedIds, fillSelection, isDefaultSelected } from "../shared/selection";
 import { extractJobContext, extractJobIdentity } from "./jobContext";
 import { detectJobPlace, sanitizeCompany, type JobPlace } from "./jobLocation";
-import { getResolveContext, setResolveContext } from "./fieldResolver";
+import { EEO_DECLINE, getResolveContext, setResolveContext } from "./fieldResolver";
 import { formCountryHint } from "./questionResolver";
 import { isHigh, profileFacts } from "./profileFacts";
 import { aiFillCandidates, isBoolish, needsOptionHarvest, planAiFill, planFillRoute, planOnDeviceReask, planReaskFields, planSensitiveReask, tallyOutcomes, toAiFillField, type PlannedAnswer, type ReaskCandidate } from "./aiFillPlanner";
@@ -1046,6 +1046,24 @@ function initialize(): void {
       // Phase A: deterministic profile fields fill instantly (local fast-path).
       const localStartedAt = performance.now();
       const route = planFillRoute(selected, AUTOFILL_CONFIDENCE_THRESHOLD);
+      // A self-ID list whose label names no topic was decided before its
+      // options loaded: the decline ("Voluntary Equal Employment Opportunity
+      // Questionnaire:" over Male | Female | I choose not to disclose took the
+      // decline for a stated Female, Bracebridge on Greenhouse, live, round 8).
+      // Its options name the question (decision 90): read them, then answer
+      // by them. These values never leave the device.
+      for (let i = 0; i < route.localTargets.length && !signal?.aborted; i++) {
+        const t = route.localTargets[i];
+        const f = lastFields.find((x) => x.id === t.fieldId);
+        const el = registry.get(t.fieldId)?.el;
+        if (!f?.sensitive || f.category !== "eeoOther" || t.value !== EEO_DECLINE || f.options?.length || !el || !lastProfile) continue;
+        const harvested = await harvestComboboxOptions(el, { openWaitMs: 600 }).catch(() => undefined);
+        if (!harvested?.length) continue;
+        f.options = harvested;
+        const v = resolveWithOptions(f, registry, lastProfile, lastAdapter, lastFillEEO, harvested);
+        if (v) route.localTargets[i] = { fieldId: t.fieldId, value: v };
+        else route.localTargets.splice(i--, 1);
+      }
       // A react-datepicker box (Workable's dates) is typed last, after every
       // dropdown: on Saalex's form, a State chosen after its dates were typed
       // sent Workable's form into an endless re-render that froze the tab

@@ -15,6 +15,7 @@ import {
   collectSignals,
   deepQueryAll,
   EXTENSION_UI_HOST_IDS,
+  firstTextPart,
   hiddenFromReaders,
   isHiddenButLabeled,
   isPlaceholderFiller,
@@ -457,18 +458,6 @@ function questionAboveOptions(members: HTMLInputElement[]): string {
     }
   }
   return "";
-}
-
-/** A block's first part with text, up to a paragraph long: its own text when
- *  it has no element inside, else its first child with text. */
-function firstTextPart(el: Element, depth = 0): string {
-  const own = cleanText(el.textContent);
-  if (!own) return "";
-  const kids = Array.from(el.children).filter((c) => cleanText(c.textContent));
-  // Text of its own beside the children ("Question? <span>✱</span>"): the whole.
-  const loose = Array.from(el.childNodes).some((n) => n.nodeType === Node.TEXT_NODE && (n.textContent ?? "").trim());
-  if (kids.length === 0 || loose || depth >= 3) return own.length <= 800 ? own : "";
-  return firstTextPart(kids[0], depth + 1);
 }
 
 /** Inputs a user fills in (choices included); hidden mirrors and buttons are not. */
