@@ -360,3 +360,28 @@ describe("'Please state' is a verb (GDMSI, SmartRecruiters bank)", () => {
     expect(got).toEqual({ COMPLETE_CANADIAN: null, BERLIN_STAFF: null, INDIA_NEW_GRAD: null });
   });
 });
+
+describe("an address label that lists its parts (Sopra Steria, SmartRecruiters bank)", () => {
+  it("'Adresse (Straße, Hausnummer, Postleitzahl & Stadt)' is the whole address, never the street alone", () => {
+    const got = scanned(as("BERLIN_STAFF", "US_H1B_SENIOR"), "Adresse (Straße, Hausnummer, Postleitzahl & Stadt)", [], "Hamburg, Germany");
+    expect(got.BERLIN_STAFF).toBe("Torstraße 109, Berlin, 10119, Germany");
+    expect(got.US_H1B_SENIOR).toMatch(/^1200 Westlake Ave N, Unit 805, Seattle, WA \d{5}$/);
+  });
+});
+
+describe("a visa-detail list that says when none applies (Wellmark, SmartRecruiters bank)", () => {
+  it("someone who needs no sponsorship takes its 'None of these apply' option; a visa holder's own pick stays theirs", () => {
+    const opts = ["H-1B transfer", "H-1B transfer with approved I-140", "H-4 EAD", "F-1 STEM OPT", "F-1 CPT", "O-1", "TN", "E-3", "Something else", "None of these apply and I am eligible to work in the US without employer-based sponsorship now and in the future"];
+    const got = scanned(as("BOOTCAMP_CAREER_GAP", "US_H1B_SENIOR", "US_OPT_ANALYST", "COMPLETE_CANADIAN"), "Please provide detail regarding any visa and/or employer-based sponsorship requirements", opts, "Des Moines, IA, United States");
+    // Blank for the US citizen in the bank; the H-1B holder's two H-1B
+    // options (with or without an approved I-140) are theirs to tell apart.
+    expect(got).toEqual({ BOOTCAMP_CAREER_GAP: opts[9], US_H1B_SENIOR: null, US_OPT_ANALYST: "F-1 STEM OPT", COMPLETE_CANADIAN: null });
+  });
+});
+
+describe("a major joined by 'and' (WD, SmartRecruiters bank)", () => {
+  it("'Computer Science and Engineering' is Computer Science, never the 'Computer Engineering' its words also spell", () => {
+    const opts = ["Business Administration", "Accounting", "Human Resources", "Communications", "Management Information Systems", "Computer Science/Software Engineering", "Computer Engineering", "Electrical Engineering", "Economics", "Material Science/Material Engineering", "Mechanical Engineering", "Chemical Engineering", "Finance", "Physics", "Law", "Other"];
+    expect(scanned(as("INDIA_NEW_GRAD"), "What is your major?", opts, "San Jose, CA, United States")).toEqual({ INDIA_NEW_GRAD: "Computer Science/Software Engineering" });
+  });
+});

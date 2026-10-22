@@ -554,6 +554,15 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
     if (isHigh(s) && s.value === false && profile.requiresSponsorship?.trim()) return answer("No", "sponsorship:text-no");
     return abstain("sponsorship:type-unknown");
   }
+  // A list of visas whose last option says none applies without sponsorship
+  // ("Please provide detail regarding any visa and/or employer-based
+  // sponsorship requirements", Wellmark on SmartRecruiters, bank, round 8):
+  // blank for a US citizen. Only that option; a visa is the holder's pick.
+  if (hasSponsor && !isBooleanQuestion(q) && (q.options?.length ?? 0) > 2) {
+    const none = (q.options ?? []).filter((o) => /^(none|not applicable|n\s*\/\s*a)\b[^.]{0,80}\bwithout\b[^.]{0,40}\bsponsor(ship)?\b/i.test(o.trim()));
+    const s = none.length === 1 ? needsSponsorshipIn(facts.workAuth, country, residence) : null;
+    if (s && isHigh(s) && s.value === false) return answer(none[0], "sponsorship:type-none");
+  }
   if (hasSponsor && SPONSOR_TYPE.test(n) && !isBooleanQuestion(q)) {
     // None needed, and the list says so: "Not applicable" among visa types
     // (AssortHealth on Ashby, bank, round 8), as decision 92 has it.

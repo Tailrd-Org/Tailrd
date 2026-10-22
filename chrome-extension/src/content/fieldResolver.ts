@@ -288,7 +288,10 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
   // question bank 2026-10-08) got the city line without the street; and
   // "your complete current residential address" (FiscalNote) the city alone.
   const withRest = /\bstreet address\b/i.test(label) && /\b(include|including|with|along with|as well as)\b[^?.]{0,30}\bcity\b/i.test(label);
-  if ((withRest || (!part && (/\b(full|complete) (current |home |mailing |street |residential |permanent )*address\b/i.test(label) || /^\s*what is your (current |home |mailing |permanent |residential )*address\b/i.test(label)))) && !/\be-?mail\b/i.test(label)) {
+  // Its parts listed: "Adresse (Straße, Hausnummer, Postleitzahl & Stadt)"
+  // (Sopra Steria on SmartRecruiters, bank, round 8) got the street alone.
+  const listed = /\((?=[^)]*\b(street|stra(ss|ß)e|rue|calle)\b)(?=[^)]*\b(city|stadt|ort|ville|ciudad|postleitzahl|plz|zip|postal code|post ?code|code postal)\b)[^)]*\)/i.test(label);
+  if ((withRest || listed || (!part && (/\b(full|complete) (current |home |mailing |street |residential |permanent )*address\b/i.test(label) || /^\s*what is your (current |home |mailing |permanent |residential )*address\b/i.test(label)))) && !/\be-?mail\b/i.test(label)) {
     if (!street || !city) return null;
     // Outside North America the country is part of it ("Torstraße 109,
     // Berlin, 10119" lacked Germany).
@@ -336,6 +339,18 @@ export function degreeAtALevel(label: string): boolean {
 
 export function snapToOption(options: string[], value: string, category: FieldCategory): string | null {
   if (category === "school") return snapSchool(options, value);
+  // "Computer Science and Engineering" is Computer Science: its words also
+  // spell "Computer Engineering", which the word overlap preferred (IIT
+  // Madras's B.Tech on WD's major list, SmartRecruiters bank, round 8). A
+  // major of two fields joined by "and" is read by its first, unless listed
+  // whole; a one-word head ("Electrical and Computer Engineering") names none.
+  if (category === "fieldOfStudy") {
+    const head = /^(\S+\s+\S+(?:\s+\S+)?)\s+(?:and|&)\s+\S/i.exec(value.trim())?.[1];
+    if (head && !options.some((o) => o.trim().toLowerCase() === value.trim().toLowerCase())) {
+      const hit = pick(options, head);
+      if (hit) return hit;
+    }
+  }
   const direct = pick(options, value);
   if (direct) return category === "country" || category === "location" ? sameplaceInEnglish(options, direct) : direct;
   if (category === "country" || category === "phoneCountryCode") {
