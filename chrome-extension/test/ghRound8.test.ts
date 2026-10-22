@@ -262,3 +262,12 @@ describe("Insomniac's veteran list once its lazy options load (live, round 8)", 
     expect(resolveWithOptions(fields[0], registry, p, null, true, VETERAN)).toBe(VETERAN[0]);
   });
 });
+
+describe("today's date in the format its label states (SoFi, Greenhouse bank)", () => {
+  it("MM/DD/YY is two digits of year", () => {
+    // Written "10/20/2026" in every bank run.
+    document.body.innerHTML = `<form id="application-form"><div class="field"><label for="q8">Today's Date of Application (MM/DD/YY Format)</label><input type="text" id="q8" name="q8"></div></form>`;
+    const f = scanPage(persona("COMPLETE_CANADIAN"), true).fields.find((x) => x.label.startsWith("Today's Date"));
+    expect(f?.proposedValue ?? "").toMatch(/^\d{2}\/\d{2}\/\d{2}$/);
+  });
+});

@@ -3490,6 +3490,10 @@ export function formatDateFor(d: Date, q: QuestionInput): string {
   switch (statedDateFormat(q.placeholder || "") ?? statedDateFormat(q.label || "")) {
     case "DD/MM/YYYY":
       return `${pad(day)}/${pad(m)}/${y}`;
+    case "DD/MM/YY":
+      return `${pad(day)}/${pad(m)}/${String(y).slice(2)}`;
+    case "MM/DD/YY":
+      return `${pad(m)}/${pad(day)}/${String(y).slice(2)}`;
     case "YYYY-MM-DD":
       return `${y}-${pad(m)}-${pad(day)}`;
     case "MM/YYYY":
@@ -3502,10 +3506,14 @@ export function formatDateFor(d: Date, q: QuestionInput): string {
 }
 
 /** The date format a placeholder or question states, if any. */
-export function statedDateFormat(text: string): "DD/MM/YYYY" | "MM/DD/YYYY" | "YYYY-MM-DD" | "MM/YYYY" | "MM/YY" | null {
+export function statedDateFormat(text: string): "DD/MM/YYYY" | "MM/DD/YYYY" | "DD/MM/YY" | "MM/DD/YY" | "YYYY-MM-DD" | "MM/YYYY" | "MM/YY" | null {
   const t = text.toLowerCase();
-  if (/\b(dd|jj)[./-]mm[./-](yyyy|aaaa|yy|aa)\b/.test(t)) return "DD/MM/YYYY";
-  if (/\bmm[./-](dd|jj)[./-](yyyy|aaaa|yy|aa)\b/.test(t)) return "MM/DD/YYYY";
+  if (/\b(dd|jj)[./-]mm[./-](yyyy|aaaa)\b/.test(t)) return "DD/MM/YYYY";
+  if (/\bmm[./-](dd|jj)[./-](yyyy|aaaa)\b/.test(t)) return "MM/DD/YYYY";
+  // Two digits of year: "Today's Date of Application (MM/DD/YY Format)" got
+  // "10/20/2026" (SoFi on Greenhouse, question bank).
+  if (/\b(dd|jj)[./-]mm[./-](yy|aa)\b/.test(t)) return "DD/MM/YY";
+  if (/\bmm[./-](dd|jj)[./-](yy|aa)\b/.test(t)) return "MM/DD/YY";
   if (/\b(yyyy|aaaa)[./-]mm[./-](dd|jj)\b/.test(t)) return "YYYY-MM-DD";
   if (/\bmm[./-](yyyy|aaaa)\b/.test(t)) return "MM/YYYY";
   if (/\bmm[./-](yy|aa)\b/.test(t)) return "MM/YY";

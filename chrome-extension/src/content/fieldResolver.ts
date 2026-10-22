@@ -21,7 +21,7 @@ import { answerKindOf, optionPolarity, valueFitsKind, type AnswerKind } from "./
 import { dateFormatFor, fitDate, type DateFormat } from "./dateControl";
 import { cleanText, type FieldSignals } from "./domUtils";
 import { isHigh, profileFacts } from "./profileFacts";
-import { resolveQuestion, type QuestionContext, type QuestionInput, type QuestionResult } from "./questionResolver";
+import { resolveQuestion, statedDateFormat, type QuestionContext, type QuestionInput, type QuestionResult } from "./questionResolver";
 import { countryFromName } from "./geo";
 import { snapSchool } from "./schoolMatch";
 import { placeOf } from "./placeMatch";
@@ -485,9 +485,16 @@ export function resolveField(input: FieldResolveInput): FieldResolution {
   const r = resolveFieldValue(input);
   const dateFormat = dateFormatFor(input.el, input.signals.typeHint, input.signals.placeholder);
   if (!dateFormat) {
-    // A signature box that shows no format takes today month first, as the
+    // A signature box that shows no format takes today in the format its
+    // question states ("(MM/DD/YY Format)", SoFi), else month first, as the
     // US forms that ask for one write it (Lever's disability form "Date").
-    if (input.category === "signatureDate" && r.value) return { ...r, value: fitDate(r.value, "MM/DD/YYYY") ?? r.value };
+    if (input.category === "signatureDate" && r.value) {
+      const stated = statedDateFormat(input.label || "");
+      const dayFirst = stated === "DD/MM/YYYY" || stated === "DD/MM/YY";
+      const full = fitDate(r.value, dayFirst ? "DD/MM/YYYY" : stated === "YYYY-MM-DD" ? "YYYY-MM-DD" : "MM/DD/YYYY");
+      if (!full) return r;
+      return { ...r, value: stated === "MM/DD/YY" || stated === "DD/MM/YY" ? full.slice(0, 6) + full.slice(8) : full };
+    }
     return r;
   }
   if (r.value === null) return { ...r, dateFormat };
