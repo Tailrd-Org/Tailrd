@@ -215,3 +215,17 @@ describe("Samsara's source list (live, round 8)", () => {
     expect(f?.proposedValue ?? null).toBe("LinkedIn");
   });
 });
+
+describe("Gusto's metro areas (live, round 8)", () => {
+  const METROS = ["NYC", "SF Bay Area", "Denver", "Phoenix/Scottsdale", "Other"];
+  const metro = (who: string): string | null => {
+    document.body.innerHTML = `<form id="application-form">${select("q6", "Which metro area are you located in?", METROS)}</form>`;
+    setResolveContext({ jobCountry: "US", jobCity: "Denver", jobPlaces: null, company: "Gusto" });
+    return scanPage(persona(who), true).fields.find((x) => x.label.startsWith("Which metro"))?.proposedValue ?? null;
+  };
+  it("the metro the applicant lives in, else Other", () => {
+    // Both were sent to the AI live.
+    expect(metro("BOOTCAMP_CAREER_GAP")).toBe("Denver");
+    expect(metro("US_OPT_ANALYST")).toBe("Other");
+  });
+});

@@ -20,6 +20,7 @@ import {
   CA_PROVINCES as CA_PROVINCES_LIST,
   COUNTRIES,
   KNOWN_CITIES,
+  REGION_CITIES,
   US_STATES as US_STATES_LIST,
   countryByCode,
   countryFromName,
@@ -1358,8 +1359,51 @@ function resolveRegionChoice(q: QuestionInput, n: string, facts: ProfileFacts): 
 }
 
 /** "Where are you located?" with region/continent options ("North America"). */
+const LOCATED_Q = /\bwhere (are you|do you) (currently )?(located|based|live|reside)\b|\b(current|your) location\b|\bregion of residence\b|\bare you (currently )?(living|located|based|residing) in\b/;
+
+/**
+ * Where the applicant lives, over a list of metros: "Which metro area are you
+ * located in?" over "NYC" | "SF Bay Area" | "Denver" | "Phoenix/Scottsdale" |
+ * "Other" (Gusto on Greenhouse, live, round 8: sent to the AI for a Denver
+ * and a Boston applicant). The option that is the applicant's own metro;
+ * "Other" when every place listed is known to be elsewhere.
+ */
+function resolveMetroChoice(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
+  if (!LOCATED_Q.test(n) || /\b(prefer|preferred|desired|willing|office|work location|would you like)\b/.test(n)) return null;
+  const opts = (q.options ?? []).filter((o) => o.trim());
+  if (opts.length < 2 || isBooleanOptionSet(opts)) return null;
+  const other = opts.filter((o) => /^other\b/i.test(o.trim()));
+  const places = opts.filter((o) => !other.includes(o));
+  // An option's cities: "Phoenix/Scottsdale" is either, "SF Bay Area" San
+  // Francisco's metro, "NYC" New York.
+  const citiesOf = (o: string): string[] =>
+    o.split(/\s*\/\s*|\s*,\s*|\s+or\s+/i).flatMap((part) => {
+      const t = ` ${geoNorm(part)} `;
+      for (const [alias, city] of Object.entries(METRO_ALIASES)) if (t.includes(` ${alias} `)) return [city];
+      for (const city of KNOWN_CITIES) if (t.includes(` ${city} `)) return [city];
+      for (const city of REGION_CITIES) if (t.includes(` ${city} `)) return [city];
+      return [];
+    });
+  const named = places.map(citiesOf);
+  // Metros, not some other list that names a city in passing.
+  if (named.filter((c) => c.length > 0).length < 2) return null;
+  const loc = facts.location;
+  if (!isHigh(loc.city)) return abstain("metro-choice:unknown");
+  const home = loc.city.value;
+  const homeCountry = isHigh(loc.country) ? loc.country.value.code : null;
+  const verdict = (cities: string[]): boolean | null => {
+    const v = cities.map((c) => sameMetro(home, c) ?? (homeCountry && countryHintForCity(c) && countryHintForCity(c) !== homeCountry ? false : null));
+    return v.includes(true) ? true : v.includes(false) ? false : null;
+  };
+  const verdicts = named.map(verdict);
+  const hits = places.filter((_, i) => verdicts[i] === true);
+  if (hits.length === 1) return answer(hits[0], "metro-choice:own-metro");
+  if (hits.length === 0 && other.length === 1 && verdicts.every((v) => v === false)) return answer(other[0], "metro-choice:other");
+  return abstain("metro-choice:unknown");
+}
+
 function resolveLocatedChoice(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
-  if (!/\bwhere (are you|do you) (currently )?(located|based|live|reside)\b|\b(current|your) location\b|\bregion of residence\b|\bare you (currently )?(living|located|based|residing) in\b/.test(n)) return null;
+  if (!LOCATED_Q.test(n)) return null;
   // A preference ("preferred work location", "which office") is not a residence.
   if (/\b(prefer|preferred|desired|willing|office|work location|would you like)\b/.test(n)) return null;
   if (!q.options || q.options.length < 2 || isBooleanOptionSet(q.options)) return null;
@@ -4028,6 +4072,7 @@ export function resolveQuestion(
     resolvePostingLocation(sq, sn, facts, profile) ??
     resolveRegionChoice(sq, sn, facts) ??
     resolveLocatedChoice(sq, sn, facts) ??
+    resolveMetroChoice(sq, sn, facts) ??
     resolveFormerEmployee(sq, sn, sq.label, facts, ctx) ??
     resolveRecentEmployer(sq, sn, facts) ??
     resolveCompanyOrSchool(sq, facts) ??
