@@ -131,6 +131,8 @@ const ACK_VERB =
 const WORK_WEEK = /\bwork ?weeks?\b|\bmonday (to |through |thru )?friday\b|\b\d+ ?h(ours?|rs?)? (per |a |each )?week\b/;
 const REQUIREMENT =
   /\b(in ?office|on ?site|in ?person|hybrid|office|commut\w*|travel\w*|relocat\w*|shifts?|weekends?|overtime|nights?|evenings?|holidays?|background (check|screen\w*|investigation)s?|drug (test\w*|screen\w*)|essential (functions|duties)|lift\w*|schedule|days (per|a|each) week|hours (per|a|each) week|work ?weeks?|monday (to |through |thru )?friday|\d+ ?h(?:ours?|rs?)? (?:per |a |each )?week|requirement|requirements|move to the location|moving to the location)\b/;
+/** A bare question of openness to moving, with no place and no job named. */
+const OPEN_RELOCATION = /^(are|would|will) you (be )?(open|willing|interested)( to| in)? (relocat\w*|relocation|moving)$/;
 /** A request rather than a requirement ("Will you require relocation
  *  assistance?"): the applicant's to make, never defaulted. */
 // "Support" is help only as a noun of it ("relocation support"): "travel as
@@ -913,6 +915,10 @@ export function resolveDefault(
   // have experience managing program risks… cost, schedule, and performance
   // objectives?" was Yes for everyone by its "schedule" (Saalex on Workable,
   // 2026-10-05).
+  // "Are you open to relocation?" names no place and no job: the applicant's
+  // own openness, which decision 49 leaves blank without a stated answer
+  // (Legend Biotech on Greenhouse, live, round 8, got Yes for someone silent).
+  if (OPEN_RELOCATION.test(n)) return null;
   if (
     REQUIREMENT.test(n) &&
     !ASSISTANCE.test(askedSentence(q.label)) &&

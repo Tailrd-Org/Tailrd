@@ -2023,18 +2023,31 @@ function resolveDegreeCandidate(q: QuestionInput, n: string, facts: ProfileFacts
 
 /** "Are you attending or a recent graduate of the University of X?" */
 function resolveSchoolMembership(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
-  const m = /\b(?:attend(?:ing|ed)?|graduate(?:d)? (?:of|from)|student (?:at|of)|alum(?:nus|na|ni)? of|studying at)\s+(?:the\s+)?((?:university|college|institute|school|polytechnic)\b[^?,]*|[a-z .&-]+ (?:university|college|institute))/.exec(n);
+  // "…in pursuit of a MS degree in … at Northeastern University?" (Bracebridge
+  // on Greenhouse, live, round 8) names its school after the program.
+  const m = /\b(?:attend(?:ing|ed)?|graduate(?:d)? (?:of|from)|student (?:at|of)|alum(?:nus|na|ni)? of|studying at|(?:in pursuit of|pursuing|enrolled in|working towards?)\b[^?]{0,100}?\bat)\s+(?:the\s+)?((?:university|college|institute|school|polytechnic)\b[^?,]*|[a-z .&-]+ (?:university|college|institute))/.exec(n);
   if (!m || !isBooleanQuestion(q)) return null;
   const named = qnorm(m[1]).replace(/^the /, "");
   // "…or have graduated from a university?" names no school: an education question.
   if (/^(a|an|any|some|one|your|accredited)\b/.test(named)) return null;
   const entries = facts.education.entries;
   if (entries.length === 0) return abstain("school-membership:no-education");
-  const hit = entries.some((e) => {
+  const there = entries.filter((e) => {
     const s = qnorm(e.school);
     return s && (s.includes(named) || named.includes(s));
   });
-  return booleanResult(hit, q, "school-membership");
+  // Now, or a degree being pursued: only a degree still running there counts.
+  // A Northeastern graduate was told Yes to "Are you currently attending
+  // Northeastern University?" (round 8).
+  const pursuit = /\b(in pursuit of|pursuing|enrolled in|working towards?)\b/.test(n);
+  // "…attending or a recent graduate of…" counts its graduates too.
+  const graduatesToo = /\b(graduate(d)? (of|from)|alum(nus|na|ni)?|attended|have you (ever )?(attended|studied))\b/.test(n);
+  const present = !graduatesToo && (pursuit || /\b(currently|presently|now)\b/.test(n) || /\b(are|do) you\b[^?]{0,15}\b(attend|attending|studying|a student)\b/.test(n));
+  if (!present) return booleanResult(there.length > 0, q, "school-membership");
+  if (there.every((e) => e.completed === true)) return booleanResult(false, q, "school-membership:not-there-now");
+  // Enrolled there: a pursuit names a program the profile may not be in.
+  if (pursuit) return abstain("school-membership:program-unknown");
+  return there.some((e) => e.completed === false) ? booleanResult(true, q, "school-membership") : abstain("school-membership:status-unknown");
 }
 
 function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {

@@ -611,7 +611,9 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\bpay expectations?\b/ },
       { re: /\b(hourly|daily) rate\b/, weight: 0.8 },
     ],
-    negative: /\bcurrent salary\b/,
+    // The pay now is never given; "current salary requirements" are the
+    // expectation (Trace3 on Greenhouse, live, round 8).
+    negative: /\bcurrent salary\b(?! (requirements?|expectations?|range))/,
   },
   {
     category: "skills",
@@ -905,10 +907,13 @@ function currentRoleFlag(profile: UserApplicationProfile, gi: number | null): st
  * words, and mislabelling somebody's degree is worse than abstaining.
  */
 const DEGREE_LEVELS: Array<[RegExp, string]> = [
-  [/\bph\.?\s?d\b|\bdoctorate\b|\bdoctor of philosophy\b|\bd\.?phil\b/i, "Doctorate"],
+  // Quebec's university degrees name their field after "en": "Baccalauréat
+  // en psychologie" is a bachelor's (Hear.com on Greenhouse, live, round 8,
+  // left blank). A bare baccalauréat is France's school diploma: not matched.
+  [/\bph\.?\s?d\b|\bdoctorate\b|\bdoctor of philosophy\b|\bd\.?phil\b|\bdoctorat en\b/i, "Doctorate"],
   [/\bm\.?b\.?a\b|\bmaster of business administration\b/i, "MBA"],
-  [/\bmaster(?:'?s)?\b|\bm\.\s?(?:sc?|a|eng)\.?\b|\bmsc\b|\bmeng\b/i, "Master"],
-  [/\bbachelor(?:'?s)?\b|\bb\.\s?(?:sc?|a|eng|comm)\.?\b|\bbsc\b|\bbeng\b|\bundergraduate\b/i, "Bachelor"],
+  [/\bmaster(?:'?s)?\b|\bm\.\s?(?:sc?|a|eng)\.?\b|\bmsc\b|\bmeng\b|\bma[iî]trise en\b/i, "Master"],
+  [/\bbachelor(?:'?s)?\b|\bb\.\s?(?:sc?|a|eng|comm)\.?\b|\bbsc\b|\bbeng\b|\bundergraduate\b|\bbaccalaur[ée]at en\b/i, "Bachelor"],
   [/\bassociate(?:'?s)?\b/i, "Associate"],
   // Before "Diploma": a "High School Diploma" is a high school, and read as a
   // Diploma it matched none of Epic Games' degree options (live 2026-10-05).
@@ -959,6 +964,14 @@ export function degreeTitleOption(options: string[], degree: string): string | n
     if (!k) continue;
     const hits = options.filter((o) => key(o) === k);
     if (hits.length === 1) return hits[0];
+  }
+  // A certificate or diploma on a list of degrees that names none: the list's
+  // "Other" (decision 96; Concordia's certificate and a bootcamp's on
+  // Greenhouse, live, round 8, were left blank).
+  const level = deriveDegreeLevel(whole);
+  if ((level === "Certificate" || level === "Diploma") && !options.some((o) => /\b(certificate|diploma|certification)\b/i.test(o))) {
+    const other = options.filter((o) => /^other\b/i.test(o.trim()));
+    if (other.length === 1) return other[0];
   }
   return null;
 }
