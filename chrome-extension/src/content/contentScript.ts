@@ -60,7 +60,7 @@ import { getConfig, getLastJobContext, saveLastJobContext } from "../shared/stor
 
 const MIN_CACHEABLE_DESC = 200;
 import { FRAME_TOKEN, observePage, resolveWithOptions, scanPage, selectOptions, type RuntimeControl } from "./formScanner";
-import { LONG_TEXT, normalize } from "./fieldMatcher";
+import { LONG_TEXT, degreeTitleOption, educationEntryFor, normalize } from "./fieldMatcher";
 import { answersWorthRemembering, planAnswerSaves } from "./answerGaps";
 import { customFieldAnswers, getExtras } from "./autofillExtras";
 import { AutofillReconciler, type FieldReport } from "./reconciler";
@@ -693,7 +693,15 @@ function initialize(): void {
         if (!res.filled && res.options) reask.push({ fieldId: t.fieldId, options: res.options });
         continue;
       }
-      const res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
+      let res = await driveField(t.fieldId, t.value, control.driver, { placeHint: placeHintFor(t.fieldId), school: isSchool(t.fieldId) });
+      // A list of degree titles the scan could not see (Greenhouse's Degree
+      // loads when opened): the row's own title from the list the driver
+      // loaded, "Master of Science" where "Master" named several (Arcesium,
+      // live, round 8).
+      if (!res.ok && res.options?.length) {
+        const titled = degreeTitleFor(t.fieldId, res.options);
+        if (titled && titled !== t.value) res = await driveField(t.fieldId, titled, control.driver, {});
+      }
       if (res.ok || !control.el) {
         outcomes.push({ fieldId: t.fieldId, ok: res.ok, reason: res.ok ? undefined : res.reason });
         continue;
@@ -730,6 +738,14 @@ function initialize(): void {
       isHigh(loc.country) ? loc.country.value.name : "",
     ].filter(Boolean);
     return parts.length >= 2 ? parts.join(", ") : undefined;
+  }
+
+  /** A degree field's own title among a list of degree titles, else null. */
+  function degreeTitleFor(fieldId: string, options: string[]): string | null {
+    const f = lastFields.find((x) => x.id === fieldId);
+    if (!f || f.category !== "degree" || !lastProfile) return null;
+    const edu = educationEntryFor(lastProfile, f.groupIndex ?? null);
+    return edu?.degree ? degreeTitleOption(options, edu.degree) : null;
   }
 
   /** A school field: its list is chosen from by the school's own words. */

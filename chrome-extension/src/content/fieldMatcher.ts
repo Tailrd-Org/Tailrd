@@ -941,6 +941,38 @@ export function deriveDegreeLevel(degree: string): string | null {
   return null;
 }
 
+/**
+ * The one option that is a degree's own title: "Master of Science" for
+ * "Master of Science in Information Systems" among Master of Arts / Master of
+ * Science / … (Arcesium on Greenhouse, live, round 8), where the level
+ * ("Master") names several and the field was left blank. The whole degree
+ * first, then its title before " in <field>"; an option may add an
+ * abbreviation ("Master of Science (M.S.)"). Null when none or several fit.
+ */
+export function degreeTitleOption(options: string[], degree: string): string | null {
+  const key = (s: string): string => normalize(s.replace(/\([^)]*\)/g, " "));
+  const whole = (degree || "").trim();
+  if (!whole) return null;
+  const title = whole.split(/\s+in\s+|,/i)[0].trim();
+  for (const want of [whole, title]) {
+    const k = key(want);
+    if (!k) continue;
+    const hits = options.filter((o) => key(o) === k);
+    if (hits.length === 1) return hits[0];
+  }
+  return null;
+}
+
+/** The education entry a field answers for: its row's, or outside a row the
+ *  entry in progress (else the most recent one), not merely the first. */
+export function educationEntryFor(profile: UserApplicationProfile, groupIndex: number | null): NonNullable<UserApplicationProfile["education"]>[number] | undefined {
+  if (groupIndex !== null) return profile.education?.[groupIndex];
+  const primary = profileFacts(profile).education.primary;
+  return primary
+    ? profile.education?.find((e) => (e.school || "").trim() === primary.school && (e.degree || "").trim() === primary.degree) ?? profile.education?.[0]
+    : profile.education?.[0];
+}
+
 /** Controls that force the answer to be one of a fixed set of options. */
 const CHOICE_CONTROLS: ControlType[] = ["select", "combobox", "radioGroup", "checkboxGroup", "customDropdown"];
 
@@ -967,13 +999,7 @@ export function resolveProfileValue(
   const loc = facts.location;
   // Outside a repeating row, "your school" is the entry in progress (or the
   // most recent one), not merely the first one listed.
-  const primary = facts.education.primary;
-  const edu =
-    gi !== null
-      ? profile.education?.[gi]
-      : primary
-        ? profile.education?.find((e) => (e.school || "").trim() === primary.school && (e.degree || "").trim() === primary.degree) ?? profile.education?.[0]
-        : profile.education?.[0];
+  const edu = educationEntryFor(profile, gi);
 
   switch (category) {
     case "firstName":
@@ -1095,7 +1121,9 @@ export function resolveProfileValue(
       if (!d) return null;
       // A Degree DROPDOWN offers levels ("Bachelor's Degree"); a full degree
       // title matches none of them. A free-text Degree field wants the title.
-      if (CHOICE_CONTROLS.includes(control.controlType)) return deriveDegreeLevel(d) ?? d;
+      // A list of titles ("Master of Arts", "Master of Science", …) takes the
+      // row's own title, which the level alone cannot tell apart.
+      if (CHOICE_CONTROLS.includes(control.controlType)) return (control.options?.length ? degreeTitleOption(control.options, d) : null) ?? deriveDegreeLevel(d) ?? d;
       return d;
     }
     case "fieldOfStudy":
