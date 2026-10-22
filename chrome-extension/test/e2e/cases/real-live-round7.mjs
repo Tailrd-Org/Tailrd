@@ -299,29 +299,14 @@ export default [
       "label:Country": "+49",
       "label:Phone": "+49 30 12345678",
       "label:School": "Technische Universität München",
+      // A Diplom-Informatiker's field is computer science (round 8).
+      "#discipline--0": "Computer Science",
       "label:End date year": "2011",
       "label:LinkedIn Profile": "https://www.linkedin.com/in/juergen-weiss",
       "label:ITAR Status": "Not Applicable",
     },
   }),
-  live({
-    id: "r7a-gh-vestmark",
-    ats: "greenhouse",
-    profile: UK_SENIOR,
-    url: "https://job-boards.greenhouse.io/vestmark/jobs/8204509",
-    expect: {
-      "label:First Name": "Siobhán",
-      "label:Last Name": "O'Neill",
-      "label:Email": "siobhan.oneill@example.co.uk",
-      "label:Country": "+44",
-      "label:Phone": "+44 20 7946 0958",
-      "label:Location (City)": "London, England, United Kingdom",
-      "label:Are you authorized to work in the U.S.?": "No",
-      "label:Do you now, or will you in the future, need sponsorship to w": "Yes",
-      "label:When do you graduate?": "Other",
-      "#question_69208171": "I agree",
-    },
-  }),
+  // r7a-gh-vestmark retired 2026-10-22: the posting closed (Greenhouse's job API answers 404).
   live({
     id: "r7a-gh-66degrees",
     ats: "greenhouse",

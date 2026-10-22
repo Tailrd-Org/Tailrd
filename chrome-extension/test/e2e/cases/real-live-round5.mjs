@@ -283,6 +283,10 @@ export default [
       "label:Phone": "(206) 555-0131",
       "label:Current location No location found. Try entering a different": "Seattle, WA, USA",
       "label:Current company": "Expedia Group",
+      // Asked since round 7: a stated "not authorized in Canada", and neither
+      // referred nor related to anyone at EQ Bank.
+      "name=cards[b9fc5bb5-a874-42a8-ae8f-b1cc075b96bf][field0]": "No",
+      "name=cards[7ee7f6f6-3de1-45f8-9863-a580748a877a][field0]": "No",
       "radio~Gender Identity:": "Female",
       "radio=surveysResponses[54d5f494-8f40-45ec-a0d4-736d5c1eac87][responses][field2]": "No",
       "radio=surveysResponses[54d5f494-8f40-45ec-a0d4-736d5c1eac87][responses][field3]": "Yes",
@@ -382,6 +386,8 @@ export default [
       "label:Email": "dandre.jb@example.com",
       "label:Phone": "720.555.0164",
       "label:Current location ✱No location found. Try entering a differen": "Denver, CO, USA",
+      // The posting's location the applicant applies for: their own city (decision 93).
+      "name=opportunityLocationId": "Denver, Colorado",
       "label:LinkedIn URL": "https://linkedin.com/in/dandre-jean-baptiste/",
       "label:GitHub URL": "https://github.com/djeanbaptiste",
       "label:Portfolio URL": "https://dandre.codes",

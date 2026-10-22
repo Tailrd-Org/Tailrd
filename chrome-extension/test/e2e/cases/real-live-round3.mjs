@@ -83,7 +83,7 @@ export default [
     expect: {
       // Answered since round 4 (re-pinned after reading each, 2026-10-05).
       "#resumator-questionnaire-q906300": "2015",
-      "#resumator-questionnaire-q1914219": "LinkedIn",
+      // Its how-you-heard question (q1914219) left the form by 2026-10-22.
       "#resumator-questionnaire-q3049033": "Yes",
       "#resumator-questionnaire-q3049726": "No",
       "label:First Name": "Siobhán",
@@ -100,29 +100,7 @@ export default [
       "#resumator-eeo_race-value": "White, not Hispanic or Latino",
     },
   }),
-  live({
-    id: "r3a-breezy-kenect",
-    ats: "breezy",
-    profile: US_VETERAN,
-    url: "https://kenect.breezy.hr/p/aa47c9879f1d-junior-data-engineer/apply",
-    expect: {
-      "label:Full Name": "Marcus Hill",
-      "label:Email Address": "marcus.hill@example.com",
-      "name=cPhoneNumber": "512-555-0143",
-      "#fullAddress": "Austin, TX",
-      "label:Desired Salary": "135000",
-      "name=section_1666366766808_question_0": "Company website",
-      "name=section_1666366766808_question_1": "U.S. citizen",
-      "name=section_1666366766808_question_2": "$135,000",
-      "name=section_1666366766808_question_3": "https://www.linkedin.com/in/marcus-hill-dev",
-      "name=section_1666366766808_question_4": { re: String.raw`^(\d{2}\/\d{2}\/\d{4}|\d{4}-\d{2}-\d{2}|\d{2} [A-Z][a-z]{2} \d{4})$` },
-      "radio~What state do you live in?": "Texas",
-      "name=section_1666366766808_question_6": "No",
-      "radio~Are you able to work a Hybrid schedule out of Pleasant Grove": "No",
-      "radio~Race or Ethnicity": "Black or African-American (not Hispanic or Latino)",
-      "radio~Gender": "Male",
-    },
-  }),
+  // r3a-breezy-kenect retired 2026-10-22: the posting closed (Kenect's Breezy board no longer lists it in its /json).
   live({
     id: "r3a-breezy-ninja",
     ats: "breezy",
@@ -150,7 +128,8 @@ export default [
       "label:Full name": "Alex Côté-Tremblay",
       "label:Email address": "alex.cote@example.ca",
       // The page keeps "+1" in the box; that is the code, not a number (round 4).
-      "#input-candidate.phone-5": "+1 514 555 0186",
+      // Recruitee's phone input id is React's own since round 8: by its label.
+      "label:Phone number": "+1 514 555 0186",
       "name=candidate.agreements.0.consent": "checked",
       // The page's own language switcher, mounted late on some runs.
       "#display-language": { ifPresent: { re: "^" } },

@@ -308,7 +308,10 @@ export default [
       "name=urls[GitHub]": "https://github.com/mayatremblay",
       "name=urls[Portfolio]": "https://mayatremblay.dev",
       "name=urls[Other]": "https://mayatremblay.dev",
-      "radio=cards[bd681f77-55d5-4b33-8799-e7eba5d07a54][field0]": "Yes",
+      // Remaining enrolled through the co-op and returning to the program after
+      // it is a student's own plan (decision 63); round 8 reads "following the
+      // co-op" as "after" too.
+      "radio=cards[bd681f77-55d5-4b33-8799-e7eba5d07a54][field0]": null,
       "name=cards[6350ecdd-9417-40a3-bdb8-c5ef8fd9b4e1][field0]": "University of Waterloo, Bachelor of Applied Science in Mechatronics Engineering, expected graduation April 2027",
       "radio=cards[92df95a5-5b3c-4d73-8e57-95a79eaca880][field0]": "Yes",
       "radio=cards[92df95a5-5b3c-4d73-8e57-95a79eaca880][field1]": "No",

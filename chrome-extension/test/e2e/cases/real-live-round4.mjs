@@ -131,25 +131,7 @@ export default [
       "label:Veteran Status": "I am not a protected veteran",
     },
   }),
-  live({
-    id: "r4r-embed-carvana",
-    ats: "greenhouse",
-    profile: COMPLETE_CANADIAN,
-    url: "https://www.carvana.com/careers/apply/?gh_jid=8234285",
-    expect: {
-      // New answer (2026-10-17): the posting's place, accepted by an applicant who will move (decision 49).
-      "label:This position is located in Plainfield, IN. Are you willing": "Select answerYes",
-      "label:First Name": "Maya",
-      "label:Last Name": "Tremblay",
-      "label:Email": "maya.tremblay@example.com",
-      "label:Phone": "416-555-0142",
-      // Was left to the AI: the question names no company (it is Carvana's form).
-      "label:Are you a current or former employee?": "Select answerNo",
-      "label:How did you hear about this job? If referred by a Carvana em": "LinkedIn",
-      "label:Are you 18 years of age or older?": "Select answerYes",
-      "label:Do you require Visa sponsorship?": "Select answerYes",
-    },
-  }),
+  // r4r-embed-carvana retired 2026-10-22: the posting closed (Greenhouse's job API answers 404 for Carvana's job 8234285).
 
   // ---------------------------------- batch 1: SmartRecruiters, new people
   // SmartRecruiters had 155 live postings in prod and two cases (one behind
@@ -408,6 +390,8 @@ export default [
       "#react-select-7-input": "Yes",
       "#react-select-11-input": "I Acknowledge / I Agree",
       "#react-select-12-input": "I Acknowledge / I Agree",
+      // The bootcamp certificate's row takes its Degree list's "Other" (decision 96).
+      "#react-select-14-input": "Other",
       "label:Engineering": "Engineering",
       "name=educations[0].end_date.year": "2022",
       "label:High School / Secondary Education": "High School / Secondary Education",
@@ -618,6 +602,8 @@ export default [
       "label:Degree": "Bachelor of Applied Science in Mechatronics Engineering",
       "label:Major": "Mechatronics Engineering",
       "label:School": "University of Waterloo",
+      // A degree in progress ticks "Not Completed" (round 8).
+      "#jobPostingApplication_educationHistory_0_notCompleted": "checked",
       "#jobPostingApplication_workHistory_1_title": "Software Engineer Co-op",
       "#jobPostingApplication_workHistory_1_companyName": "Kinaxis",
       "#jobPostingApplication_workHistory_0_title": "Software Developer Intern",
@@ -907,6 +893,8 @@ export default [
       "radio=CA_49227": "SVGs not supported by this browser.Yes",
       "label:*School": "Technische Universität München",
       "label:Degree (Optional)": "Diplom-Informatiker",
+      // A Diplom-Informatiker's field is computer science (round 8).
+      "#field_of_study": "Computer Science",
       "name=end_date": null,
       "label:*Title": "Staff Engineer",
       "label:Company (Optional)": "Zalando SE",
@@ -998,6 +986,8 @@ export default [
       "label:Current Clearance Level and Year Issued (Optional)None": "None",
       "label:*School": "Technische Universität München",
       "label:Degree (Optional)": "Diplom-Informatiker",
+      // A Diplom-Informatiker's field is computer science (round 8).
+      "#field_of_study": "Computer Science",
       "name=end_date": null,
       "label:*Title": "Staff Engineer",
       "label:Company (Optional)": "Zalando SE",

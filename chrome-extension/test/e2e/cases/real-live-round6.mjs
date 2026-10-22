@@ -38,15 +38,7 @@ export default [
       "label:I acknowledge I have read the terms of the Privacy Notice an": "checked",
     },
   }),
-  live({
-    id: "r6a-icims-sas",
-    ats: "icims",
-    profile: INDIA_NEW_GRAD,
-    url: "https://careers-sas.icims.com/jobs/42964/summer-2027---software-development-and-testing-intern/job", nextPages: 2,
-    expect: {
-      "label:Email": "ananya.raghavan@example.in",
-    },
-  }),
+  // r6a-icims-sas retired 2026-10-22: the posting closed (iCIMS answers 410, "no longer open").
   live({
     id: "r6a-icims-secure",
     ats: "icims",
@@ -96,18 +88,7 @@ export default [
       "label:Verify New Password": { re: String.raw`^\S{8,}$` },
     },
   }),
-  live({
-    id: "r6b-wd-aep",
-    ats: "workday",
-    profile: US_OPT_ANALYST,
-    url: "https://aep.wd1.myworkdayjobs.com/en-US/aepcareersite/job/Columbus-OH/Data-Scientist-Intern---Columbus--OH_R19884", nextPages: 2,
-    expect: {
-      "label:Email Address": "jiwoo.park@example.com",
-      "#input-5": { re: String.raw`^\S{8,}$` },
-      "label:Verify New Password": { re: String.raw`^\S{8,}$` },
-      "label:I accept": "checked",
-    },
-  }),
+  // r6b-wd-aep retired 2026-10-22: the posting closed (Workday's job API answers 403 for it and 200 for an open AEP posting; the site map no longer lists it).
   live({
     id: "r6b-wd-bdo",
     ats: "workday",
@@ -349,6 +330,9 @@ export default [
       "#question_38775384002[]_256105442002": null,
       "label:Are you Hispanic/Latinx?": "Decline to self-identify",
       "label:Ethnicity/Race": "I choose not to provide this information",
+      // "I identify as" is a gender list by its options (Male, Female, Non-binary,
+      // Decline; decision 90): no gender stated, so the decline.
+      "label=I identify as": "Decline to self-identify",
       "label:Please specify": null,
     },
   }),
@@ -401,6 +385,8 @@ export default [
       "label:Location (City)": "Denver, Colorado, United States",
       "#end-month--0": null,
       "#end-year--0": "2022",
+      // The bootcamp certificate's row takes its Degree list's "Other" (decision 96).
+      "#degree--0": "Other",
       "#degree--1": "High School",
       "#end-month--1": null,
       "#end-year--1": "2009",
@@ -416,36 +402,7 @@ export default [
       "label:Veteran Status": "I am not a protected veteran",
     },
   }),
-  live({
-    id: "r6c-gh-justworks",
-    ats: "greenhouse",
-    profile: US_GREENCARD_STUDENT,
-    url: "https://boards.greenhouse.io/justworks/jobs/8236815?gh_jid=8236815",
-    expect: {
-      "#first_name": "Mei",
-      "label:Last Name": "Lin",
-      "label:Preferred First Name": "Mei",
-      "label:Email": "mei.lin@example.edu",
-      "label:Country": "+1",
-      "label:Phone": "+1 408-555-0172",
-      "label:Location (City)": "San Jose, California, United States",
-      "label:LinkedIn Profile": "https://www.linkedin.com/in/meilin",
-      "label:How did you hear about this job?": "Career fair",
-      "#question_69484375": "Yes",
-      "label:Do you require relocation?": "Yes",
-      "label:Are you currently authorized to work in the U.S. on a full-t": "Yes",
-      "#question_69484377": "No",
-      "label:What are your salary expectations for this role?": "$45/hour",
-      "label:If requested, would you be able to provide documentation ref": "Yes",
-      "label:Beyond the binary | We understand that gender expression and": "Female",
-      "label:Would you describe yourself as transgender?": "I don't wish to answer",
-      "label:Love is love | What is your sexual orientation?": "I don't wish to answer",
-      "label:Ethnicity and race | Race is a social construct and no group": "East Asian (including Chinese, Japanese, Korean, Mongolian, Tibetan, and Taiwanese)",
-      "label:Veteran status | Are you a veteran?": "No",
-      "label:Are you a spouse or domestic partner to a veteran?": "I don't wish to answer",
-      "label:Voluntary self-identification of disability | Please select": "No, I don't have a disability, or a history/record of having a disability",
-    },
-  }),
+  // r6c-gh-justworks retired 2026-10-22: the posting closed (Greenhouse's job API answers 404).
   live({
     id: "r6c-gh-hasbro",
     ats: "greenhouse",
@@ -598,27 +555,7 @@ export default [
       "label:State/Province": "Ontario",
     },
   }),
-  live({
-    id: "r6d-jv-rossvideo-3",
-    ats: "jobvite",
-    profile: BOOTCAMP_CAREER_GAP,
-    url: "https://jobs.jobvite.com/ross-video-careers/job/on0QAfwx/apply",
-    expect: {
-      "label:First Name": "D'Andre",
-      "label:Last Name": "Jean-Baptiste",
-      "label:Email": "dandre.jb@example.com",
-      "label:Mobile Phone": "720.555.0164",
-      "label:Home Phone": "720.555.0164",
-      "label:Preferred Contact Method": "Email",
-      "#jv-field-ywnL2fwq": "No",
-      "label:How did you hear about this job?": "Social Media",
-      "label:Country": "United States",
-      "#jv-field-y3kF2fwO": "2750 Welton St",
-      "label:City": "Denver",
-      "label:State/Province": "Colorado",
-      "label:Zip/Postal Code": "80205",
-    },
-  }),
+  // r6d-jv-rossvideo-3 retired 2026-10-22: the posting closed (Jobvite sends its job page to the job list, error=404).
   live({
     id: "r6d-jv-gei-1",
     ats: "jobvite",
@@ -656,25 +593,7 @@ export default [
       "label:What is your desired salary?": "$185,000",
     },
   }),
-  live({
-    id: "r6d-jv-src-1",
-    ats: "jobvite",
-    profile: BERLIN_STAFF,
-    url: "https://jobs.jobvite.com/src-inc/job/oXnXAfwB/apply",
-    expect: {
-      "label:First Name": "Jürgen",
-      "label:Last Name": "Weiß",
-      "#jv-field-y8mTYfw5": "Torstraße 109",
-      "label:City": "Berlin",
-      "label:State": "Not Applicable",
-      "label:Zip Code": "10119",
-      "label:Cell Phone": "+49 30 12345678",
-      "label:Sms Consent": "No",
-      "label:Citizenship Status": "None of the Above",
-      "label:Email": "juergen.weiss@example.de",
-      "label:Applicant Source": "Employee Referral",
-    },
-  }),
+  // r6d-jv-src-1 retired 2026-10-22: the posting closed (Jobvite sends its job page to the job list, error=404).
   live({
     id: "r6d-jv-src-2",
     ats: "jobvite",
@@ -698,14 +617,7 @@ export default [
   // its accept button, which reads "Submit" and POSTs the consent. Round 7:
   // the residence is chosen and that button is the step's advance (decision
   // 70); live runs block its POST, so the form behind it is the bank's alone.
-  live({
-    id: "r6d-jv-nutanix-1",
-    ats: "jobvite",
-    profile: US_H1B_SENIOR,
-    url: "https://jobs.jobvite.com/nutanix/job/oi8PAfwz/apply",
-    nextPages: 1,
-    expect: { "#jv-country-select": "All Locations (English)" },
-  }),
+  // r6d-jv-nutanix-1 retired 2026-10-22: the posting closed (Jobvite sends its job page to the job list, error=404); r6d-jv-nutanix-2 still covers Nutanix's consent page.
   live({
     id: "r6d-jv-nutanix-2",
     ats: "jobvite",
