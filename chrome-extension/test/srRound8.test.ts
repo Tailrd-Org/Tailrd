@@ -350,3 +350,13 @@ describe("the degree being obtained (Bosch, SmartRecruiters bank re-run, round 8
     expect(got).toEqual({ BOOTCAMP_CAREER_GAP: null });
   });
 });
+
+describe("'Please state' is a verb (GDMSI, SmartRecruiters bank)", () => {
+  it("the country someone was born in, which no profile holds, is no address state", () => {
+    // Read as the address's State: "Other" for three applicants.
+    // The first sixty of its 200 options, verbatim, and five more: "Georgia" read as the US state.
+    const opts = ["Canada","Prefer not to disclose","Other","Afghanistan","Albania","Algeria","Angola","Anguilla","Antigua and Barbuda","Argentina","Armenia","Aruba","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bermuda","Bhutan","Bolivia","Bonaire","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cabo Verde","Cambodia","Cameroon","Canary Islands","Central African Republic","Chad","Chile","China","Colombia","Comoros","Republic of the Congo","Costa Rica","Ivory Coast","Croatia","Cuba","Curaçao","Cyprus","Czechia","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Germany","India","United Kingdom","United States","Georgia"];
+    const got = scanned(as("COMPLETE_CANADIAN", "BERLIN_STAFF", "INDIA_NEW_GRAD"), "Please state the country you were born in:", opts);
+    expect(got).toEqual({ COMPLETE_CANADIAN: null, BERLIN_STAFF: null, INDIA_NEW_GRAD: null });
+  });
+});

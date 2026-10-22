@@ -265,7 +265,9 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\bprovince\b/ },
       { re: /\bregion\b|\bgion\b/, weight: 0.85 }, // \bgion\b catches FR "région"
     ],
-    negative: /\bstatement\b/,
+    // "Please state the country you were born in" (GDMSI on SmartRecruiters,
+    // bank): the verb.
+    negative: /\bstatement\b|\bplease state\b|\bstate (the|your|whether|if|why|how|what|which|any|below)\b/,
   },
   {
     category: "postalCode",
@@ -283,8 +285,9 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\bcountry\b/, weight: 0.9 },
       { re: /\bpays\b/ }, // FR
     ],
-    // A phone "country code" selector is not the mailing country.
-    negative: /\bcountry code\b/,
+    // A phone "country code" selector is not the mailing country, and no
+    // profile holds the country someone was born in (GDMSI on SmartRecruiters).
+    negative: /\bcountry code\b|\bborn\b|\bbirth/,
   },
 
   {
@@ -300,7 +303,8 @@ const CATEGORY_SPECS: CategorySpec[] = [
       // 2026-10-08): an adverb between never stopped it being the question.
       { re: /\bwhere (are you|do you) ((currently|presently|now) )?(located|based|live|living|reside|residing)\b/ },
     ],
-    negative: /\be ?mail\b|\bip address\b|\bweb ?site\b|\burl\b|\blinked ?in\b|\bgit ?hub\b|\bcountry code\b|\b(dial(ing)?|calling) code\b/,
+    // Never the place someone was born (GDMSI on SmartRecruiters, bank).
+    negative: /\be ?mail\b|\bip address\b|\bweb ?site\b|\burl\b|\blinked ?in\b|\bgit ?hub\b|\bcountry code\b|\b(dial(ing)?|calling) code\b|\bborn\b|\bbirth/,
   },
 
   // --- Links ---

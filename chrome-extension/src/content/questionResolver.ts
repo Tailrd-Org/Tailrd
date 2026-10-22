@@ -1382,8 +1382,13 @@ function resolveRegionChoice(q: QuestionInput, n: string, facts: ProfileFacts): 
   }
   // The options are another country's regions: pick the explicit "not
   // applicable / outside" option, never a real state.
-  const optionCountries = new Set(q.options.map((o) => regionFromText(o)?.country).filter(Boolean));
-  if (isHigh(loc.country) && optionCountries.size === 1 && !optionCountries.has(loc.country.value.code as "US" | "CA")) {
+  // More of them than countries: one "Georgia" among 200 countries is no
+  // list of US states (GDMSI on SmartRecruiters, bank: "Other" for a
+  // Canadian).
+  const regionOptions = q.options.filter((o) => regionFromText(o));
+  const countryOptions = q.options.filter((o) => countryFromName(o) && !regionFromText(o));
+  const optionCountries = new Set(regionOptions.map((o) => regionFromText(o)?.country).filter(Boolean));
+  if (isHigh(loc.country) && regionOptions.length > countryOptions.length && optionCountries.size === 1 && !optionCountries.has(loc.country.value.code as "US" | "CA")) {
     const outside = q.options.filter((o) => OUTSIDE_OPTION.test(qnorm(o)) && !regionFromText(o));
     if (outside.length === 1) return answer(outside[0], "region-choice:outside");
     return abstain("region-choice:outside-not-offered");
