@@ -3081,6 +3081,13 @@ function resolvePostingLocation(q: QuestionInput, n: string, facts: ProfileFacts
   if (!isHigh(loc.country)) return abstain("posting-location:unknown");
   const country = loc.country.value.code;
   const remote = (o: string): boolean => /\bremote(ly)?\b/i.test(o);
+  // Countries for places ("Canada" | "United States", Kepler on Lever,
+  // question bank): the applicant's own, as a city list takes their city.
+  const countryOf = (o: string): string | null => countryFromName(o.trim())?.code ?? null;
+  if (opts.every((o) => !remote(o) && countryOf(o) !== null)) {
+    const own = opts.filter((o) => countryOf(o) === country);
+    return own.length === 1 ? answer(own[0], "posting-location:own-country") : { status: "abstain", rule: "posting-location:applicant-choice", blockBackend: true };
+  }
   if (isHigh(loc.city)) {
     const city = loc.city.value;
     const region = isHigh(loc.region) ? `${loc.region.value.country}:${loc.region.value.code}` : null;

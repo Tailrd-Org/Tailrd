@@ -229,9 +229,11 @@ const GOV_BODY =
   /\b(government|governmental|public sector|civil service|military|armed forces)\b|\b(federal|state|local|municipal|provincial|tribal) (agenc(y|ies)|entit(y|ies)|bod(y|ies)|employees?)\b/;
 const FAMILY_GOVERNMENT: QuestionResult = { status: "abstain", rule: "default:family-government-employment", blockBackend: true };
 
-/** Taking the job itself, or an offer of it: the applicant's decision
- *  (decision 97), never a consent to terms. */
-const OFFER_ACCEPTANCE = /\baccept\w* (the |this |an |a |our |any )?(job )?(position|offer|job|role)\b(?! (application|description|posting|terms|conditions|polic\w*))/;
+/** Taking the job itself, or an offer of it, ASKED of the applicant: their
+ *  decision (decision 97), never a consent to terms. An offer named in a
+ *  notice ("If you accept an offer of employment, you consent to this
+ *  background check", Woven by Toyota on Lever, question bank) asks nothing. */
+const OFFER_ACCEPTANCE = /\b(?:(?:do|would|will|can|could) you (?:be willing to |be prepared to |still )?|are you (?:willing|prepared|able) to )accept\w* (the |this |an |a |our |any )?(job )?(position|offer|job|role)\b(?! (application|description|posting|terms|conditions|polic\w*))/;
 const OFFER_DECISION: QuestionResult = { status: "abstain", rule: "default:offer-acceptance", blockBackend: true };
 
 /**

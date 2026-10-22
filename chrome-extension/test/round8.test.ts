@@ -117,3 +117,20 @@ describe("a select's question a paragraph long (Stand Together on Lever, live, r
     expect(f.label.startsWith("Koch Internship Program (KIP) participants attend")).toBe(true);
   });
 });
+
+describe("the Lever bank's re-run (round 8)", () => {
+  it("a location list of countries takes the applicant's own (decision 93 at a country's scale; Kepler)", () => {
+    // Answered by country before decision 93, blank after it.
+    const got = scanned(["COMPLETE_CANADIAN", "US_VETERAN", "BERLIN_STAFF"], "Which location are you applying for?", ["Canada", "United States"], "Toronto, ON");
+    expect(got).toEqual({ COMPLETE_CANADIAN: "Canada", US_VETERAN: "United States", BERLIN_STAFF: null });
+  });
+  it("accepting an offer named in a notice is no question about accepting it (Woven by Toyota)", () => {
+    const Q = "Woven by Toyota conducts a thorough pre-employment background check as a condition of employment. This check may include verification of your education, employment history, criminal history, and any other relevant information. If you accept an offer of employment, you consent to this background check and acknowledge that any employment offer is contingent upon satisfactory results.";
+    // A checkbox list of one, as Lever renders it (the bank's multi-select).
+    document.body.innerHTML = `<form id="application-form"><fieldset><legend>${esc(Q)}</legend><label><input type="checkbox" name="cards[w][field0]" value="I acknowledge">I acknowledge</label></fieldset></form>`;
+    setResolveContext({ jobCountry: "US", jobCity: null, jobPlaces: null, company: "Woven by Toyota" });
+    const field = scanPage(persona("COMPLETE_CANADIAN"), true).fields[0];
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    expect(field?.proposedValue ?? null).toMatch(/^(yes|I acknowledge)$/);
+  });
+});
