@@ -266,8 +266,9 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\bregion\b|\bgion\b/, weight: 0.85 }, // \bgion\b catches FR "région"
     ],
     // "Please state the country you were born in" (GDMSI on SmartRecruiters,
-    // bank): the verb.
-    negative: /\bstatement\b|\bplease state\b|\bstate (the|your|whether|if|why|how|what|which|any|below)\b/,
+    // bank): the verb. Never "State (If N/A, Select Other)" (CTC on
+    // Greenhouse, bank 3), the noun.
+    negative: /\bstatement\b|\bplease state\b|\bstate (the|your|whether|why|how|what|which|any|below)\b/,
   },
   {
     category: "postalCode",

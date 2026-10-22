@@ -385,3 +385,21 @@ describe("a major joined by 'and' (WD, SmartRecruiters bank)", () => {
     expect(scanned(as("INDIA_NEW_GRAD"), "What is your major?", opts, "San Jose, CA, United States")).toEqual({ INDIA_NEW_GRAD: "Computer Science/Software Engineering" });
   });
 });
+
+describe("'State (If N/A, Select Other)' is the noun (CTC, Greenhouse bank 3)", () => {
+  it("someone living in no US state takes its Other; a US state is the state", () => {
+    // Blank for three applicants once "state if" read as the verb.
+    const opts = ["AL","AK","AZ","AR","CA","CO","CT","DE","FL","GA","HI","ID","IL","IN","IA","KS","KY","LA","ME","MD","MA","MI","MN","MS","MO","MT","NE","NV","NH","NJ","NM","NY","NC","ND","OH","OK","OR","PA","RI","SC","SD","TN","TX","UT","VT","VA","WA","WV","WI","WY","Other"];
+    const got = scanned(as("COMPLETE_CANADIAN", "BERLIN_STAFF", "INDIA_NEW_GRAD", "US_H1B_SENIOR"), "State (If N/A, Select Other)", opts, "Chicago, IL, United States");
+    expect(got).toEqual({ COMPLETE_CANADIAN: "Other", BERLIN_STAFF: "Other", INDIA_NEW_GRAD: "Other", US_H1B_SENIOR: "WA" });
+  });
+});
+
+describe("a degree type named by its abbreviations (LinkedIn, SmartRecruiters bank)", () => {
+  it("'BA/BS' is a bachelor's; 'Masters' a master's", () => {
+    // Blank for a BASc student and a B.Tech graduate.
+    const opts = ["BA/BS", "Masters", "PhD", "N/A"];
+    const got = scanned(as("COMPLETE_CANADIAN", "INDIA_NEW_GRAD", "US_H1B_SENIOR", "BOOTCAMP_CAREER_GAP"), "Please select your degree type", opts, "Mountain View, CA, United States");
+    expect(got).toEqual({ COMPLETE_CANADIAN: "BA/BS", INDIA_NEW_GRAD: "BA/BS", US_H1B_SENIOR: "Masters", BOOTCAMP_CAREER_GAP: null });
+  });
+});

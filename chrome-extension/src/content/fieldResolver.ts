@@ -270,6 +270,13 @@ const CONSTRAINED: ReadonlySet<ControlType> = new Set<ControlType>(["select", "r
 
 const pick = (options: string[], value: string): string | null => matchOption(options, (o) => o, (o) => o, value);
 
+/** A degree level's options written as abbreviations alone ("BA/BS", "MA / MS", "B.Sc."). */
+const DEGREE_ABBREVIATIONS: Record<string, RegExp> = {
+  Bachelor: /^(b\.?\s?a|b\.?\s?sc?|b\.?\s?eng|b\.?\s?tech)\.?(\s*(\/|,|or)\s*(b\.?\s?a|b\.?\s?sc?|b\.?\s?eng|b\.?\s?tech)\.?)*$/i,
+  Master: /^(m\.?\s?a|m\.?\s?sc?|m\.?\s?eng)\.?(\s*(\/|,|or)\s*(m\.?\s?a|m\.?\s?sc?|m\.?\s?eng)\.?)*$/i,
+  Doctorate: /^ph\.?\s?d\.?$/i,
+};
+
 /** An address in the parts a one-line label asks for: "City, ST", "City, ST
  *  ZIP", or the full street address. Null when it asks for no more than one
  *  field gives, or a part is unknown. */
@@ -353,6 +360,14 @@ export function snapToOption(options: string[], value: string, category: FieldCa
   }
   const direct = pick(options, value);
   if (direct) return category === "country" || category === "location" ? sameplaceInEnglish(options, direct) : direct;
+  // A level named only by its abbreviations: "BA/BS" | "Masters" | "PhD" |
+  // "N/A" (LinkedIn on SmartRecruiters, bank, round 8) left a bachelor's
+  // blank.
+  if (category === "degree") {
+    const abbreviations = DEGREE_ABBREVIATIONS[value.trim()];
+    const hits = abbreviations ? options.filter((o) => abbreviations.test(o.trim())) : [];
+    if (hits.length === 1) return hits[0];
+  }
   if (category === "country" || category === "phoneCountryCode") {
     const want = countryFromName(value);
     if (want) {
