@@ -814,7 +814,10 @@ function resolveStatusChoice(q: QuestionInput, facts: ProfileFacts, country: str
 // Workable, 2026-10-05) got the country of RESIDENCE: US for an H-1B worker.
 // "…authorized to work in the U.S. as a U.S. citizen…" (Credence) asks
 // citizenship, not any work right.
-const CITIZEN_Q = /\b(are you|is the applicant) (a |an )?((u ?s|us|united states|canadian|american|british|uk) )?citizen\b|\bcitizen of\b|\bcitizenship\b|\bwhich you are an? citizen\b|\bas an? ((u ?s|us|united states|canadian|american|british|uk) )?citizen\b/;
+// A nationality is a citizenship: "Please indicate your nationality:" over
+// "Afghan | … | British | …" (Canonical on Greenhouse, live, round 8) went to
+// the AI for a stated British citizen.
+const CITIZEN_Q = /\b(are you|is the applicant) (a |an )?((u ?s|us|united states|canadian|american|british|uk) )?citizen\b|\bcitizen of\b|\bcitizenship\b|\bwhich you are an? citizen\b|\bas an? ((u ?s|us|united states|canadian|american|british|uk) )?citizen\b|\b(your|current|applicant s|candidate s) nationalit(y|ies)\b|^nationalit(y|ies)\b/;
 /** A work right asked only as a citizen's (no visa or other status beside it). */
 const RIGHT_AS_CITIZEN = (n: string): boolean =>
   /\bas an? ((u ?s|us|united states|canadian|american|british|uk) )?citizen\b/.test(n) && !/\b(visa|permit|permanent resident|green card|other|status)\b/.test(n);

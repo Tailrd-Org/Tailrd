@@ -164,3 +164,24 @@ describe("Bracebridge's self-ID list under a questionnaire heading (live, round 
     expect(resolveWithOptions(f, registry, p, null, true, ["Male", "Female", "I choose not to disclose"])).toBe("Female");
   });
 });
+
+describe("Canonical's nationality list (live, round 8)", () => {
+  // Verbatim from Canonical's posting (Greenhouse job board API, 2026-10-22).
+  const NATIONALITIES = ["Afghan","Albanian","Algerian","American","Andorran","Angolan","Anguillan","Argentine","Armenian","Australian","Austrian","Azerbaijani","Bahamian","Bahraini","Bangladeshi","Barbadian","Belarusian","Belgian","Belizean","Beninese","Bermudian","Bhutanese","Bolivian","Botswanan","Brazilian","British","British Virgin Islander","Bruneian","Bulgarian","Burkinan","Burmese","Burundian","Cambodian","Cameroonian","Canadian","Cape Verdean","Cayman Islander","Central African","Chadian","Chilean","Chinese","Citizen of Antigua and Barbuda","Citizen of Bosnia and Herzegovina","Citizen of Guinea-Bissau","Citizen of Kiribati","Citizen of Seychelles","Citizen of the Dominican Republic","Citizen of Vanuatu ","Colombian","Comoran","Congolese (Congo)","Congolese (DRC)","Cook Islander","Costa Rican","Croatian","Cuban","Cymraes","Cymro","Cypriot","Czech","Danish","Djiboutian","Dominican","Dutch","East Timorese","Ecuadorean","Egyptian","Emirati","English","Equatorial Guinean","Eritrean","Estonian","Ethiopian","Faroese","Fijian","Filipino","Finnish","French","Gabonese","Gambian","Georgian","German","Ghanaian","Gibraltarian","Greek","Greenlandic","Grenadian","Guamanian","Guatemalan","Guinean","Guyanese","Haitian","Honduran","Hong Konger","Hungarian","Icelandic","Indian","Indonesian","Iranian","Iraqi","Irish","Israeli","Italian","Ivorian","Jamaican","Japanese","Jordanian","Kazakh","Kenyan","Kittitian","Kosovan","Kuwaiti","Kyrgyz","Lao","Latvian","Lebanese","Liberian","Libyan","Liechtenstein citizen","Lithuanian","Luxembourger","Macanese","Macedonian","Malagasy","Malawian","Malaysian","Maldivian","Malian","Maltese","Marshallese","Martiniquais","Mauritanian","Mauritian","Mexican","Micronesian","Moldovan","Monegasque","Mongolian","Montenegrin","Montserratian","Moroccan","Mosotho","Mozambican","Namibian","Nauruan","Nepalese","New Zealander","Nicaraguan","Nigerian","Nigerien","Niuean","North Korean","Northern Irish","Norwegian","Omani","Pakistani","Palauan","Palestinian","Panamanian","Papua New Guinean","Paraguayan","Peruvian","Pitcairn Islander","Polish","Portuguese","Prydeinig","Puerto Rican","Qatari","Romanian","Russian","Rwandan","Salvadorean","Sammarinese","Samoan","Sao Tomean","Saudi Arabian","Scottish","Senegalese","Serbian","Sierra Leonean","Singaporean","Slovak","Slovenian","Solomon Islander","Somali","South African","South Korean","South Sudanese","Spanish","Sri Lankan","St Helenian","St Lucian","Stateless","Sudanese","Surinamese","Swazi","Swedish","Swiss","Syrian","Taiwanese","Tajik","Tanzanian","Thai","Togolese","Tongan","Trinidadian","Tristanian","Tunisian","Turkish","Turkmen","Turks and Caicos Islander","Tuvaluan","Ugandan","Ukrainian","Uruguayan","Uzbek","Vatican citizen","Venezuelan","Vietnamese","Vincentian","Wallisian","Welsh","Yemeni","Zambian","Zimbabwean","Prefer not to say"];
+  it("a nationality asked is the stated citizenship's", () => {
+    // Sent to the AI live for UK_SENIOR, a British citizen.
+    document.body.innerHTML = `<form id="application-form">${select("q3", "Please indicate your nationality:", NATIONALITIES)}</form>`;
+    const f = scanPage(persona("UK_SENIOR"), true).fields.find((x) => x.label.startsWith("Please indicate"));
+    expect(f?.proposedValue ?? null).toBe("British");
+    for (const [who, demonym] of [["SPARSE_CANADIAN", "Canadian"], ["INDIA_NEW_GRAD", "Indian"], ["US_VETERAN", "American"]]) {
+      document.body.innerHTML = `<form id="application-form">${select("q3", "Please indicate your nationality:", NATIONALITIES)}</form>`;
+      expect(scanPage(persona(who), true).fields.find((x) => x.label.startsWith("Please indicate"))?.proposedValue ?? null, who).toBe(demonym);
+    }
+  });
+  it("a citizenship nobody stated stays blank", () => {
+    document.body.innerHTML = `<form id="application-form">${select("q3", "Please indicate your nationality:", NATIONALITIES)}</form>`;
+    // A permanent resident of Canada: citizenship unstated.
+    const f = scanPage(persona("MONTREAL_CHANGER"), true).fields.find((x) => x.label.startsWith("Please indicate"));
+    expect(f?.proposedValue ?? null).toBeNull();
+  });
+});
