@@ -1108,6 +1108,15 @@ export default [
       "label:Degree": "Bachelor's Degree",
       "label:End date month": null,
       "label:End date year": "2017",
+      // The persona's second school (Concordia's certificate): its row is added
+      // in one run of four (the embed re-renders mid-fill). Checked when it is
+      // there; its Degree is the list's "Other" (decision 96), or blank where
+      // the list never loaded (that run).
+      "#school--1": { ifPresent: "Concordia University" },
+      "#degree--1": { ifPresent: { oneOf: ["Other", ""] } },
+      "#discipline--1": { ifPresent: "Computer Science" },
+      "#end-month--1": { ifPresent: null },
+      "#end-year--1": { ifPresent: "2023" },
       "label:Please select the year you anticipate graduating from your a": "Already graduated",
       "label:By checking this box, I acknowledge that this is a 40 hour/w": "Yes",
       "label:LinkedIn Profile": "linkedin.com/in/alexcote",
@@ -1542,7 +1551,9 @@ export default [
       "label:Select country calling code: Germany": "GermanyGermany",
       "label:Phone number": "+49 30 12345678",
       "name=candidate.agreements.0.consent": "checked",
-      "label:EN - English, Select a language": "EN",
+      // The captcha frame's own display-language picker, the page's and never
+      // a write: there only once that frame has loaded.
+      "label:EN - English, Select a language": { ifPresent: "EN" },
     },
   }),
 ];
