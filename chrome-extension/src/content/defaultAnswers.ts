@@ -287,7 +287,10 @@ const TITLED_TERMS = /\b(polic(y|ies)|agreement|terms|notice|acknowledg\w*|attes
 /** Options a "how did you hear" answer may take, most truthful first for a
  *  Tailrd user (who found the posting through a job aggregator). */
 const SOURCE_PREFERENCE: RegExp[] = [
-  /\bjob (board|site|search|posting|aggregator)s?\b|\bonline (job|posting|ad|listing)s?\b|\bjob search (engine|site|website)\b/,
+  // "Jobboards" in one word too: Horizon's "Other Jobboards" among named
+  // "…-jobsearch.com" boards is where LinkedIn goes (Greenhouse, the round 8
+  // regression: blank once "Other …" channels stopped standing for "Other").
+  /\bjob ?boards?\b|\bjob (site|search|posting|aggregator)s?\b|\bonline (job|posting|ad|listing)s?\b|\bjob search (engine|site|website)\b/,
   /\b(company|corporate|our) (website|site|careers? (page|site))\b|\bcareers? (page|site|website)\b|\bwebsite\b/,
   /\b(internet|online|web|search engine|google)\b/,
   /\blinked ?in\b/,

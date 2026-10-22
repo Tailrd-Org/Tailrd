@@ -168,3 +168,11 @@ describe("a signature asked as the name entered below a statement (Datalab on Le
     expect(f?.proposedValue).toBe("Maya Tremblay");
   });
 });
+
+describe("a job board the list does not name, among named ones (Horizon on Greenhouse)", () => {
+  // Verbatim (Greenhouse job board API, 2026-10-22; "AfrianAmerican" sic).
+  const HORIZON = ["Disabled-jobsearch.com", "Asian-jobsearch.com", "LGBTQ-jobsearch.com", "Veterans-jobsearch.com", "Seniors-jobsearch.com", "NativeAmerican-jobsearch.com", "Neurodivergent-jobsearch.com", "Diversity-jobsearch.com", "Hispanic-jobsearch.com", "Black-jobsearch.com", "AfrianAmerican-jobsearch.com", "Other Jobboards", "Social Media", "Horizon Website"];
+  it("LinkedIn is one of the other job boards", () => {
+    expect(scanned(["INDIA_NEW_GRAD"], "How did you hear about us?*", HORIZON, "Toronto, ON, Canada")).toEqual({ INDIA_NEW_GRAD: "Other Jobboards" });
+  });
+});
