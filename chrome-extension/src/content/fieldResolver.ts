@@ -25,7 +25,7 @@ import { resolveQuestion, statedDateFormat, type QuestionContext, type QuestionI
 import { countryFromName } from "./geo";
 import { snapSchool } from "./schoolMatch";
 import { placeOf } from "./placeMatch";
-import { closestDemographicOption, declineOption, groupedEthnicityOption, hispanicRaceOption, severalHold, veteranOption } from "./demographicMatch";
+import { closestDemographicOption, declineOption, groupedEthnicityOption, hispanicRaceOption, raceCandidates, severalHold, synonymTie, veteranOption } from "./demographicMatch";
 import { matchOption } from "./writeEngine";
 import { sentencesOf } from "./statementText";
 
@@ -329,7 +329,8 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
  * general matcher.
  */
 function demographicSnap(category: FieldCategory, value: string, options: string[]): string | null {
-  return closestDemographicOption(category, value, options) ?? (severalHold(value, options) ? null : snapToOption(options, value, category));
+  const own = raceCandidates(category, value, options);
+  return closestDemographicOption(category, value, options) ?? (severalHold(value, own) || synonymTie(category, value, options) ? null : snapToOption(own, value, category));
 }
 
 /** Whether the education row a field answers for (its own, else the main

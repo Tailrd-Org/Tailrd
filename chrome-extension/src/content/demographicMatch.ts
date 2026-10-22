@@ -24,11 +24,24 @@ const DECLINE_PATTERNS = [
 
 const norm = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
+/** "No Response" (Franklin Electric on Pinpoint, bank, round 8) declines: it
+ *  is no "No". */
+const NO_RESPONSE = /^no (response|answer)( given| provided)?$/;
+
+/** A claim made before its details are declined: "I Am A Protected Veteran,
+ *  But I Choose Not To Self-Identify The Classifications To Which I Belong"
+ *  (White Swan on Pinpoint, bank, round 8) tied with "I Choose Not To
+ *  Identify" as a decline, and someone who stated none got neither. */
+const claimsFirst = (n: string): boolean => {
+  const head = n.split(/\bbut\b/)[0];
+  return head !== n && !DECLINE_PATTERNS.some((d) => head.includes(d)) && /\b(i am|i m|i have|i identify)\b/.test(head);
+};
+
 /** A decline option: one that declines, never one that answers Yes or No
  *  ("Yes, I have a disability but do not want to provide specifics",
  *  Hootsuite on Greenhouse, question bank 3: a stated "Prefer not to say" took
  *  it). */
-const isDeclineOption = (n: string): boolean => DECLINE_PATTERNS.some((d) => n.includes(d)) && !/^(yes|no)\b/.test(n);
+const isDeclineOption = (n: string): boolean => NO_RESPONSE.test(n) || (DECLINE_PATTERNS.some((d) => n.includes(d)) && !/^(yes|no)\b/.test(n) && !claimsFirst(n));
 
 /** An option's own words before its description: "White - A person having
  *  origins…" is "white", "East Asian (inclusive of…)" is "east asian". */
@@ -153,7 +166,8 @@ type VeteranClaim =
 function veteranClaim(text: string): VeteranClaim {
   const t = norm(text);
   if (!t) return null;
-  if (DECLINE_PATTERNS.some((d) => t.includes(d)) || /\bdecline\b/.test(t)) return "decline";
+  if (claimsFirst(t) && /\bprotected veterans?\b/.test(t.split(/\bbut\b/)[0]) && !/\bnot\b/.test(t.split(/\bbut\b/)[0])) return "protected";
+  if (NO_RESPONSE.test(t) || DECLINE_PATTERNS.some((d) => t.includes(d)) || /\bdecline\b/.test(t)) return "decline";
   if (/\b(non|un) ?protected veterans?\b/.test(t)) return "veteran-unprotected";
   // "I am a veteran but not a protected veteran" served (Veolia,
   // SmartRecruiters bank, round 7): read as "not a protected veteran", it
@@ -192,7 +206,9 @@ export function veteranOption(value: string, label: string, options: string[]): 
   const real = options.filter((o) => o.trim() && !/^(select|choose)\b/i.test(o.trim()));
   const claims = real.map((o) => ({ raw: o, claim: veteranClaim(o) }));
   const decline = claims.filter((c) => c.claim === "decline");
-  if (claim === "decline") return decline.length === 1 ? decline[0].raw : null;
+  // Two declines ("I Choose Not To Identify", "Prefer Not To Say": Flatirons
+  // on Pinpoint, bank, round 8) say the same: the first listed.
+  if (claim === "decline") return decline.length > 0 ? decline[0].raw : null;
   // A yes/no question: the label says what Yes means.
   const yes = real.filter((o) => /^(yes|y)\b/i.test(o.trim()));
   const no = real.filter((o) => /^(no|n)\b/i.test(o.trim()));
@@ -278,14 +294,47 @@ export function groupedEthnicityOption(value: string, options: string[]): string
 /** An option that declines to answer ("Decline to answer", "Prefer not to say"). */
 export function isDeclineText(text: string): boolean {
   const t = norm(text);
-  return Boolean(t) && (DECLINE_PATTERNS.some((d) => t.includes(d)) || /^decline\b/.test(t));
+  return Boolean(t) && (NO_RESPONSE.test(t) || DECLINE_PATTERNS.some((d) => t.includes(d)) || /^decline\b/.test(t));
 }
 
 /** The option that declines to answer ("I don't wish to answer", "Decline To
- *  Self Identify"), when the list has exactly one. */
+ *  Self Identify"); of several, which say the same, the first listed. */
 export function declineOption(options: string[]): string | null {
   const hits = options.filter((o) => isDeclineOption(norm(o)));
-  return hits.length === 1 ? hits[0] : null;
+  return hits.length > 0 ? hits[0] : null;
+}
+
+/** The race groups a text names: "Asian And White" names two. */
+const raceGroupsOf = (n: string): Set<string> => new Set(RACE_GROUPS.filter(([re]) => re.test(n)).map(([, g]) => g));
+
+/** A mixed option, two races in one ("Asian And White", the UK's "Black And
+ *  White Caribbean"), never one race's answer: "Asian And White" was chosen
+ *  for two Asian applicants (White Swan on Pinpoint, bank, round 8). */
+const mixedFor = (category: FieldCategory, v: string, o: string): boolean => {
+  if (category !== "eeoRace") return false;
+  const mine = raceGroupsOf(v);
+  return mine.size === 1 && !mine.has("mixed") && raceGroupsOf(o).size > 1;
+};
+
+/** The options one stated race can be: none of the mixed ones. */
+export function raceCandidates(category: FieldCategory, value: string, options: string[]): string[] {
+  const v = norm(value);
+  return options.filter((o) => !mixedFor(category, v, norm(o)));
+}
+
+/** The answer's synonym held by several options ("Black British", "Black
+ *  African", "Black Caribbean" for "Black or African American"): a tie, left
+ *  to the applicant and never settled by spelling ("Black African", White
+ *  Swan on Pinpoint, bank, round 8). */
+export function synonymTie(category: FieldCategory, value: string, options: string[]): boolean {
+  const v = norm(value);
+  const opts = options.map(norm).filter((o) => o && !mixedFor(category, v, o));
+  for (const cand of tableFor(category)?.[v] ?? []) {
+    if (opts.includes(cand)) return false;
+    const hits = opts.filter((o) => hasWords(o, cand));
+    if (hits.length > 0) return hits.length > 1;
+  }
+  return false;
 }
 
 export function closestDemographicOption(
@@ -293,8 +342,8 @@ export function closestDemographicOption(
   value: string,
   options: string[]
 ): string | null {
-  const opts = options.map((o) => ({ raw: o, n: norm(o) })).filter((o) => o.n.length > 0);
   const v = norm(value);
+  const opts = options.map((o) => ({ raw: o, n: norm(o) })).filter((o) => o.n.length > 0 && !mixedFor(category, v, o.n));
   if (opts.length === 0 || !v) return null;
 
   // 1. The answer itself, then the one option holding it ("Asian" in "Asian
@@ -325,9 +374,18 @@ export function closestDemographicOption(
     const led = holding.filter((o) => headOf(o.raw) === v);
     return led.length === 1 ? led[0].raw : null;
   }
+  // "Gay or Lesbian" is one of two, by a gender no list asks: "Homosexual"
+  // is either, and "Gay" is said by both; "Lesbian" alone went to a man
+  // (White Swan on Pinpoint, bank, round 8). Both listed, the applicant's
+  // pick (Superhuman ticked "Lesbian", round 3, 2026-10-03).
+  if (category === "eeoSexualOrientation" && / or /.test(v)) {
+    const alts = v.split(" or ");
+    if (opts.filter((o) => alts.includes(o.n)).length > 1) return null;
+    const either = opts.filter((o) => o.n === "homosexual" || (o.n === "gay" && alts.includes("gay")));
+    return either.length === 1 ? either[0].raw : null;
+  }
   const inside = opts.filter((o) => hasWords(v, o.n));
-  // "Gay or Lesbian" holds both "Gay" and "Lesbian": an either-or names
-  // neither (Superhuman ticked "Lesbian", round 3, 2026-10-03).
+  // An either-or holding both names neither.
   if (inside.length > 1 && /\bor\b/.test(v)) return null;
   if (inside.length > 0) {
     const longest = Math.max(...inside.map((o) => o.n.length));

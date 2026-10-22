@@ -151,9 +151,10 @@ const EXPERIENCE_ASKED =
 const OBSTACLE = /\b(challenges?|issues?|problems?|concerns?|difficult(y|ies)?|prevent you|preclude|disqualif\w*|impediments?|barriers?|obstacles?|restrictions?|limitations?)\b/;
 
 // ("Have you ever filled out an application with us before?", GEI on Jobvite,
-// question bank 2026-10-17.)
+// question bank 2026-10-17.) ("Have you ever been interviewed by Pluga
+// Franklin Electric earlier?", Pinpoint bank, round 8.)
 const PRIOR_APPLICATION =
-  /\b(have|did) you (ever |previously |already )?(applied|interviewed|submitted (an )?application|filed (an )?application|(filled|filed) out (an )?application|completed (an )?application)\b|\bpreviously (applied|interviewed)\b|\bapplied (here|before|previously)\b|\binterviewed (here|before|with us)\b/;
+  /\b(have|did) you (ever |previously |already )?(been )?(applied|interviewed|submitted (an )?application|filed (an )?application|(filled|filed) out (an )?application|completed (an )?application)\b|\bpreviously (applied|interviewed)\b|\bapplied (here|before|previously)\b|\binterviewed (here|before|with us)\b/;
 /** "Were you referred by an employee?" (a yes/no; WHO referred stays unanswerable). */
 // "Did a Cricut employee refer you to this position?", "Have you been
 // referred to this position by an existing CRB employee?", "Did someone from
@@ -182,9 +183,11 @@ const AFFIRMS_NONE =
 // your right to work for WD…" (Western Digital, SmartRecruiters bank) and
 // "…any contractual obligations, agreements, relationships, or commitments …
 // that would impact, impede or interfere with your ability to join Axon?"
-// (Axon on Greenhouse, live); round 7.
+// (Axon on Greenhouse, live); round 7. An employment bond, the agreement to
+// stay or repay: "Do you have contract/bond agreement with the present
+// employer?" (Franklin Electric on Pinpoint, bank, round 8).
 export const NON_COMPETE =
-  /\bnon ?compet\w*|\bnon ?solicit\w*|\brestrictive covenants?\b|\b(agreements?|contracts?) that (would |may |might )?(restrict|prevent|limit|prohibit)\b|\bpost ?employment (restrictions?|obligations?|covenants?)\b|\b(agreements?|contracts?|obligations?|commitments?)\b[^?]{0,120}\b(restricts?|restricting|prevents?|limits?|prohibits?|impedes?|impede|interferes?|interfere)\b[^?]{0,40}\b(right|ability|freedom) to (work|join|accept|start|terminate|be employed)\b/;
+  /\bnon ?compet\w*|\bnon ?solicit\w*|\brestrictive covenants?\b|\bbond agreements?\b[^?]{0,30}\b(present|current|existing) employer\b|\b(service|employment) bonds?\b|\b(agreements?|contracts?) that (would |may |might )?(restrict|prevent|limit|prohibit)\b|\bpost ?employment (restrictions?|obligations?|covenants?)\b|\b(agreements?|contracts?|obligations?|commitments?)\b[^?]{0,120}\b(restricts?|restricting|prevents?|limits?|prohibits?|impedes?|impede|interferes?|interfere)\b[^?]{0,40}\b(right|ability|freedom) to (work|join|accept|start|terminate|be employed)\b/;
 const GOV_OFFICIAL =
   /\b(government|public|foreign) officials?\b|\bprocurement officials?\b|\bpolitically exposed\b|\b(current|former|currently|formerly)\b[^?]{0,30}\b(government|federal|state|public sector) officials?\b/;
 // "…a current employee of the U.S. Government (including U.S. Congress or

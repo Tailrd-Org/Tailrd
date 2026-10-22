@@ -2071,7 +2071,9 @@ function resolveEnrollment(q: QuestionInput, n: string, facts: ProfileFacts): Qu
   // radius of San Francisco, CA?", Gallup on Greenhouse, live, round 7.)
   // ("Are you currently a University student in the Atlanta area pursuing an
   // Engineering degree?", SoloPulse on Lever, live, round 7.)
-  if (!/\b(currently|presently) (a |an )?(full time |part time )?(university |college |undergraduate |graduate )?(student|enrolled|attending|attend|pursuing)\b|\bare you (a |an )?(current )?(full time |part time )?(university |college )?student\b|\benrolled (in|at)\b/.test(n)) return null;
+  // ("Are you currently studying?", Franklin Electric on Pinpoint, bank,
+  // round 8: blank for everyone.)
+  if (!/\b(currently|presently) (a |an )?(full time |part time )?(university |college |undergraduate |graduate )?(student|enrolled|attending|attend|pursuing|studying)\b|\bare you (a |an )?(current )?(full time |part time )?(university |college )?student\b|\benrolled (in|at)\b/.test(n)) return null;
   if (!isBooleanQuestion(q)) return null;
   // "...during the internship" / "...after graduation": another time, leave it.
   if (/\bduring\b|\bafter\b|\bthrough\b|\buntil\b/.test(n)) return abstain("enrollment:qualified");
@@ -4371,6 +4373,16 @@ export function resolveQuestion(
   if (heading && (q.options ?? []).filter((o) => o.trim()).length >= 2) {
     const inner = resolveQuestion({ ...q, label: `Are you eligible to work in ${heading[1]}?` }, facts, profile, ctx);
     if (inner?.status === "answer") return inner;
+  }
+  // The employer's own site where the applicant works now: "What Franklin
+  // Electric location do you currently work from?" (Pinpoint bank, round 8)
+  // asks its own employees, and got the applicant's home city.
+  const site = /\b(?:what|which)\s+(.{1,60}?)\s*\b(?:locations?|offices?|sites?|facilit(?:y|ies)|plants?|branch(?:es)?|campus(?:es)?)\b[^?]{0,30}\b(?:do|did)\s+you\s+(?:currently\s+|presently\s+)?(?:work|report)\b/i.exec(raw);
+  if (site) {
+    const owner = site[1].trim();
+    if (/^(?:of\s+)?(?:our|the company['’]?s?)\b/i.test(owner) || (ctx.company && sameCompany(owner, ctx.company)) || /^[A-Z][\w&.'’-]*(?:\s+[A-Z][\w&.'’-]*)*$/.test(owner)) {
+      return abstain("location:employer-site");
+    }
   }
   const listed = resolveListedPlaces(q, raw, facts, profile, ctx);
   if (listed) return listed;

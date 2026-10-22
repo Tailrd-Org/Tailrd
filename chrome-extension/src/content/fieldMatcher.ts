@@ -622,8 +622,10 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\b(hourly|daily) rate\b/, weight: 0.8 },
     ],
     // The pay now is never given; "current salary requirements" are the
-    // expectation (Trace3 on Greenhouse, live, round 8).
-    negative: /\bcurrent salary\b(?! (requirements?|expectations?|range))/,
+    // expectation (Trace3 on Greenhouse, live, round 8). "What is your
+    // current Annual Salary (CTC)?" (Franklin Electric on Pinpoint, bank,
+    // round 8) got the desired salary.
+    negative: /\bcurrent (annual |base |gross |yearly |monthly |fixed |total )*(salary|ctc|compensation|pay|package)\b(?! (requirements?|expectations?|range))/,
   },
   {
     category: "skills",
