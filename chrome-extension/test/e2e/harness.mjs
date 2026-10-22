@@ -366,7 +366,22 @@ export async function runCase(env, testCase) {
     await page.goto(testCase.url, { waitUntil: "load", timeout: 60000 });
     if (testCase.beforeFill) await testCase.beforeFill(page);
     await sleep(testCase.settleMs ?? 800);
-    const before = await dumpAllFrames(page);
+    let before = await dumpAllFrames(page);
+    // An SPA renders its form after load: SmartRecruiters' one-click page
+    // showed no fields yet on five postings in the round 8 regression, and
+    // its own "+ 1" country code then read as the extension's write. The
+    // page's own values are read once its form is there; a form behind an
+    // Apply button has none until the flow clicks it (8 s at most).
+    if (before.length === 0) {
+      for (let waited = 0; before.length === 0 && waited < 8000; waited += 500) {
+        await sleep(500);
+        before = await dumpAllFrames(page);
+      }
+      if (before.length > 0) {
+        await sleep(1000);
+        before = await dumpAllFrames(page);
+      }
+    }
     const trace = await triggerAutofill(page, sw, api, testCase.trigger ?? {});
     // Blur everything and let the framework re-render: a value the framework
     // never registered is reset to its (empty) state on this render, which is
