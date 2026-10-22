@@ -175,7 +175,7 @@ async function togglePanel(sw, pageUrl) {
  * Open the panel (auto-mount or toolbar toggle), press Autofill, and wait for
  * the fill to finish. Returns a trace of what happened for the report.
  */
-export async function triggerAutofill(page, sw, api, { mountWaitMs = 8000, fillTimeoutMs = 150000, clickImmediately = false } = {}) {
+export async function triggerAutofill(page, sw, api, { mountWaitMs = 8000, fillTimeoutMs = 150000, clickImmediately = false, beforeClick = null } = {}) {
   const trace = { mounted: "none", clicked: false, finished: false, telemetry: null, ms: 0 };
   const started = Date.now();
   let st = await overlayState(page);
@@ -217,6 +217,7 @@ export async function triggerAutofill(page, sw, api, { mountWaitMs = 8000, fillT
 
   const telemetryBefore = api.state.telemetry.length;
   const beatsBefore = panel.beats.length;
+  if (beforeClick) await beforeClick();
   await page.locator("#ap-btn-autofill").click({ timeout: 10000 });
   trace.clicked = true;
 
@@ -382,7 +383,11 @@ export async function runCase(env, testCase) {
         before = await dumpAllFrames(page);
       }
     }
-    const trace = await triggerAutofill(page, sw, api, testCase.trigger ?? {});
+    // Still no form (Wellmark on SmartRecruiters took longer than 9 s in round
+    // 8's final regression): read the page's own values at the click instead,
+    // when the panel has found the form and nothing is written yet.
+    const readLate = before.length === 0 ? async () => { before = await dumpAllFrames(page); } : null;
+    const trace = await triggerAutofill(page, sw, api, { ...(testCase.trigger ?? {}), beforeClick: readLate });
     // Blur everything and let the framework re-render: a value the framework
     // never registered is reset to its (empty) state on this render, which is
     // the "appears, then clears on blur" failure the state check exists for.
