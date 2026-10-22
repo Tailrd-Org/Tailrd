@@ -241,3 +241,19 @@ describe("blanks the new Ashby bank showed answerable (round 8)", () => {
     expect(ask("BOOTCAMP_CAREER_GAP", "What type of visa will you require? (if applicable to above)", opts, "AssortHealth")).toBe("Not applicable");
   });
 });
+
+describe("source lists: the Greenhouse bank's re-run of the fixes above (round 8)", () => {
+  const AIRBNB = ["Company Website (Airbnb Careers)", "Third-party website or search engine", "Social media (Facebook, LinkedIn, Twitter, Instagram)", "Airbnb Tech blog post", "Airbnb.io", "Airbnb Open Source", "Event (Tech Talk, Meetup, conference)", "Airbnb Employee", "Friend, family, colleague", "Other"];
+  const FIVETRAN = ["Afrotech", "Built In Colorado", "Built In SF", "Career fair", "Conference", "Existing Employee", "Facebook advertisement", "Glassdoor", "Google search", "HBCU Connect", "Indeed", "LinkedIn advertisement", "LinkedIn job search", "Mentorli", "Other", "Referred", "Word of mouth"];
+  const PLANET = ["BuiltIn Article", "BuiltIn Job Search", "Conference", "Event", "Glassdoor Article", "Glassdoor Job Search", "Indeed", "Instagram", "LinkedIn Company Post", "LinkedIn Employee Post", "LinkedIn Job Search", "News Article", "Other - Event", "Other - Job Site", "Other - Social Media", "Other - Webinar", "Otta", "Planet Event", "Planet Webinar"];
+  it("the social media channel names platforms only as examples (Airbnb)", () => {
+    expect(ask("BOOTCAMP_CAREER_GAP", "How did you hear about this job?", AIRBNB, "Airbnb")).toBe(AIRBNB[2]);
+  });
+  it("a referral takes 'Referred' before word of mouth (Fivetran)", () => {
+    expect(ask("BERLIN_STAFF", "How did you hear about Fivetran + dbt Labs?", FIVETRAN, "Fivetran")).toBe("Referred");
+  });
+  it("'Other - Webinar' is no list's Other (Planet)", () => {
+    expect(ask("BERLIN_STAFF", "How did you first hear about Planet before applying for this position?", PLANET, "Planet")).toBeNull();
+    expect(ask("US_H1B_SENIOR", "How did you first hear about Planet before applying for this position?", PLANET, "Planet")).toBeNull();
+  });
+});

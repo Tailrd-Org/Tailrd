@@ -403,13 +403,16 @@ const SOURCE_SYNONYMS: Array<[RegExp, RegExp]> = [
   // "Connection in the Company". An option naming an employee alone ("Former
   // Employee", Accenture Federal; "Current/Former Employee", Roku; "Current
   // Fox Employee", Tubi) says who the APPLICANT is, never a referral.
-  // "Word of mouth" too (1Password on Ashby, bank, round 8).
-  [/\breferr\w*|\bemployee\b|\bfriend\b/, /\breferr\w*|\bfriend\b|\bknow someone\b|\bsomeone (who|that) works\b|\b(connection|contact)s? (in|at|within) the company\b|\bword of mouth\b/],
+  [/\breferr\w*|\bemployee\b|\bfriend\b/, /\breferr\w*|\bfriend\b|\bknow someone\b|\bsomeone (who|that) works\b|\b(connection|contact)s? (in|at|within) the company\b/],
   // Then an unqualified "Appian Employee" (heard from one); a current, former
   // or ex- employee is the applicant, and a "LinkedIn Employee Post" a channel.
   // An employees' event is a channel, not a referral: "Employee Presentation"
   // for a stated referral (Match Group on Lever, question bank 2026-10-08).
   [/\breferr\w*|\bemployee\b|\bfriend\b/, /^(?!.*\b(former|current|ex|previous|past|alumni|alumnus|post|posting|linked ?in|presentations?|events?|blog|webinars?|panels?|talks?|stories|story|spotlights?|testimonials?|newsletters?)\b).*\bemployees?\b/],
+  // A referral with no referral option is word of mouth (1Password on Ashby,
+  // bank, round 8), after any referral or employee option (Fivetran's
+  // "Referred" beside "Word of Mouth").
+  [/\breferr\w*/, /\bword of mouth\b/],
   [/\b(career|job) fair\b|\buniversity\b|\bcampus\b|\bschool\b|\bcollege\b/, /\b(career|job) fair\b|\buniversity\b|\bcampus\b|\bschool\b|\bcollege\b|\bco ?op\b/],
   // "Social media" is no particular platform: "Twitter" for it was a guess
   // (Twilio, Gusto's "Facebook"; question bank 2026-10-05). A platform
@@ -496,7 +499,7 @@ function unencumberedText(q: QuestionInput, n: string, profile: UserApplicationP
  *  list source below"), never a channel named "Other …": "Other Job Boards"
  *  took a stated referral and social media (Commure on Ashby, bank, round 8). */
 function listOther(opts: string[]): string[] {
-  return opts.filter((o) => /^other\b/.test(qn(o)) && !/^other (job|jobs|social|recruit\w*|events?|websites?|search|boards?|media|platforms?|channels?|sources?|sites?|online|referrals?)\b/.test(qn(o)));
+  return opts.filter((o) => /^\s*other\s*(\([^)]*\))?\s*:?\s*$/i.test(o) || /^\s*other\s*[-:–(]?\s*(please|specify|not listed|list|explain|describe)\b/i.test(o));
 }
 
 function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company = ""): QuestionResult {
@@ -535,7 +538,9 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
           : /social/.test(said.source)
             ? // Social media is no one platform's: "LinkedIn Social Post" took it
               // (1Password on Ashby, bank, round 8; decision 9).
-              (o: string) => !outreach(o) && !NAMED_SOURCE.test(qn(o))
+              // "Social media (Facebook, LinkedIn, Twitter)" names platforms only
+              // as examples (Airbnb, D2L, Mixpanel on Greenhouse, bank re-run).
+              (o: string) => !outreach(o) && !NAMED_SOURCE.test(qn(o.replace(/\([^)]*\)/g, " ")))
             : (o: string) => !outreach(o);
       const hit = unique(offered, keep);
       if (hit) return answer(hit, "source:stated");
