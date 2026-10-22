@@ -3849,6 +3849,10 @@ function resolvePhoneCode(q: QuestionInput, n: string, facts: ProfileFacts, prof
  *  reads as the applicant's own statement). Recognized so they are never filled
  *  by a category fallback. Channels, prior applications, relatives, conflicts,
  *  background checks and the like are answered by defaultAnswers.ts. */
+/** A box signed with the applicant's typed name ("By entering your name
+ *  below: I, the undersigned, certify…"). */
+const SIGNED_BY_NAME = /\bsign\w* by typing\b|\btyp(e|ing) your (full |legal |complete )*name\b|\b(enter|entering) your (full |legal |complete )*name (below|here)\b/;
+
 const UNANSWERABLE =
   /\bwho referred\b|\breferred by (whom|who)\b|\b(name|names) of (the |your )?(referr\w*|employee)\b|\bdo you think\b|\bin your opinion\b|\bwhat do you think\b|\bwhy (do|are|did|would) you\b|\bdescribe (a|an)\b|\btell us about (a|an|yourself)\b|\bwhat interests you\b|\bcriminal\b|\bconvicted\b|\bfelony\b/;
 
@@ -4098,6 +4102,11 @@ export function resolveQuestion(
   // Workable bank, 2026-10-05) asks nothing about a record.
   const words = n.split(" ").length;
   const statement = words >= STATEMENT_WORDS;
+  // A statement signed by the name typed under it: the box asks for the name,
+  // and what the statement says ("…conditional upon my passing a credit,
+  // criminal background and drug check", Datalab on Lever, the round 8
+  // regression: blank) is what the name signs.
+  if (q.category === "fullName" && SIGNED_BY_NAME.test(n)) return null;
   if (UNANSWERABLE.test(statement ? qnorm(askedOfStatement(raw, words)) : asked)) return abstain("unanswerable-from-profile");
   // A phone extension: no profile holds one, and a guess (the AI's, or the
   // phone number again, as Workday's "phone-extension" once got) dials wrong.

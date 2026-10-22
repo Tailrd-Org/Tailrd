@@ -180,6 +180,11 @@ const CATEGORY_SPECS: CategorySpec[] = [
       { re: /\bfull name\b/ },
       { re: /\b(first|given)\b.{0,40}\b(and|&) (last|family) name\b/ },
       { re: /\bsign\w* by typing\b|\btyp(e|ing) your (full |legal |complete )*name\b/ },
+      // A statement signed by the name entered under it: "By entering your
+      // name below: I, the undersigned, certify…" (Datalab on Lever, the
+      // round 8 regression: blank once the card's question, not its
+      // "SIGNATURE" heading, was read as the label).
+      { re: /\b(enter|entering) your (full |legal |complete )*name (below|here)\b/ },
       { re: /\blegal name\b/ },
       { re: /^(your )?name$/ },
       { re: /\bcomplete name\b/ },

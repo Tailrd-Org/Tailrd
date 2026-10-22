@@ -155,3 +155,16 @@ describe("an age the question says it is not asking for", () => {
     expect(scanned(["COMPLETE_CANADIAN"], "What is your age?", [], "Denver, CO, United States")).toEqual({ COMPLETE_CANADIAN: "22" });
   });
 });
+
+describe("a signature asked as the name entered below a statement (Datalab on Lever)", () => {
+  // The card's question is the statement; "SIGNATURE" is only the card's
+  // heading, which the scan read as the label before round 8.
+  const STATEMENT =
+    "By entering your name below: I, the undersigned, certify that the statements made by me and information in all documents provided by me herewith are complete and true to the best of my knowledge and belief. I understand that any willful misstatement may lead to disqualification, or to dismissal if employed. I understand any offer of employment is conditional upon my passing a credit, criminal background and drug check.";
+  it("takes the applicant's full name", () => {
+    document.body.innerHTML = `<form id="application-form"><div class="application-page"><h4>SIGNATURE</h4><ul><li class="application-question custom-question"><div><div class="application-label full-width text"><div class="text">${esc(STATEMENT)}<span class="required">✱</span></div></div><div class="application-field full-width required-field"><input required="required" class="card-field-input" type="text" placeholder="Type your response" value="" name="cards[23ac2dc9-e2da-4790-9e24-c1bd95f90717][field0]"></div></div></li></ul></div></form>`;
+    const f = scanPage(persona("COMPLETE_CANADIAN"), true).fields.find((x) => x.label.startsWith("By entering your name"));
+    expect(f?.category).toBe("fullName");
+    expect(f?.proposedValue).toBe("Maya Tremblay");
+  });
+});
