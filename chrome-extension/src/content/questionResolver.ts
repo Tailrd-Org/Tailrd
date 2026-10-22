@@ -48,6 +48,7 @@ import { deriveFieldOfStudy } from "./fieldMatcher";
 import { schoolOffered, snapSchool } from "./schoolMatch";
 import { NON_COMPETE, onsiteVerdict, resolveDefault } from "./defaultAnswers";
 import { STATEMENT_WORDS, askedOfStatement, sentencesOf } from "./statementText";
+import { placeOf } from "./placeMatch";
 
 export interface QuestionInput {
   label: string;
@@ -2889,6 +2890,52 @@ function resolveRelocationChoice(q: QuestionInput, n: string, profile: UserAppli
   return abstain("relocation:choice-unknown");
 }
 
+/** "Which location are you applying for?": one of the posting's own places. */
+const POSTING_LOCATION =
+  /\b(which|what) (location|office|site|city|hub|work location)s? (are|is) (you|your application) (applying|interested)\b|\b(location|office|site)s? (that )?you (are |re )?applying (for|to)\b|\bapplying (for|to) (which|what) (location|office)\b/;
+
+/**
+ * "Which location are you applying for?" over the posting's own places
+ * (decision 93). Azul on Lever (round 7: "Sunnyvale, CA" | "United States -
+ * Remote") took the remote option only when the profile's address named its
+ * country, through the country fallback meant for "What is your location?".
+ * The applicant's own city (its metro) when the posting lists it; else the
+ * remote option of the applicant's own country, a role they can do where they
+ * live (unless they prefer on-site work); else nothing, and not the AI's to
+ * guess: which office elsewhere is the applicant's call.
+ */
+function resolvePostingLocation(q: QuestionInput, n: string, facts: ProfileFacts, profile: UserApplicationProfile): QuestionResult {
+  if (!POSTING_LOCATION.test(n)) return null;
+  const opts = (q.options ?? []).filter((o) => o.trim());
+  if (opts.length < 2 || isBooleanOptionSet(opts)) return null;
+  const loc = facts.location;
+  if (!isHigh(loc.country)) return abstain("posting-location:unknown");
+  const country = loc.country.value.code;
+  const remote = (o: string): boolean => /\bremote(ly)?\b/i.test(o);
+  if (isHigh(loc.city)) {
+    const city = loc.city.value;
+    const region = isHigh(loc.region) ? `${loc.region.value.country}:${loc.region.value.code}` : null;
+    const own = opts.filter((o) => {
+      if (remote(o)) return false;
+      const p = placeOf(o);
+      if (!p.city || sameMetro(city, p.city) !== true) return false;
+      if (p.country && p.country !== country) return false;
+      // The same name in another state is another city ("Portland, ME" for
+      // someone in Portland, OR); a neighbour across a state line is not.
+      return !(geoNorm(city) === geoNorm(p.city) && p.region && region && p.region !== region);
+    });
+    if (own.length === 1) return answer(own[0], "posting-location:own-city");
+  }
+  const onsite = /\b(on ?site|in ?office|in person)\b/i.test(profile.workPreference ?? "");
+  const mine = opts.filter((o) => {
+    if (!remote(o)) return false;
+    const named = countryNamedIn(o.replace(/\bremote(ly)?\b/gi, " "));
+    return named !== null && named !== "this-country" && named.code === country;
+  });
+  if (mine.length === 1 && !onsite) return answer(mine[0], "posting-location:remote-in-country");
+  return { status: "abstain", rule: "posting-location:applicant-choice", blockBackend: true };
+}
+
 /**
  * U.S. export-control / "U.S. person" status (SpaceX "Citizenship Status",
  * Astranis, Hermeus; live 2026-10-03): U.S. citizen or national, lawful
@@ -3819,6 +3866,7 @@ export function resolveQuestion(
     resolveLocalOrRelocate(sq, facts, profile, ctx) ??
     resolveMovePlan(sq, sn, profile) ??
     resolveResidence(sq, sn, facts, profile) ??
+    resolvePostingLocation(sq, sn, facts, profile) ??
     resolveRegionChoice(sq, sn, facts) ??
     resolveLocatedChoice(sq, sn, facts) ??
     resolveFormerEmployee(sq, sn, sq.label, facts, ctx) ??

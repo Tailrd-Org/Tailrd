@@ -215,6 +215,25 @@ function governmentHistory(profile: UserApplicationProfile): { employer: boolean
   };
 }
 
+/** A government body as an employer, in a question about relatives. */
+const GOV_BODY =
+  /\b(government|governmental|public sector|civil service|military|armed forces)\b|\b(federal|state|local|municipal|provincial|tribal) (agenc(y|ies)|entit(y|ies)|bod(y|ies)|employees?)\b/;
+const FAMILY_GOVERNMENT: QuestionResult = { status: "abstain", rule: "default:family-government-employment", blockBackend: true };
+
+/**
+ * A relative's government EMPLOYMENT: "D. Within the past 5 years, has a
+ * member of your Immediate Family (spouse or child ONLY) ever been an
+ * employee of a federal, state, local, municipal, provincial or
+ * quasi-governmental entity…?" (ServiceNow, SmartRecruiters, round 7: No by
+ * the relatives default). Teachers, nurses and postal workers are such
+ * employees, so no profile settles it: the applicant's to answer, not the
+ * AI's (decision 94). A relative who is a government OFFICIAL stays the
+ * government question (decision 85).
+ */
+function familyInGovernment(n: string): boolean {
+  return RELATIVES.test(n) && GOV_BODY.test(n) && /\b(employ\w*|work\w*|served?|serving)\b/.test(n) && !GOV_OFFICIAL.test(n);
+}
+
 /** The "never a government employee / official" default, unless the history says otherwise. */
 function notGovernment(n: string, profile: UserApplicationProfile): boolean | null {
   const employee = GOV_EMPLOYEE.test(n);
@@ -438,6 +457,7 @@ function unencumberedText(q: QuestionInput, n: string, profile: UserApplicationP
   if (q.kind !== "text" && q.kind !== "longText") return null;
   if (!/^(are|were|was|have|has|had|do|did|is) you\b|^(are|were|have|do|did) (any|you)\b/.test(n)) return null;
   if (PRIOR_APPLICATION.test(n)) return answer("No", "default:no-prior-application");
+  if (familyInGovernment(n)) return FAMILY_GOVERNMENT;
   // Government officials first: a referral BY one, or a relative who is one,
   // is the government question (Robinhood on Greenhouse, bank r7d).
   const gov = notGovernment(n, profile);
@@ -779,6 +799,7 @@ export function resolveDefault(
   if (/\b(previously|ever|formerly|before) (worked|been employed) (for|at|with|by) (us|this (company|organi[sz]ation|employer|firm)|our (company|organi[sz]ation))\b/.test(n)) {
     return polar(false, q, "default:not-former-employee");
   }
+  if (familyInGovernment(n)) return FAMILY_GOVERNMENT;
   // Government officials first: "b) Have you been referred or recommended
   // for this position by a government official?" was Yes for an applicant an
   // employee referred (Robinhood on Greenhouse, bank r7d).
