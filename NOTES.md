@@ -1,4 +1,4 @@
-# Round 8: SmartRecruiters' screening step on thirteen live postings, Greenhouse's lazy education lists, the remix multi-selects, and 47 new boards (2026-10-22)
+# Round 8: SmartRecruiters' screening step on thirteen live postings, Greenhouse's lazy education lists, the remix multi-selects, 47 new boards, and banks for seven smaller ATSs (2026-10-22)
 
 Branch `night/autofill-round8` (worktree `.worktrees/autofill-round8`), from
 origin/main at 9cb84b0 (round 7). **Not pushed, not deployed**: nobody asked
@@ -30,8 +30,25 @@ The biggest finds:
   Horizon's source) **and an older race** (Anduril's company, read before the
   page named it, so "Company website" took "Other"): each fixed with a
   failing test first and re-run live.
-- **The last full regression**, on the final build: 315 of 320 pinned cases
-  pass, and each of the other five passes alone (section 7).
+- **Seven smaller ATSs serve their forms to a plain GET**, so each got a
+  question bank, read blind (JazzHR, Breezy, Pinpoint, Paylocity, BambooHR,
+  Comeet, Recruitee: 255 postings, 2,928 questions). About forty wrong answers
+  fixed, among them JazzHR's attestation that withdrew three applications,
+  JazzHR's own citizenship list taking "Other" for citizens, "Lesbian" for a
+  gay man, "Asian And White" for Asian applicants, a current salary written
+  as the desired one, and a Bengaluru street ("14, 5th Cross, Indiranagar")
+  dropped whole from every address box, found on a live check of the fixes.
+  Re-running every bank after them caught five of their own regressions,
+  fixed before anything was pinned.
+- **The final full regression**, after the banks: 321 of 333 pinned cases
+  pass. Of the other twelve, three postings had closed and one question had
+  left its form. Two new writes were wrong (a year in Waymo's new month box,
+  Scopely's "Yes" to relocation support), and reading the cases turned up
+  two more: graduates' finished degrees on Tenstorrent's "level of education
+  pursuing", and a round-8 pin that gave a June 2026 graduate "August 2026 -
+  December 2026" (DV Trading). All four fixed with a failing test
+  first and re-run live; the rest were right (pinned) or pass alone
+  (section 7).
 
 ## 1. Real users first
 
@@ -163,10 +180,38 @@ sits behind an emailed PIN: skipped. JazzHR and Breezy already had the most
 cases and were not reached within the 13. Fixed: Dayforce's "Not Completed"
 box, Pinpoint's "happy to work from our office" (9001f2d).
 
-A GET-only bank for Recruitee (`tools/qbank-recruitee.mjs`, its public offers
-API: prod's one company, Huawei Canada, 28 offers with questions, 91
-questions), read blind: nothing wrong. Pinpoint's postings JSON carries no
-questions.
+**Banks.** Seven of them serve their forms to a plain GET, so each got a
+question bank (`tools/qbank-<ats>.mjs`), read blind for six personas, every
+answer; each wrong answer and answerable blank fixed with a test on the scan
+path that failed first, and the bank re-run with every changed answer read:
+
+| ATS | where the form is, by GET | postings (companies) | questions | commit |
+| --- | --- | --- | --- | --- |
+| JazzHR | each apply page as served (the job list names the jobs) | 86 (23) | 1,433 | 12ed805 |
+| Breezy | each apply page's own data: the newer template's portal-data, the older one's attributes | 43 (7) | 519 | 49de933 |
+| Pinpoint | the application page (`/applications/new`): native fields, and its questions (yes/no ones too) and equality lists configured in JSON scripts | 31 (4) | 516 | 5c3b84f |
+| Paylocity | the apply page's `window.pageData`: the screener (each question's kind and answers in XML) and the included fields | 19 (4) | 145 | e26d10d |
+| BambooHR | each job's detail JSON (`/careers/<id>/detail`) | 33 (6) | 183 | fac0d46 |
+| Comeet | the hosted page's `QUESTIONNAIRES_DATA` | 15 (2) | 41 | 26b2a70 |
+| Recruitee | its public offers API | 28 (1) | 91 | cdd0f19 |
+
+Recruitee and Comeet had nothing wrong. What the others had is in sections 4
+and 5. No bank for Dayforce (its questionnaire loads only inside the apply
+flow; the posting page's data has none), Gusto (a script's GET is refused
+with 403), Eightfold (a POST: decision 100), ADP (a bot-check POST) or
+Oracle Cloud (an emailed PIN). Pinpoint's postings JSON names its postings
+and places; its application page has the form.
+
+**The fixes, live.** Thirteen live pages of these ATSs (four JazzHR, two
+Breezy, three Pinpoint, two Paylocity, two BambooHR: `r8g-*`) were run on
+the build with every bank fix, each write read, and pinned (954f6e9): among
+them JazzHR's status list (decision 107), Infinitive's sponsorship, SDL's
+attestation and its "April 2027" semester, Utah State's No, SimIS's PhD No,
+Breezy's City and State abroad and a graduate's blank school, Pinpoint's
+"studying", interview, bond and boolean answers with the current salary
+blank, Paylocity's first page and BambooHR's yes or no in a text box. The
+check found the Bengaluru street (section 4). What a run cannot reach is in
+section 9.
 
 LinkedIn and Indeed apply behind their own sign-in: skipped, as asked.
 
@@ -192,6 +237,7 @@ Live pages (the value written, and now):
 | Greenhouse Jane Street | "Pronouns (Select one or more.)": options above a self-describe box | "She/Her" typed into the box, which checks "self-describe" | the "she/her/hers" option, clicked (an adapter); read back from the checked options, as the page submits them |
 | Greenhouse Anduril (regression) | "How did you hear about Anduril?", a stated company website | "Other" in one run of five: the page's company, named only in its title, was read before the title was there, and never again | "Anduril Website": a company still unknown is read again on each scan |
 | Greenhouse Epic Games, Sigma (regression) | Degree, a bootcamp certificate's row | "Other" written (decision 96), then logged reverted and asked about again | recorded as filled |
+| BambooHR Profound Medical (live, the banks' check) | "Address *" for a Bengaluru applicant ("14, 5th Cross, Indiranagar") | blank: its last part, the neighbourhood, read as a city took the street with it (any address without a civic number up front) | the street, whole |
 
 Question banks (each also a unit test):
 
@@ -211,6 +257,47 @@ Question banks (each also a unit test):
 | Chime, Coveo, Gusto, Salesloft, Samsara (Greenhouse) | race and ethnicity lists | "East Asian (inclusive of …)", for a stated "Asian" | blank (decision 99) |
 | City and County of San Francisco (SmartRecruiters) | "If you selected Asian from the list above, please indicate whether your ethnicity is Filipino…" | "Asian - Non-Filipino", which no profile states | kept from everyone |
 
+The smaller ATSs' banks (section 3; each also a unit test on the ATS's own
+markup or data):
+
+| company | question | wrote | now |
+| --- | --- | --- | --- |
+| every JazzHR page (86) | the job's place; the company | none on any page; "brand" (its logo's alt) | the job attribute titled Location; the title's company ("… - Career Page") |
+| JazzHR's own field | "What's your citizenship / employment eligibility?" | "Other" for a US and a Canadian citizen | the applicant's own status option (decision 107) |
+| Infinitive (JazzHR) | "Are you eligible to be hired by Infinitive … without the need for Infinitive visa sponsorship at any time…?" | inverted, all six | the right without sponsorship |
+| Infinitive (JazzHR) | "Is your work visa currently being sponsored by an employer?" | Yes (the need's) for three who hold no visa | what the visa is: No without one, Yes for an employer's |
+| Infinitive (JazzHR) | "Are you currently legally authorized to work in the US for any employer?" | Yes for an H-1B | blank (its statement is withheld, D-61) |
+| JazzHR | a misrepresentation attestation ending on the employer's disability policy | "I don't accept these terms…": read as self-ID, it withdrew three applications | its consent option |
+| JazzHR | "Are you currently enrolled at Utah State University?" | Yes for a Waterloo student | No |
+| JazzHR | "Do you have a bachelor's or graduate degree in electrical or computer engineering?", an MS in physics | Yes for an MS in Data Science or Information Systems | No for a degree in another field |
+| SimIS (JazzHR) | "Do you have the desired • PhD in physics … with six (6) years of experience?" | Yes for 14 years and no PhD | No |
+| JazzHR | "…at least 2 years of professional experience working as an Appian Developer", "How many years of experience do you have as a Data Engineer?" | a staff engineer's 14 years | No or the lowest range from a short career, else blank (decision 106) |
+| JazzHR | "Please select your Japanese language proficiency level" | "Native", for six profiles listing no Japanese | the list's "none" option (decision 105) |
+| JazzHR | "Which language are you applying for?" | every language spoken | blank: theirs to name |
+| JazzHR | a graduate degree's field; a BBA's field; "College or University" | a bachelor's, bootcamp's or student's field; "Administration"; a bootcamp | blank; "Business Administration"; blank |
+| JazzHR | "two forms of valid ID" | Yes, from the driver's licence | blank |
+| Foxconn (JazzHR) | "If hired, can you show proof that you are eligible to work in the U.S.?" and a sponsorship follow-up, in text boxes | the status statement ("Canadian citizen") | Yes or No |
+| JazzHR | "Completion date of your highest degree (mm/yyyy)" | the degree's name | its month and year |
+| Gastronomous (Breezy) | "What school are you enrolled at?" | five graduates' old schools | the school of a degree in progress, else blank |
+| VetsEZ (Breezy) | "Are you willing to undergo a security clearance process?" | No for everyone (read as holding one) | Yes (decision 49) |
+| JND (Breezy) | "…communicate fluently in any language other than English?" | a conversational Hindi over a native Tamil | the one language stated at a fluent level that the list names, else "Other"; none at that level, "No" |
+| Zendar (Breezy) | "What makes you a good fit for this position? What unique skill…" | the skills list | blank |
+| JND (Breezy) | "(Optional) Please provide details if there are any conditions or restrictions for employment…" (described "e.g., VISA Sponsorship…") | the profile's sponsorship "No" | blank: the applicant's own details |
+| Franklin Electric (Pinpoint) | "What Franklin Electric location do you currently work from?" | the applicant's home city | blank: it asks the employer's own staff |
+| Franklin Electric (Pinpoint) | "What is your current Annual Salary (CTC)?" | the desired salary | blank: the pay now is never given |
+| White Swan (Pinpoint) | "Sexual Orientation" [Heterosexual / Bisexual / Homosexual / Lesbian] | "Lesbian", for a gay man | "Homosexual" (decision 110) |
+| White Swan (Pinpoint) | the UK's ethnicity list (White British … Asian And White … Pakistani) | "Asian And White" for two Asian applicants; "Black African" for an African American | blank (decision 111) |
+| Impulse Space (Pinpoint) | "Are you legally authorized to work in the United States as per the below ITAR requirements?" (a yes/no the first bank build missed: Pinpoint's yes/no components name no field) | Yes for the H-1B and OPT holders | blank, kept from the AI: a visa holder may yet obtain an export authorization (as decision 62); Yes for a citizen, No with no US work right |
+| RF-SMART (Greenhouse), Terranova (Ashby), SDL (JazzHR) | "What is your intended semester and year of graduation?", "Graduation Semester", "…(please include year & semester)?" | the year alone ("2014" too) | the month and year ("April 2027"); nothing from a year alone (decision 115) |
+| Jane Street (Greenhouse bank) | "Extra", a long-text box described "Why you're interested in Jane Street How you heard about us…" | the street, for five personas (read as an address by "Street" in the company's name; live the box stays blank) | blank: a long-text box takes a street only when its label asks for an address |
+| Riot, FiscalNote, Crest, Sopra Steria (banks) | a whole address, for a Bengaluru applicant | "Bengaluru, Karnataka, India" (no street, the parsing bug in section 4's live table); then without its state | "14, 5th Cross, Indiranagar, Bengaluru, Karnataka 560038, India": a state the region table lacks, in the profile's words |
+| Choice Solutions (Paylocity) | "What are your salary expectations for a role like this?" [$40-45k / … / $55k+], a box each | nothing ticked: "k" unread, and "$185,000" split on its thousands comma | "$55k+" |
+| ATB (Paylocity) | "What is your expected graduation date? (Month/Year)" | "2014", "2022", "2011": years alone | blank (decision 73) |
+| Lightology (Paylocity) | "How many years of experience do you have with backend web development languages such as PHP, JavaScript?" | "Less than 1 year", from a short career | blank: a skill's years (decision 106 caps a role's) |
+| Solace (BambooHR) | "This position would be 2 days in-office in the Ottawa area, is this something that will work for you?" in a text box (Singapore's too) | the current job title | Yes or No, by where the applicant lives and will move |
+| Picton Mahoney (BambooHR) | "How many years experience fo you have in the financial services industry?" | the career total | blank |
+| Profound Medical (BambooHR) | "Have you managed end-to-end event logistics including … travel, and onsite execution?" | No, for two who will not relocate | blank: experience, no requirement |
+
 Caught mid-round by the bank re-runs (this round's own rules), each fixed
 with a failing test before the next run: Webflow's "White" gone blank and
 Hootsuite's decline answering "Yes, I have a disability…" (the self-ID snap
@@ -226,6 +313,18 @@ options and Cloudflare's colon (d67c93a, 686bcd7); CTC's "State (If N/A,
 Select Other)" losing its "Other" when "please state" became a verb
 (695fca9).
 
+The re-run of every bank after the smaller ATSs' fixes caught five of their
+own regressions, each fixed with a failing test first
+(`test/bankRerunRound8.test.ts`) and the banks re-run: Appian's "Are you
+currently pursuing a Major in one of the following disciplines: … or a
+related STEM field" was Yes for four graduates (the new STEM rule counted any
+degree); Pinterest's "please describe your PhD program" took two master's
+fields; Instacart's "Black or African-American (A person of African,
+Caribbean, West Indian descent)" read as a mixed option by its description's
+"Indian"; NISC's "k" list read "€120.000" as 120 ("less than 25k"); and
+Credence's "How did you hear about us? Was it a job board or an employee?"
+became a yes or no and lost every answer.
+
 Caught by the live regression (section 7), each fixed with a failing test
 first and re-run live:
 
@@ -235,6 +334,16 @@ first and re-run live:
 | Rippling Fluid AI, 4AG (three cases) | Pronouns: She/her/hers, He/him/his, … , "She/her/hers, they/them/theirs" | blank (and the failed pick shifted the phone code's element) | the widget picks self-ID by the self-ID rules (8318d44), where two options hold "she her" | the option of the stated set (146fc7b) |
 | Lever Datalab | "By entering your name below: I, the undersigned, certify … criminal background and drug check." | blank (round 7: the name, read by the card's "SIGNATURE" heading) | read by its own question (76e59ac): no name field, and "criminal" made it unanswerable | the full name (801e130) |
 | Greenhouse Horizon | "How did you hear about us?" (eleven "…-jobsearch.com" boards, "Other Jobboards", …), a stated LinkedIn | blank | "Other …" channels stopped standing for "Other" (1773b24), and "Jobboards" in one word was no job board | "Other Jobboards" (503387c) |
+
+Caught by the final regression (section 7), each fixed with a failing test
+first (3fbfdd3) and re-run live:
+
+| page | question | wrote | cause | now |
+| --- | --- | --- | --- | --- |
+| Waymo (Greenhouse's education block on Waymo's own careers site, new on the page since the morning's regression) | "End date": a number box "MM" (1 to 12) beside a "YYYY" box | "2027" in both | the block's ids carry the question set's number, read as row 4; once the rows were renumbered, both boxes were resolved again as a bare graduation year | "4" and "2027" for an April 2027 graduation; a year alone leaves the month blank |
+| Tenstorrent (Greenhouse) | "Current level of education pursuing" | live, a student's "Bachelor's Degree" (right); on the posting's own options (GET), every graduate's finished degree ("Master's Degree", "High School") | "pursuing" counted a finished degree, a reading meant for Axtria's "Highest Degree Earned/Pursuing" (the JazzHR bank) | the degree in progress; blank for a graduate, kept from the AI |
+| Scopely (Greenhouse) | "Will you require relocation support?" [Yes – I would be relocating for this role. (… would need relocation support.) / No – I am already based in the required location. / No - I am not willing to relocate.] | the "Yes", for anyone who would move | the Breezy fix that chooses location options first ran before the guard that keeps help with a move the applicant's (the day session's decision 2) | blank; "No - I am not willing to relocate." for those who said so |
+| DV Trading (Greenhouse, pinned in round 8) | "Please re-confirm your expected graduation date" [I've already graduated / August 2026 - December 2026 / …], a June 2026 graduate | "August 2026 - December 2026" | the list loads only when opened, so the write matched "June 2026" by its words, and the option's two "2026"s counted as two shared words of four | each word counted once: no match, and the list's real options go back to the resolver: "I've already graduated" |
 
 ## 5. Blanks now answered
 
@@ -272,6 +381,19 @@ first and re-run live:
 | LinkedIn (SmartRecruiters bank) | "Please select your degree type" [BA/BS, Masters, PhD, N/A] | "BA/BS" for a bachelor's |
 | Geotab, New Relic, Tubi (Greenhouse banks) | "Were you previously employed with Geotab?", "Are you currently working at New Relic?", "…employed with Tubi…?" | No, for a history without them |
 | CircleCI (Greenhouse bank 3) | "Are you a veteran?" [I identify as one or more… / I do not identify as a protected veteran / …] | "I do not identify as a protected veteran" |
+| JazzHR banks | "Graduate Degree or higher", "Bachelor's Degree or Higher" (a master's); "Highest Degree Earned/Pursuing" (a student's degree in progress) | the level held |
+| JazzHR banks | "18 years or older"; "willing to move to New Jersey area if you reside elsewhere"; relocation options written as sentences | the age; the stated relocation |
+| Space Dynamics Lab (JazzHR) | how you heard, a stated company website | "Space Dynamics Lab Website" |
+| JazzHR banks | "clearable" | read as able to obtain one (decision 81) |
+| Zendar (Breezy) | its on-site acknowledgment, two Nos ("…remote-only job", "…not able to relocate") | the No about relocating |
+| Breezy banks | "Did you major in STEM?"; "(City, State)" outside North America | by the major; "Bengaluru, Karnataka" (a city that is its own state once) |
+| Franklin Electric (Pinpoint) | "Are you currently studying?" | Yes for a student, else No |
+| Franklin Electric (Pinpoint) | "Have you ever been interviewed by … Franklin Electric earlier?"; "Do you have contract/bond agreement with the present employer?" | No (the prior-application default; decision 108) |
+| Franklin Electric, White Swan, Flatirons (Pinpoint) | Gender [… / No Response]; Veteran Status with "I Choose Not To Identify" beside "I Am A Protected Veteran, But I Choose Not To Self-Identify…" | the decline, for a profile with no EEO answers (decision 109) |
+| Lightology (Paylocity) | "Are you residing in any of the following states: AL, CO, CT, …, and WY?" | by the home state |
+| ATB (Paylocity) | "What is your current academic status?" [Undergraduate – Freshman … / Technical, Trade, Vocational, or Certification Program (Completed)] | "Undergraduate – Senior" for a final-year student; the completed certification program for a bootcamp graduate (decision 112) |
+| Profound Medical (BambooHR) | "Highest Education Obtained", a B.Tech | "College - Bachelor of Science" (decision 114) |
+| Solace (BambooHR) | "Are you currently eligible to work in the European Union for any employer?" | Yes for a stated EU citizenship (decision 113); the personas' "German citizen (EU)" gives none under D-61 |
 
 ## 6. Decisions (one rule each, each easy to reverse)
 
@@ -315,6 +437,39 @@ first and re-run live:
      and "Other" only when every place listed is known to be elsewhere.
 104. A major of two fields joined by "and" ("Computer Science and
      Engineering") is its first field, unless the list has it whole.
+105. A proficiency level asked for a language the profile does not list is
+     the list's "none" option; never another language's level.
+106. Total years cap a role's years but never prove them: under a count the
+     whole career is under, No (or the lowest range); otherwise the role's
+     own rows when every title names it, else blank. A skill's years
+     (languages, tools) are no role's: blank.
+107. JazzHR's citizenship / employment eligibility list takes the applicant's
+     own status (a citizen's or permanent resident's country), else, with no
+     right to work in the job's country, "Non-citizen seeking work
+     authorization"; never "Other".
+108. The non-compete default (No) covers an employment bond (an agreement to
+     stay or repay) with the present employer.
+109. "No Response" declines; of several declines, the first listed; an
+     option that claims a status before declining its details ("I Am A
+     Protected Veteran, But I Choose Not To Self-Identify…") is that status,
+     never a decline.
+110. "Gay or Lesbian" is "Homosexual" where the list has it, else "Gay";
+     never "Lesbian" alone (it turns on a gender no list asks); with both
+     listed, the applicant's pick.
+111. One stated race is never a mixed option ("Asian And White"); a list
+     that splits that race by origin (White British / White Irish; Black
+     British / African / Caribbean) is the applicant's pick.
+112. Academic status for someone enrolled nowhere whose highest education
+     is a finished certificate program: the list's completed certification
+     option (decision 75 otherwise).
+113. The European Union (or the EEA), asked as one place: a citizen of an
+     EU or EEA country, or Switzerland, may work there; anyone else's right
+     there is unknown, and blank.
+114. On a list of a level's kinds (Arts, Fine Arts, Science), an
+     engineering, technology or applied science degree is the Science one.
+115. A graduation semester asked in a box is the month and year ("April
+     2027"): it names the semester whatever the school calls its terms; a
+     year alone gives nothing (decision 73).
 
 ## 7. Regression
 
@@ -340,6 +495,43 @@ before the next run; the last re-run changed only what its fixes meant to.
 After the live regression's fixes, all eleven banks (62,280 answers) were
 run once more: the only change is Datalab's signature, six personas' full
 names.
+
+**After the smaller ATSs' fixes** (JazzHR to BambooHR, section 3) and their
+live check (section 4), all seventeen banks (79,302 answers; Pinpoint's
+rebuilt with the 67 yes/no questions its first build skipped) were re-run on
+the final answer code: the eleven against their run after the live
+regression's fixes, each new bank against its own run after its fixes. Every
+changed answer read. Five were this work's own regressions, and three more
+wrong answers came to light (ITAR's work right, a graduation semester, Jane
+Street's "Extra"): each fixed with a failing test first (section 4) and every
+bank re-run, until a run changed only what its fixes meant to. The street fix
+(section 4) shows wherever a bank has street boxes: "India's street" below.
+Net change:
+
+| bank | answers | changed | in questions | what changed |
+| --- | --- | --- | --- | --- |
+| Ashby | 4,908 | 24 | 9 | Clay's "Most Clay employees are in office 3+ days a week. Does that work for you?" now a yes or no (by where each lives and will move); Cobot's "a Bachelor's degree in one of the fields mentioned above" blank (the fields are not on the form; it was Yes for three); Terranova's "Graduation Semester" (decision 115); a BBA's major; a city and state abroad; "…for any employer" blank for the H-1B and OPT holders; India's street |
+| Ashby (round 8 boards) | 2,310 | 2 | 2 | cities and states abroad ("Bengaluru, Karnataka") |
+| Greenhouse 1 | 11,256 | 20 | 12 | Box's "City, State and Zip" ("Berlin 10119"); Lucid's supply chain years blank for a data analyst (decision 106); Pinterest's PhD program kept from the AI for those holding none; Salesloft's "1+ years of FP&A" No for a three-month career; Jane Street's "Extra" blank (it took four personas' streets); India's street and whole address |
+| Greenhouse 2 | 10,068 | 35 | 15 | year-only graduations in "(month and year)" boxes, blank (decision 73); RF-SMART's semester (decision 115); DV Trading's privacy consent ticked; a BBA's discipline; Edmentum's "Do you have a PhD?" No for a Diplom; NISC's "k" compensation list by number (its place is not read, so no currency is known: a Canadian figure is taken as it stands, section 9); "…for any employer" (H-1B, OPT); India's street and whole address |
+| Greenhouse 3 | 9,528 | 23 | 11 | Lattice's SaaS sales years ("0-2 years" from careers under two years, decision 106); the US NISC posting's compensation list; Man Group's STEM degree (Yes for five, the bootcamp blank); a year-only graduation (decision 73); India's street |
+| Lever | 6,732 | 11 | 8 | Palantir's post-college years ("0" for a new graduate); Wintermute's IT support years ("Less than 1 year"); "…for any employer" (H-1B, OPT); India's street and whole address |
+| Recruitee | 546 | 6 | 1 | Huawei's "Do you possess a Master or PhD degree in Security related field?": No for all six |
+| SmartRecruiters (two banks) | 6,054 | 10 | 8 | Western Digital's highest level: "Bachelors of Science" for a B.Tech (decision 114); India's street and whole address (Sopra Steria, EVERSANA, CRB) |
+| Workable | 4,926 | 33 | 8 | DISA's "mining, manufacturing, or industry related" years ("0-2 years", decision 106); United Placement's "4+ years of outside/In home Sales" No for short careers; Saalex's named-field bachelor's blank for a BBA (was Yes); India's street |
+| Jobvite | 5,952 | 64 | 3 | India's street (Ross Video, ActioNet: line 1 filled, line 2 blank) |
+| JazzHR | 8,598 | 99 | 5 | a B.Tech's highest level ("College - Bachelor of Science"); TUM under "College or University"; SDL's "5+ years … with a BS, 3+ … with a MS, or 0+ … with a PhD" blank where it was No (alternatives, not one degree); SDL's semester (decision 115); India's street |
+| Breezy | 3,114 | 56 | 5 | JND's conditions-details box kept from the AI (blank, as before); Berlin's "(City, State)" "Berlin" (was "Berlin, Berlin"); Gastronomous's bare "Onsite" YES for the four who will relocate; India's street |
+| Pinpoint | 3,096 | 402 new | 16 new | its 67 yes/no questions, read blind: one wrong, the ITAR question (fixed); the 2,694 answers before them unchanged |
+| Paylocity, BambooHR, Comeet | 2,214 | 0 | 0 | |
+
+After the final regression's fixes (section 4's last table, 3fbfdd3), all
+seventeen banks were run once more and read: four answers changed, all on
+Resultant's "What is your current or most recent major?" (SmartRecruiters):
+"Other" for Mechatronics Engineering and for a back-end bootcamp, where the
+repeated "Engineering" of "Engineering (Pre-Engineering), General" had taken
+them. A major the list lacks is "Other", a sibling discipline is not (the
+rule since Palantir's list, 2026-10-03).
 
 **Live regression.** Every pinned case in batches of 13, each
 SmartRecruiters case in a browser of its own, one run at a time.
@@ -384,19 +576,46 @@ the other five passes alone:
 Rescored against the new pins, Riot and Huawei pass with and without their
 fields (Riot 37 of 37 and 32 of 32, Huawei 6 of 6 and 5 of 5).
 
+**Final regression**, after the smaller ATSs' banks, on the build of 464465f
+(pins 954f6e9): 333 cases (the 320 and the thirteen `r8g-*`), **321
+passed**. Each of the other twelve, read:
+
+| case | what happened | done |
+| --- | --- | --- |
+| CesiumAstro (Lever), NinjaHoldings (Breezy), York (Dayforce) | the postings closed: Lever's postings API answers 404; Breezy's page reads "Position Closed" and its position list lacks it; Dayforce's job data turned postingStatus 4 that day (its open postings read 1) | retired, one line each |
+| K1 (JazzHR) | "Did/Do you attend university in Southern California…?" left the form (its apply page, GET) | checked only when it is there |
+| Waymo, Scopely (Greenhouse) | new writes, both wrong: a year in Waymo's new month box, Scopely's "Yes" to relocation support (section 4's last table) | fixed, failing test first (3fbfdd3), re-pinned |
+| Tenstorrent (Greenhouse) | a new write, right: a student's "Bachelor's Degree" for "Current level of education pursuing"; on the posting's options, graduates took their finished degree | pinned; the graduates fixed (3fbfdd3) |
+| DV Trading (Greenhouse) | "Terms & Conditions", whose one option is the privacy consent, newly ticked (right: the day session's decision 3); reading the case, its round-8 pin was wrong: "August 2026 - December 2026" for a June 2026 graduate | the consent pinned; the graduation fixed (3fbfdd3) and re-pinned "I've already graduated" |
+| GEI (Jobvite) | Address line 1 now "14, 5th Cross, Indiranagar" (was blank): the street fix, live on Jobvite | pinned |
+| Humble (Lever) | the location under batch load (section 9) | passes alone, 8 of 8 |
+| Bosch HR (SmartRecruiters) | clicked mid-render: labels still Lit's markers (section 9) | passes alone, 9 of 9 |
+| Franklin Electric intern (Pinpoint) | "Have you previously been employed by Franklin Electric?", shown once "currently employed" is No, left blank (section 9) | passes alone, 16 of 16 |
+
+Every case above that was not retired was re-run live on the final build
+(3fbfdd3), and all pass. Waymo's run wrote "4" and "2027" and scores 25 of
+25 against its new pins; since then its page has answered every load with
+an AWS WAF challenge, whose POST a run blocks, so its form never renders. In
+the same re-run Franklin Gujarat (Pinpoint) once filled nothing on its form
+(section 9); alone it passes, 22 of 22. 330 cases are pinned now.
+
 ## 8. Verification
 
-On the final code (ffb341e; after it come two pins, 766edc5, and this report):
+On the final code (3fbfdd3; after it come the pins, e126b83, and this
+report):
 
-- Extension unit tests: 3,106 pass (171 files; 1 skipped as before); `tsc
+- Extension unit tests: 3,183 pass (176 files; 1 skipped as before); `tsc
   --noEmit` clean; build; `test/scan-smoke.mjs` passed.
 - Every fix in sections 4 and 5 has a test that failed first, on the scan
-  path where a category could answer first, and was re-run live on its page.
-- All eleven question banks re-run on the final answer code and every changed
-  answer read (section 7).
-- The full live regression on the final build: 315 of 320; the other five
-  pass alone, two of them now pinned only where the page has the field
-  (section 7). An adapter's reason reached a live report (Humble's location).
+  path where a category could answer first, and was re-run live on its page
+  where a run can reach it (section 9 names what it cannot).
+- All seventeen question banks (79,302 answers) re-run on the final answer
+  code, every changed answer read (section 7).
+- The full live regression, after the banks, on the build of 464465f: 321 of
+  333. The twelve others were read (section 7): three postings retired, the
+  new writes fixed or pinned, and every case they touched re-run live on the
+  final build, all passing. An adapter's reason reached a live report
+  (Humble's location).
 - The harness's read at the click (ffb341e) on a local page that renders its
   form 11 s after load: failed before the change, passes after.
 - Not run: CI's backend pytest and frontend checks. Nothing outside
@@ -411,18 +630,56 @@ On the final code (ffb341e; after it come two pins, 766edc5, and this report):
   (two banks) and on 13 live postings of the three companies that need none.
 - **Eightfold** (decision 100) and **ADP's Community Care Plan** (Apply opened
   nothing live: a cookie overlay, then a bot-check POST): not run.
+- **Dayforce has no bank**: its questionnaire loads only inside the apply
+  flow (the posting page's data has none), so its questions are read only
+  on the live pages run.
+- **Paylocity's screener** comes after the first page's submit (a POST): its
+  fixes (the states listed, "k" ranges and the thousands comma, the
+  academic status, a month-and-year graduation, a skill's years) are checked
+  in jsdom only. Its first page is pinned live (r8g-paylocity-*).
+- **Pinpoint's equality monitoring lists** stay on their placeholder live, as
+  in every Pinpoint case, so its self-ID fixes ("No Response", "Gay or
+  Lesbian", mixed races, the protected veteran's decline) are checked in
+  jsdom only.
+- **BambooHR's Fabric selects** (Province, Country, Highest Education) are
+  never filled live, in any BambooHR case: from before this round. Decision
+  114 is seen on JazzHR's and SmartRecruiters' lists, not BambooHR's.
+- **Pinpoint's question revealed by an answer**: "Have you previously been
+  employed by Franklin Electric?" shows once "Are you currently employed by
+  Franklin Electric?" is No (its JSON names the parent). The fill's
+  revealed-question pass answers it in most runs ("1 question(s) appeared
+  during the fill"), and it was blank in two of six (once on each posting);
+  each case passes alone. A probe (every non-GET blocked) shows the page
+  mounts the question 43 ms after the No, visible at once, so the settle
+  wait is not the cause; in a miss the revealed pass ran (its phase took
+  1.5 s) and found nothing new. Not reproduced on demand. Once, in the
+  final re-run, Gujarat's fill wrote nothing on the form at all ("Nothing on
+  this page was filled", after a scan that found 16 fields to fill); alone
+  it passes, 22 of 22.
+- **A salary list that names no currency, on a posting whose place is not
+  read** (NISC's "Any NISC Location" on Greenhouse): a figure is taken as it
+  stands, so a Canadian's 95,000 (CAD) took "91-95k". With the place read
+  (NISC's other posting, in Missouri) it is dollars and the Canadian and
+  euro figures stay blank. From before this round for lists in plain
+  numbers; "k" lists are read only since this round.
+- **UK sponsorship and right-to-work** (White Swan on Pinpoint): blank for
+  every persona, none of whom mentions the UK (the scope rule of the 10-03
+  overnight run: an applicant's sponsorship answer never covers a country
+  they never named).
 - **Riot's Discipline** ("Psychologie") stays blank in runs: the embed
   re-renders mid-fill and the re-asked field missed once more. Its second
   education row (Concordia's certificate) is added in one run of four.
 - **Humble Robotics' location** ("San Jose, CA") empties under batch load;
   alone it fills (the picker takes "San Jose, CA, USA" in tests). Lever's
   search lists nothing within the adapter's 12 s then (Humble in the last
-  pass, Azul once before it); the report now says so.
+  pass and again in the final regression, Azul once before it); the report
+  now says so.
 - **Pure Storage's School** went blank in the last pass under batch load (the
   re-ask read no options and went to the backend); the two passes before it
   and the run alone filled it.
-- **SmartRecruiters clicked mid-render** (M3 in the last pass; Boston
-  Engineering's blind run, whose labels were element ids, before it): the
+- **SmartRecruiters clicked mid-render** (Bosch HR in the final regression,
+  M3 in the last pass; Boston Engineering's blind run, whose labels were
+  element ids, before them): the
   fill started 6.5 s after load (8.7 to 10.7 s when M3 passed), while the
   controls still carried Lit's template markers ("?lit$…$") for labels. City
   reached the fill with no label, went to the backend and was dropped (the AI
@@ -433,6 +690,12 @@ On the final code (ffb341e; after it come two pins, 766edc5, and this report):
   purpose: the extension's own attribute writes would set it off).
 - **"If Other, please specify" boxes** (IMC, ServiceNow) get the major even
   when the list holds it: from before this round.
+- **Waymo's careers site** answered every load after the final re-run with
+  an AWS WAF challenge (its form frames come back 202, empty), whose POST a
+  run blocks: the case cannot run until the site lets this machine through.
+  Its new education block's School, Degree and Discipline (lists that load
+  their options from Greenhouse's API as one types) stay blank live, as the
+  start date does (the profile has none).
 - **The H-1B ITAR question** (an H-1B holder is no US person: unknown to the
   profile) and **LinkedIn's "degree type" BA/BS** for a BASc: blank.
 - **D-61** blanks (section 2e): worth a look by whoever owns the allow-list.
