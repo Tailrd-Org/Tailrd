@@ -263,7 +263,7 @@ function isAbleToWorkInCountry(n: string, raw: string): boolean {
 // "…require TWG Global to file a petition or application for employment-based
 // status on your behalf…" (Workable bank, 2026-10-05) is sponsorship too.
 // "require sponorship" (sic, Cohere on Ashby, 2026-10-08) is still sponsorship.
-const SPONSOR = /\bsponsor(ship|ing)?\b|\bspon(or|ser)ship\b|\bsponsored\b(?! (conferences?|events?|programs?|programmes?|hackathons?|organi[sz]ations?|communit(y|ies)|groups?|clubs?|scholarships?|teams?|content|posts?)\b)|\b(visa|immigration) (status|support|assistance|transfer)\b|\bh ?1 ?b\b|\bfile (a |an )?(visa |immigration )?petition\b|\bemployment ?based (immigration )?status\b/;
+const SPONSOR = /\bsponsor(ship|ing)?\b|\bspon(or|ser)ship\b|\bsponsored\b(?! (conferences?|events?|programs?|programmes?|hackathons?|organi[sz]ations?|communit(y|ies)|groups?|clubs?|scholarships?|teams?|content|posts?)\b)|\b(visa|immigration) (status|support|assistance|transfer)\b|\bh ?1 ?b\b|\bfile (a |an )?(visa |immigration )?petition\b|\bemployment ?based (immigration )?status\b|\bvisa (will|would|do) you (require|need)\b/;
 /** Asks whether sponsorship is NEEDED ("will you require / do you need … sponsorship"). */
 const REQUIRES_SPONSOR = /\b(require|requires|requiring|need|needs|needing)\b[^?]{0,60}\b(sponsor|petition)/;
 /** Asks for the work RIGHT itself ("are you legally authorized…", "do you have the right to work…"). */
@@ -554,7 +554,14 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
     if (isHigh(s) && s.value === false && profile.requiresSponsorship?.trim()) return answer("No", "sponsorship:text-no");
     return abstain("sponsorship:type-unknown");
   }
-  if (hasSponsor && SPONSOR_TYPE.test(n) && !isBooleanQuestion(q)) return abstain("sponsorship:type-unknown");
+  if (hasSponsor && SPONSOR_TYPE.test(n) && !isBooleanQuestion(q)) {
+    // None needed, and the list says so: "Not applicable" among visa types
+    // (AssortHealth on Ashby, bank, round 8), as decision 92 has it.
+    const s = needsSponsorshipIn(facts.workAuth, country, residence);
+    const none = (q.options ?? []).filter((o) => /^(not applicable|n\s*\/?\s*a|none|no visa|does not apply)\b/i.test(o.trim()));
+    if (isHigh(s) && s.value === false && none.length === 1) return answer(none[0], "sponsorship:type-none");
+    return abstain("sponsorship:type-unknown");
+  }
 
   // "Are you prevented from lawfully becoming employed in the US because of
   // visa or immigration status?" (Barnes & Thornburg, Ashby bank 2026-10-08):
@@ -3203,7 +3210,14 @@ function resolveUsPersonStatus(q: QuestionInput, facts: ProfileFacts, profile: U
   if (asksPerson && yesNo) {
     const us = facts.workAuth.byCountry.get("US");
     if (us?.authorized === false) return booleanResult(false, q, "us-person:not-authorized");
-    if (us?.basis === "citizen" || us?.basis === "permanent_resident") return booleanResult(true, q, "us-person");
+    if (us?.basis === "citizen" || us?.basis === "permanent_resident") {
+      // The Yes in words: "I am currently a 'U.S. Person'" beside "I will soon
+      // become…" and "I am not…" (AnySignal on Ashby, bank, round 8: blank
+      // for citizens, no option saying "yes").
+      const is = (q.options ?? []).filter((o) => /\b(i am|i m|im)\b[^.]{0,20}\b(u ?s|united states) persons?\b/.test(qnorm(o)) && !/\b(not|will|soon|become|becoming)\b/.test(qnorm(o)));
+      if (!renderBoolean(true, q) && is.length === 1) return answer(is[0], "us-person");
+      return booleanResult(true, q, "us-person");
+    }
     if (us?.basis === "work_permit" || us?.basis === "student") return booleanResult(false, q, "us-person:visa");
     return abstain("us-person:unknown");
   }

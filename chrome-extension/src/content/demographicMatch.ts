@@ -200,7 +200,9 @@ export function veteranOption(value: string, label: string, options: string[]): 
     case "protected":
       return pick(["protected", "veteran"]);
     case "never-served":
-      return pick(["never-served"]) ?? pick(["not-protected"]);
+      // A bare "No" beside service capacities ("Active Duty", "Reserve
+      // Force", "Veteran / Retired": 1Password on Ashby, bank, round 8).
+      return pick(["never-served"]) ?? pick(["not-protected"]) ?? (no.length === 1 && claims.some((c) => c.claim === "serving" || c.claim === "veteran") ? no[0] : null);
     case "not-protected":
       return pick(["not-protected"]);
     default:
@@ -310,6 +312,14 @@ export function closestDemographicOption(
     const longest = Math.max(...inside.map((o) => o.n.length));
     const best = inside.filter((o) => o.n.length === longest);
     return best.length === 1 ? best[0].raw : null;
+  }
+
+  // A Yes or No over statements of it: "I identify as LGBTQIA+" | "I do not
+  // identify as LGBTQIA+" (Aurora on Ashby, bank, round 8: blank for both).
+  if (v === "yes" || v === "no") {
+    const statements = opts.filter((o) => /\b(identify|i am|i m)\b/.test(o.n) && !isDeclineOption(o.n) && !/\bself describe\b/.test(o.n));
+    const hits = statements.filter((o) => (v === "yes") !== /\b(not|don t|do not)\b/.test(o.n));
+    if (hits.length === 1) return hits[0].raw;
   }
 
   // 2. Synonym / nearest-neighbour candidates, in priority order: the option

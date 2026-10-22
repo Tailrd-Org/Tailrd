@@ -10,6 +10,7 @@ import { setResolveContext } from "../src/content/fieldResolver";
 import * as P from "./e2e/profiles.mjs";
 import type { UserApplicationProfile } from "../src/shared/types";
 import { stubLayout } from "./helpers/layout";
+import { veteranOption } from "../src/content/demographicMatch";
 
 let restore: () => void;
 beforeAll(() => {
@@ -208,5 +209,35 @@ describe("a work authorization status list (Switchboard, Ashby bank, round 8)", 
     expect(ask("US_OPT_ANALYST", Q, OPTS, "Switchboard")).toBe(OPTS[2]);
     expect(ask("US_H1B_SENIOR", Q, OPTS, "Switchboard")).toBe(OPTS[1]);
     expect(ask("COMPLETE_CANADIAN", Q, OPTS, "Switchboard")).toBe(OPTS[1]);
+  });
+});
+
+describe("ITAR's U.S. Person statements (AnySignal, Ashby bank, round 8)", () => {
+  const LABEL = "As defined in the ITAR, “U.S. Persons” include U.S. citizens, lawful permanent residents (i.e., Green Card holders), and certain protected individuals (e.g., refugees/asylees, American Samoans). Please consult with a knowledgeable advisor if you are unsure whether you are a “U.S. Person.” The person hired will have access to information and items controlled by the International Traffic in Arms Regulations (ITAR) and, therefore, must either be a “U.S. Person” as defined by 22 C.F.R. § 120.15 or otherwise eligible for a federally issued export control license. To assist AnySignal in assessing its export compliance obligations in relation to your application, please identify which statement best applies to you:";
+  const OPTS = ["I am currently a \"U.S. Person\"", "I will soon become a \"U.S. Person\" (requires explanation if selected)", "I am not a \"U.S. Person,\" but I am eligible for licensing (requires explanation if selected)"];
+  it("a citizen or a permanent resident is currently one", () => {
+    // Blank for both: the Yes had no option saying "yes".
+    expect(ask("BOOTCAMP_CAREER_GAP", LABEL, OPTS, "AnySignal")).toBe(OPTS[0]);
+    expect(ask("US_GREENCARD_STUDENT", LABEL, OPTS, "AnySignal")).toBe(OPTS[0]);
+  });
+});
+
+describe("blanks the new Ashby bank showed answerable (round 8)", () => {
+  it("never served: No on a list of military capacities (1Password)", () => {
+    // Read as a self-ID field under 1Password's survey (the bank re-run
+    // shows the scan path); the pick itself:
+    const opts = ["No", "Active Duty", "Reserve Force", "Veteran / Retired", "Not listed", "Prefer not to say"];
+    const Q = "Are you a current or previously serving member in the military or armed forces? If so, what capacity?";
+    expect(veteranOption("I have never served in the military", Q, opts)).toBe("No");
+    expect(veteranOption("I identify as one or more of the classifications of a protected veteran", Q, opts)).toBe("Veteran / Retired");
+  });
+  it("a stated orientation answers a list of statements (Aurora)", () => {
+    const opts = ["I do not identify as LGBTQIA+", "I identify as LGBTQIA+", "I prefer to self-describe", "I prefer not to answer"];
+    expect(ask("US_OPT_ANALYST", "Do you identify as LGBTQIA+?", opts, "Aurora")).toBe(opts[1]);
+    expect(ask("COMPLETE_CANADIAN", "Do you identify as LGBTQIA+?", opts, "Aurora")).toBe(opts[0]);
+  });
+  it("no visa needed: the visa type is Not applicable (AssortHealth; decision 92's rule)", () => {
+    const opts = ["TN Visa", "H1B Transfer", "New H1B (with valid current authorization)", "New H1B (without valid current authorization)", "Other", "Not applicable"];
+    expect(ask("BOOTCAMP_CAREER_GAP", "What type of visa will you require? (if applicable to above)", opts, "AssortHealth")).toBe("Not applicable");
   });
 });
