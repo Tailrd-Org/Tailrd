@@ -1,3 +1,449 @@
+# Round 8: SmartRecruiters' screening step on thirteen live postings, Greenhouse's lazy education lists, the remix multi-selects, and 47 new boards (2026-10-22)
+
+Branch `night/autofill-round8` (worktree `.worktrees/autofill-round8`), from
+origin/main at 9cb84b0 (round 7). **Not pushed, not deployed**: nobody asked
+this round. Nothing uploaded, no release zip built. Nothing was submitted
+anywhere and no account was created: every live run blocks non-GET requests
+(GraphQL queries aside), and every check of a posting was a GET.
+
+The biggest finds:
+
+- **What held round 7's ten SmartRecruiters postings on page 1 is their
+  required résumé**, and a run cannot satisfy it: the extension now finds and
+  attaches the résumé (it never did on SmartRecruiters: the file input sits in
+  a shadow root), and the page then uploads it by a POST, which a run blocks.
+  Only three of prod's 26 SmartRecruiters companies take a posting with
+  nothing to upload (ServiceNow, Intuitive, Western Digital); thirteen of
+  their postings were taken to the screening step live and every write read.
+  On the way: every SmartRecruiters dropdown option read as its own text twice
+  ("WA WA", through its tooltip), so Intuitive's state and Western Digital's
+  education never stuck.
+- **Greenhouse's Degree under load** was the driver typing into a list that
+  loads only when a real click opens it. It now opens the list with a whole
+  click first: 13 of 13 boards in a batch, GCM's education in 6 s (was 19 to
+  26 s).
+- **The self-ID widget had its own matcher**: on Gusto's live race list it
+  took "East Asian (inclusive of …)" for a stated "Asian". Self-ID lists are
+  now picked by the self-ID rules everywhere (scan, re-ask, widget, read-back).
+- **The live regression caught six of this round's own regressions**
+  (Palantir's age, Rippling's pronouns on three postings, Datalab's signature,
+  Horizon's source) **and an older race** (Anduril's company, read before the
+  page named it, so "Company website" took "Other"): each fixed with a
+  failing test first and re-run live.
+- **The last full regression**, on the final build: 315 of 320 pinned cases
+  pass, and each of the other five passes alone (section 7).
+
+## 1. Real users first
+
+Prod (read-only SELECT, branch main), checked at the start and again at the
+end of the round (2026-10-22): **no autofill report since 2026-10-03** (the
+last, 15:15, the owner's, read in round 7). No field captures and no pending
+questions at all; the latest feedback is from 08-14, the latest security
+event 10-17, the latest application record 10-15. P0 had no real fill to turn
+into a case.
+
+Active postings in prod (not duplicates, 2026-10-21), by host: Workday 1,757,
+LinkedIn 1,139, Greenhouse 1,108, Indeed 554, Lever 211, SmartRecruiters 180
+(26 companies, Bosch 124), Ashby 146, iCIMS 83, JazzHR 31, Oracle Cloud 23,
+Workable 21, Dayforce 17, Recruitee 10, Pinpoint 9, Breezy 8, ADP 8,
+Eightfold 8, Gusto 8, Jobvite 7, Comeet 3.
+
+## 2. Open from round 7
+
+### a. SmartRecruiters' screening step: what holds it, and thirteen postings through it
+
+**What holds page 1.** A probe on Wellmark (GET only) shows the message:
+"Please attach your resume to complete this application". The one-click
+context's `features.resumeRequired` is the company's default, not the
+posting's (Bosch's says no résumé while its page asks for one); the posting's
+own rule is its form configuration, which the page GETs
+(`/oneclick-ui/api/company/<id>/publication/<uuid>/config`, `fieldSets`). The
+bank builder now keeps those flags (332595d, d7004f1). Across prod's 26
+companies, only ServiceNow, Intuitive and Western Digital take a posting with
+nothing to upload; EVERSANA and LinkedIn require work experience instead,
+everyone else a résumé.
+
+**The résumé itself** was never attached on SmartRecruiters: the input and its
+"Choose a file / or drop it here" live in `<spl-dropzone>`'s shadow root, the
+"Resume" title outside it. Fixed (f5b19b6; the "Apply with resume" box, which
+parses a résumé and overwrites the answers, is never taken for it). Live on
+Wellmark with a résumé supplied, the extension attached it and the page then
+tried `POST /oneclick-ui/api/company/<id>/attachment/resume`, which the run
+blocked. So a posting that requires a résumé cannot be taken past page 1 by a
+run, by design.
+
+**Thirteen screening steps, live** (r8a-sr-* and round 7's three): ServiceNow
+eight (associate, SWE, FDRP twice, finance twice, Moveworks, staff) plus
+round 7's ML role, Intuitive two plus round 7's AI intern, Western Digital;
+Boston Engineering's page 2 as well. Every write read; what was wrong is in
+sections 4 and 5 (0388937, f5b19b6, ed04364). On the fixed build Intuitive's
+two reach "Done. 2 steps filled … Review and submit". All 17 new cases are
+pinned (page 1; the screening writes were read in the runs); Bosch's three,
+Circle, EVERSANA and LinkedIn hold page 1 for the résumé or the experience
+their form requires, as a person would.
+
+The new SmartRecruiters bank (`smartrecruiters-r8scan`: 20 postings, 331
+questions, six personas) was read blind; its wrong answers and blanks are in
+sections 4 and 5.
+
+### b. Greenhouse's Degree under batch load: root-caused and fixed
+
+A debug batch of 13 boards (E2E_DEBUG=1, an instrumented build) showed the
+page-world driver missing **every** education select (School, Degree,
+Discipline): 0 options after 3.7 s, then the ARIA fallback raced the same lazy
+list; GCM's Discipline lost ("Couldn't open", the listbox open and empty).
+Measured on GCM's page (GET only): typing loads nothing, the component's own
+`openMenu` loads nothing, a lone mousedown or a focus leaves it shut; focus
+with pointer and mouse down, up and a click on the input (what a person's
+click sends) loads the list in 100 to 400 ms, and typing then searches.
+
+The driver now opens the list with that whole click, waits while it loads,
+picks from it, and types only when the first page lacks the answer (9bfdd0a,
+eb00b11; the test's mock list opens on a click only and failed on the first
+attempt's lone mousedown). Not round 7's longer wait (41971b8): nothing is
+typed into a closed list now. **Verified in a batch of 13 on the final
+driver: 13/13 pass, the driver itself opens every list** ("opened 165ms
+opts=10 hit=true"; Discipline 73 options), GCM's education 6.1 s (19 to 26 s
+before). The same batch found Arcesium's Degree, a list of degree titles,
+blank for "Master": fixed (1a4926d).
+
+### c. Greenhouse's remix multi-selects: four more boards, live
+
+Riot (languages: the page ends "French, English"), Canonical (nationality:
+"British", after 75047ea), Samsara's source list ("LinkedIn", after 7360612),
+and Gusto's race list with two personas: one exposed the widget's own matcher
+("East Asian (inclusive of …)" for "Asian"), fixed in 8318d44, 76e59ac and
+c2792c6; the other's answer is the one option that is it. Jane Street's and
+DV Trading's forms are their own (a checkbox group and a custom pronouns
+widget), not remix. All pinned.
+
+### d. The two calls, decided
+
+- Azul's "Which location are you applying for?": decision 93 (f4a0589,
+  20a0e29).
+- A family member's government employment (ServiceNow's "D."): decision 94,
+  the applicant's to answer (f4a0589).
+
+### e. D-61: left as decided
+
+Not overridden. Its blanks this round: Western Digital's citizenship
+questions for the H-1B and OPT personas, and the sanctioned-country
+questions for personas whose stated status names no citizenship (the
+German "German citizen (EU)" included). Their pins stay blank.
+
+## 3. New ground
+
+### Greenhouse: 13 of the 16 boards in no bank and no case
+
+r8b-gh-*: Insomniac, Legend Biotech, Horizon, Clear Street, Allen, DriveWealth,
+Scopely, Bracebridge, EviSmart, Trace3, Hear.com, Via, i360. Blind, every
+write read, fixed with failing tests first (14803aa, 9fdc9ca), re-run, pinned.
+
+### Ashby: 13 boards in no bank and no case
+
+r8c-ashby-*: 1Password, Amplify, Pebl, Aurora, Handshake, Jane, Illumio,
+Patreon, AgZen, SpruceID, Metamorphic, Commure, Regent (c019a60). A new bank of
+the boards not in the old one (`ashby-r8`: 34 postings, 385 questions) was
+read blind too (a785e3f, 1773b24, 9f8368d, 69f9503, 4ebb67c, 3b3b571).
+
+### Lever
+
+Deep Genomics, Significance, and the boards new since 10-20 (Humble
+Robotics, Stand Together): r8d-lever-*, pinned (ec66b27, 76e59ac).
+
+### The smaller ATSs: 13 blind, 10 kept
+
+Fewest cases first: Gusto 2 (its posting page links to `/applicants/new`,
+no sign-in), Comeet 2 (its form opens in a frame of its own: bb52183),
+Dayforce 2, Pinpoint 2, ADP 2, Recruitee 1, Eightfold 2. Dropped: Eightfold's
+two (its apply page loads its questions by a POST that carries the answers
+so far: decision 100) and ADP's Community Care Plan (its Apply opened
+nothing live: a cookie overlay, then a bot-check POST). Oracle Cloud's form
+sits behind an emailed PIN: skipped. JazzHR and Breezy already had the most
+cases and were not reached within the 13. Fixed: Dayforce's "Not Completed"
+box, Pinpoint's "happy to work from our office" (9001f2d).
+
+A GET-only bank for Recruitee (`tools/qbank-recruitee.mjs`, its public offers
+API: prod's one company, Huawei Canada, 28 offers with questions, 91
+questions), read blind: nothing wrong. Pinpoint's postings JSON carries no
+questions.
+
+LinkedIn and Indeed apply behind their own sign-in: skipped, as asked.
+
+## 4. Wrong answers fixed
+
+Live pages (the value written, and now):
+
+| page | question | wrote | now |
+| --- | --- | --- | --- |
+| SmartRecruiters, every dropdown (Intuitive's state, Western Digital's highest level) | each option | read as its text twice ("WA WA"): "Selection didn't stick" | read once; picked |
+| SmartRecruiters ServiceNow | a major list with "Electrical/Electronics Engineering" beside "Engineering" | "Engineering", for an Electrical Engineering degree | "Electrical/Electronics Engineering" |
+| SmartRecruiters Western Digital | major (a multi-select) | "Selection didn't stick" while the page held it | read from its tag: filled |
+| Greenhouse Legend Biotech | "Are you open to relocation?" | Yes, for an applicant who never said | blank (decision 49) |
+| Greenhouse Bracebridge | "Are you currently attending Northeastern University?" | Yes, for a Northeastern graduate | No |
+| Greenhouse Bracebridge | "Voluntary Equal Employment Opportunity Questionnaire:" over gender options | the decline, for a stated Female | "Female" (decision 90) |
+| Greenhouse Gusto | race (remix multi-select) | "East Asian (inclusive of …)", for a stated "Asian" | blank, the applicant's pick (decision 99) |
+| Greenhouse Gusto | sexual orientation | reported reverted while the page held it | recorded as filled |
+| Greenhouse Insomniac | veteran status | blank in the final run (both "not a protected veteran" statements misread) | "I do not fall into one of the above categories of “protected veteran”" |
+| Ashby Jane | "If you selected Other, please describe" follow-ups | "Non-binary", "Two or More Races" | blank |
+| Ashby 1Password | "… Other than your ethnicity, gender, and disability status (survey below), is there anything you would like to share…?" | a self-ID answer | blank |
+| Ashby Regent | "Do you accept the position at the salary & terms stated, if offered?" | Yes (read as consent to terms) | blank, the applicant's (decision 97) |
+| Comeet Vast, Pinnacle | the whole form (a frame opened by Apply) | "No application form found on this page" | adopted and filled |
+| Greenhouse Jane Street | "Pronouns (Select one or more.)": options above a self-describe box | "She/Her" typed into the box, which checks "self-describe" | the "she/her/hers" option, clicked (an adapter); read back from the checked options, as the page submits them |
+| Greenhouse Anduril (regression) | "How did you hear about Anduril?", a stated company website | "Other" in one run of five: the page's company, named only in its title, was read before the title was there, and never again | "Anduril Website": a company still unknown is read again on each scan |
+| Greenhouse Epic Games, Sigma (regression) | Degree, a bootcamp certificate's row | "Other" written (decision 96), then logged reverted and asked about again | recorded as filled |
+
+Question banks (each also a unit test):
+
+| company | question | wrote | now |
+| --- | --- | --- | --- |
+| 1Password (Ashby) | "What brought you to this job posting" (stated social media) | "LinkedIn Social Post" | "Other" (decision 9) |
+| Commure (Ashby) | "How did you hear about Commure?" (a referral, social media) | "Other Job Boards" | blank: not offered, and the list has no Other (decision 102) |
+| Clearco (Ashby) | "Are you legally able to work in Canada or the US without sponsorship?" | No, for a Canadian citizen | Yes |
+| Heron Power (Ashby) | "How many years of full-time industry experience…? Do not include time from co-ops, internships…" | "1", from a student's co-op | "0" |
+| Commure (Ashby) | "I am comfortable with the fact that this position requires being in the Mountain View, CA office at least 3 days per week." | Yes, for Seattle and Denver applicants who will not move | No |
+| Switchboard (Ashby) | "What is your current work authorization status?" | the sponsorship statement, for an OPT holder | "I am currently authorized to work under OPT/CPT" |
+| Samsara (Greenhouse) | "Where have you learned about Samsara?" (stated "Company website") | "Other" | "Samsara blog or website" |
+| SoFi (Greenhouse) | "Today's Date of Application (MM/DD/YY Format)" | "10/20/2026" | "10/22/26" |
+| GDMSI (SmartRecruiters) | "Please state the country you were born in:" (200 countries) | "Other", for three applicants | blank: no profile holds it |
+| Sopra Steria (SmartRecruiters) | "Adresse (Straße, Hausnummer, Postleitzahl & Stadt)" | the street alone | the whole address |
+| Western Digital, Resultant (SmartRecruiters) | "What is your major?", "What is your current or most recent major?" | "Computer Engineering", for "Computer Science and Engineering" | "Computer Science/Software Engineering", "Computer Science & Programming" (decision 104) |
+| Chime, Coveo, Gusto, Salesloft, Samsara (Greenhouse) | race and ethnicity lists | "East Asian (inclusive of …)", for a stated "Asian" | blank (decision 99) |
+| City and County of San Francisco (SmartRecruiters) | "If you selected Asian from the list above, please indicate whether your ethnicity is Filipino…" | "Asian - Non-Filipino", which no profile states | kept from everyone |
+
+Caught mid-round by the bank re-runs (this round's own rules), each fixed
+with a failing test before the next run: Webflow's "White" gone blank and
+Hootsuite's decline answering "Yes, I have a disability…" (the self-ID snap
+reorder: 4752d62); Barnes & Thornburg's "Law Degree" and Bosch's "current
+degree that you are obtaining" taking "Other" (decision 96 overreaching:
+4752d62, d58c826); Kepler's country list gone blank and Woven by Toyota's
+background-check acknowledgment kept from everyone (decisions 93 and 97
+overreaching: 20a0e29); Jane's two-country heading answered for the job's
+country (a785e3f); and the source-list fix's brands in brackets (Airbnb,
+Brex, D2L, Flexport, Lucid, Mixpanel, Waymo), Fivetran's "Referred", Planet's
+"Other - Webinar", Vercel's two referral options, Klaviyo's five social media
+options and Cloudflare's colon (d67c93a, 686bcd7); CTC's "State (If N/A,
+Select Other)" losing its "Other" when "please state" became a verb
+(695fca9).
+
+Caught by the live regression (section 7), each fixed with a failing test
+first and re-run live:
+
+| page | question | regressed to | cause | now |
+| --- | --- | --- | --- | --- |
+| Lever Palantir | "Give us three numbers that describe you … We're not looking for your predicted grades or your age …" (a textarea) | "22", the applicant's age | its real question became its label (76e59ac) and read as an age question | blank (e53ea82) |
+| Rippling Fluid AI, 4AG (three cases) | Pronouns: She/her/hers, He/him/his, … , "She/her/hers, they/them/theirs" | blank (and the failed pick shifted the phone code's element) | the widget picks self-ID by the self-ID rules (8318d44), where two options hold "she her" | the option of the stated set (146fc7b) |
+| Lever Datalab | "By entering your name below: I, the undersigned, certify … criminal background and drug check." | blank (round 7: the name, read by the card's "SIGNATURE" heading) | read by its own question (76e59ac): no name field, and "criminal" made it unanswerable | the full name (801e130) |
+| Greenhouse Horizon | "How did you hear about us?" (eleven "…-jobsearch.com" boards, "Other Jobboards", …), a stated LinkedIn | blank | "Other …" channels stopped standing for "Other" (1773b24), and "Jobboards" in one word was no job board | "Other Jobboards" (503387c) |
+
+## 5. Blanks now answered
+
+| page | question | now |
+| --- | --- | --- |
+| SmartRecruiters ServiceNow (live) | "What school do you currently attend or most recently attended? If unlisted, please select "Other"" | "Other" for a school the list lacks (decision 95) |
+| SmartRecruiters ServiceNow (live) | "Following the completion of your internship, will you be returning to school…?" | No for a graduate |
+| SmartRecruiters ServiceNow (live) | a German Diplom-Informatiker's major | Computer Science |
+| SmartRecruiters Intuitive (live) | "If you live in one of these states, would you consider relocation?" | its N/A option, for someone living in none |
+| SmartRecruiters Western Digital (live) | "Do you have a Family or Close Friend relationship with anyone employed by WD?" | No (the relatives default) |
+| SmartRecruiters (live) | available "during the work period specified in the … posting" | Yes (decision 49) |
+| SmartRecruiters Boston Engineering (live) | "This position may require security clearance. Can this be achieved?" | No for an F-1 OPT holder (decision 81): the job's place is now read from the page's top bar |
+| Greenhouse Arcesium (live) | Degree, a list of degree titles | the row's own title ("Master of Science", "Bachelor of Engineering") |
+| Greenhouse Hear.com (live) | Degree, for "Baccalauréat en psychologie" and a certificate row | "Bachelor's Degree"; the certificate the list's "Other" (decision 96) |
+| Greenhouse Bracebridge (live) | "Are you in pursuit of a MS degree … at Northeastern University?" | No for someone studying elsewhere |
+| Greenhouse Trace3 (live) | "What are your current salary requirements?" | the stated expectation |
+| Greenhouse Canonical (live) | "Please indicate your nationality:" (remix multi-select) | "British" |
+| Greenhouse Samsara (live) | "Where have you learned about Samsara? Select all that apply." | "LinkedIn" |
+| Greenhouse Gusto (live) | "Which metro area are you located in?" | "Denver"; "Other" for a Boston applicant (decision 103) |
+| Ashby 1Password (live) | "Are you a former 1Password employee?"; "What brought you to this job posting" | No; "LinkedIn Jobs" |
+| Ashby Amplify (live) | "employed with Amplify", "currently working with Amplify Education, Inc.", a school district or state education agency | No |
+| Ashby Pebl (live) | "engaged with Pebl … as an employee"; a start the posting sets; its full duration | No; by the stated earliest start; Yes (decision 86) |
+| Ashby Jane (live) | "Work Eligibility in the United States" (a heading over Yes and No) | the work right |
+| Ashby Regent (live) | "Available to start immediately? If not, when?" | Yes within a week of the stated start (decision 98) |
+| Lever Significance (live) | "Are you local to the DMV to accomodate a hybrid work schedule?" | No for an Austin applicant (decision 101) |
+| Lever Stand Together (live) | the Koch Internship Program question (470 characters) | read as the select's question (it took the card's heading) |
+| Dayforce Woodmen (live) | "Not Completed" (an education row) | ticked while the degree is in progress |
+| Pinpoint White Swan (live) | "Are you happy to work from our New York office 5 days a week?" | from where the applicant lives and will move |
+| AnySignal (Ashby bank) | ITAR's "I am currently a 'U.S. Person'" | for a citizen or permanent resident |
+| 1Password (Ashby bank) | military capacities ("No", "Active Duty", …) | "No" for someone who never served |
+| Aurora (Ashby bank) | "I identify as LGBTQIA+" / "I do not identify as LGBTQIA+" | by the stated orientation or identity |
+| AssortHealth (Ashby bank) | "What type of visa will you require? (if applicable to above)" | "Not applicable" for someone who needs none (decision 92) |
+| Switchboard (Ashby bank) | "What is your current work authorization status?" | "…without restrictions" for a US citizen |
+| Wellmark (SmartRecruiters bank) | "Please provide detail regarding any visa and/or employer-based sponsorship requirements" | "None of these apply…" for someone who needs none |
+| LinkedIn (SmartRecruiters bank) | "Please select your degree type" [BA/BS, Masters, PhD, N/A] | "BA/BS" for a bachelor's |
+| Geotab, New Relic, Tubi (Greenhouse banks) | "Were you previously employed with Geotab?", "Are you currently working at New Relic?", "…employed with Tubi…?" | No, for a history without them |
+| CircleCI (Greenhouse bank 3) | "Are you a veteran?" [I identify as one or more… / I do not identify as a protected veteran / …] | "I do not identify as a protected veteran" |
+
+## 6. Decisions (one rule each, each easy to reverse)
+
+93. "Which location are you applying for?" takes the applicant's own city (its
+    metro) when the posting lists it, else the remote option of the
+    applicant's own country, else (a list of countries) their own country;
+    otherwise blank, and not the AI's to guess. Round 7 took Azul's remote
+    option only when the address happened to name its country.
+94. A family member's government employment is the applicant's to answer:
+    never the relatives default's No, never the AI's. Public employment is
+    common (teachers, nurses, postal workers); a relative who is a government
+    official stays decision 85's question.
+95. A school list that says "If unlisted, please select Other" takes "Other"
+    for a school it does not carry.
+96. An education row whose degree no level names (a bootcamp's or a
+    professional certificate) takes the row's Degree list's "Other"; a degree
+    asked at one level (law, undergraduate, graduate) or as the one being
+    obtained, for a finished row, stays blank.
+97. Accepting a position at the stated salary and terms, if offered, is the
+    applicant's decision, never the AI's; only a question asking whether they
+    accept is it (a notice that mentions an offer is not).
+98. "Available to start immediately?" is Yes when the stated earliest start
+    is within a week, else No; a legal right to start stays work
+    authorization.
+99. A stated self-ID answer that several options narrow ("Asian" among East,
+    South and Southeast Asian) is no pick: left to the applicant. The option
+    that starts with the answer is it; a decline never answers Yes or No.
+100. A form that loads its questions by a POST carrying the answers so far
+     (Eightfold) is not run live: the rule blocks the POST, so it never
+     renders. Its fills need a person.
+101. The DMV is Washington, DC and its Maryland and Virginia suburbs: "local
+     to the DMV" is Yes from DC, No from any other state or country, and the
+     applicant's inside Maryland or Virginia.
+102. Source lists: "Social media" is no particular platform's (decision 9);
+     a channel the list offers more than once (two referral options, five
+     social media ones) is the applicant's pick, never "Other"; the list's own
+     Other is "Other" alone, bracketed or asking to specify ("Other Job
+     Boards", "Other - Webinar" are channels); a referral the list has no
+     referral or employee option for is "Word of mouth".
+103. "Which metro area are you located in?" takes the applicant's own metro,
+     and "Other" only when every place listed is known to be elsewhere.
+104. A major of two fields joined by "and" ("Computer Science and
+     Engineering") is its first field, unless the list has it whole.
+
+## 7. Regression
+
+**Question banks.** Every bank re-run on the final answer code against
+round 7's final run (the base), every changed answer read:
+
+| bank | answers | changed since the base | in questions | what changed |
+| --- | --- | --- | --- | --- |
+| Greenhouse 1 | 11,256 | 64 | 22 | dates (the runs are two days apart), race lists (decision 99), Canonical's nationality, Samsara's source, Gusto's metro, SoFi's date format, Geotab's former employee, Astranis' and Brex's labels read as no State (same answers) |
+| Greenhouse 2 | 10,068 | 29 | 14 | dates, sources (decisions 9, 102), Tubi's employee, a government question naming family (decision 94), NISC's locations kept from the AI (decision 93), a Diplom's field, Cloudflare's return to school after an internship (blank for a student: when the internship falls is unknown) |
+| Greenhouse 3 | 9,528 | 37 | 15 | dates, CircleCI's veteran, New Relic's employee, Geotab, NISC, race lists, Hootsuite's disability decline, CTC's work-authorization statement for a citizen, a Diplom's field, sources |
+| Ashby | 4,908 | 5 | 5 | 3 dates; Quora's Degree ("Other" for a certificate, decision 96) and a Diplom's discipline |
+| Lever | 6,732 | 142 | 14 | 8 "Which location are you applying for?" lists (decision 93), 5 start dates, Datalab's signature (each persona's full name, 801e130) |
+| Workable | 4,926 | 66 | 7 | dates only |
+| Jobvite | 5,952 | 13 | 3 | dates only |
+| SmartRecruiters | 4,068 | 124 | 19 | 24 of "Today's date", ServiceNow's family government question (decision 94), schools and majors (decisions 95, 104), the born-in country, Sopra Steria's address, Wellmark's visa list, WD's relatives and work period |
+
+New this round, read blind: Ashby's other boards (34 postings, 2,310
+answers), SmartRecruiters' optional-résumé postings (20 postings, 1,986) and
+Recruitee (28 offers, 546). The re-runs between fixes caught this round's own
+regressions (section 4's last paragraph), each fixed with a failing test
+before the next run; the last re-run changed only what its fixes meant to.
+After the live regression's fixes, all eleven banks (62,280 answers) were
+run once more: the only change is Datalab's signature, six personas' full
+names.
+
+**Live regression.** Every pinned case in batches of 13, each
+SmartRecruiters case in a browser of its own, one run at a time.
+
+First pass, on the build of 695fca9: 329 cases (round 7's 266 and this
+round's 63), **294 passed**. Each of the other 35 was read:
+
+| what | cases | done |
+| --- | --- | --- |
+| postings closed since round 7, each checked by GET: Justworks, Vestmark and Carvana's embed (Greenhouse's job API 404), Kenect (gone from its Breezy /json), SAS (iCIMS 410), AEP (its Workday job API 403 where an open AEP posting answers 200), Ross Video, SRC and Nutanix-1 (Jobvite sends them to its job list) | 9 | retired, one line each |
+| this round's rules answering what was blank, every write read and right: Epic's and Sigma's certificate row "Other" (decision 96), Eclipse's "Not Completed" (a degree in progress), Flourish's, SSCI's and AMCA's field of study (a Diplom-Informatiker), Kobie's own city (decision 93), Point72's "I identify as" decline (decision 90), EQ Bank's two questions added since round 7 | 9 | pinned |
+| Arc'teryx's "Will you remain enrolled … and return to your program following the co-op?": round 7's Yes was the requirement default; "following" now reads as "after", a student's own plan (decision 63) | 1 | pinned blank |
+| this round's regressions: Palantir, Rippling (three), Datalab, Horizon | 6 | fixed, failing test first (section 4) |
+| an older race: Anduril's company read before the page named it | 1 | fixed (section 4) |
+| the harness read SmartRecruiters' page before its form rendered, so the page's own "+ 1" country code scored as a write (five), and ServiceNow FDRP's City and Website were still rendering | 6 | harness fixed (9d3f13f); each passes |
+| Stand Together's location typeahead (a Cloudflare challenge mid-run); K1's how-you-heard question gone from its form; Recruitee's phone input renamed (React's own id) | 3 | passes alone; pin dropped; pinned by its label |
+
+Every one re-run on the fixed builds: all pass (the thirteen re-pinned live in
+one batch, 250 of 250 checks; the SmartRecruiters six one by one; Anduril
+three runs of three, where one in five failed alone before).
+
+Final pass, on the build of 8412980 (every fix above): 320 cases (the 329
+less the nine retired), **317 passed**. The other three, each read:
+
+| case | what happened | done |
+| --- | --- | --- |
+| Duolingo (Greenhouse) | the page never loaded: `page.goto` timed out at 60 s | passes alone, 28 of 28 |
+| Azul (Lever) | Lever's location search listed nothing within the adapter's 12 s wait (the case took 17 s; 6 s alone), so the location was left for the applicant to pick, as designed; but its report said "failed" with no reason, because the adapter path dropped it | passes alone, 13 of 13; the adapter's reason now reaches the report (c054b16, a failing test first) |
+| Wellmark (SmartRecruiters) | no form for more than 9 s, past the harness's wait, so the page's own "+ 1" country code scored as a write once more | when the form is still missing after the wait, the harness reads the page the moment before it presses Autofill (ffb341e): a local page on SmartRecruiters' host that renders its form 11 s late failed before the change and passes after; Wellmark passes alone, 6 of 6 |
+
+Last pass, on the final build (ffb341e): 320 cases, **315 passed**. Each of
+the other five passes alone:
+
+| case | what happened | done |
+| --- | --- | --- |
+| Pure Storage (Greenhouse) | School blank: its pick missed under batch load (an 18.7 s local fill), and the re-ask, with no options read, went to the backend, which drops it while the AI is dead | passes alone, 25 of 25 (section 9) |
+| Humble (Lever) | the location under batch load again (section 9); its report now says why: "Pick your location from Lever's suggestion list." (c054b16, live) | passes alone, 8 of 8 |
+| Riot (Greenhouse) | for once the fill added the persona's second school (Concordia's certificate) and wrote its school, discipline and year, all the persona's, which read as UNEXPECTED; its Degree stayed blank (the list never loaded) | passes alone (no second row); the row is checked when it is there, its Degree "Other" (decision 96) or blank (766edc5) |
+| Huawei (Recruitee) | the pinned "EN" is the captcha frame's own language picker, and that frame did not load | passes alone; checked when it is there (766edc5) |
+| M3 (SmartRecruiters) | the fill started 6.5 s after load, mid-render (section 9): City and Website blank | passes alone, 8 of 8 |
+
+Rescored against the new pins, Riot and Huawei pass with and without their
+fields (Riot 37 of 37 and 32 of 32, Huawei 6 of 6 and 5 of 5).
+
+## 8. Verification
+
+On the final code (ffb341e; after it come two pins, 766edc5, and this report):
+
+- Extension unit tests: 3,106 pass (171 files; 1 skipped as before); `tsc
+  --noEmit` clean; build; `test/scan-smoke.mjs` passed.
+- Every fix in sections 4 and 5 has a test that failed first, on the scan
+  path where a category could answer first, and was re-run live on its page.
+- All eleven question banks re-run on the final answer code and every changed
+  answer read (section 7).
+- The full live regression on the final build: 315 of 320; the other five
+  pass alone, two of them now pinned only where the page has the field
+  (section 7). An adapter's reason reached a live report (Humble's location).
+- The harness's read at the click (ffb341e) on a local page that renders its
+  form 11 s after load: failed before the change, passes after.
+- Not run: CI's backend pytest and frontend checks. Nothing outside
+  `chrome-extension/` changed this round (NOTES.md aside), and nothing was
+  pushed; before a push, run them as the brief says.
+
+## 9. Needs manual verification, or still open
+
+- **A required résumé on SmartRecruiters**: the extension now attaches it,
+  but the upload is a POST, so no run goes past page 1 on the postings that
+  require one (most of them). Their screening questions are checked in jsdom
+  (two banks) and on 13 live postings of the three companies that need none.
+- **Eightfold** (decision 100) and **ADP's Community Care Plan** (Apply opened
+  nothing live: a cookie overlay, then a bot-check POST): not run.
+- **Riot's Discipline** ("Psychologie") stays blank in runs: the embed
+  re-renders mid-fill and the re-asked field missed once more. Its second
+  education row (Concordia's certificate) is added in one run of four.
+- **Humble Robotics' location** ("San Jose, CA") empties under batch load;
+  alone it fills (the picker takes "San Jose, CA, USA" in tests). Lever's
+  search lists nothing within the adapter's 12 s then (Humble in the last
+  pass, Azul once before it); the report now says so.
+- **Pure Storage's School** went blank in the last pass under batch load (the
+  re-ask read no options and went to the backend); the two passes before it
+  and the run alone filled it.
+- **SmartRecruiters clicked mid-render** (M3 in the last pass; Boston
+  Engineering's blind run, whose labels were element ids, before it): the
+  fill started 6.5 s after load (8.7 to 10.7 s when M3 passed), while the
+  controls still carried Lit's template markers ("?lit$…$") for labels. City
+  reached the fill with no label, went to the backend and was dropped (the AI
+  is dead), and Website was not filled. Alone each passes. Not reproduced on
+  demand. The likely gap: the fill's settle wait watches only the top
+  document's child list, while SmartRecruiters renders inside shadow roots
+  and may commit labels as attributes, which no observer here watches (on
+  purpose: the extension's own attribute writes would set it off).
+- **"If Other, please specify" boxes** (IMC, ServiceNow) get the major even
+  when the list holds it: from before this round.
+- **The H-1B ITAR question** (an H-1B holder is no US person: unknown to the
+  profile) and **LinkedIn's "degree type" BA/BS** for a BASc: blank.
+- **D-61** blanks (section 2e): worth a look by whoever owns the allow-list.
+- **Jobvite past the consent gate, iCIMS past its login, Workday past its
+  account wall**: not this round's (each needs a POST or an account).
+- **OpenAI** (billing down since 08-12): essays and AI-only answers stay
+  blank.
+- **Prod**: no autofill report since 2026-10-03.
+- **CI's checks** were not run: nothing was pushed. Before a push, run them as
+  the brief says.
+
 # Round 7: Jobvite's consent gate, SmartRecruiters from a question bank to its screening step, new Greenhouse and Lever boards (2026-10-20)
 
 Branch `night/autofill-round7` (worktree `.worktrees/autofill-round7`), from
