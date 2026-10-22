@@ -43,4 +43,14 @@ export default [
   live({ id: "r8a-sr-circle", ats: "smartrecruiters", profile: MONTREAL_CHANGER, url: sr("CircleLogistics1", "d20c0deb-3cf7-44d2-b521-9aa234660fa7"), nextPages: 1 }),
   live({ id: "r8a-sr-eversana", ats: "smartrecruiters", profile: BERLIN_STAFF, url: sr("EVERSANA1", "c72e43d8-e37d-4233-bb39-f2b394d6aea4"), nextPages: 1 }),
   live({ id: "r8a-sr-linkedin", ats: "smartrecruiters", profile: SPARSE_CANADIAN, url: sr("LinkedIn3", "001359e4-c46c-45cb-a388-bc79014089ec"), nextPages: 1 }),
+  // The context's `features` are the company's defaults, not the posting's:
+  // its form's own configuration (the page's GET of `.../config`) required a
+  // résumé on Bosch's three and Circle's, and experience on EVERSANA's and
+  // LinkedIn's. Of prod's 26 SmartRecruiters companies only ServiceNow,
+  // Intuitive and Western Digital take a posting with nothing to upload; four
+  // more of ServiceNow's, with round 7's three, make thirteen screening steps.
+  live({ id: "r8a-sr-servicenow-finance2", ats: "smartrecruiters", profile: US_OPT_ANALYST, url: sr("ServiceNow", "99e904e8-1e5a-4096-beb0-5996c4cf5427"), nextPages: 1 }),
+  live({ id: "r8a-sr-servicenow-fdrp2", ats: "smartrecruiters", profile: INDIA_NEW_GRAD, url: sr("ServiceNow", "60e192cf-cbad-42ef-a2d1-b2fd6a780a3c"), nextPages: 1 }),
+  live({ id: "r8a-sr-servicenow-moveworks", ats: "smartrecruiters", profile: COMPLETE_CANADIAN, url: sr("ServiceNow", "e48bcb74-d711-4d5e-b486-a19a247237dd"), nextPages: 1 }),
+  live({ id: "r8a-sr-servicenow-staff", ats: "smartrecruiters", profile: BERLIN_STAFF, url: sr("ServiceNow", "64dd40e1-94d0-4d8f-b6b5-acb2f9c85416"), nextPages: 1 }),
 ];

@@ -44,7 +44,14 @@ const clean = (s) =>
     .replace(/\s+/g, " ")
     .trim();
 
-/** One posting's one-click context, read in its own browser. */
+/**
+ * One posting's one-click context, read in its own browser, with the apply
+ * form's own configuration: the page GETs `/oneclick-ui/api/company/<id>/
+ * publication/<uuid>/config`, whose `fieldSets` say what page 1 requires
+ * (`resume.required`, …). The context's `features` are the company's
+ * defaults, not the posting's: Bosch's said no résumé while its page asked
+ * for one (round 8).
+ */
 async function oneClickContext(company, uuid) {
   const url = `https://jobs.smartrecruiters.com/oneclick-ui/company/${company}/publication/${uuid}?dcr_ci=${company}`;
   const { chromium } = await import("playwright");
@@ -55,10 +62,18 @@ async function oneClickContext(company, uuid) {
       const m = route.request().method();
       return m === "GET" || m === "HEAD" || m === "OPTIONS" ? route.continue() : route.abort();
     });
+    let config = null;
+    page.on("response", async (res) => {
+      if (res.request().method() !== "GET" || !/\/oneclick-ui\/api\/company\/[^/]+\/publication\/[^/]+\/config\b/.test(res.url())) return;
+      config = await res.json().catch(() => null);
+    });
     await page.goto(url, { waitUntil: "domcontentloaded", timeout: 60000 });
     for (let i = 0; i < 30; i++) {
       const ctx = await page.evaluate(() => (window.__OC_CONTEXT__ ? JSON.stringify(window.__OC_CONTEXT__) : null)).catch(() => null);
-      if (ctx) return JSON.parse(ctx);
+      if (ctx) {
+        for (let j = 0; j < 20 && !config; j++) await sleep(250);
+        return { ...JSON.parse(ctx), applyConfig: config };
+      }
       await sleep(500);
     }
     return null;
@@ -155,11 +170,15 @@ for (const spec of SPECS) {
       continue;
     }
     taken++;
-    // What page 1 itself requires (resumeRequired, experienceRequired, …): a
-    // run can fill page 1 but never upload, so only a posting whose résumé is
-    // optional reaches its screening questions live.
-    const required = Object.fromEntries(Object.entries(ctx.features ?? {}).filter(([k]) => /Required$/.test(k)));
-    raw.push({ board: company, id, uuid: posting.uuid, title: clean(posting.name), company: clean(posting.company?.name ?? company), location: placeOf(posting.location), required, screening: ctx.screeningConfiguration ?? null });
+    // What page 1 itself requires (the résumé, experience, …): a run can fill
+    // page 1 but never upload, so only a posting whose résumé is optional
+    // reaches its screening questions live. From the apply form's own
+    // configuration; the context's company defaults only when it is missing.
+    const sets = ctx.applyConfig?.fieldSets;
+    const required = sets
+      ? Object.fromEntries(Object.entries(sets).filter(([, v]) => v && typeof v === "object" && "required" in v).map(([k, v]) => [`${k}Required`, Boolean(v.required && v.visible !== false)]))
+      : Object.fromEntries(Object.entries(ctx.features ?? {}).filter(([k]) => /Required$/.test(k)));
+    raw.push({ board: company, id, uuid: posting.uuid, title: clean(posting.name), company: clean(posting.company?.name ?? company), location: placeOf(posting.location), required, requiredFrom: sets ? "config" : "features", screening: ctx.screeningConfiguration ?? null });
     await sleep(1500);
   }
 }
