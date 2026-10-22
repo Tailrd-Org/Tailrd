@@ -306,7 +306,7 @@ const SOURCE_PREFERENCE: RegExp[] = [
 // "…work from our Foster City, CA HQ 3 days per week?" (Replit, Ashby bank
 // 2026-10-08) names no office: a headquarters or campus is one.
 const IN_PERSON =
-  /\b(in ?office|on ?site|in ?person|hybrid|report to (the|our) office)\b|\b(work|working|commute|commuting|report|reporting)\b[^?]{0,60}\b(from|at|in|to|out of)\b[^?]{0,40}\b(offices?|hq|headquarters|campus)\b|\b(this|the|that|a daily) commute\b|\b(come|go|be) (in|into|to)\b[^?]{0,40}\b(offices?|hq|headquarters|campus)\b/;
+  /\b(in ?office|on ?site|in ?person|hybrid|report to (the|our) office)\b|\b(work|working|commute|commuting|report|reporting)\b[^?]{0,60}\b(from|at|in|to|out of)\b[^?]{0,40}\b(offices?|hq|headquarters|campus)\b|\b(this|the|that|a daily) commute\b|\b(come|go|be|being) (in|into|to|at)\b[^?]{0,40}\b(offices?|hq|headquarters|campus)\b/;
 
 /** Being there now and then rather than working there: team gatherings, an
  *  offsite, a few trips a year. Someone who will not relocate can still go. */

@@ -186,3 +186,14 @@ describe("full-time years without co-ops and internships (Heron Power, Ashby ban
     expect(ask("BERLIN_STAFF", Q, [], "Heron Power")).toBe("14");
   });
 });
+
+describe("an office named in a first-person statement (Commure, Ashby bank, round 8)", () => {
+  const Q = "I am comfortable with the fact that this position requires being in the Mountain View, CA office at least 3 days per week.";
+  it("someone in another state who will not move is not comfortable with it", () => {
+    // US_H1B_SENIOR (Seattle) and BOOTCAMP_CAREER_GAP (Denver) will not
+    // relocate: Yes was written for both.
+    expect(ask("US_H1B_SENIOR", Q, YN, "Commure")).toBe("No");
+    expect(ask("BOOTCAMP_CAREER_GAP", Q, YN, "Commure")).toBe("No");
+    expect(ask("COMPLETE_CANADIAN", Q, YN, "Commure")).toBe("Yes");
+  });
+});
