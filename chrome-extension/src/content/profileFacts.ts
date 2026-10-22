@@ -208,7 +208,13 @@ function countryOf(parsed: ParsedAddress): Country | null {
 export function locationFacts(profile: UserApplicationProfile): LocationFacts {
   const fromStreet = parseAddress(profile.addressStreet || "");
   const fromLocation = parseAddress(profile.location || "");
-  const streetHasMore = Boolean(fromStreet.city || fromStreet.region || fromStreet.country || fromStreet.postal);
+  // A last plain-word part is a city only when it is the stated one (or none
+  // is stated): "14, 5th Cross, Indiranagar" ends on its neighbourhood, and
+  // read as a city it took the whole street (Profound Medical on BambooHR,
+  // live, round 8: "Address *" blank for a Bengaluru applicant).
+  const statedCity = (profile.addressCity || "").trim().toLowerCase();
+  const streetCity = Boolean(fromStreet.city) && (!statedCity || fromStreet.city!.toLowerCase() === statedCity);
+  const streetHasMore = Boolean(streetCity || fromStreet.region || fromStreet.country || fromStreet.postal);
 
   // Street: the structured field, minus any city/region/country it carried.
   let street: Fact<string> | null = null;

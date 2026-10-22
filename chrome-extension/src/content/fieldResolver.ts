@@ -301,9 +301,14 @@ function composedAddress(label: string, profile: UserApplicationProfile): string
   if ((withRest || listed || (!part && (/\b(full|complete) (current |home |mailing |street |residential |permanent )*address\b/i.test(label) || /^\s*what is your (current |home |mailing |permanent |residential )*address\b/i.test(label)))) && !/\be-?mail\b/i.test(label)) {
     if (!street || !city) return null;
     // Outside North America the country is part of it ("Torstraße 109,
-    // Berlin, 10119" lacked Germany).
+    // Berlin, 10119" lacked Germany), and so is a state the region table does
+    // not know, in the profile's own words ("Bengaluru, 560038, India" lacked
+    // Karnataka: Riot and FiscalNote banks, round 8); a city that is its own
+    // state once.
     const country = isHigh(loc.country) && loc.country.value.code !== "US" && loc.country.value.code !== "CA" ? loc.country.value.name : null;
-    return [street, city, [region, postal].filter(Boolean).join(" "), country].filter(Boolean).join(", ");
+    const stated = profile.addressState?.trim() || null;
+    const state = region ?? (stated && stated.toLowerCase() !== city.toLowerCase() ? stated : null);
+    return [street, city, [state, postal].filter(Boolean).join(" "), country].filter(Boolean).join(", ");
   }
   if (/\bcity\b[^?]{0,20}\b(state|province|region)\b/i.test(label)) {
     // A state the region table does not know is the profile's own words:
@@ -787,6 +792,12 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
   // employer's name was written into it (SmartRecruiters, live 2026-10-03).
   // A label that actually asks for the name ("What is the name of…") is
   // answered by the question resolver above, before this point.
+  // Nor a street a long-text box whose label asks no address: Jane Street's
+  // "Extra" box ("Why you're interested in Jane Street …", Greenhouse bank,
+  // round 8) read as a street by the company's name in its description.
+  if (source === "category" && kind === "longText" && category === "addressStreet" && !/\b(address|street)\b/i.test(label)) {
+    return none(false, "wrong-kind:no-address-asked");
+  }
   if (source === "category" && kind === "longText" && SINGLE_LINE_FACTS.has(category) && isProsePrompt(label)) {
     return none(false, "wrong-kind:prose-prompt");
   }

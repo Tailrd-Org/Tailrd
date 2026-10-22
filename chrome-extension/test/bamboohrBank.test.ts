@@ -80,6 +80,18 @@ describe("the BambooHR bank (round 8)", () => {
     const L = "Have you managed end-to-end event logistics including vendors, booth planning, contracts, travel, and onsite execution?";
     expect(scanned(ALL, L, YN, "Mississauga, Ontario, Canada", "profoundmedical")).toEqual(each([null, null, null, null, null, null]));
   });
+  it("an address abroad without a civic number up front is written whole (Profound Medical, live)", () => {
+    // BambooHR's address block: Address, City, Postcode, each its own box.
+    const box = (id: string, label: string) => `<div class="field"><label for="${id}">${label}</label><input type="text" id="${id}" name="${id}"></div>`;
+    const street: Record<string, string | null> = {};
+    for (const w of ["INDIA_NEW_GRAD", "US_H1B_SENIOR"]) {
+      document.body.innerHTML = `<form id="application-form">${box("FabricTextField-356", "Address *")}${box("FabricTextField-357", "City *")}${box("FabricTextField-359", "Postcode *")}</form>`;
+      setResolveContext({ jobCountry: "CA", jobCity: "Mississauga", jobPlaces: null, company: "profoundmedical" });
+      street[w] = scanPage(persona(w), true).fields.find((x) => x.label.startsWith("Address"))?.proposedValue ?? null;
+    }
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    expect(street).toEqual({ INDIA_NEW_GRAD: "14, 5th Cross, Indiranagar", US_H1B_SENIOR: "1200 Westlake Ave N, Unit 805" });
+  });
   it("a Bachelor of Technology is the Science one of a level's kinds (Profound Medical)", () => {
     const options = ["GED or Equivalent", "High School", "Some College", "College - Associates", "College - Bachelor of Arts", "College - Bachelor of Fine Arts", "College - Bachelor of Science", "College - Master of Arts", "College - Master of Fine Arts", "College - Master of Science", "College - Master of Business Administration", "College - Doctorate", "Medical Doctor", "Other"];
     expect(scanned(ALL, "Highest Education Obtained", options, "", "profoundmedical")).toEqual(

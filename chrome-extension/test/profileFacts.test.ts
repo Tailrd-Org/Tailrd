@@ -81,6 +81,15 @@ describe("locationFacts", () => {
     expect(f.city?.confidence).toBe("medium");
   });
 
+  it("a street with no civic number up front stays whole: its locality is no city (Bengaluru, Profound Medical on BambooHR, live, round 8)", () => {
+    // "14, 5th Cross, Indiranagar": the house number apart, then the cross
+    // road and the neighbourhood. Read as a city, "Indiranagar" took the
+    // street with it, and "Address *" was left blank.
+    const f = locationFacts(profile({ addressStreet: "14, 5th Cross, Indiranagar", addressCity: "Bengaluru", addressState: "Karnataka", postalCode: "560038", country: "India" }));
+    expect(f.street?.value).toBe("14, 5th Cross, Indiranagar");
+    expect(f.city?.value).toBe("Bengaluru");
+  });
+
   it("splits a one-line street address into its parts", () => {
     const f = locationFacts(profile({ addressStreet: "1055 W Georgia St, Vancouver, BC V6E 3P3, Canada" }));
     expect(f.street?.value).toBe("1055 W Georgia St");

@@ -76,6 +76,10 @@ describe("the Pinpoint bank (round 8)", () => {
     const options = ["White British", "White Irish", "Black British", "Black African", "Black Caribbean", "Black And White Caribbean", "Black And White African", "Asian And White", "Chinese", "Bangladeshi", "Indian", "Pakistani", "Other Ethnicity"];
     expect(scanned(ALL, "Ethnicity", options, "London, United Kingdom", "White Swan Data")).toEqual(each([null, null, null, null, null, null]));
   });
+  it("a work right 'as per the ITAR requirements' is the export rule's: never Yes for a visa (Impulse Space)", () => {
+    const L = "Are you legally authorized to work in the United States as per the below ITAR requirements?";
+    expect(scanned(ALL, L, ["Yes", "No"], "Redondo Beach, California", "Impulse Space")).toEqual(each(["No", null, "Yes", null, "No", "No"]));
+  });
   it("a protected veteran who keeps the category to themself is no decline (White Swan, Flatirons)", () => {
     const options = ["Active Wartime Or Campaign Badge Veteran", "Armed Forces Service Medal Veteran", "Disabled Veteran", "I Am A Protected Veteran, But I Choose Not To Self-Identify The Classifications To Which I Belong", "I Am Not A Protected Veteran", "I Am Not A Veteran", "I Choose Not To Identify", "Recently Separated Veteran"];
     const never = "I Am Not A Veteran";

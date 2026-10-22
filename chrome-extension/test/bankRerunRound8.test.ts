@@ -86,6 +86,26 @@ describe("the last bank re-run (round 8)", () => {
     // In the US: dollars, so no Canadian dollars or euros.
     expect(scanned("Target Compensation", options, "Lake St. Louis, MO")).toEqual(each([null, "171K+", "81-85k", "91-95k", null, null]));
   });
+  it("a graduation semester asked is the month and year; a year alone gives nothing (decision 73; RF-SMART, Terranova, SDL)", () => {
+    expect(scanned("What is your intended semester and year of graduation?", [], "Atlanta, GA")).toEqual(each(["April 2027", null, null, "May 2025", null, "June 2026"]));
+    expect(scanned("Graduation Semester", [], "Seattle, WA")).toEqual(each(["April 2027", null, null, "May 2025", null, "June 2026"]));
+  });
+  it("a whole address abroad carries the stated state the region table lacks, a city-state once (Riot, FiscalNote)", () => {
+    const a = scanned("What is your current full address?", [], "Los Angeles, CA");
+    expect(a.INDIA_NEW_GRAD).toBe("14, 5th Cross, Indiranagar, Bengaluru, Karnataka 560038, India");
+    expect(a.BERLIN_STAFF).toBe("Torstraße 109, Berlin, 10119, Germany");
+    expect(a.US_H1B_SENIOR).toBe("1200 Westlake Ave N, Unit 805, Seattle, WA 98109");
+  });
+  it("a long-text box takes no street unless its label asks for an address ('Jane Street' in its description, Jane Street)", () => {
+    const out: Record<string, string | null> = {};
+    for (const w of ALL) {
+      document.body.innerHTML = `<form id="application-form"><div class="field"><label for="q0">Extra</label><div id="q0-d" class="description">Why you’re interested in Jane Street How you heard about us If you have a job now, why you’re looking for a new one</div><textarea id="q0" name="question_37020268002" aria-describedby="q0-d"></textarea></div></form>`;
+      setResolveContext({ jobCountry: "US", jobCity: "New York", jobPlaces: null, company: "Jane Street" });
+      out[w] = scanPage(persona(w), true).fields.find((x) => x.label.startsWith("Extra"))?.proposedValue ?? null;
+    }
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    expect(out).toEqual(each([null, null, null, null, null, null]));
+  });
   it("an either-or after the question is no yes or no: how they heard (Credence)", () => {
     const L = "How did you hear about us? Was it a job board or an employee? Do tell....";
     expect(scanned(L, [], "McLean, Virginia, United States")).toEqual(each(["LinkedIn", "Company website", "Social media", "Job board", "Referral", "LinkedIn"]));

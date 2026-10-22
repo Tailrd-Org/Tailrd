@@ -83,16 +83,19 @@ for (const spec of SPECS) {
         questions.push({ group: "Application", label: "Phone", description: "", required: !!j.required, name, type: "input_text", options: [] });
       } else if (/\[(cv|cover_letter)\]$/.test(name)) {
         questions.push({ group: "Application", label: clean(j.labelText) || "Attach", description: "", required: false, name, type: "input_file", options: [] });
-      } else if (/answers_attributes/.test(name) && j.questionDetails) {
+      } else if (j.questionDetails && (/answers_attributes/.test(name) || !name)) {
+        // A yes/no question (questionType "boolean") names no field: its
+        // radios are answers_attributes[<index>][boolean_answer].
         const qd = j.questionDetails;
         const qt = qd.questionType ?? "short_text";
+        const field = name || `application_form[application][answers_attributes][${qd.index}][${qt === "boolean" ? "boolean_answer" : "answer"}]`;
         kinds.set(qt, (kinds.get(qt) ?? 0) + 1);
         let type = TYPES[qt] ?? "input_text";
         if (qt === "multiple_choice" && (j.maxNumAnswerOptions ?? 1) > 1) type = "multi_value_multi_select";
         let options = (j.options ?? []).map((o) => clean(o.label ?? o.textEn ?? o.value ?? o)).filter(Boolean);
         if ((qt === "yes_no" || qt === "boolean") && options.length === 0) options = ["Yes", "No"];
         if (type.startsWith("multi_value") && options.length === 0) type = "input_text";
-        questions.push({ group: "Questions", label: clean(qd.title), description: clean(qd.additionalInformation), required: !!(qd.required ?? j.required), name, type, options: type.startsWith("multi_value") ? options : [] });
+        questions.push({ group: "Questions", label: clean(qd.title), description: clean(qd.additionalInformation), required: !!(qd.required ?? j.required), name: field, type, options: type.startsWith("multi_value") ? options : [] });
       } else if (/equality_monitoring/.test(name)) {
         const topic = String(j.id ?? "").replace(/^application_form_equality_monitoring_/, "").replace(/_/g, " ");
         const options = (j.options ?? []).map((o) => clean(o.label)).filter(Boolean);

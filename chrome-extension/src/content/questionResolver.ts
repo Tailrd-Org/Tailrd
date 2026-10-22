@@ -495,6 +495,17 @@ function resolveWorkAuthorization(q: QuestionInput, n: string, facts: ProfileFac
   // SmartRecruiters bank, round 7) is a non-compete, not a work right: Yes for
   // everyone authorized. The non-compete default answers it.
   if (NON_COMPETE.test(n)) return null;
+  // A work right "as per the below ITAR requirements" (Impulse Space on
+  // Pinpoint, bank, round 8) is the export rule's, and was Yes for an H-1B
+  // and an OPT holder: a citizen or permanent resident meets it, someone not
+  // allowed to work in the US does not, and a visa holder may yet obtain an
+  // export authorization: theirs to say (as decision 62).
+  if (/\b(itar|export (control\w*|regulations?)|(u ?s|united states) persons?)\b/.test(n) && WORK_RIGHT.test(n) && (isBooleanQuestion(q) || isYesNoDropdown(q, n))) {
+    const us = facts.workAuth.byCountry.get("US");
+    if (us?.authorized === false) return booleanResult(false, q, "work-auth-itar:not-authorized");
+    if (us?.basis === "citizen" || us?.basis === "permanent_resident") return booleanResult(true, q, "work-auth-itar:us-person");
+    return abstain("work-auth-itar:unknown");
+  }
   const h1b = resolveH1bHistory(q, n, profile);
   if (h1b) return h1b;
   const opt = resolveOptExtension(q, n, profile);
@@ -2514,6 +2525,14 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
       return abstain("graduation:not-enrolled");
     }
     return abstain("graduation:no-unique-option");
+  }
+  // A semester asked ("What is your intended semester and year of
+  // graduation?", RF-SMART on Greenhouse; "…(please include year &
+  // semester)?", SDL on JazzHR; banks, round 8: the year alone): the month
+  // and year, which name it whatever the school's terms are called; nothing
+  // from a year alone (decision 73).
+  if (/\bsemesters?\b|\b(graduation|graduating) (term|season)\b|\b(term|season) of graduation\b/.test(n) && q.kind !== "date") {
+    return g.precision === "year" ? abstain("graduation:month-unknown") : answer(`${monthName} ${year}`, "graduation:semester");
   }
   // "…expected month and year of graduation?" in a text box (NinjaHoldings on
   // Breezy, live 2026-10-03: "2027" for December 2027): the month it asks
