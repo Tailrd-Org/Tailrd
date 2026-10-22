@@ -357,7 +357,9 @@ function consentOptionsOverride(
   current: { category: FieldCategory; confidence: number; sensitive: boolean },
   options: string[]
 ): { category: FieldCategory; confidence: number; sensitive: boolean } {
-  const real = options.filter((o) => o.trim() && !isPlaceholderFiller(o));
+  // JazzHR's own "-- No answer --" first is no option either (Space Dynamics
+  // Lab, JazzHR bank, round 8: the override never fired under it).
+  const real = options.filter((o) => o.trim() && !isPlaceholderFiller(o) && !SELECT_PLACEHOLDER.test(o.trim()));
   if (current.category !== "unknown" && real.length > 0 && real.every(isConsentOption)) {
     return { category: "unknown", confidence: current.confidence, sensitive: false };
   }

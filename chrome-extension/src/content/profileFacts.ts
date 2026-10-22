@@ -277,6 +277,9 @@ export interface CountryAuth {
   /** Needs sponsorship now or in the future there. */
   needsSponsorship: boolean | null;
   basis: AuthBasis;
+  /** The right is a visa an employer sponsors (H-1B, L-1, E-3, O-1, TN): held
+   *  for that employer only, not for any employer. */
+  employerTied?: boolean;
 }
 
 export interface WorkAuthFacts {
@@ -462,7 +465,7 @@ export function workAuthFacts(profile: UserApplicationProfile): WorkAuthFacts {
     if (f.deny) auth = { authorized: false, needsSponsorship: null, basis: "denied" };
     else if (citizen && !f.pr && !f.student && !f.permit) auth = { authorized: true, needsSponsorship: false, basis: "citizen" };
     else if (f.pr && !f.student && !f.permit) auth = { authorized: true, needsSponsorship: false, basis: "permanent_resident" };
-    else if (f.sponsoredVisa) auth = { authorized: true, needsSponsorship: true, basis: "work_permit" };
+    else if (f.sponsoredVisa) auth = { authorized: true, needsSponsorship: true, basis: "work_permit", employerTied: true };
     else if (f.student) auth = { authorized: null, needsSponsorship: null, basis: "student" };
     else if (f.permit) auth = { authorized: true, needsSponsorship: null, basis: "work_permit" };
     else if (f.affirmative) auth = { authorized: true, needsSponsorship: null, basis: "statement" };
@@ -1235,6 +1238,7 @@ function applyExplicitCountries(profile: UserApplicationProfile, byCountry: Map<
       authorized: p,
       needsSponsorship: p ? (prev?.needsSponsorship ?? null) : true,
       basis: p && prev ? prev.basis : "stated",
+      ...(p && prev?.employerTied ? { employerTied: true } : {}),
     });
   }
 }

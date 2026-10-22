@@ -35,6 +35,9 @@ const LOCATION_SELECTORS = [
   // SmartRecruiters' one-click page names the place only in its top bar
   // (Boston Engineering, live, round 8: no job country on any of its pages).
   '[data-test="topbar-location"]',
+  // JazzHR's apply page: a job attribute titled Location (none of the JazzHR
+  // bank's 86 pages had a job country, round 8).
+  '.job-attributes-container [title="Location"]',
 ];
 
 const ATS_NAMES = /^(greenhouse|lever|workday|ashby|ashbyhq|workable|smartrecruiters|bamboohr|jobvite|icims|taleo|oracle|successfactors|careers|jobs|job board|job boards)$/i;

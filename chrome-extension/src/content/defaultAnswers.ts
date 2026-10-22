@@ -471,7 +471,9 @@ function ownSite(option: string, company: string): boolean {
   // Every remaining word is the company's ("Appian Careers Website" for
   // "Appian Corporation", "Lucid Careers Page" for "Lucid Motors").
   const own = new Set(words(company));
-  return rest.every((w) => own.has(w));
+  // Shortened too: "Space Dynamics Lab Website" for "Space Dynamics
+  // Laboratory" (JazzHR bank, round 8: "Other" for a stated company website).
+  return rest.every((w) => own.has(w) || (w.length >= 3 && [...own].some((c) => c.length > w.length && c.startsWith(w))));
 }
 
 /**

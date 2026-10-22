@@ -820,7 +820,7 @@ function formatEducation(profile: UserApplicationProfile): string | null {
  *  the abbreviation's OWN final period ("B.S. Electrical Engineering") is only
  *  reachable by the `\.?` that follows the boundary. */
 const DEGREE_PREFIX_RE =
-  /^\s*(bachelor(?:'?s)?(?:\s+of\s+(?:science|arts|engineering|commerce|business))?|master(?:'?s)?(?:\s+of\s+(?:science|arts|engineering|business administration))?|doctor(?:ate)?(?:\s+of\s+philosophy)?|ph\.?\s?d\.?|b\.?\s?(?:sc?|a|eng|comm)\.?|m\.?\s?(?:sc?|a|eng|ba)\.?|associate(?:'?s)?|diploma|certificate)\b\.?[\s,]*(?:degree\b[\s,]*)?(?:in|of)?\b[\s,]*/i;
+  /^\s*(bachelor(?:'?s)?(?:\s+of\s+(?:science|arts|engineering|commerce|business(?!\s+administration)))?|master(?:'?s)?(?:\s+of\s+(?:science|arts|engineering|business administration))?|doctor(?:ate)?(?:\s+of\s+philosophy)?|ph\.?\s?d\.?|b\.?\s?(?:sc?|a|eng|comm)\.?|m\.?\s?(?:sc?|a|eng|ba)\.?|associate(?:'?s)?|diploma|certificate)\b\.?[\s,]*(?:degree\b[\s,]*)?(?:in|of)?\b[\s,]*/i;
 
 /**
  * The subject of a degree string, Workday's "Field of Study" dropdown, which

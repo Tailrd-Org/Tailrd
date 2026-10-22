@@ -53,8 +53,10 @@ function norm(text: string): string {
  * Decline-to-answer options carry negation words ("Prefer NOT to say") that
  * must never be read as a "No".
  */
+// "Do not wish / want" declines only to answer: "No, I do not wish to relocate
+// or support onsite." (Space Dynamics Lab on JazzHR, bank, round 8) is a No.
 const DECLINE_RE =
-  /\b(prefer not|rather not|decline|choose not|not (to )?(say|answer|disclose|specify|wish)|do not (wish|want|know)|dont (wish|want|know)|undisclosed|no answer|not applicable|n a|unsure|not sure|maybe|unknown)\b|^(na|n a|other)$/;
+  /\b(prefer not|rather not|decline|choose not|not (to )?(say|answer|disclose|specify)|(do not|dont|not) (wish|want)( to (answer|say|disclose|share|provide|specify|identify|self identify|respond|state|declare|be identified|complete|participate|fill))?$|(do not|dont|not) (wish|want) to (answer|say|disclose|share|provide|specify|identify|self identify|respond|state|declare|be identified|complete|participate|fill)|do not know|dont know|undisclosed|no answer|not applicable|n a|unsure|not sure|maybe|unknown)\b|^(na|n a|other)$/;
 
 /**
  * Yes/No polarity of an option or answer text, or null when it has none.
@@ -86,8 +88,10 @@ export function optionPolarity(text: string): boolean | null {
 /** An option that only gives or refuses consent: "I consent", "I do not
  *  Consent", "Yes, I agree", "I acknowledge". A question offering nothing
  *  else is an acknowledgement, whatever its paragraph mentions. */
+// "I understand and accept these terms" too (Space Dynamics Lab on JazzHR,
+// bank, round 8: its disability sentence made it a self-ID question).
 export function isConsentOption(text: string): boolean {
-  return /^(yes,? |no,? )?(i )?(do not |dont |will not |refuse to )?(consent|agree|acknowledge|accept|certify|authori[sz]e)\b/.test(norm(text));
+  return /^(yes,? |no,? )?(i )?((have read|read|understand|understood)( and| &|,)? )?(do not |dont |will not |refuse to )?(consent|agree|acknowledge|accept|certify|authori[sz]e)\b/.test(norm(text));
 }
 
 /** An option set that is a Yes/No choice (possibly with a decline / maybe option). */
