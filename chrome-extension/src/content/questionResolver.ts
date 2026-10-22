@@ -1579,7 +1579,13 @@ function resolveYearsOfExperience(q: QuestionInput, n: string, facts: ProfileFac
   // (AlayaCare, question bank 2026-10-05) got the career total.
   const paren = /\bexperience\b[^?(]*\(([^)]{2,80})\)/i.exec(q.label);
   if (paren && !/^\s*(in )?(years?|total|approx\w*|overall)\b/i.test(paren[1])) return abstain("years-experience:narrowed");
-  const total = facts.employment.totalYears;
+  // Full-time years, co-ops and internships left out when the question says
+  // so ("Do not include time from co-ops, internships, or school work", Heron
+  // Power on Ashby, bank, round 8: a student's co-op gave "1").
+  const fullTimeOnly = /\b(do not|don t|not|excluding|exclude)\b[^?.]{0,30}\b(include|including|count|counting)?\b[^?.]{0,20}\b(co ?ops?|internships?|interns?)\b|\bexcluding (co ?ops?|internships?)\b/.test(n);
+  // (Only when it leaves something out: a stated career total stands.)
+  const emp = facts.employment;
+  const total = fullTimeOnly && isHigh(emp.fullTimeYears) && isHigh(emp.datedYears) && emp.fullTimeYears.value < emp.datedYears.value ? emp.fullTimeYears : emp.totalYears;
   if (!isHigh(total)) return abstain("years-experience:unknown");
   if (domainWords.length > 0) {
     const phrase = domainWords.join(" ");

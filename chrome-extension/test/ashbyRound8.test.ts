@@ -174,3 +174,15 @@ describe("source lists in the new Ashby bank (round 8)", () => {
     expect(ask("US_OPT_ANALYST", "How did you hear about Commure?", COMMURE, "Commure")).toBe("Other Job Boards");
   });
 });
+
+describe("full-time years without co-ops and internships (Heron Power, Ashby bank, round 8)", () => {
+  const Q = "How many years of full-time industry experience do you have? Do not include time from co-ops, internships, or school work.";
+  it("a student's co-op is no full-time year", () => {
+    // COMPLETE_CANADIAN's jobs are a co-op and an internship: "1" was written.
+    expect(ask("COMPLETE_CANADIAN", Q, [], "Heron Power")).toBe("0");
+    expect(ask("INDIA_NEW_GRAD", Q, [], "Heron Power")).toBe("0");
+  });
+  it("a career's full-time years count", () => {
+    expect(ask("BERLIN_STAFF", Q, [], "Heron Power")).toBe("14");
+  });
+});

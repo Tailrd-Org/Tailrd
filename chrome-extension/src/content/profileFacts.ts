@@ -1332,6 +1332,10 @@ export interface EmploymentFacts {
   /** The same from the dated rows alone, whatever figure the profile states:
    *  a stated "3" may count only a new career. */
   datedYears: Fact<number> | null;
+  /** The dated rows' years without internships, co-ops and student jobs: "Do
+   *  not include time from co-ops, internships, or school work" (Heron Power,
+   *  Ashby bank, round 8). */
+  fullTimeYears: Fact<number> | null;
   currentCompany: Fact<string> | null;
   currentTitle: Fact<string> | null;
   /** The most recent row whether or not it is current ("previous employer"). */
@@ -1377,8 +1381,8 @@ export function employmentFacts(profile: UserApplicationProfile, today: Date): E
   // could not read might be years long, so the total would be a lower bound.
   let totalYears: Fact<number> | null = null;
   let datedYears: Fact<number> | null = null;
-  if (spans.length > 0) {
-    const sorted = [...spans].sort((a, b) => a.start.getTime() - b.start.getTime());
+  const mergedYears = (list: typeof spans): number => {
+    const sorted = [...list].sort((a, b) => a.start.getTime() - b.start.getTime());
     const merged: Array<[Date, Date]> = [];
     for (const { start, end } of sorted) {
       const last = merged[merged.length - 1];
@@ -1387,9 +1391,14 @@ export function employmentFacts(profile: UserApplicationProfile, today: Date): E
       } else merged.push([start, end]);
     }
     const days = merged.reduce((sum, [a, b]) => sum + (b.getTime() - a.getTime()) / DAY_MS + 1, 0);
-    const years = Math.round((days / 365.25) * 100) / 100;
-    datedYears = fact(years, undatable === 0 ? "high" : "medium", "experience:merged-spans");
+    return Math.round((days / 365.25) * 100) / 100;
+  };
+  if (spans.length > 0) {
+    datedYears = fact(mergedYears(spans), undatable === 0 ? "high" : "medium", "experience:merged-spans");
   }
+  const STUDENT_JOB = /\b(intern|internship|co ?-?op|placement|student|apprentice|trainee|teaching assistant|research assistant|graduate assistant)\b/i;
+  const fullTime = spans.filter((s) => !STUDENT_JOB.test(s.row.title || ""));
+  const fullTimeYears: Fact<number> | null = spans.length > 0 ? fact(mergedYears(fullTime), undatable === 0 ? "high" : "medium", "experience:full-time-spans") : null;
   const stated = parseFloat((profile.yearsOfExperience || "").replace(/[^0-9.]/g, ""));
   if (profile.yearsOfExperience?.trim() && Number.isFinite(stated)) {
     totalYears = fact(stated, "high", "profile:yearsOfExperience");
@@ -1433,6 +1442,7 @@ export function employmentFacts(profile: UserApplicationProfile, today: Date): E
   return {
     totalYears,
     datedYears,
+    fullTimeYears,
     currentCompany,
     currentTitle,
     mostRecentCompany,
