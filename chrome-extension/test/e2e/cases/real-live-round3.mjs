@@ -85,7 +85,9 @@ export default [
       "#resumator-questionnaire-q906300": "2015",
       // Its how-you-heard question (q1914219) left the form by 2026-10-22.
       "#resumator-questionnaire-q3049033": "Yes",
-      "#resumator-questionnaire-q3049726": "No",
+      // "Did/Do you attend university in Southern California…?" left the form
+      // by 2026-10-22 (its apply page, GET): checked if it comes back.
+      "#resumator-questionnaire-q3049726": { ifPresent: "No" },
       "label:First Name": "Siobhán",
       "label:Last Name": "O'Neill",
       "label:Email Address": "siobhan.oneill@example.co.uk",

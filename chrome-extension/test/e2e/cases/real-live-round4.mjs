@@ -93,6 +93,13 @@ export default [
       "#form_declaration_7_0_6": "checked",
       // A subscription: never ticked for the applicant.
       "label:Check this box to join the talent community and sign up for": "",
+      // The education block added on 2026-10-22: the graduation (April 2027)
+      // as its month's number and its year (was "2027" in both, round 8's
+      // final regression); the profile has no start date.
+      "#question_7_0_4_1_0_end_month_--template--": "4",
+      "#question_7_0_4_1_0_end_year_--template--": "2027",
+      "#question_7_0_4_1_0_start_month_--template--": null,
+      "#question_7_0_4_1_0_start_year_--template--": null,
     },
   }),
   live({
@@ -664,21 +671,7 @@ export default [
       "#veteran_status": "I don't wish to answer",
     },
   }),
-  live({
-    id: "r4c-breezy-ninja",
-    ats: "breezy",
-    profile: US_OPT_ANALYST,
-    url: "https://ninjaholdings.breezy.hr/p/12b3ed96c30c-data-engineer-intern",
-    expect: {
-      "label:Full Name": "Ji-woo Park",
-      "label:Email Address": "jiwoo.park@example.com",
-      "name=cPhoneNumber": "+1 617 555 0148",
-      "radio=section_1648044732427_question_0": "Yes",
-      "name=section_1648044732427_question_1": "May 2025",
-      "radio~Are you currently eligible to work in the United States or C": "Yes",
-      "radio~Will you EVER require sponsorship to work in the United Stat": "Yes",
-    },
-  }),
+  // r4c-breezy-ninja retired 2026-10-22: the posting closed (its page reads "Position Closed", and Breezy's position list no longer has it).
   live({
     id: "r4c-pinpoint-franklin",
     ats: "pinpoint",

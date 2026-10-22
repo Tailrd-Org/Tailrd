@@ -268,6 +268,8 @@ export default [
       "label:If you selected \"Other,\" please specify how you heard about ": null,
       "label:Are you legally eligible to work in Canada?": "Yes",
       "label:I have read and understand the Export Control statement incl": "Yes",
+      // The degree in progress (round 8's final regression; a graduate's is blank).
+      "label:Current level of education pursuing": "Bachelor's Degree",
     },
   }),
   live({
@@ -567,6 +569,8 @@ export default [
       "label:Preferred Pronouns": null,
       "label:Email": "ananya.raghavan@example.in",
       "label:Cell Phone": "+91 98450 12345",
+      // Address line 1: the street with its locality, the city apart (round 8).
+      "#jv-field-yiV30fw0": "14, 5th Cross, Indiranagar",
       "label:Country": "India",
       "label:City": "Bengaluru",
       "label:State": "Not Applicable",
