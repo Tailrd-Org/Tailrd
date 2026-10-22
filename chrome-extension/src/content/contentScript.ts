@@ -69,7 +69,8 @@ import { liveControlFor } from "./staleControl";
 import { loadWorkableGuesses, workableShortcode } from "./pageGuesses";
 import { defaultSelectedIds, fillSelection, isDefaultSelected } from "../shared/selection";
 import { extractJobContext, extractJobIdentity } from "./jobContext";
-import { detectJobPlace, sanitizeCompany, type JobPlace } from "./jobLocation";
+import { createJobContextReader } from "./jobContextRefresh";
+import { detectJobPlace } from "./jobLocation";
 import { degreeAtALevel, EEO_DECLINE, getResolveContext, setResolveContext } from "./fieldResolver";
 import { formCountryHint } from "./questionResolver";
 import { isHigh, profileFacts } from "./profileFacts";
@@ -454,39 +455,11 @@ function initialize(): void {
     }
   })();
 
-  // The job's country, city and company, read once per URL: the question
-  // resolver answers "authorized to work in THIS country?" for the job's
-  // country, and "located here, or would you relocate?" for its city.
-  let resolveContextUrl = "";
-  let pagePlaceFound = false;
+  // The job's country, city and company (jobContextRefresh.ts): read once per
+  // URL, then again until the page names them.
+  const jobContextReader = createJobContextReader();
   function refreshResolveContext(): void {
-    if (resolveContextUrl === location.href) {
-      // Workable renders the posting's header after the first scan (Mindex,
-      // live 2026-10-03: "onsite at our Rochester office?" never saw
-      // Rochester, New York). Read again until the page names a place; a place
-      // adopted from outside stays unless the page itself names one.
-      if (pagePlaceFound) return;
-      try {
-        const late = detectJobPlace(document);
-        if (late.country || late.places?.length) {
-          pagePlaceFound = true;
-          setResolveContext({ jobCountry: late.country ?? getResolveContext().jobCountry, jobCity: late.city, jobPlaces: late.places ?? null });
-        }
-      } catch {
-        // The page's own place stays unknown; nothing to change.
-      }
-      return;
-    }
-    resolveContextUrl = location.href;
-    let place: JobPlace = { country: null, city: null };
-    try {
-      place = detectJobPlace(document);
-      setResolveContext({ jobCountry: place.country, jobCity: place.city, jobPlaces: place.places ?? null, company: sanitizeCompany(extractJobIdentity().company) });
-    } catch {
-      setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
-    }
-    pagePlaceFound = Boolean(place.country || place.places?.length);
-    if (!place.country) void adoptOutsidePlace(resolveContextUrl);
+    if (jobContextReader.refresh(document, location.href)) void adoptOutsidePlace(jobContextReader.url);
   }
 
   /** The place this frame cannot see, from the page around it (an embedded
@@ -504,7 +477,7 @@ function initialize(): void {
   async function adoptCarriedJobCountry(forUrl: string): Promise<boolean> {
     try {
       const cached = await getLastJobContext();
-      if (!cached?.country || resolveContextUrl !== forUrl) return false;
+      if (!cached?.country || jobContextReader.url !== forUrl) return false;
       const from = new URL(cached.url);
       if (from.host !== location.host) return false;
       // The SAME job only: an application step continues its posting's path
@@ -530,7 +503,7 @@ function initialize(): void {
     if (isTopFrame) return false;
     try {
       const resp = await sendToBackground<JobPlaceResponse>({ type: "TOP_JOB_PLACE_GET" });
-      if (!resp?.ok || !resp.country || resolveContextUrl !== forUrl) return false;
+      if (!resp?.ok || !resp.country || jobContextReader.url !== forUrl) return false;
       setResolveContext({
         jobCountry: resp.country,
         jobCity: resp.city ?? null,
@@ -546,7 +519,7 @@ function initialize(): void {
    *  page around it again (that page may have loaded after this frame). */
   async function ensureJobPlace(): Promise<void> {
     if (isTopFrame || getResolveContext().jobCountry) return;
-    await adoptTopFramePlace(resolveContextUrl);
+    await adoptTopFramePlace(jobContextReader.url);
   }
 
   /** A field's label for diagnostics (labels only, never the values). */
