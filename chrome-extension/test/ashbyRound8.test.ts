@@ -246,8 +246,10 @@ describe("source lists: the Greenhouse bank's re-run of the fixes above (round 8
   const AIRBNB = ["Company Website (Airbnb Careers)", "Third-party website or search engine", "Social media (Facebook, LinkedIn, Twitter, Instagram)", "Airbnb Tech blog post", "Airbnb.io", "Airbnb Open Source", "Event (Tech Talk, Meetup, conference)", "Airbnb Employee", "Friend, family, colleague", "Other"];
   const FIVETRAN = ["Afrotech", "Built In Colorado", "Built In SF", "Career fair", "Conference", "Existing Employee", "Facebook advertisement", "Glassdoor", "Google search", "HBCU Connect", "Indeed", "LinkedIn advertisement", "LinkedIn job search", "Mentorli", "Other", "Referred", "Word of mouth"];
   const PLANET = ["BuiltIn Article", "BuiltIn Job Search", "Conference", "Event", "Glassdoor Article", "Glassdoor Job Search", "Indeed", "Instagram", "LinkedIn Company Post", "LinkedIn Employee Post", "LinkedIn Job Search", "News Article", "Other - Event", "Other - Job Site", "Other - Social Media", "Other - Webinar", "Otta", "Planet Event", "Planet Webinar"];
-  it("the social media channel names platforms only as examples (Airbnb)", () => {
+  it("the social media channel names platforms only as examples (Airbnb, Cloudflare)", () => {
     expect(ask("BOOTCAMP_CAREER_GAP", "How did you hear about this job?", AIRBNB, "Airbnb")).toBe(AIRBNB[2]);
+    const CLOUDFLARE = ["Grace Hopper Celebration", "College/University Career Fair or Career Website", "Word of mouth from peers, friends, others", "Cloudflare social media: Twitter, Blog, etc.", "Linkedin", "Google", "Referral", "Other conferences or events", "Other (none of the above)"];
+    expect(ask("BOOTCAMP_CAREER_GAP", "How did you hear about this job?", CLOUDFLARE, "Cloudflare")).toBe(CLOUDFLARE[3]);
   });
   it("a referral takes 'Referred' before word of mouth (Fivetran)", () => {
     expect(ask("BERLIN_STAFF", "How did you hear about Fivetran + dbt Labs?", FIVETRAN, "Fivetran")).toBe("Referred");
@@ -255,5 +257,15 @@ describe("source lists: the Greenhouse bank's re-run of the fixes above (round 8
   it("'Other - Webinar' is no list's Other (Planet)", () => {
     expect(ask("BERLIN_STAFF", "How did you first hear about Planet before applying for this position?", PLANET, "Planet")).toBeNull();
     expect(ask("US_H1B_SENIOR", "How did you first hear about Planet before applying for this position?", PLANET, "Planet")).toBeNull();
+  });
+});
+
+describe("a stated channel the list offers twice is the applicant's pick (Vercel, Greenhouse bank)", () => {
+  const VERCEL = ["Events", "Built In", "LinkedIn", "Google Search", "Advertisements", "Other job boards", "LLMs (ChatGPT, etc.)", "I'm a Vercel customer", "Referral from a Vercel customer", "Referral from a Vercel team member", "Social media (X, Instagram, YouTube, etc.)", "Other Content (news articles, podcasts, blogs)", "Developer communities (GitHub, Hacker News, Reddit, etc.)", "Other"];
+  it("a referral among two referrals is no Other", () => {
+    expect(ask("BERLIN_STAFF", "Where did you first hear about this role?", VERCEL, "Vercel")).toBeNull();
+  });
+  it("a channel it does not offer is its Other", () => {
+    expect(ask("US_H1B_SENIOR", "Where did you first hear about this role?", VERCEL, "Vercel")).toBe("Other");
   });
 });

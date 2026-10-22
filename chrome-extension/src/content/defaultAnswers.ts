@@ -538,9 +538,10 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
           : /social/.test(said.source)
             ? // Social media is no one platform's: "LinkedIn Social Post" took it
               // (1Password on Ashby, bank, round 8; decision 9).
-              // "Social media (Facebook, LinkedIn, Twitter)" names platforms only
-              // as examples (Airbnb, D2L, Mixpanel on Greenhouse, bank re-run).
-              (o: string) => !outreach(o) && !NAMED_SOURCE.test(qn(o.replace(/\([^)]*\)/g, " ")))
+              // "Social media (Facebook, LinkedIn, Twitter)" and "Cloudflare social
+              // media: Twitter, Blog, etc." name platforms only as examples
+              // (Airbnb, D2L, Mixpanel, Cloudflare on Greenhouse, bank re-run).
+              (o: string) => !outreach(o) && !NAMED_SOURCE.test(qn(o.replace(/\([^)]*\)/g, " ").replace(/:.*$/, " ")))
             : (o: string) => !outreach(o);
       const hit = unique(offered, keep);
       if (hit) return answer(hit, "source:stated");
@@ -574,6 +575,10 @@ function chooseSource(q: QuestionInput, profile: UserApplicationProfile, company
       const GENERIC_SITE = /^(internet|online|web|career|careers|employment|site|sites|website|websites|page|pages|portal|job|jobs|the|an?|official)$/;
       const genericSite = (o: string): boolean => /\b(career|careers|employment) (site|sites|website|websites|page|pages|portal)\b/.test(qn(o)) && qn(o).split(" ").every((w) => GENERIC_SITE.test(w));
       if (/\bwebsite\b|\bsite\b|\bcareers? page\b/.test(stated) && opts.some(genericSite)) return null;
+      // The channel offered more than one way ("Referral from a Vercel
+      // customer" | "Referral from a Vercel team member", Greenhouse bank):
+      // which one is theirs, never "Other".
+      if (SOURCE_SYNONYMS.some(([said, offered]) => said.test(stated) && opts.filter((o) => offered.test(qn(o)) && !/^other\b/.test(qn(o))).length > 1)) return null;
       const other = listOther(opts);
       return other.length === 1 ? answer(other[0], "source:stated-other") : null;
     }
