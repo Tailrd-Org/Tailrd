@@ -134,3 +134,24 @@ describe("the Lever bank's re-run (round 8)", () => {
     expect(field?.proposedValue ?? null).toMatch(/^(yes|I acknowledge)$/);
   });
 });
+
+/**
+ * Palantir on Lever (round 8's regression, live): "Give us three numbers that
+ * describe you - and tell us why. … We're not looking for your predicted
+ * grades or your age - …" (a textarea in a card) was written "22", the
+ * applicant's age: "your age" anywhere was the age question.
+ */
+describe("an age the question says it is not asking for", () => {
+  const THREE_NUMBERS =
+    "Give us three numbers that describe you - and tell us why. They can be anything: a stat from your life, a score, a streak, a count, a ranking, a time. The number itself matters less than what it reveals about you. We're not looking for your predicted grades or your age - we want the numbers you choose to give us insight into who you are.";
+  it("is no age question, in a card's textarea or a text box", () => {
+    document.body.innerHTML = `<form id="application-form"><ul><li class="application-question custom-question"><div class="application-label full-width"><div class="text">${esc(THREE_NUMBERS)}</div></div><div class="application-field full-width"><textarea class="card-field-input" name="cards[262ed6b7-e6fc-4130-81ab-749cc54c56d8][field1]"></textarea></div></li></ul></form>`;
+    const f = scanPage(persona("COMPLETE_CANADIAN"), true).fields.find((x) => x.label.startsWith("Give us three numbers"));
+    expect(f).toBeDefined();
+    expect(f?.proposedValue ?? null).toBeNull();
+    expect(scanned(["COMPLETE_CANADIAN"], THREE_NUMBERS, [], "Denver, CO, United States")).toEqual({ COMPLETE_CANADIAN: null });
+  });
+  it("an age asked is still the age", () => {
+    expect(scanned(["COMPLETE_CANADIAN"], "What is your age?", [], "Denver, CO, United States")).toEqual({ COMPLETE_CANADIAN: "22" });
+  });
+});

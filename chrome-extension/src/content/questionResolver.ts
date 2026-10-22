@@ -1538,6 +1538,11 @@ function resolveAge(q: QuestionInput, n: string, facts: ProfileFacts): QuestionR
     return booleanResult(under ? !meets : meets, q, "age-gate");
   }
   if (/\b(what is your age|your age|age range|how old are you|age group)\b/.test(n)) {
+    // "We're not looking for your predicted grades or your age" (Palantir's
+    // "Give us three numbers that describe you", a textarea on Lever, live,
+    // round 8) got "22": an age it says it is not asking for, and an age is
+    // never a paragraph.
+    if (/\b(not|never|without|regardless of|irrespective of)\b(\s+\S+){0,8}\s+(your )?age\b/.test(n) || q.kind === "longText") return null;
     if (!facts.age || facts.age[0] !== facts.age[1]) return abstain("age:no-exact-dob");
     const age = String(facts.age[0]);
     if (q.options && q.options.length) {
