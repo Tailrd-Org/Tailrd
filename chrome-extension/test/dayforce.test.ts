@@ -73,3 +73,26 @@ describe("Dayforce", () => {
     expect(start?.proposedValue ?? null).toBeNull();
   });
 });
+
+/** An education row: its "Not Completed" box is numbered like the work rows
+ *  (Woodmen of the World, live, round 8). */
+const educationRow = (n: number): string => {
+  const id = (f: string): string => `jobPostingApplication_educationHistory_${n}_${f}`;
+  return `<div>
+    ${item(id("degree"), "Degree", `<input id="${id("degree")}" class="ant-input" type="text" value="">`)}
+    ${item(id("notCompleted"), "Not Completed", `<label class="ant-checkbox-wrapper"><span class="ant-checkbox"><input id="${id("notCompleted")}" class="ant-checkbox-input" type="checkbox"><span class="ant-checkbox-inner"></span></span></label>`)}
+  </div>`;
+};
+
+describe("Dayforce's education rows", () => {
+  it("ticks Not Completed for a degree still in progress, and only for it", () => {
+    // Sent to the AI live for a Waterloo student graduating in April 2027.
+    const student = { ...person, education: [{ school: "University of Waterloo", degree: "Bachelor of Applied Science in Mechatronics Engineering", graduationYear: "2027" }, { school: "Toronto Metropolitan University", degree: "Certificate in Data Analytics", graduationYear: "2020" }] } as unknown as UserApplicationProfile;
+    document.body.innerHTML = `<form>${educationRow(0)}${educationRow(1)}</form>`;
+    const boxes = scanPage(student, false, null).fields.filter((f) => f.label === "Not Completed");
+    expect(boxes.map((f) => [f.groupIndex, f.proposedValue])).toEqual([
+      [0, "yes"],
+      [1, "no"],
+    ]);
+  });
+});

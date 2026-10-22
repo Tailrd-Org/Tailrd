@@ -1031,7 +1031,10 @@ function reclassifyBareAddress(
  *  an employment one. A wrapper naming both says nothing: Greenhouse's older
  *  boards put EMPLOYMENT rows in `.education-experience-block` (Lyft). */
 function inEducationBlock(el: HTMLElement): boolean {
-  for (let a = el.parentElement, i = 0; a && i < 8; a = a.parentElement, i++) {
+  // The control's own id first: Dayforce numbers each row's controls
+  // ("jobPostingApplication_educationHistory_0_notCompleted") inside wrappers
+  // that name nothing.
+  for (let a: HTMLElement | null = el, i = 0; a && i < 9; a = a.parentElement, i++) {
     const marks = `${a.id} ${typeof a.className === "string" ? a.className : ""} ${a.getAttribute("data-automation-id") ?? ""}`;
     const edu = /education/i.test(marks);
     const work = /employment|experience|work-?history/i.test(marks);
@@ -1086,7 +1089,7 @@ function reclassifyEducationRowDates(
   for (const f of fields) {
     const control = registry.get(f.id);
     const el = control?.el ?? control?.checkboxes?.[0] ?? null;
-    if (f.controlType === "checkbox" && el && profile && STILL_STUDENT.test(f.label) && inEducationBlock(el)) {
+    if (f.controlType === "checkbox" && el && profile && (STILL_STUDENT.test(f.label) || NOT_COMPLETED.test(f.label)) && inEducationBlock(el)) {
       const entry = educationRowFacts(profile, f.groupIndex);
       f.proposedValue = entry?.completed === false ? "yes" : entry?.completed === true ? "no" : null;
       // Computed from the profile, so selected on its own evidence: the label
@@ -1146,6 +1149,10 @@ function educationRowFacts(profile: UserApplicationProfile, groupIndex: number |
 
 /** "Still Student?", "Currently attending": the education row is in progress. */
 const STILL_STUDENT = /\bstill (a )?student\b|\bcurrent(ly)? (a )?student\b|\bcurrently (attending|enrolled|studying)\b|\bin progress\b/i;
+/** Dayforce's "Not Completed" box of an education row: ticked while the
+ *  degree is in progress, as "Still Student?" is (Woodmen of the World, live,
+ *  round 8: sent to the AI). Not a box that keeps the end date the page's. */
+const NOT_COMPLETED = /^\W*(not (yet )?completed?|incomplete|did not complete)\W*$/i;
 
 /** The education row around `el` has a "Still Student?" checkbox of its own. */
 function hasStillStudentBox(el: HTMLElement): boolean {

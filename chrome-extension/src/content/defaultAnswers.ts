@@ -124,8 +124,10 @@ const APPLICANT_RECORDED =
 
 /** A requirement of the posting the applicant accepts by applying. */
 // The third person too: "The candidate acknowledges that…" (Coveo, live 2026-10-05).
+// "Are you happy to work from our New York office 5 days a week?" is willing
+// (White Swan on Pinpoint, live, round 8: sent to the AI).
 const ACK_VERB =
-  /\b(acknowledges?|agrees?|understands?|confirms?|accepts?|comfortable|okay|ok|willing|able|open|prepared|available|can you|will you be able|are you able|works? for you)\b/;
+  /\b(acknowledges?|agrees?|understands?|confirms?|accepts?|comfortable|okay|ok|willing|happy|able|open|prepared|available|can you|will you be able|are you able|works? for you)\b/;
 // A work week too: "…commit to working a standard 40-hour, Monday-Friday work
 // week during the program?" (Viget on Lever, live, round 7).
 const WORK_WEEK = /\bwork ?weeks?\b|\bmonday (to |through |thru )?friday\b|\b\d+ ?h(ours?|rs?)? (per |a |each )?week\b/;

@@ -25,6 +25,15 @@ const gh = (board, id) => `https://job-boards.greenhouse.io/${board}/jobs/${id}`
 const ashby = (board, id) => `https://jobs.ashbyhq.com/${board}/${id}/application`;
 const lever = (board, id) => `https://jobs.lever.co/${board}/${id}/apply`;
 
+/** Comeet's job page opens its form in a frame of its own when "Apply for
+ *  this job" is clicked: the user's click, then the frame. */
+async function userOpensComeetForm(page) {
+  const apply = page.locator('button:has-text("Apply for this job")').first();
+  await apply.waitFor({ state: "attached", timeout: 15000 });
+  await apply.evaluate((el) => el.click());
+  await page.waitForSelector('iframe[src*="/apply?"]', { state: "attached", timeout: 15000 });
+}
+
 export default [
   // ------------------------- batch A: SmartRecruiters, to the screening step
   // What held round 7's postings on page 1 is the posting's own required
@@ -365,24 +374,35 @@ export default [
   live({ id: "r8e-gh-canonical", ats: "greenhouse", profile: UK_SENIOR, url: gh("canonical", "7661586") }),
   live({ id: "r8e-gh-dvtrading", ats: "greenhouse", profile: INDIA_NEW_GRAD, url: gh("dvtrading", "4732429005") }),
   live({ id: "r8e-gh-gusto", ats: "greenhouse", profile: US_OPT_ANALYST, url: gh("gusto", "8075901") }),
-  live({ id: "r8e-gh-samsara", ats: "greenhouse", profile: NEW_GRAD_DECLINER, url: gh("samsara", "8094371") }),
+  // The same race list for a race one option names ("Black / of African or
+  // African-American descent"): the multi-select's pick, where US_OPT_ANALYST's
+  // "Asian" (three options narrow it) is left blank.
+  live({ id: "r8e-gh-gusto2", ats: "greenhouse", profile: BOOTCAMP_CAREER_GAP, url: gh("gusto", "8075901") }),
+  // Samsara's job page carries no form until Apply opens Greenhouse's embed:
+  // the embed itself. COMPLETE_CANADIAN heard through LinkedIn, which the
+  // "Select all that apply" list names (NEW_GRAD_DECLINER's "Job board" left
+  // it blank by design).
+  live({ id: "r8e-gh-samsara", ats: "greenhouse", profile: COMPLETE_CANADIAN, url: "https://job-boards.greenhouse.io/embed/job_app?for=samsara&token=8094371" }),
 
   // -------------------------------------------------- batch F: the smaller ATSs
   // Prod's active postings (2026-10-21), fewest live cases first: Gusto,
   // Eightfold and Comeet had none, Dayforce, Pinpoint and ADP one each,
   // Recruitee two. Oracle Cloud's form sits behind an emailed PIN (round 3's
-  // case stops there): skipped.
-  live({ id: "r8f-gusto-cortrucent", ats: "gusto", profile: BOOTCAMP_CAREER_GAP, url: "https://jobs.gusto.com/postings/cortrucent-security-ai-generalist-entry-level-48971303-29ee-4940-a7c3-b99ef5a0ffc4" }),
-  live({ id: "r8f-gusto-vecna", ats: "gusto", profile: US_F1_STUDENT, url: "https://jobs.gusto.com/postings/vecna-ai-applied-scientist-intern-98494fff-2e4f-4ba2-be09-eb1e8e2303c3" }),
-  live({ id: "r8f-eightfold-qualcomm", ats: "eightfold", profile: US_GREENCARD_STUDENT, url: "https://qualcomm.eightfold.ai/careers/job/446721636765" }),
-  live({ id: "r8f-eightfold-bsci", ats: "eightfold", profile: US_OPT_ANALYST, url: "https://bostonscientific.eightfold.ai/careers/job/563602813563514" }),
-  live({ id: "r8f-comeet-vast", ats: "comeet", profile: INDIA_NEW_GRAD, url: "https://www.comeet.com/jobs/vastdata/43.001/top-graduate-software-engineer----v-force---rtp/F1.261" }),
-  live({ id: "r8f-comeet-pinnacle", ats: "comeet", profile: US_VETERAN, url: "https://www.comeet.com/jobs/pinnaclehomecare/1B.00E/st_-cloud-physical-therapist-home-health-ft/41.47D" }),
+  // case stops there): skipped. Eightfold's apply page loads its questions by
+  // POST (/api/application/v2/questions, the answers so far in its body), which
+  // the live rule blocks, so its form never renders: Qualcomm's and Boston
+  // Scientific's cases were dropped after the blind run. So was ADP's Community
+  // Care Plan posting: its Apply opened nothing live (NOTES, round 8).
+  // Gusto's posting page only links to its form ("Apply for …", no sign-in):
+  // the form itself.
+  live({ id: "r8f-gusto-cortrucent", ats: "gusto", profile: BOOTCAMP_CAREER_GAP, url: "https://jobs.gusto.com/postings/cortrucent-security-ai-generalist-entry-level-48971303-29ee-4940-a7c3-b99ef5a0ffc4/applicants/new" }),
+  live({ id: "r8f-gusto-vecna", ats: "gusto", profile: US_F1_STUDENT, url: "https://jobs.gusto.com/postings/vecna-ai-applied-scientist-intern-98494fff-2e4f-4ba2-be09-eb1e8e2303c3/applicants/new" }),
+  live({ id: "r8f-comeet-vast", ats: "comeet", profile: INDIA_NEW_GRAD, url: "https://www.comeet.com/jobs/vastdata/43.001/top-graduate-software-engineer----v-force---rtp/F1.261", beforeFill: userOpensComeetForm }),
+  live({ id: "r8f-comeet-pinnacle", ats: "comeet", profile: US_VETERAN, url: "https://www.comeet.com/jobs/pinnaclehomecare/1B.00E/st_-cloud-physical-therapist-home-health-ft/41.47D", beforeFill: userOpensComeetForm }),
   live({ id: "r8f-dayforce-york", ats: "dayforce", profile: US_H1B_SENIOR, url: "https://jobs.dayforcehcm.com/en-US/yss/candidateportal/jobs/4521" }),
   live({ id: "r8f-dayforce-woodmen", ats: "dayforce", profile: COMPLETE_CANADIAN, url: "https://jobs.dayforcehcm.com/en-US/woodmenlife/candidateportal/jobs/2855" }),
   live({ id: "r8f-pinpoint-impulse", ats: "pinpoint", profile: MONTREAL_CHANGER, url: "https://impulsespace.pinpointhq.com/en/postings/66981a77-8e79-4050-9818-4ed4209c5579" }),
   live({ id: "r8f-pinpoint-whiteswan", ats: "pinpoint", profile: UK_SENIOR, url: "https://whiteswandata.pinpointhq.com/en/postings/2d85b27e-e368-4b75-91d0-302e2904d31c" }),
   live({ id: "r8f-adp-dialight", ats: "adp", profile: NEW_GRAD_DECLINER, url: "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=162dfc0c-0a36-42b3-b562-4181df89cca8&jobId=942126" }),
-  live({ id: "r8f-adp-ccp", ats: "adp", profile: SPARSE_CANADIAN, url: "https://workforcenow.adp.com/mascsr/default/mdf/recruitment/recruitment.html?cid=5819e54c-5980-4670-adef-3258d4b05f16&jobId=574803" }),
   live({ id: "r8f-recruitee-huawei", ats: "recruitee", profile: BERLIN_STAFF, url: "https://huaweicanada.recruitee.com/o/intern-researcher-agentic-ai-1/c/new" }),
 ];
