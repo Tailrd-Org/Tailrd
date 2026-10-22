@@ -17,7 +17,7 @@
 import type { ControlType, FieldCategory, ResolveControl, UserApplicationProfile } from "../shared/types";
 import { resolveAnswerWithAdapter } from "./adapters/apply";
 import type { SiteAdapter } from "./adapters/types";
-import { answerKindOf, optionPolarity, valueFitsKind, type AnswerKind } from "./answerKind";
+import { ANSWER_LIST_SEPARATOR, answerKindOf, optionPolarity, valueFitsKind, type AnswerKind } from "./answerKind";
 import { dateFormatFor, fitDate, type DateFormat } from "./dateControl";
 import { cleanText, type FieldSignals } from "./domUtils";
 import { isHigh, profileFacts } from "./profileFacts";
@@ -850,7 +850,7 @@ function resolveFieldValue(input: FieldResolveInput): FieldResolution {
       const said = key(value);
       const whole = options.filter((o) => key(o) === said);
       if (whole.length === 1) return { value: whole[0], kind, source, rule, deviceAbstained: false };
-      const parts = value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+      const parts = value.split(ANSWER_LIST_SEPARATOR).map((s) => s.trim()).filter(Boolean);
       const hits = parts.map((p) => (input.sensitive ? demographicSnap(category, p, options) : snapToOption(options, p, category)));
       // One option, once: "No, I do not have a disability" splits on its own
       // comma, and both halves land on the same box ("No, I do not have a

@@ -128,7 +128,7 @@ export function matchOption<T>(
   // in "12+ weeks from offer acceptance" (Striveworks, live 2026-10-03: right
   // only by luck; a start next week would have landed there too).
   const isDate = /^\d{4}-\d{1,2}(-\d{1,2})?$|^\d{1,2}[/.-]\d{1,2}[/.-]\d{4}$/.test(target.trim());
-  const targetNum = isDate ? null : firstNumber(target);
+  const targetNum = isDate ? null : firstNumber(expandThousands(target.replace(/,/g, "")));
   if (targetNum !== null && ranged.length > 0) {
     const hits = ranged.filter((item) => {
       const range = parseRange(getText(item))!;
@@ -238,6 +238,15 @@ function firstNumber(text: string): number | null {
   return m ? parseFloat(m[0]) : null;
 }
 
+/** Thousands written "k" spelled out: "$40-45k" is 40000-45000 (the "k" of
+ *  a range's end is its start's too), "$55k+" 55000+ (Choice Solutions on
+ *  Paylocity, bank, round 8: a stated $85,000 found no bucket). */
+function expandThousands(text: string): string {
+  return text
+    .replace(/(\d+(?:\.\d+)?)(\s*(?:-|to|–)\s*\$?\s*)(\d+(?:\.\d+)?)\s*k\b/gi, (_, a, sep, b) => `${parseFloat(a) * 1000}${sep}${parseFloat(b) * 1000}`)
+    .replace(/(\d+(?:\.\d+)?)\s*k\b/gi, (_, a) => String(parseFloat(a) * 1000));
+}
+
 /**
  * Parse a bucketed-range option label ("2-3 years", "$90,000-$110,000",
  * "6+ years", "Under 1 year") into an inclusive [min, max] (Infinity for an
@@ -247,7 +256,7 @@ function parseRange(text: string): [number, number] | null {
   // Strip thousands separators and currency symbols so "$50,000-$70,000"
   // reads as "50000-70000", a "$" between the dash and the second number
   // would otherwise break the separator match below.
-  const cleaned = text.replace(/,/g, "").replace(/[$€£¥]/g, "");
+  const cleaned = expandThousands(text.replace(/,/g, "").replace(/[$€£¥]/g, ""));
   const between = cleaned.match(/(\d+(?:\.\d+)?)\s*(?:-|to|–|—)\s*(\d+(?:\.\d+)?)/i);
   if (between) return [parseFloat(between[1]), parseFloat(between[2])];
   const plus = cleaned.match(/(\d+(?:\.\d+)?)\s*\+/);

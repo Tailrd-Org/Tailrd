@@ -9,6 +9,7 @@
  * selected option off, so picking it again would remove it.
  */
 import type { DriverResult } from "./mainWorldClient";
+import { ANSWER_LIST_SEPARATOR } from "./answerKind";
 
 export interface EachItemResult {
   /** Items the widget holds now: picked here, or already shown. */
@@ -22,7 +23,7 @@ export async function driveEachItem(
   drive: (item: string) => Promise<DriverResult>,
   shown: () => string[]
 ): Promise<EachItemResult> {
-  const items = [...new Set(value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean))];
+  const items = [...new Set(value.split(ANSWER_LIST_SEPARATOR).map((s) => s.trim()).filter(Boolean))];
   const key = (s: string): string => s.toLowerCase().replace(/\s+/g, " ").trim();
   const added: string[] = [];
   let options: string[] | undefined;

@@ -13,6 +13,11 @@
  */
 import type { ControlType } from "../shared/types";
 
+/** Where a multi-select answer splits into its items: a comma, a semicolon or
+ *  a line break, but never a thousands comma ("$185,000" was "$185" and
+ *  "000": Choice Solutions on Paylocity, bank, round 8). */
+export const ANSWER_LIST_SEPARATOR = /[;\n]+|(?<!\d),|,(?!\d{3}(?!\d))/;
+
 export type AnswerKind =
   | "boolean"
   | "choice"

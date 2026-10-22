@@ -22,6 +22,7 @@ import {
 } from "./domUtils";
 import type { RuntimeControl } from "./formScanner";
 import { matchOption } from "./optionMatch";
+import { ANSWER_LIST_SEPARATOR } from "./answerKind";
 
 export { matchOption };
 
@@ -346,7 +347,7 @@ function matchRadio(radios: HTMLInputElement[], value: string): HTMLInputElement
 // Native checkbox groups ("select all that apply"), a multi-select answer may
 // name one or more options; check each matching box (additive, never unchecks).
 function answerParts(value: string): string[] {
-  const parts = value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean);
+  const parts = value.split(ANSWER_LIST_SEPARATOR).map((s) => s.trim()).filter(Boolean);
   return parts.length > 0 ? parts : [value.trim()].filter(Boolean);
 }
 

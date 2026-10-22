@@ -1701,7 +1701,11 @@ function resolveYearsOfExperience(q: QuestionInput, n: string, facts: ProfileFac
     if (!/^(total|industry|the industry|professional (setting|capacity|environment)s?|similar roles?|this field|the field|related fields?|the workforce|a professional|full time|paid)\b/.test(obj)) {
       domainWords.push(...obj.split(/\s+/).slice(0, 3));
       const dom = DOMAINS.find((d) => d.q.test(obj));
-      if (!dom) return short() ?? abstain("years-experience:narrowed");
+      // Languages, frameworks or tools are a skill's years, however their
+      // field is named: "…with backend web development languages such as
+      // PHP, JavaScript?" (Lightology on Paylocity, bank, round 8) took the
+      // career's lowest bucket, and a skill may be older than any job.
+      if (!dom || /\b(languages?|frameworks?|librar(y|ies)|tools?|technolog(y|ies)|databases?|tech stacks?)\b/.test(obj)) return short() ?? abstain("years-experience:narrowed");
     }
   }
   // A stack in parentheses after the experience narrows it too: "…fullstack
@@ -1997,9 +2001,11 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
 function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts): QuestionResult {
   const opts = (q.options ?? []).filter((o) => o.trim());
   const t = opts.map((o) => qnorm(o));
-  const isYear = (o: string): boolean => /^(freshman|sophomore|junior|senior)\b|^(1st|2nd|3rd|4th|5th|first|second|third|fourth|fifth) year\b/.test(o);
+  // "Undergraduate – Senior" (ATB on Paylocity, bank, round 8) names the year
+  // after its level.
+  const isYear = (o: string): boolean => /^(undergraduate |undergrad )?(freshman|sophomore|junior|senior)\b|^(1st|2nd|3rd|4th|5th|first|second|third|fourth|fifth) year\b/.test(o);
   if (t.filter(isYear).length < 3) return null;
-  if (!/\b(standing|year|level of education|academic level|classification|grade level)\b/.test(n)) return null;
+  if (!/\b(standing|year|level of education|academic level|academic status|student status|classification|grade level)\b/.test(n)) return null;
   const pick = (re: RegExp): string | null => {
     const hits = opts.filter((_, i) => re.test(t[i]));
     return hits.length === 1 ? hits[0] : null;
@@ -2014,7 +2020,14 @@ function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts):
     // Only a college degree graduates someone from a class-standing list: a
     // bootcamp certificate and high school are no college.
     const college = entries.some((x) => x.completed === true && x.rank !== null && x.rank >= 3);
-    const none = pick(/^(none of the above|not (currently )?(a student|enrolled)|not applicable|n a)\b/) ?? (college ? pick(GRADUATED) : null);
+    // A certificate program finished, where the list has one: "Technical,
+    // Trade, Vocational, or Certification Program (Completed)" (ATB on
+    // Paylocity, bank, round 8) for a bootcamp graduate.
+    const certified = !college && entries.some((x) => x.completed === true && x.rank === 2);
+    const none =
+      pick(/^(none of the above|not (currently )?(a student|enrolled)|not applicable|n a)\b/) ??
+      (college ? pick(GRADUATED) : null) ??
+      (certified ? pick(/\b(certificat\w*|vocational|trade)\b.*\bcompleted?\b/) : null);
     return none ? answer(none, "class-standing:not-enrolled") : abstain("class-standing:not-enrolled");
   }
   if (studying.some((x) => x.rank !== null && x.rank >= 5)) {
@@ -2045,7 +2058,7 @@ function resolveClassStanding(q: QuestionInput, n: string, facts: ProfileFacts):
   }
   const yearEnds = Date.UTC(start + 1, 7, 31);
   if (bachelor.graduation.latest.getTime() > yearEnds) return abstain("class-standing:program-length-unknown");
-  const last = pick(/^senior\b/) ?? pick(/^(4th|fourth) year (or|and) (above|higher|more|beyond)\b|^(4th|fourth) year\+/) ?? (t.some((o) => /^(5th|fifth) year\b/.test(o)) ? null : pick(/^(4th|fourth) year\b/));
+  const last = pick(/^(undergraduate |undergrad )?senior\b/) ?? pick(/^(4th|fourth) year (or|and) (above|higher|more|beyond)\b|^(4th|fourth) year\+/) ?? (t.some((o) => /^(5th|fifth) year\b/.test(o)) ? null : pick(/^(4th|fourth) year\b/));
   return last ? answer(last, "class-standing:final-year") : abstain("class-standing:no-unique-option");
 }
 
@@ -2488,6 +2501,9 @@ function resolveGraduation(q: QuestionInput, n: string, facts: ProfileFacts): Qu
       return g.precision === "year" ? abstain("graduation:month-unknown") : answer(formatDateFor(g.earliest, q), "graduation:stated-format");
     }
     if (stated && g.precision !== "day") return abstain("graduation:day-unknown");
+    // "(Month/Year)" in words (ATB on Paylocity, bank, round 8: "2014"):
+    // the month it asks for, which a year alone does not give (decision 73).
+    if (g.precision === "year" && /\bmonths?\b/.test(n)) return abstain("graduation:month-unknown");
     if (g.precision === "year") return answer(year, "graduation:year-as-date", "high");
     // A month is not a day: "April 2027" suits a text box and a month control,
     // and a day-precise picker gets nothing (dateControl), never an invented
@@ -3035,6 +3051,20 @@ function resolveLocalTo(q: QuestionInput, n: string, facts: ProfileFacts, profil
   // living in other metros or countries.
   // A purpose after the place is no part of it: "Are you local to the DMV to
   // accomodate a hybrid work schedule?" (Significance on Lever, live, round 8).
+  // "Are you residing in any of the following states: AL, CO, CT, …, and WY?"
+  // (Lightology on Paylocity, bank, round 8: blank for everyone): the home
+  // state among those listed, by code or name.
+  const listed = /\b(?:any of )?the following (?:u\.? ?s\.? )?(states|provinces)\b\s*:?\s*([^?]+)/i.exec(q.label);
+  if (listed && isBooleanQuestion(q) && /\b(local|located|based|living|residing|reside|live|lives)\b/.test(n)) {
+    const regions = listed[2].split(/\s*,\s*|\s+(?:and|or)\s+/).map((s) => regionFromText(s.trim().replace(/^(?:and|or)\s+/i, ""))).filter((r): r is NonNullable<typeof r> => r !== null);
+    const homeCountry = isHigh(facts.location.country) ? facts.location.country.value.code : null;
+    const homeRegion = isHigh(facts.location.region) ? facts.location.region.value : null;
+    if (regions.length >= 2) {
+      if (homeCountry && regions.every((r) => r.country !== homeCountry)) return booleanResult(false, q, "local:other-country");
+      if (homeRegion) return booleanResult(regions.some((r) => r.code === homeRegion.code && r.country === homeRegion.country), q, "local:listed-regions");
+      return abstain("local:unknown");
+    }
+  }
   const core = n.replace(/ (?:to|in order to|so as to|so that you can|for) (?:accommodate|accomodate|support|attend|allow|enable|work|commute|come|be able)\b.*$/, "");
   const now = /^(?:are you|you are) (?:currently )?(?:local|located|based|living|residing) (?:in or around|in or near|near or in|in around|within|around|near|to|in) (?:the )?(?:greater )?([a-z ]+?)(?: (?:metro|metropolitan))?(?: area| region)?$/.exec(core);
   // "Are you local to or willing to relocate?" (Shield AI on Lever) names no

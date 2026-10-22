@@ -24,6 +24,7 @@ import { matchOption } from "./writeEngine";
 import { looksLikePlaces, pickPlaceOption } from "./placeMatch";
 import { snapSchool } from "./schoolMatch";
 import { closestDemographicOption } from "./demographicMatch";
+import { ANSWER_LIST_SEPARATOR } from "./answerKind";
 import type { FieldCategory } from "../shared/types";
 import { regionFromText } from "./geo";
 import {
@@ -124,7 +125,7 @@ function isMultiSelect(trigger: HTMLElement): boolean {
  *  single-select, a single answer may legitimately contain a comma). Capped so
  *  a 30-skill profile can't turn one field into a minutes-long type/select loop. */
 function splitMultiValue(value: string): string[] {
-  return [...new Set(value.split(/[,;\n]+/).map((s) => s.trim()).filter(Boolean))].slice(0, 12);
+  return [...new Set(value.split(ANSWER_LIST_SEPARATOR).map((s) => s.trim()).filter(Boolean))].slice(0, 12);
 }
 
 /**
