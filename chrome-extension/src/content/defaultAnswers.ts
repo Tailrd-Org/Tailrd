@@ -457,8 +457,9 @@ function brandOf(text: string): string | null {
 function ownSite(option: string, company: string): boolean {
   // "Affirm’s Career Site", "Datadog's Careers Page": the possessive is the name.
   const words = (s: string): string[] => qn(s.replace(/['’]s\b/gi, "")).split(" ").filter(Boolean);
-  // Connectors too: "Miter website or careers page" (Ashby bank 2026-10-08).
-  const SITE = /^(company|corporate|careers?|carrieres?|our|the|official|website|web|site|page|jobs?|emplois?|portal|board|de|du|la|le|des|or|and|ou|et)$/;
+  // Connectors too: "Miter website or careers page" (Ashby bank 2026-10-08),
+  // and its blog: "Samsara blog or website" (Greenhouse bank, round 8).
+  const SITE = /^(company|corporate|careers?|carrieres?|our|the|official|website|web|site|page|jobs?|emplois?|portal|board|blog|blogs|de|du|la|le|des|or|and|ou|et)$/;
   const rest = words(option).filter((w) => !SITE.test(w));
   // Every remaining word is the company's ("Appian Careers Website" for
   // "Appian Corporation", "Lucid Careers Page" for "Lucid Motors").

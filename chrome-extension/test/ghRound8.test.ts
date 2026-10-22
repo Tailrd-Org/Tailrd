@@ -214,6 +214,22 @@ describe("Samsara's source list (live, round 8)", () => {
     const f = scanPage(persona("COMPLETE_CANADIAN"), true).fields.find((x) => x.label.startsWith("Where have you"));
     expect(f?.proposedValue ?? null).toBe("LinkedIn");
   });
+  const where = (who: string): string | null => {
+    document.body.innerHTML = `<form id="application-form">${select("q5", "Where have you learned about Samsara? Select all that apply.", WHERE)}</form>`;
+    setResolveContext({ jobCountry: "US", jobCity: null, jobPlaces: null, company: "Samsara" });
+    const v = scanPage(persona(who), true).fields.find((x) => x.label.startsWith("Where have you"))?.proposedValue ?? null;
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    return v;
+  };
+  it("the company's own website is its 'blog or website' (the bank's re-run took Other)", () => {
+    // US_H1B_SENIOR heard through the company website.
+    expect(where("US_H1B_SENIOR")).toBe("Samsara blog or website");
+  });
+  it("social media is no particular platform (round 4's decision 9)", () => {
+    // BOOTCAMP_CAREER_GAP heard through "Social media": never one of X,
+    // Instagram, Facebook, YouTube or TikTok; "Other", as on Twilio's list.
+    expect(where("BOOTCAMP_CAREER_GAP")).toBe("Other");
+  });
 });
 
 describe("Gusto's metro areas (live, round 8)", () => {
