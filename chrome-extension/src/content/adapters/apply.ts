@@ -59,15 +59,17 @@ export async function runAdapterOperations(
   adapter: SiteAdapter | null,
   items: { fieldId: string; value: string }[],
   getControl: (id: string) => RuntimeControl | undefined
-): Promise<{ opOutcomes: { fieldId: string; ok: boolean }[]; remaining: { fieldId: string; value: string }[] }> {
-  const opOutcomes: { fieldId: string; ok: boolean }[] = [];
+): Promise<{ opOutcomes: { fieldId: string; ok: boolean; reason?: string }[]; remaining: { fieldId: string; value: string }[] }> {
+  const opOutcomes: { fieldId: string; ok: boolean; reason?: string }[] = [];
   const remaining: { fieldId: string; value: string }[] = [];
   for (const it of items) {
     const control = getControl(it.fieldId);
     const op = control?.el ? tryAdapterOperation(adapter, { control, value: it.value, el: control.el }) : undefined;
     if (op) {
-      const r = await op.catch(() => ({ filled: false as const }));
-      opOutcomes.push({ fieldId: it.fieldId, ok: r.filled });
+      const r: AdapterFillResult = await op.catch(() => ({ filled: false as const }));
+      // The adapter's reason is what the report says about a field it could
+      // not fill (Lever's location search listing nothing in time).
+      opOutcomes.push({ fieldId: it.fieldId, ok: r.filled, reason: r.reason });
     } else {
       remaining.push(it);
     }

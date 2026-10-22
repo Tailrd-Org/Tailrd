@@ -771,7 +771,7 @@ function initialize(): void {
     items: { fieldId: string; value: string }[],
     merge: boolean,
     signal?: AbortSignal
-  ): Promise<{ reports: FieldReport[]; outcomes: { fieldId: string; ok: boolean }[]; reask: ReaskCandidate[] }> {
+  ): Promise<{ reports: FieldReport[]; outcomes: { fieldId: string; ok: boolean; reason?: string }[]; reask: ReaskCandidate[] }> {
     if (items.length === 0 && merge) return { reports: [], outcomes: [], reask: [] };
     const { opOutcomes, remaining } = await runAdapterOperations(lastAdapter, items, (id) => registry.get(id));
     const driverTargets = remaining.filter((it) => isDriverField(it.fieldId));
