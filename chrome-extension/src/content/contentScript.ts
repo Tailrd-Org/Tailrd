@@ -353,6 +353,9 @@ function initialize(): void {
     wroteOk: Set<string>;
     dropped: DroppedAnswerLike[];
   } | null = null;
+  /** A field the driver wrote another option into than it was given (a
+   *  degree row's own title from the list it loaded): what it wrote. */
+  const writtenAs = new Map<string, string>();
   // Retained so MutationObserver rescans can recompute proposed values.
   let lastProfile: UserApplicationProfile | null = null;
   let lastFillEEO = false;
@@ -674,7 +677,10 @@ function initialize(): void {
       // live, round 8).
       if (!res.ok && res.options?.length) {
         const titled = degreeTitleFor(t.fieldId, res.options);
-        if (titled && titled !== t.value) res = await driveField(t.fieldId, titled, control.driver, {});
+        if (titled && titled !== t.value) {
+          res = await driveField(t.fieldId, titled, control.driver, {});
+          if (res.ok) writtenAs.set(t.fieldId, titled);
+        }
       }
       if (res.ok || !control.el) {
         outcomes.push({ fieldId: t.fieldId, ok: res.ok, reason: res.ok ? undefined : res.reason });
@@ -999,6 +1005,7 @@ function initialize(): void {
       const diagnosticCheck = isDiagnosticMode();
 
       const intended = new Map<string, string>();
+      writtenAs.clear();
       const provenance = new Map<string, FieldProvenance>();
       const droppedByBackend = new Map<string, DroppedAnswerLike>();
       type FillTarget = { fieldId: string; value: string };
@@ -1319,6 +1326,11 @@ function initialize(): void {
       // field, and a per-write check has moved on by then. This is the only
       // point where "the page actually holds the answer" can be observed.
       let observed = signal?.aborted ? [] : await observePageState(signal);
+      // What the driver wrote is what the page should hold: a certificate's
+      // row took its Degree list's "Other" (decision 96), and the read-back
+      // against "Certificate" called it reverted and asked again (Epic Games
+      // and Sigma on Greenhouse, the round 8 regression).
+      for (const [id, v] of writtenAs) if (intended.has(id)) intended.set(id, v);
       const okIds = new Set(
         [...finalOutcomes(allReports, allOutcomes).ok]
           .filter(([, isOk]) => isOk)
