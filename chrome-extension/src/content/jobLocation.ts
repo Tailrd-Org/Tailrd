@@ -32,6 +32,9 @@ const LOCATION_SELECTORS = [
   '[class*="jobLocation" i]',
   '[class*="posting-location" i]',
   '[data-testid*="location" i]',
+  // SmartRecruiters' one-click page names the place only in its top bar
+  // (Boston Engineering, live, round 8: no job country on any of its pages).
+  '[data-test="topbar-location"]',
 ];
 
 const ATS_NAMES = /^(greenhouse|lever|workday|ashby|ashbyhq|workable|smartrecruiters|bamboohr|jobvite|icims|taleo|oracle|successfactors|careers|jobs|job board|job boards)$/i;

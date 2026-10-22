@@ -317,3 +317,27 @@ describe("a SmartRecruiters multi-select's pick is its tag (Western Digital's ma
     expect(r.filled).toBe(true);
   });
 });
+
+/**
+ * SmartRecruiters' one-click page names the job's place only in its top bar
+ * (`p[data-test="topbar-location"]`, "300 Bear Hill Rd, Waltham, MA 02451,
+ * USA"; Boston Engineering, live, round 8). The job's country was unknown on
+ * every SmartRecruiters page, so "This position may require security
+ * clearance. Can this be achieved?" stayed blank for an F-1 OPT holder.
+ */
+describe("the job's place from SmartRecruiters' top bar", () => {
+  it("names the country, and a US clearance is No for someone who is no US citizen (decision 81)", () => {
+    const got: Record<string, string | null> = {};
+    for (const who of ["US_OPT_ANALYST", "BOOTCAMP_CAREER_GAP"]) {
+      document.body.innerHTML = `<div data-test="topbar" class="topbar flex"><div class="flex flex-row"><div class="topbar-job-details"><spl-typography-title data-test="topbar-job-title">Embedded Software Engineer</spl-typography-title><p data-test="topbar-location" class="spl-my-05 flex">300 Bear Hill Rd, Waltham, MA 02451, USA</p></div></div></div><form id="application-form"><div class="field"><label for="q0">This position may require security clearance. Can this be achieved? *</label><select id="q0"><option value="">Select...</option><option>Yes</option><option>No</option></select></div></form>`;
+      const place = detectJobPlace(document);
+      expect(place.country).toBe("US");
+      setResolveContext({ jobCountry: place.country, jobCity: place.city, jobPlaces: place.places ?? null, company: "Boston Engineering" });
+      const f = scanPage(persona(who), true).fields.find((x) => x.label.startsWith("This position may require"));
+      got[who] = f?.proposedValue ?? null;
+    }
+    setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+    // A US citizen who holds none answers it themselves (the standing rule).
+    expect(got).toEqual({ US_OPT_ANALYST: "No", BOOTCAMP_CAREER_GAP: null });
+  });
+});
