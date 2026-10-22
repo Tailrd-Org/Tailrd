@@ -2701,11 +2701,25 @@ function resolveLocalTo(q: QuestionInput, n: string, facts: ProfileFacts, profil
   // "Are you CURRENTLY living in/around the Salt Lake City Metro area?"
   // (Cricut, SmartRecruiters bank, round 7) too: blank for six applicants
   // living in other metros or countries.
-  const now = /^(?:are you|you are) (?:currently )?(?:local|located|based|living|residing) (?:in or around|in or near|near or in|in around|within|around|near|to|in) (?:the )?(?:greater )?([a-z ]+?)(?: (?:metro|metropolitan))?(?: area| region)?$/.exec(n);
+  // A purpose after the place is no part of it: "Are you local to the DMV to
+  // accomodate a hybrid work schedule?" (Significance on Lever, live, round 8).
+  const core = n.replace(/ (?:to|in order to|so as to|so that you can|for) (?:accommodate|accomodate|support|attend|allow|enable|work|commute|come|be able)\b.*$/, "");
+  const now = /^(?:are you|you are) (?:currently )?(?:local|located|based|living|residing) (?:in or around|in or near|near or in|in around|within|around|near|to|in) (?:the )?(?:greater )?([a-z ]+?)(?: (?:metro|metropolitan))?(?: area| region)?$/.exec(core);
   // "Are you local to or willing to relocate?" (Shield AI on Lever) names no
   // place: the relocation rule's.
   if (now && isBooleanQuestion(q) && !/\b(or|relocat\w*|move|willing)\b/.test(now[1])) {
     const named = now[1].trim();
+    // "The DMV" is Washington, DC and its Maryland and Virginia suburbs: no
+    // one living outside those three is local to it; inside Maryland or
+    // Virginia, how far from DC is unknown.
+    if (named === "dmv") {
+      const home = facts.location;
+      if (isHigh(home.country) && home.country.value.code !== "US") return booleanResult(false, q, "local:other-country");
+      if (!isHigh(home.region)) return abstain("local:unknown");
+      const code = home.region.value.code;
+      if (code === "DC") return booleanResult(true, q, "local:region");
+      return code === "MD" || code === "VA" ? abstain("local:unknown") : booleanResult(false, q, "local:region");
+    }
     const region = regionFromText(named);
     const country = region ? null : countryFromName(named);
     const home = facts.location;

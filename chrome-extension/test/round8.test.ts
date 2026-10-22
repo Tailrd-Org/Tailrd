@@ -87,3 +87,23 @@ describe("a family member's government employment is the applicant's to answer (
     expect(got).toEqual({ US_F1_STUDENT: "No" });
   });
 });
+
+describe("local to the DMV (Significance on Lever, live, round 8)", () => {
+  const Q = "Are you local to the DMV to accomodate a hybrid work schedule?";
+  it("the DMV is Washington, DC and its Maryland and Virginia suburbs", () => {
+    // US_VETERAN lives in Austin, TX: sent to the AI live.
+    expect(scanned(["US_VETERAN", "COMPLETE_CANADIAN"], Q, YN, "Hybrid - Washington, DC")).toEqual({ US_VETERAN: "No", COMPLETE_CANADIAN: "No" });
+  });
+  it("DC itself is local; a Maryland or Virginia town may be far from it", () => {
+    const at = (location: string, addressCity: string, addressState: string): string | null => {
+      const p = { ...persona("US_VETERAN"), location, addressCity, addressState, addressStreet: "", postalCode: "" } as UserApplicationProfile;
+      document.body.innerHTML = `<form id="application-form"><div class="field"><label for="q0">${esc(Q)}</label><select id="q0" name="q0"><option value="">Select...</option><option value="0">Yes</option><option value="1">No</option></select></div></form>`;
+      setResolveContext({ jobCountry: "US", jobCity: "Washington", jobPlaces: null, company: "Acme" });
+      const v = scanPage(p, true).fields.find((x) => x.label.startsWith("Are you local"))?.proposedValue ?? null;
+      setResolveContext({ jobCountry: null, jobCity: null, jobPlaces: null, company: "" });
+      return v;
+    };
+    expect(at("Washington, DC", "Washington", "DC")).toBe("Yes");
+    expect(at("Virginia Beach, VA", "Virginia Beach", "VA")).toBeNull();
+  });
+});
