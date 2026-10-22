@@ -82,3 +82,26 @@ describe("closestDemographicOption: a stated answer the options do not settle", 
     expect(closestDemographicOption("eeoRace", "Prefer not to say", ["White", "Asian", "I don't wish to answer"])).toBe("I don't wish to answer");
   });
 });
+
+/**
+ * Pronouns are a set, however long it is written: "She/Her" is "She/her/hers",
+ * never "She/her/hers, they/them/theirs", which adds a set nobody stated.
+ * Rippling's list (live, round 8: blank for all three personas, as both
+ * options hold "she her"; the widget's own matcher had picked it before the
+ * self-ID rules ran there).
+ */
+describe("closestDemographicOption: pronouns", () => {
+  const RIPPLING = ["She/her/hers", "He/him/his", "They/them/theirs", "She/her/hers, they/them/theirs", "He/him/his, they/them/theirs", "Just use my name"];
+  it("a stated set is the option of that set alone", () => {
+    expect(closestDemographicOption("eeoPronouns", "She/Her", RIPPLING)).toBe("She/her/hers");
+    expect(closestDemographicOption("eeoPronouns", "He/Him", RIPPLING)).toBe("He/him/his");
+    expect(closestDemographicOption("eeoPronouns", "They/Them", RIPPLING)).toBe("They/them/theirs");
+  });
+  it("two sets stated are the option of both", () => {
+    expect(closestDemographicOption("eeoPronouns", "She/They", RIPPLING)).toBe("She/her/hers, they/them/theirs");
+  });
+  it("a set no option names is no answer; the option written as stated comes first", () => {
+    expect(closestDemographicOption("eeoPronouns", "Xe/Xem", RIPPLING)).toBeNull();
+    expect(closestDemographicOption("eeoPronouns", "She/Her", ["She/Her", "She/Her/Hers", "He/Him"])).toBe("She/Her");
+  });
+});

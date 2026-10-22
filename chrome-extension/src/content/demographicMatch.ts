@@ -38,6 +38,18 @@ const headOf = (raw: string): string => norm(raw.split(/\s+[-\u2013\u2014:]\s*|\
  *  "female" and "man" inside "woman" (2026-10-03). */
 const hasWords = (hay: string, needle: string): boolean => ` ${hay} `.includes(` ${needle} `);
 
+const PRONOUN_SET: Record<string, string> = {
+  she: "she", her: "she", hers: "she", herself: "she",
+  he: "he", him: "he", his: "he", himself: "he",
+  they: "they", them: "they", their: "they", theirs: "they", themself: "they", themselves: "they",
+  xe: "xe", xem: "xe", xyr: "xe", xyrs: "xe",
+  ze: "ze", zir: "ze", zirs: "ze", hir: "ze", hirs: "ze",
+};
+
+/** The pronoun sets a normalized text names ("she+they" for "She/her/hers,
+ *  they/them/theirs"), "" for none. */
+const pronounSets = (n: string): string => [...new Set(n.split(" ").map((w) => PRONOUN_SET[w]).filter(Boolean))].sort().join("+");
+
 /** Several options each holding the whole answer: each NARROWER than it
  *  ("Asian" in East, South and Southeast Asian). No pick, by any matcher. */
 export function severalHold(value: string, options: string[]): boolean {
@@ -294,6 +306,15 @@ export function closestDemographicOption(
   //    gave one, so the field is left for them to pick.
   const exact = opts.find((o) => o.n === v);
   if (exact) return exact.raw;
+  // Pronouns are a set, however long it is written: "She/Her" is
+  // "She/her/hers", never "She/her/hers, they/them/theirs", which adds a set
+  // nobody stated (Rippling, live, round 8: both hold "she her", and the
+  // field was left blank).
+  if (category === "eeoPronouns") {
+    const want = pronounSets(v);
+    const same = want ? opts.filter((o) => pronounSets(o.n) === want) : [];
+    if (same.length === 1) return same[0].raw;
+  }
   const holding = opts.filter((o) => hasWords(o.n, v));
   if (holding.length === 1) return holding[0].raw;
   // Several hold it, and one STARTS with it: the others carry it in a

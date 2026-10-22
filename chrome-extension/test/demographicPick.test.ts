@@ -128,3 +128,21 @@ describe("the self-ID matcher on lists with descriptions (Greenhouse bank 3, rou
     expect(declineOption(HOOTSUITE)).toBe("Prefer not to answer");
   });
 });
+
+/**
+ * Rippling's pronoun list (live, round 8): blank for "She/Her" and "He/Him" on
+ * all three postings once the widget picked by the self-ID rules, as two
+ * options hold "she her". A stated set is the option of that set alone.
+ */
+describe("a pronoun list in the widget (Rippling)", () => {
+  const RIPPLING_PRONOUNS = ["She/her/hers", "He/him/his", "They/them/theirs", "She/her/hers, they/them/theirs", "He/him/his, they/them/theirs", "Just use my name"];
+  it("the combobox engine picks the stated set", async () => {
+    const { input, shown } = reactSelect(RIPPLING_PRONOUNS);
+    const res = await fillAriaCombobox(input, "She/Her", { ...fast, demographic: "eeoPronouns" });
+    expect(res.filled).toBe(true);
+    expect(shown()).toBe("She/her/hers");
+  });
+  it("the page-world driver picks it too", () => {
+    expect(pickOption(RIPPLING_PRONOUNS, "He/Him", undefined, false, "eeoPronouns")).toBe(1);
+  });
+});
