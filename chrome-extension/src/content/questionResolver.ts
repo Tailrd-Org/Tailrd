@@ -158,6 +158,12 @@ const THIS_COUNTRY = /\b(this country|the country (in which|where) (this|the) (j
  * count in capitals: lowercase "us" is the pronoun ("work for us").
  * `"this-country"` = the question points at the job's country.
  */
+/** The European Union (or the EEA) as one place, "EU": its citizens' to work
+ *  in by free movement ("Are you currently eligible to work in the European
+ *  Union for any employer?", Solace on BambooHR, bank, round 8: blank for a
+ *  German citizen). "EU" and "EEA" count in capitals only. */
+const EUROPEAN_UNION = { test: (text: string): boolean => /\b(the )?european (union|economic area)\b/i.test(text) || /\b(EU|EEA)\b/.test(text) };
+
 /** Every country a label names, in no particular order ("the U.S. or Canada"
  *  is both); empty when it names none. */
 export function countriesNamedIn(raw: string): string[] {
@@ -166,6 +172,7 @@ export function countriesNamedIn(raw: string): string[] {
   if (/\bU\.?\s?S\.?A?\b(?!\w)/.test(text) || /\bunited states\b/i.test(text) || /(?<!(north|south|latin|central)\s)\bamerica\b/i.test(text)) out.add("US");
   if (/\bcanad(a|ian)\b/i.test(text)) out.add("CA");
   if (/\b(united kingdom|great britain|britain)\b/i.test(text) || /\bUK\b/.test(text)) out.add("GB");
+  if (EUROPEAN_UNION.test(text)) out.add("EU");
   const n = ` ${qnorm(text)} `;
   for (const c of COUNTRIES) {
     if (c.code === "US" || c.code === "CA" || c.code === "GB") continue;
@@ -181,6 +188,7 @@ export function countryNamedIn(raw: string): { code: string } | "this-country" |
   }
   if (/\bcanad(a|ian)\b/i.test(text)) return { code: "CA" };
   if (/\b(united kingdom|great britain|britain)\b/i.test(text) || /\bUK\b/.test(text)) return { code: "GB" };
+  if (EUROPEAN_UNION.test(text)) return { code: "EU" };
   const n = ` ${qnorm(text)} `;
   for (const c of COUNTRIES) {
     if (c.code === "US" || c.code === "CA" || c.code === "GB") continue;
@@ -1708,6 +1716,11 @@ function resolveYearsOfExperience(q: QuestionInput, n: string, facts: ProfileFac
       if (!dom || /\b(languages?|frameworks?|librar(y|ies)|tools?|technolog(y|ies)|databases?|tech stacks?)\b/.test(obj)) return short() ?? abstain("years-experience:narrowed");
     }
   }
+  // An industry named is narrower than the career: "How many years experience
+  // fo you have in the financial services industry?" (Picton Mahoney on
+  // BambooHR, bank, round 8: its typo hid the object above) got the total.
+  const industry = /\bin (?:the |a |an )?((?:[a-z&]+ ){0,3}[a-z&]+) (?:industry|sector|vertical)\b/.exec(n);
+  if (industry && !/^(the|this|that|same|the same|related|relevant|our|your|similar|any|a|an)$/.test(industry[1])) domainWords.push(...industry[1].split(/\s+/));
   // A stack in parentheses after the experience narrows it too: "…fullstack
   // software engineering experience do you have (Python/React or Vuejs)?"
   // (AlayaCare, question bank 2026-10-05) got the career total.
@@ -1973,6 +1986,11 @@ function resolveEducationLevel(q: QuestionInput, n: string, facts: ProfileFacts)
     const kind = [...ownKinds][0];
     const same = generic.filter((o) => kindOf(qnorm(o)) === kind);
     if (same.length === 1) return answer(same[0], "education-level:kind");
+    // An engineering, technology or applied science degree is the Science one
+    // where the list has no kind of its own: a B.Tech among Arts, Fine Arts
+    // and Science (Profound Medical on BambooHR, bank, round 8: blank).
+    const science = generic.filter((o) => kindOf(qnorm(o)) === "science");
+    if (same.length === 0 && /^(engineering|technology|applied science)$/.test(kind) && science.length === 1) return answer(science[0], "education-level:kind-science");
   }
   // A certificate or college diploma the list does not offer (a bootcamp
   // graduate on Nutanix's High School / Associate / … list, Jobvite bank

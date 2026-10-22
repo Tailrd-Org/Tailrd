@@ -119,15 +119,22 @@ export function isBooleanOptionSet(options: string[] | undefined): boolean {
  * A question that ALSO asks for detail ("If so, please list", "If yes, who?")
  * is not boolean: a bare Yes/No would not answer it.
  */
-const AUX_START = /^(are|is|do|does|did|have|has|had|will|would|can|could|should|may|might|were|was|shall)\s+(you|your|u|the applicant|the candidate|they)\b/;
+// "…, is this something that will work for you?" (Solace on BambooHR, bank,
+// round 8) asks a yes or no of "this".
+const AUX_START = /^(are|is|do|does|did|have|has|had|will|would|can|could|should|may|might|were|was|shall)\s+(you|your|u|the applicant|the candidate|they|this|that|it)\b/;
 const DETAIL_FOLLOWUP = /\b(if (so|yes|applicable|not)|please (list|explain|describe|specify|provide|indicate|elaborate|share|tell)|which one|who|what (is|was|are)|where|when|how many|how long|please state)\b/;
 
 export function isYesNoQuestion(label: string): boolean {
   const raw = (label || "").trim();
   if (!raw) return false;
   // Split into sentences; any sentence may carry the actual question
-  // ("This role is in Toronto. Are you able to commute?").
-  const sentences = raw.split(/(?<=[.?!:])\s+/).map(norm).filter(Boolean);
+  // ("This role is in Toronto. Are you able to commute?"), and so may a
+  // clause after a comma ("This position would be 2 days in-office in the
+  // Ottawa area, is this something that will work for you?": Solace on
+  // BambooHR, bank, round 8, took the current title in a text box).
+  // (Only "this", "that" or "it" asked of there: "…, can you provide further
+  // details…" is a request.)
+  const sentences = raw.split(/(?<=[.?!:])\s+|,\s+(?=(?:is|does|will|would)\s+(?:this|that|it)\b)/i).map(norm).filter(Boolean);
   const asks = sentences.some((s) => AUX_START.test(s));
   if (!asks) return false;
   return !DETAIL_FOLLOWUP.test(norm(raw));

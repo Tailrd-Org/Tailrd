@@ -1250,7 +1250,8 @@ function applyExplicitCountries(profile: UserApplicationProfile, byCountry: Map<
  */
 /** The EU, the rest of the EEA and Switzerland: a citizen of one may work in
  *  any other (freedom of movement). */
-const FREE_MOVEMENT = new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "CH"]);
+// "EU" is the European Union asked as one place (questionResolver's countriesNamedIn).
+const FREE_MOVEMENT = new Set(["AT", "BE", "BG", "HR", "CY", "CZ", "DK", "EE", "FI", "FR", "DE", "GR", "HU", "IE", "IT", "LV", "LT", "LU", "MT", "NL", "PL", "PT", "RO", "SK", "SI", "ES", "SE", "IS", "LI", "NO", "CH", "EU"]);
 
 /** A citizen of a free-movement country asked about another one: "Are you
  *  legally authorized to work in Austria?" was blank for a German citizen

@@ -943,7 +943,13 @@ export function resolveDefault(
   if (/^(i am|i m|im) (now )?aware\b|^i (understand|acknowledge|recognize)\b/.test(n) && !/\b(i|i m|i am) (also )?(willing|able|available|commit\w*|agree|plan|intend)\b|\bi (can|will|would)\b/.test(n) && !/\?/.test(q.label) && opts.length === 2 && opts.every((o) => /^(yes|no)$/i.test(o.trim()))) {
     return polar(true, q, "default:aware");
   }
-  const occasional = OCCASIONAL_PRESENCE.test(n) && !REGULAR_PRESENCE.test(n);
+  // Work done somewhere is experience, no requirement to be there: "Have you
+  // managed end-to-end event logistics including vendors, booth planning,
+  // contracts, travel, and onsite execution?" (Profound Medical on BambooHR,
+  // bank, round 8) was No for two who will not relocate.
+  const question = askedSentence(q.label);
+  const experienceAsked = EXPERIENCE_ASKED.test(question) || /^(have|has) you (ever |previously |personally )?(managed|led|organi[sz]ed|planned|coordinated|handled|run|overseen|supervised|executed|delivered|owned|built|designed|worked on|been responsible)\b/.test(question);
+  const occasional = experienceAsked || (OCCASIONAL_PRESENCE.test(n) && !REGULAR_PRESENCE.test(n));
   // A requirement followed by a question asking WHICH ("…onsite work. Which
   // location can you reliably commute to?", FSSI on Workable, live
   // 2026-10-03) is never a yes or no: before its options loaded it was
