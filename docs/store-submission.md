@@ -29,6 +29,13 @@ Package > Upload new package, then Submit for review. To rebuild it: from
   "never field values" disclosure stays true for every Store user.
 - Listing description: the two lines the 0.5.0 section flags are still live
   (checked 2026-10-22). The description below has both edits applied.
+- Images: replace all six with `store-previews/` (the live ones are July's,
+  from before the new logo). Screenshot 1 and the marquee tile were redrawn
+  on 2026-10-22 to the 0.6.0 panel: its button reads "Fill from my profile"
+  (no field-count caption), it has a "Saved sign-ins" row and "Attach", and
+  no "Open Dashboard" link. Screenshot 1 no longer claims "every ATS" nor
+  shows other companies' logos, and the marquee names no platforms (the
+  0.4.0 rejection was for a list of platform names).
 
 **What's new since 0.4.0** (the dashboard has no release-notes field for an
 extension; this is for your records or an announcement):
