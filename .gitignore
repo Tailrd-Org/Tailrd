@@ -20,6 +20,9 @@ dist/
 .vercel
 .superpowers/
 
+# Local AI-tool config: it can hold access tokens (MCP auth headers)
+.codex/
+
 # Local SQLite databases (never commit)
 backend/data/autoapply.db
 *.sqlite
