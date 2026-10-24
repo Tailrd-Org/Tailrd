@@ -171,7 +171,7 @@ async def test_factual_fields_use_the_cheap_model_and_json_mode(svc, monkeypatch
     seen = {}
     _stub(monkeypatch, '{"q1": "Yes"}', capture=seen)
     await svc.answer_questions_batch({"q1": "A?"}, "ctx")
-    assert seen["model"] == "gpt-4o-mini"
+    assert seen["model"] == "gpt-6-luna"
     assert seen["json_mode"] is True
     assert seen["op"] == "fill.batch.short"
 

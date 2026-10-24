@@ -45,7 +45,7 @@ STRUCT = {
 }
 
 
-def test_structure_calls_mini_model_json_mode_and_caches(client, db_session, monkeypatch):
+def test_structure_calls_field_model_json_mode_and_caches(client, db_session, monkeypatch):
     job = _mk_job(db_session)
     seen = {}
 
@@ -60,7 +60,7 @@ def test_structure_calls_mini_model_json_mode_and_caches(client, db_session, mon
     )
     res = client.post(f"/jobs/{job.id}/structure-description")
     assert res.status_code == 200, res.text
-    assert (seen["model"], seen["json_mode"]) == ("gpt-4o-mini", True)
+    assert (seen["model"], seen["json_mode"]) == ("gpt-6-luna", True)
     assert '"skills"' not in seen["prompt"] and "skill tags" not in seen["prompt"]
     assert "skills" not in res.json()
     assert res.json()["sections"][0]["title"] == "Responsibilities"

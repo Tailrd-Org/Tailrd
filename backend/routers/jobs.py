@@ -1775,6 +1775,7 @@ async def structure_description(
     page's only match signal."""
     import json
     from backend.services.llm import get_llm_service
+    from backend.services.openai_service import _field_model
 
     job = db.query(ScrapedJob).filter(ScrapedJob.id == job_id).first()
     if not job:
@@ -1833,7 +1834,7 @@ Job Description:
 {job.description[:6000]}"""
 
     try:
-        response = await llm._generate(prompt, model="gpt-4o-mini", json_mode=True, op="jobs.structure_description")
+        response = await llm._generate(prompt, model=_field_model(), json_mode=True, op="jobs.structure_description")
         data = _layout_only(json.loads(response))
         if data.get("sections"):
             job.description_sections = data

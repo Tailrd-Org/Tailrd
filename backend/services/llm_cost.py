@@ -56,8 +56,9 @@ def configure_logging() -> None:
 #
 # Keep this table current: it is the single place the app's cost math lives,
 # and a stale row silently misreports the unit economics rather than failing.
-# Last checked against OpenAI list pricing: 2026-08-10.
+# Last checked against OpenAI list pricing: 2026-10-24 (short-context rates).
 MODEL_PRICES: dict[str, tuple[float, float, float]] = {
+    "gpt-6-luna":   (0.20, 0.02,   1.00),
     "gpt-4o":       (2.50, 1.25,  10.00),
     "gpt-4o-mini":  (0.15, 0.075,  0.60),
     "gpt-4.1":      (2.00, 0.50,   8.00),

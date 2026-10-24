@@ -31,10 +31,23 @@ logger = logging.getLogger(__name__)
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent.parent / "prompts"
 
+# OpenAI shuts gpt-4o and gpt-4o-mini down on 2027-01-14 and names gpt-6-luna as
+# the replacement for both. It also answers on a Free-tier account, where both
+# GPT-4o models refuse with credit_balance_exhausted (checked 2026-10-24).
+DEFAULT_MODEL = "gpt-6-luna"
+
 # Answering an application field is extraction from a context we supply, not
-# open-ended reasoning, so it does not need the flagship. Essays still do,
-# they are the only autofill output a human reads as prose.
-DEFAULT_FIELD_MODEL = "gpt-4o-mini"
+# open-ended reasoning. It shares the default model today but keeps its own
+# override (OPENAI_FIELD_MODEL), so the two can be split again by env alone.
+DEFAULT_FIELD_MODEL = DEFAULT_MODEL
+
+# gpt-6-luna reasons before it answers unless told not to (its default effort is
+# "medium"): hidden tokens that add latency, bill as output and eat into
+# max_completion_tokens. "none" makes it answer straight away, like the GPT-4
+# models the prompts were written for. Only these families accept "none": the
+# GPT-4 models reject the parameter and GPT-6 Astra and GPT-6.1 Sol reject the
+# value, so an env override onto any of those sends no effort at all.
+_NO_REASONING_MODELS = ("gpt-6-luna", "gpt-6-sol")
 
 
 def _field_model() -> str:
@@ -247,7 +260,7 @@ class OpenAIService:
 
     def __init__(self):
         self.api_key = os.getenv("OPENAI_API_KEY", "").strip().strip("﻿")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-4o").strip().strip("﻿")
+        self.model = os.getenv("OPENAI_MODEL", DEFAULT_MODEL).strip().strip("﻿")
         self.timeout = float(os.getenv("OPENAI_TIMEOUT", "60"))
         self.max_tokens = int(os.getenv("OPENAI_MAX_TOKENS", "4096"))
         if not self.api_key:
@@ -281,9 +294,13 @@ class OpenAIService:
 
         body: dict = {
             "model": model or self.model,
-            "max_tokens": self.max_tokens,
+            # Not max_tokens: gpt-6-luna answers that with a 400
+            # unsupported_parameter, and the GPT-4 models accept either.
+            "max_completion_tokens": self.max_tokens,
             "messages": messages,
         }
+        if body["model"].startswith(_NO_REASONING_MODELS):
+            body["reasoning_effort"] = "none"
         if json_mode:
             body["response_format"] = {"type": "json_object"}
 
