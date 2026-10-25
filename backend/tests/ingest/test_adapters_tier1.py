@@ -953,6 +953,45 @@ async def test_bamboohr_check_alive_never_calls_anything_else_dead():
     assert seen == []
 
 
+# --- check_alive when the connection fails (Teamtailor has no check_alive) ----------------
+
+LIVENESS_URLS = [
+    (workable, "https://apply.workable.com/financeit/j/DC11C09247/"),
+    (recruitee, OFFER_PAGE),
+    (bamboohr, "https://urban.bamboohr.com/careers/113"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("module, url", LIVENESS_URLS, ids=[m.PLATFORM for m, _ in LIVENESS_URLS])
+@pytest.mark.parametrize("error, reason", [
+    (httpx.ReadTimeout("slow"), "timeout"),
+    (httpx.ConnectTimeout("slow"), "timeout"),
+    (httpx.ConnectError("refused"), "network_error"),
+    (httpx.ReadError("reset"), "network_error"),
+], ids=["read-timeout", "connect-timeout", "connect-error", "read-error"])
+async def test_check_alive_answers_unknown_when_the_connection_fails(module, url, error, reason):
+    def drop(request: httpx.Request) -> httpx.Response:
+        raise error
+
+    client = http.make_client(transport=httpx.MockTransport(drop))
+    async with client:
+        result = await module.check_alive(client, url)
+    # The same reasons platform_liveness gives its own timeouts and network errors.
+    assert result == LivenessResult("unknown", reason)
+
+
+@pytest.mark.asyncio
+async def test_recruitee_check_alive_does_not_call_an_offer_dead_when_the_confirming_page_times_out():
+    def slow(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow")
+
+    client, _ = served({OFFER_API: httpx.Response(404, text="{}"), OFFER_PAGE: slow})
+    async with client:
+        result = await recruitee.check_alive(client, OFFER_PAGE)
+    assert result == LivenessResult("unknown", "timeout")
+
+
 # --- Through the scraper, as the cron runs it -----------------------------------------------
 
 BOARDS = [
