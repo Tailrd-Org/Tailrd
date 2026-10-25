@@ -27320,6 +27320,199 @@
       "enabled": false,
       "disabled_reason": "Taleo host zionsbancorp.taleo.net seen on public job URLs / careers page",
       "open_postings_at_verify": 0
+    },
+    {
+      "company_name": "Job Bank Canada: federal government",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "federal-government",
+      "config": {
+        "params": {
+          "fet": "3"
+        },
+        "max_pages": 12
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "government",
+      "enabled": true
+    },
+    {
+      "company_name": "Job Bank Canada: provincial and territorial governments",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "provincial-territorial-government",
+      "config": {
+        "params": {
+          "fet": "4"
+        },
+        "max_pages": 10
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "government",
+      "enabled": true
+    },
+    {
+      "company_name": "Job Bank Canada: municipal governments",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "municipal-government",
+      "config": {
+        "params": {
+          "fet": "5"
+        },
+        "max_pages": 18
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "government",
+      "enabled": true
+    },
+    {
+      "company_name": "Job Bank Canada: student jobs",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "student-jobs",
+      "config": {
+        "params": {
+          "fjsf": "1"
+        },
+        "max_pages": 12
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "job_board",
+      "enabled": true
+    },
+    {
+      "company_name": "Job Bank Canada: internships",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "internships",
+      "config": {
+        "params": {
+          "fsct": "100006"
+        },
+        "max_pages": 3
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "job_board",
+      "enabled": true
+    },
+    {
+      "company_name": "Job Bank Canada: newest verified jobs in Ontario",
+      "ats_platform": "jobbank_ca",
+      "board_slug": "ontario-newest",
+      "config": {
+        "params": {
+          "fprov": "ON",
+          "fsrc": "16"
+        },
+        "max_pages": 3
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "job_board",
+      "enabled": true
+    },
+    {
+      "company_name": "USAJOBS: student (Pathways) openings",
+      "ats_platform": "usajobs",
+      "board_slug": "students",
+      "config": {
+        "params": {
+          "HiringPath": "student"
+        },
+        "max_pages": 10,
+        "page_size": 100
+      },
+      "hq_country": "US",
+      "country": "US",
+      "sector": "government",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "USAJOBS: recent graduates",
+      "ats_platform": "usajobs",
+      "board_slug": "recent-graduates",
+      "config": {
+        "params": {
+          "HiringPath": "graduates"
+        },
+        "max_pages": 10,
+        "page_size": 100
+      },
+      "hq_country": "US",
+      "country": "US",
+      "sector": "government",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "Adzuna Canada: internships and new grads",
+      "ats_platform": "adzuna",
+      "board_slug": "ca-new-grad",
+      "config": {
+        "country": "ca",
+        "params": {
+          "what_or": "intern internship graduate junior",
+          "max_days_old": 14
+        },
+        "max_pages": 4
+      },
+      "hq_country": "CA",
+      "country": "CA",
+      "sector": "job_board",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "Adzuna US: internships and new grads",
+      "ats_platform": "adzuna",
+      "board_slug": "us-new-grad",
+      "config": {
+        "country": "us",
+        "params": {
+          "what_or": "intern internship graduate junior",
+          "max_days_old": 14
+        },
+        "max_pages": 4
+      },
+      "hq_country": "US",
+      "country": "US",
+      "sector": "job_board",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "Jooble US: internships",
+      "ats_platform": "jooble",
+      "board_slug": "us-internships",
+      "config": {
+        "keywords": "intern",
+        "location": "United States",
+        "max_pages": 2
+      },
+      "hq_country": "US",
+      "country": "US",
+      "sector": "job_board",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "USAJOBS: newest federal openings",
+      "ats_platform": "usajobs",
+      "board_slug": "recent",
+      "config": {
+        "params": {
+          "DatePosted": "7"
+        },
+        "max_pages": 10,
+        "page_size": 100
+      },
+      "hq_country": "US",
+      "country": "US",
+      "sector": "government",
+      "enabled": true,
+      "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
     }
   ]
 }
