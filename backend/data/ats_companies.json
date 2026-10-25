@@ -1901,13 +1901,16 @@
     },
     {
       "company_name": "Goldman Sachs",
-      "ats_platform": "custom",
+      "ats_platform": "oracle_hcm",
       "board_slug": "goldmansachs",
       "company_logo_url": "https://www.google.com/s2/favicons?domain=goldmansachs.com&sz=128",
-      "enabled": false,
-      "disabled_reason": "Not on Workday (checked 2026-09-29): higher.gs.com (own system); no Workday tenant; no connector for it",
-      "sector": "technology",
-      "hq_country": "US"
+      "enabled": true,
+      "sector": "finance_banking",
+      "hq_country": "US",
+      "config": {
+        "host": "hdpc.fa.us2.oraclecloud.com",
+        "site": "LateralHiring"
+      }
     },
     {
       "company_name": "Google",
@@ -1921,13 +1924,16 @@
     },
     {
       "company_name": "JPMorgan Chase",
-      "ats_platform": "oracle",
+      "ats_platform": "oracle_hcm",
       "board_slug": "jpmorgan",
       "company_logo_url": "https://www.google.com/s2/favicons?domain=jpmorganchase.com&sz=128",
-      "enabled": false,
-      "disabled_reason": "Not on Workday (checked 2026-09-29): Oracle Recruiting Cloud (jpmc.fa.oraclecloud.com, site CX_1001); no connector for it",
-      "sector": "technology",
-      "hq_country": "US"
+      "enabled": true,
+      "sector": "finance_banking",
+      "hq_country": "US",
+      "config": {
+        "host": "jpmc.fa.oraclecloud.com",
+        "site": "CX_1001"
+      }
     },
     {
       "company_name": "KPMG",
@@ -5297,9 +5303,11 @@
       "country": "CA",
       "sector": "healthcare",
       "careers_url": "https://jobs.fraserhealth.ca/jobs",
-      "enabled": false,
-      "disabled_reason": "iCIMS Jibe career site; host jobs.fraserhealth.ca; careers_url https://jobs.fraserhealth.ca/jobs. iCIMS Jibe career site. The tenant careers-fraserhealth.icims.com only redirects by script to jobs.fraserhealth.ca/jobs, so /jobs/search lists nothing.",
-      "open_postings_at_verify": 0
+      "enabled": true,
+      "open_postings_at_verify": 0,
+      "config": {
+        "host": "jobs.fraserhealth.ca"
+      }
     },
     {
       "company_name": "Island Health",
@@ -7299,9 +7307,11 @@
       "country": "CA",
       "sector": "government",
       "careers_url": "https://careers.thunderbay.ca/careers-home/jobs",
-      "enabled": false,
-      "disabled_reason": "iCIMS Jibe career site; host careers.thunderbay.ca; careers_url https://careers.thunderbay.ca/careers-home/jobs.",
-      "open_postings_at_verify": 0
+      "enabled": true,
+      "open_postings_at_verify": 0,
+      "config": {
+        "host": "careers.thunderbay.ca"
+      }
     },
     {
       "company_name": "Bank of Canada",
@@ -16750,9 +16760,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.costco.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.costco.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=20614",
-      "open_postings_at_verify": 20614
+      "enabled": true,
+      "open_postings_at_verify": 20614,
+      "config": {
+        "host": "careers.costco.com"
+      }
     },
     {
       "company_name": "CVS Health",
@@ -16786,9 +16798,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.hrblock.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.hrblock.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=18620",
-      "open_postings_at_verify": 18620
+      "enabled": true,
+      "open_postings_at_verify": 18620,
+      "config": {
+        "host": "careers.hrblock.com"
+      }
     },
     {
       "company_name": "Dollar Tree",
@@ -16836,9 +16850,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.ulta.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.ulta.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=12227",
-      "open_postings_at_verify": 12227
+      "enabled": true,
+      "open_postings_at_verify": 12227,
+      "config": {
+        "host": "careers.ulta.com"
+      }
     },
     {
       "company_name": "AutoZone",
@@ -16874,9 +16890,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.petsmart.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.petsmart.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=9184",
-      "open_postings_at_verify": 9184
+      "enabled": true,
+      "open_postings_at_verify": 9184,
+      "config": {
+        "host": "careers.petsmart.com"
+      }
     },
     {
       "company_name": "Albertsons Companies",
@@ -17085,9 +17103,11 @@
       "hq_country": "US",
       "sector": "hospitality_food",
       "careers_url": "https://jobs.thecheesecakefactory.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.thecheesecakefactory.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=2944",
-      "open_postings_at_verify": 2944
+      "enabled": true,
+      "open_postings_at_verify": 2944,
+      "config": {
+        "host": "jobs.thecheesecakefactory.com"
+      }
     },
     {
       "company_name": "Foot Locker",
@@ -17096,9 +17116,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.footlocker.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.footlocker.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=2936",
-      "open_postings_at_verify": 2936
+      "enabled": true,
+      "open_postings_at_verify": 2936,
+      "config": {
+        "host": "careers.footlocker.com"
+      }
     },
     {
       "company_name": "Amentum",
@@ -18157,9 +18179,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.amd.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.amd.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=1263",
-      "open_postings_at_verify": 1263
+      "enabled": true,
+      "open_postings_at_verify": 1263,
+      "config": {
+        "host": "careers.amd.com"
+      }
     },
     {
       "company_name": "Red Bull North America",
@@ -18179,9 +18203,11 @@
       "hq_country": "US",
       "sector": "insurance",
       "careers_url": "https://jobs.ajg.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.ajg.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=1243",
-      "open_postings_at_verify": 1243
+      "enabled": true,
+      "open_postings_at_verify": 1243,
+      "config": {
+        "host": "jobs.ajg.com"
+      }
     },
     {
       "company_name": "J.Crew",
@@ -18303,9 +18329,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://discounttire.jibeapply.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://discounttire.jibeapply.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=1196",
-      "open_postings_at_verify": 1196
+      "enabled": true,
+      "open_postings_at_verify": 1196,
+      "config": {
+        "host": "discounttire.jibeapply.com"
+      }
     },
     {
       "company_name": "CarMax",
@@ -18418,9 +18446,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.heb.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.heb.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=1113",
-      "open_postings_at_verify": 1113
+      "enabled": true,
+      "open_postings_at_verify": 1113,
+      "config": {
+        "host": "careers.heb.com"
+      }
     },
     {
       "company_name": "Emerson Electric",
@@ -18459,9 +18489,11 @@
       "hq_country": "US",
       "sector": "insurance",
       "careers_url": "https://jobs.aon.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.aon.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=1091; global employer, first posting country was not US",
-      "open_postings_at_verify": 1091
+      "enabled": true,
+      "open_postings_at_verify": 1091,
+      "config": {
+        "host": "jobs.aon.com"
+      }
     },
     {
       "company_name": "Carter's",
@@ -18647,9 +18679,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.rivian.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.rivian.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=944",
-      "open_postings_at_verify": 944
+      "enabled": true,
+      "open_postings_at_verify": 944,
+      "config": {
+        "host": "careers.rivian.com"
+      }
     },
     {
       "company_name": "Seminole Hard Rock",
@@ -18682,9 +18716,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://careers.cdmsmith.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.cdmsmith.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=905",
-      "open_postings_at_verify": 905
+      "enabled": true,
+      "open_postings_at_verify": 905,
+      "config": {
+        "host": "careers.cdmsmith.com"
+      }
     },
     {
       "company_name": "Texas Instruments",
@@ -18760,9 +18796,11 @@
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://careers.usoncology.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.usoncology.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=850",
-      "open_postings_at_verify": 850
+      "enabled": true,
+      "open_postings_at_verify": 850,
+      "config": {
+        "host": "careers.usoncology.com"
+      }
     },
     {
       "company_name": "GFL Environmental",
@@ -18927,9 +18965,11 @@
       "hq_country": "US",
       "sector": "pharma_biotech",
       "careers_url": "https://careers.medpace.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.medpace.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=789",
-      "open_postings_at_verify": 789
+      "enabled": true,
+      "open_postings_at_verify": 789,
+      "config": {
+        "host": "careers.medpace.com"
+      }
     },
     {
       "company_name": "Intel",
@@ -19071,9 +19111,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.akima.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.akima.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=758",
-      "open_postings_at_verify": 758
+      "enabled": true,
+      "open_postings_at_verify": 758,
+      "config": {
+        "host": "careers.akima.com"
+      }
     },
     {
       "company_name": "Keysight Technologies",
@@ -19082,9 +19124,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://jobs.keysight.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.keysight.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=756",
-      "open_postings_at_verify": 756
+      "enabled": true,
+      "open_postings_at_verify": 756,
+      "config": {
+        "host": "jobs.keysight.com"
+      }
     },
     {
       "company_name": "TD Synnex",
@@ -19105,9 +19149,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.gov2x.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.gov2x.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=751",
-      "open_postings_at_verify": 751
+      "enabled": true,
+      "open_postings_at_verify": 751,
+      "config": {
+        "host": "careers.gov2x.com"
+      }
     },
     {
       "company_name": "Cox Communications",
@@ -19152,9 +19198,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://joinus.ies-co.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://joinus.ies-co.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=746",
-      "open_postings_at_verify": 746
+      "enabled": true,
+      "open_postings_at_verify": 746,
+      "config": {
+        "host": "joinus.ies-co.com"
+      }
     },
     {
       "company_name": "VITAS Healthcare",
@@ -19232,9 +19280,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://careers.trccompanies.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.trccompanies.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=725",
-      "open_postings_at_verify": 725
+      "enabled": true,
+      "open_postings_at_verify": 725,
+      "config": {
+        "host": "careers.trccompanies.com"
+      }
     },
     {
       "company_name": "Topgolf",
@@ -19310,9 +19360,11 @@
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://careers.sca.health",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.sca.health/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=713",
-      "open_postings_at_verify": 713
+      "enabled": true,
+      "open_postings_at_verify": 713,
+      "config": {
+        "host": "careers.sca.health"
+      }
     },
     {
       "company_name": "Acadia Healthcare",
@@ -19399,9 +19451,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://jobportal.reyesbeveragegroup.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobportal.reyesbeveragegroup.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=680",
-      "open_postings_at_verify": 680
+      "enabled": true,
+      "open_postings_at_verify": 680,
+      "config": {
+        "host": "jobportal.reyesbeveragegroup.com"
+      }
     },
     {
       "company_name": "Baker Hughes",
@@ -19521,9 +19575,11 @@
       "hq_country": "US",
       "sector": "telecom_media",
       "careers_url": "https://dish.jibeapply.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://dish.jibeapply.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=651",
-      "open_postings_at_verify": 651
+      "enabled": true,
+      "open_postings_at_verify": 651,
+      "config": {
+        "host": "dish.jibeapply.com"
+      }
     },
     {
       "company_name": "US Foods",
@@ -20020,9 +20076,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.paychex.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.paychex.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=496",
-      "open_postings_at_verify": 496
+      "enabled": true,
+      "open_postings_at_verify": 496,
+      "config": {
+        "host": "careers.paychex.com"
+      }
     },
     {
       "company_name": "J.B. Hunt",
@@ -20066,9 +20124,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.na.panasonic.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.na.panasonic.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=486",
-      "open_postings_at_verify": 486
+      "enabled": true,
+      "open_postings_at_verify": 486,
+      "config": {
+        "host": "careers.na.panasonic.com"
+      }
     },
     {
       "company_name": "Avery Dennison",
@@ -20185,9 +20245,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://talent.goldbelt.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://talent.goldbelt.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=450",
-      "open_postings_at_verify": 450
+      "enabled": true,
+      "open_postings_at_verify": 450,
+      "config": {
+        "host": "talent.goldbelt.com"
+      }
     },
     {
       "company_name": "NBCUniversal",
@@ -20270,9 +20332,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.garmin.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.garmin.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=433",
-      "open_postings_at_verify": 433
+      "enabled": true,
+      "open_postings_at_verify": 433,
+      "config": {
+        "host": "careers.garmin.com"
+      }
     },
     {
       "company_name": "Allstate",
@@ -20439,9 +20503,11 @@
       "hq_country": "US",
       "sector": "finance_banking",
       "careers_url": "https://jobs.firstcitizens.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.firstcitizens.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=406",
-      "open_postings_at_verify": 406
+      "enabled": true,
+      "open_postings_at_verify": 406,
+      "config": {
+        "host": "jobs.firstcitizens.com"
+      }
     },
     {
       "company_name": "Gilead Sciences",
@@ -20477,9 +20543,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.chenega.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.chenega.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=398",
-      "open_postings_at_verify": 398
+      "enabled": true,
+      "open_postings_at_verify": 398,
+      "config": {
+        "host": "careers.chenega.com"
+      }
     },
     {
       "company_name": "Air Products",
@@ -20641,9 +20709,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://careers.bowman.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.bowman.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=386",
-      "open_postings_at_verify": 386
+      "enabled": true,
+      "open_postings_at_verify": 386,
+      "config": {
+        "host": "careers.bowman.com"
+      }
     },
     {
       "company_name": "Olsson",
@@ -20800,9 +20870,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.reliance.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.reliance.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=362",
-      "open_postings_at_verify": 362
+      "enabled": true,
+      "open_postings_at_verify": 362,
+      "config": {
+        "host": "careers.reliance.com"
+      }
     },
     {
       "company_name": "Iron Mountain",
@@ -20977,9 +21049,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.vtgdefense.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.vtgdefense.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=341",
-      "open_postings_at_verify": 341
+      "enabled": true,
+      "open_postings_at_verify": 341,
+      "config": {
+        "host": "careers.vtgdefense.com"
+      }
     },
     {
       "company_name": "Lineage",
@@ -21024,9 +21098,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://jobs.postholdings.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.postholdings.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=334",
-      "open_postings_at_verify": 334
+      "enabled": true,
+      "open_postings_at_verify": 334,
+      "config": {
+        "host": "jobs.postholdings.com"
+      }
     },
     {
       "company_name": "Applied Intuition",
@@ -21297,9 +21373,11 @@
       "hq_country": "US",
       "sector": "energy_utilities",
       "careers_url": "https://careers.kindermorgan.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.kindermorgan.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=305",
-      "open_postings_at_verify": 305
+      "enabled": true,
+      "open_postings_at_verify": 305,
+      "config": {
+        "host": "careers.kindermorgan.com"
+      }
     },
     {
       "company_name": "Burlington Stores",
@@ -21460,9 +21538,11 @@
       "hq_country": "US",
       "sector": "telecom_media",
       "careers_url": "https://careers.viasat.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.viasat.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=285",
-      "open_postings_at_verify": 285
+      "enabled": true,
+      "open_postings_at_verify": 285,
+      "config": {
+        "host": "careers.viasat.com"
+      }
     },
     {
       "company_name": "Fortive",
@@ -21865,9 +21945,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.docusign.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.docusign.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=253",
-      "open_postings_at_verify": 253
+      "enabled": true,
+      "open_postings_at_verify": 253,
+      "config": {
+        "host": "careers.docusign.com"
+      }
     },
     {
       "company_name": "Dow Jones",
@@ -22132,9 +22214,11 @@
       "hq_country": "US",
       "sector": "insurance",
       "careers_url": "https://jobs.statefarm.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.statefarm.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=239",
-      "open_postings_at_verify": 239
+      "enabled": true,
+      "open_postings_at_verify": 239,
+      "config": {
+        "host": "jobs.statefarm.com"
+      }
     },
     {
       "company_name": "Powell Industries",
@@ -22498,9 +22582,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.govcio.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.govcio.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=220",
-      "open_postings_at_verify": 220
+      "enabled": true,
+      "open_postings_at_verify": 220,
+      "config": {
+        "host": "careers.govcio.com"
+      }
     },
     {
       "company_name": "Hologic",
@@ -23170,9 +23256,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.spiritaero.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.spiritaero.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=187",
-      "open_postings_at_verify": 187
+      "enabled": true,
+      "open_postings_at_verify": 187,
+      "config": {
+        "host": "careers.spiritaero.com"
+      }
     },
     {
       "company_name": "Mohegan",
@@ -23687,9 +23775,11 @@
       "hq_country": "US",
       "sector": "insurance",
       "careers_url": "https://careers.principal.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.principal.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=167",
-      "open_postings_at_verify": 167
+      "enabled": true,
+      "open_postings_at_verify": 167,
+      "config": {
+        "host": "careers.principal.com"
+      }
     },
     {
       "company_name": "Syska Hennessy Group",
@@ -23944,9 +24034,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://explore.enercon.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://explore.enercon.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=157",
-      "open_postings_at_verify": 157
+      "enabled": true,
+      "open_postings_at_verify": 157,
+      "config": {
+        "host": "explore.enercon.com"
+      }
     },
     {
       "company_name": "Apex Companies",
@@ -24017,9 +24109,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.international.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.international.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=153",
-      "open_postings_at_verify": 153
+      "enabled": true,
+      "open_postings_at_verify": 153,
+      "config": {
+        "host": "careers.international.com"
+      }
     },
     {
       "company_name": "Hadrian",
@@ -24200,9 +24294,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.lutron.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.lutron.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=147",
-      "open_postings_at_verify": 147
+      "enabled": true,
+      "open_postings_at_verify": 147,
+      "config": {
+        "host": "careers.lutron.com"
+      }
     },
     {
       "company_name": "The New York Times",
@@ -24233,9 +24329,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.cvent.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.cvent.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=143",
-      "open_postings_at_verify": 143
+      "enabled": true,
+      "open_postings_at_verify": 143,
+      "config": {
+        "host": "careers.cvent.com"
+      }
     },
     {
       "company_name": "Wachter",
@@ -24365,9 +24463,11 @@
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://careers.clydeinc.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.clydeinc.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=134",
-      "open_postings_at_verify": 134
+      "enabled": true,
+      "open_postings_at_verify": 134,
+      "config": {
+        "host": "careers.clydeinc.com"
+      }
     },
     {
       "company_name": "AmTrust Financial",
@@ -24413,9 +24513,11 @@
       "hq_country": "US",
       "sector": "pharma_biotech",
       "careers_url": "https://careers.incyte.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.incyte.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=132",
-      "open_postings_at_verify": 132
+      "enabled": true,
+      "open_postings_at_verify": 132,
+      "config": {
+        "host": "careers.incyte.com"
+      }
     },
     {
       "company_name": "General Matter",
@@ -24581,9 +24683,11 @@
       "hq_country": "US",
       "sector": "hospitality_food",
       "careers_url": "https://xanterra.jibeapply.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://xanterra.jibeapply.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=126",
-      "open_postings_at_verify": 126
+      "enabled": true,
+      "open_postings_at_verify": 126,
+      "config": {
+        "host": "xanterra.jibeapply.com"
+      }
     },
     {
       "company_name": "Thomas & Hutton",
@@ -24684,9 +24788,11 @@
       "hq_country": "US",
       "sector": "energy_utilities",
       "careers_url": "https://jobs.exeloncorp.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.exeloncorp.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=119",
-      "open_postings_at_verify": 119
+      "enabled": true,
+      "open_postings_at_verify": 119,
+      "config": {
+        "host": "jobs.exeloncorp.com"
+      }
     },
     {
       "company_name": "MSA Safety",
@@ -24695,9 +24801,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.msasafety.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.msasafety.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=119",
-      "open_postings_at_verify": 119
+      "enabled": true,
+      "open_postings_at_verify": 119,
+      "config": {
+        "host": "careers.msasafety.com"
+      }
     },
     {
       "company_name": "Alcoa",
@@ -24822,9 +24930,11 @@
       "hq_country": "US",
       "sector": "professional_services",
       "careers_url": "https://careers.andersen.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.andersen.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=113",
-      "open_postings_at_verify": 113
+      "enabled": true,
+      "open_postings_at_verify": 113,
+      "config": {
+        "host": "careers.andersen.com"
+      }
     },
     {
       "company_name": "Mercor",
@@ -25203,9 +25313,11 @@
       "hq_country": "US",
       "sector": "transportation_logistics",
       "careers_url": "https://careers.herzog.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.herzog.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=99",
-      "open_postings_at_verify": 99
+      "enabled": true,
+      "open_postings_at_verify": 99,
+      "config": {
+        "host": "careers.herzog.com"
+      }
     },
     {
       "company_name": "Pattern",
@@ -25271,9 +25383,11 @@
       "hq_country": "US",
       "sector": "retail_consumer",
       "careers_url": "https://careers.shearers.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.shearers.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=95",
-      "open_postings_at_verify": 95
+      "enabled": true,
+      "open_postings_at_verify": 95,
+      "config": {
+        "host": "careers.shearers.com"
+      }
     },
     {
       "company_name": "Church & Dwight",
@@ -25306,9 +25420,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://jobs.stryten.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.stryten.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=94",
-      "open_postings_at_verify": 94
+      "enabled": true,
+      "open_postings_at_verify": 94,
+      "config": {
+        "host": "jobs.stryten.com"
+      }
     },
     {
       "company_name": "EPIC Insurance Brokers & Consultants",
@@ -25793,9 +25909,11 @@
       "hq_country": "US",
       "sector": "hospitality_food",
       "careers_url": "https://careers.chick-fil-a.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.chick-fil-a.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=75",
-      "open_postings_at_verify": 75
+      "enabled": true,
+      "open_postings_at_verify": 75,
+      "config": {
+        "host": "careers.chick-fil-a.com"
+      }
     },
     {
       "company_name": "Sono Bello",
@@ -26003,9 +26121,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.bigbear.ai",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.bigbear.ai/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=65",
-      "open_postings_at_verify": 65
+      "enabled": true,
+      "open_postings_at_verify": 65,
+      "config": {
+        "host": "careers.bigbear.ai"
+      }
     },
     {
       "company_name": "Goodyear",
@@ -26026,9 +26146,11 @@
       "hq_country": "US",
       "sector": "energy_utilities",
       "careers_url": "https://careers.div.energy",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.div.energy/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=63",
-      "open_postings_at_verify": 63
+      "enabled": true,
+      "open_postings_at_verify": 63,
+      "config": {
+        "host": "careers.div.energy"
+      }
     },
     {
       "company_name": "Leviton",
@@ -26037,9 +26159,11 @@
       "hq_country": "US",
       "sector": "manufacturing",
       "careers_url": "https://careers.leviton.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.leviton.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=61",
-      "open_postings_at_verify": 61
+      "enabled": true,
+      "open_postings_at_verify": 61,
+      "config": {
+        "host": "careers.leviton.com"
+      }
     },
     {
       "company_name": "Federated Insurance",
@@ -26074,9 +26198,11 @@
       "hq_country": "US",
       "sector": "telecom_media",
       "careers_url": "https://careers.siriusxm.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.siriusxm.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=52",
-      "open_postings_at_verify": 52
+      "enabled": true,
+      "open_postings_at_verify": 52,
+      "config": {
+        "host": "careers.siriusxm.com"
+      }
     },
     {
       "company_name": "Warner Music Group",
@@ -26109,9 +26235,11 @@
       "hq_country": "US",
       "sector": "finance_banking",
       "careers_url": "https://jobs.incommpayments.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://jobs.incommpayments.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=41",
-      "open_postings_at_verify": 41
+      "enabled": true,
+      "open_postings_at_verify": 41,
+      "config": {
+        "host": "jobs.incommpayments.com"
+      }
     },
     {
       "company_name": "Allegis Group",
@@ -26148,9 +26276,11 @@
       "hq_country": "US",
       "sector": "finance_banking",
       "careers_url": "https://careers.pennymac.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.pennymac.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=38",
-      "open_postings_at_verify": 38
+      "enabled": true,
+      "open_postings_at_verify": 38,
+      "config": {
+        "host": "careers.pennymac.com"
+      }
     },
     {
       "company_name": "Synchrony Financial",
@@ -26171,9 +26301,11 @@
       "hq_country": "US",
       "sector": "finance_banking",
       "careers_url": "https://careers.cobank.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.cobank.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=32",
-      "open_postings_at_verify": 32
+      "enabled": true,
+      "open_postings_at_verify": 32,
+      "config": {
+        "host": "careers.cobank.com"
+      }
     },
     {
       "company_name": "Southwest Airlines",
@@ -26194,9 +26326,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.pdf.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.pdf.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=27",
-      "open_postings_at_verify": 27
+      "enabled": true,
+      "open_postings_at_verify": 27,
+      "config": {
+        "host": "careers.pdf.com"
+      }
     },
     {
       "company_name": "Occidental",
@@ -26217,9 +26351,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.eagleview.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.eagleview.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=19",
-      "open_postings_at_verify": 19
+      "enabled": true,
+      "open_postings_at_verify": 19,
+      "config": {
+        "host": "careers.eagleview.com"
+      }
     },
     {
       "company_name": "Foundation Finance Company",
@@ -26228,9 +26364,11 @@
       "hq_country": "US",
       "sector": "finance_banking",
       "careers_url": "https://careers.foundationfinance.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.foundationfinance.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=18",
-      "open_postings_at_verify": 18
+      "enabled": true,
+      "open_postings_at_verify": 18,
+      "config": {
+        "host": "careers.foundationfinance.com"
+      }
     },
     {
       "company_name": "FAST Enterprises",
@@ -26239,9 +26377,11 @@
       "hq_country": "US",
       "sector": "technology",
       "careers_url": "https://careers.fastenterprises.com",
-      "enabled": false,
-      "disabled_reason": "iCIMS Career Sites (Jibe) host; public JSON API verified live: GET https://careers.fastenterprises.com/api/jobs?limit=100&page=1 -> jobs[].data (title, description, apply_url, city, state, country, req_id, posted_date) + totalCount=8",
-      "open_postings_at_verify": 8
+      "enabled": true,
+      "open_postings_at_verify": 8,
+      "config": {
+        "host": "careers.fastenterprises.com"
+      }
     },
     {
       "company_name": "Charles River Laboratories",
@@ -27513,6 +27653,188 @@
       "sector": "government",
       "enabled": true,
       "notes": "needs its API key (REQUIRED_ENV); inert until the key is set"
+    },
+    {
+      "company_name": "Cottage Health",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "cottagehealth",
+      "config": {
+        "host": "eglz.fa.us2.oraclecloud.com",
+        "site": "CX"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "UW Health",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "uwhealth",
+      "config": {
+        "host": "eimy.fa.us6.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "J.D. Irving",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "jdirving",
+      "config": {
+        "host": "hcpd.fa.ca2.oraclecloud.com",
+        "site": "Careers"
+      },
+      "hq_country": "CA",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Henry County Schools (GA)",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "henrycountyschools",
+      "config": {
+        "host": "fa-exna-saasfaprod1.fa.ocs.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Gaston County Schools (NC)",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "gastoncountyschools",
+      "config": {
+        "host": "eobs.fa.us2.oraclecloud.com",
+        "site": "CX_1001"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Baltimore County Public Schools",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "bcps",
+      "config": {
+        "host": "bcps-ibohjb.fa.ocs.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Shelby County Government (TN)",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "shelbycounty",
+      "config": {
+        "host": "iayzqy.fa.ocs.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Cherry Creek School District (CO)",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "cherrycreekschools",
+      "config": {
+        "host": "enmv.fa.us2.oraclecloud.com",
+        "site": "CX_2001"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "WMATA",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "wmata",
+      "config": {
+        "host": "ibpbjb.fa.ocs.oraclecloud.com",
+        "site": "CX_2011"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Travelport",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "travelport",
+      "config": {
+        "host": "ejzg.fa.us6.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "University of Tennessee",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "utennessee",
+      "config": {
+        "host": "fa-ewlq-saasfaprod1.fa.ocs.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Vanderbilt University",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "vanderbilt",
+      "config": {
+        "host": "ecsr.fa.us2.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Glens Falls Hospital",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "glensfallshospital",
+      "config": {
+        "host": "hdbg.fa.us2.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
+    },
+    {
+      "company_name": "Nemours",
+      "ats_platform": "oracle_hcm",
+      "board_slug": "nemours",
+      "config": {
+        "host": "epyz.fa.us2.oraclecloud.com",
+        "site": "CX_1"
+      },
+      "hq_country": "US",
+      "sector": "",
+      "enabled": true,
+      "notes": "verified live by the Task 4 adapter build, 2026-10-25"
     }
   ]
 }
