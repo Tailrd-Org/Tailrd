@@ -195,6 +195,23 @@ CRON_ATS_INSERT_BUDGET_SECONDS = float(os.getenv("CRON_ATS_INSERT_BUDGET_SECONDS
 # pace; the parallelism is mostly Workday tenants, each its own host.
 CRON_ATS_CONCURRENCY = max(1, int(os.getenv("CRON_ATS_CONCURRENCY", "6")))
 
+# Cut-over to the v2 runner (.github/workflows/ingest.yml). With
+# INGEST_V2_RUNNER=1 on Vercel this endpoint stands aside for any board whose
+# last successful crawl is under V2_RUNNER_FRESH_HOURS old, so the two never
+# crawl one board twice in a cycle. The stamp is source_health.last_success_at,
+# which the runner and this endpoint both write: the runner crawls every board
+# once a day, so 20 hours leaves this endpoint as the backstop for a board the
+# runner missed and for a day it did not run at all. Off by default, and read
+# on every call; on Vercel a changed env var reaches the functions only with
+# the next deployment.
+V2_RUNNER_FRESH_HOURS = 20
+
+
+def v2_runner_enabled() -> bool:
+    """INGEST_V2_RUNNER, the cut-over switch (default off)."""
+    return os.getenv("INGEST_V2_RUNNER", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 # The crawl scheduler and the per-board write path live in
 # backend/ingest/core/pipeline.py, shared with the v2 runner. The old names
 # stay here for the callers and tests that import them from this module.
@@ -231,6 +248,10 @@ async def cron_ats(
     of confirmed; CRON_ATS_RETIRE_OFF_TARGET=0 switches that off. The storage
     caps in ingest/data/limits.json bound what a run inserts ("caps" in the
     response says what they held back).
+
+    With INGEST_V2_RUNNER=1 (V2_RUNNER_FRESH_HOURS above) a board crawled in
+    the last 20 hours is left to the v2 runner and counted in
+    "boards_skipped_v2", a key the response carries only while the flag is on.
     """
     try:
         from backend.services.ats_scraper import ATSScraper
@@ -262,10 +283,19 @@ async def cron_ats(
         )
         totals = ctx.totals
 
+        v2_cutoff = None
+        if v2_runner_enabled():
+            v2_cutoff = datetime.datetime.utcnow() - datetime.timedelta(
+                hours=V2_RUNNER_FRESH_HOURS)
+        boards_skipped_v2 = 0
+
         runnable = []
         for platform, slug, company_name in companies:
-            if pipeline.in_cooldown(health_map.get(f"{platform}:{slug}")):
+            health = health_map.get(f"{platform}:{slug}")
+            if pipeline.in_cooldown(health):
                 totals["boards_skipped_cooldown"] += 1
+            elif v2_cutoff is not None and pipeline.crawled_at(health) > v2_cutoff:
+                boards_skipped_v2 += 1
             else:
                 runnable.append((platform, slug, company_name))
         # Least recently crawled first (the launch sort keeps this order within
@@ -294,7 +324,7 @@ async def cron_ats(
                 len(deferred), ", ".join(f"{p}:{s}" for p, s, _ in deferred),
             )
 
-        return {
+        result = {
             "status": "completed",
             **totals,
             # Back-compat alias: known listings are refreshed now, not skipped.
@@ -306,6 +336,9 @@ async def cron_ats(
             },
             "caps": {**ctx.caps, "inserting_stopped": ctx.stopped or None},
         }
+        if v2_cutoff is not None:
+            result["boards_skipped_v2"] = boards_skipped_v2
+        return result
     except Exception:
         logger.error(f"ATS cron failed: {traceback.format_exc()}")
         raise HTTPException(status_code=500, detail="Internal server error")
