@@ -443,9 +443,11 @@ class TestRefreshKnownListings:
                 stats["relabeled"]) == (0, 0, 0, 0)
 
     @pytest.mark.parametrize("title, department, commitment, stored, healed", [
-        # The old substring test filed these under internships...
-        ("Internal Audit Analyst", "", "", "internship", "new_grad"),
-        ("Operations Analyst, Cooper Street", "", "", "internship", "new_grad"),
+        # The old substring test filed these under internships. Since v2 the
+        # weak entry tier (analyst, associate, level I) is Entry Level, not
+        # new grad (docs/scraper-v2/DECISIONS.md 4)...
+        ("Internal Audit Analyst", "", "", "internship", "entry"),
+        ("Operations Analyst, Cooper Street", "", "", "internship", "entry"),
         # ...and these real internships under new grad.
         ("RF Validation Associate", "Payload Internships", "", "new_grad", "internship"),
         ("Thermal Associate Engineer (Summer 2027)", "", "", "new_grad", "internship"),
@@ -482,7 +484,8 @@ class TestRefreshKnownListings:
 
         db_session.expire_all()
         assert stats["relabeled"] == 0
-        assert db_session.get(ScrapedJob, known.id).experience_level == "new_grad"
+        # Entry Level, not new grad, since v2 (DECISIONS.md 4); never internship.
+        assert db_session.get(ScrapedJob, known.id).experience_level == "entry"
 
     def test_list_rows_keep_their_list_label(self, db_session):
         """A GitHub-list row adopted into the board keeps the label its list
@@ -687,8 +690,9 @@ class TestDerivedFieldHelpers:
         ("Co-op Student, Data", "", "", "internship"),
         ("Coop Engineer", "", "", "internship"),
         ("New Grad Software Engineer", "", "", "new_grad"),
-        ("Analyst I", "", "", "new_grad"),
-        ("Internal Audit Analyst", "", "", "new_grad"),
+        # The weak entry tier is Entry Level since v2 (DECISIONS.md 4).
+        ("Analyst I", "", "", "entry"),
+        ("Internal Audit Analyst", "", "", "entry"),
         ("RF Validation Associate", "Payload Internships", "", "internship"),
         ("Thermal Associate Engineer (Summer 2027)", "", "", "internship"),
         ("Hardware Validation Associate", "", "Intern", "internship"),
