@@ -5,7 +5,8 @@ A plain GET can't answer that for most of the catalogue. Workday serves the
 same ~6.5 KB app shell (HTTP 200) for live, closed and made-up job ids;
 SmartRecruiters' careers links 302 to the company careers home either way;
 Ashby and Oracle HCM pages are SPAs. So every known ATS is asked through its
-own public API, which answers honestly both ways, and only unknown hosts fall
+own public API, which answers honestly both ways (a platform a scraper v2
+adapter owns, through the adapter's check_alive), and only unknown hosts fall
 back to the page itself, where a death signal (404/410, a redirect to an
 error page, a "no longer available" message in the VISIBLE text) is trusted
 but a bare 200 proves nothing.
@@ -905,6 +906,24 @@ def _greenhouse_token(board_key: str) -> str:
     return token.strip() if platform.strip().lower() == "greenhouse" else ""
 
 
+async def _check_with_adapter(client, url: str) -> LivenessResult | None:
+    """A posting on a platform a v2 adapter owns (backend/ingest/adapters,
+    matched by its HOST_PATTERNS) is asked through the adapter's own
+    check_alive, when it has one and is enabled. None leaves the URL to the
+    page check. The adapter paces its own requests (ingest/core/http)."""
+    from backend.ingest.adapters import adapter_enabled, adapter_for_url
+
+    adapter = adapter_for_url(url)
+    check_alive = getattr(adapter, "check_alive", None)
+    if adapter is None or check_alive is None or not adapter_enabled(adapter.PLATFORM):
+        return None
+    result = await check_alive(client, url)
+    if isinstance(result, LivenessResult):
+        return result
+    logger.warning("%s check_alive returned %r for %s", adapter.PLATFORM, result, url)
+    return LivenessResult(UNKNOWN, "error")
+
+
 async def _route(client, url: str, state: _RunState, board_key: str = "") -> LivenessResult:
     parsed = urlparse(url)
     host = (parsed.hostname or "").lower()
@@ -983,6 +1002,9 @@ async def _route(client, url: str, state: _RunState, board_key: str = "") -> Liv
     if _host_is(host, "linkedin.com"):
         return await _check_linkedin(client, url, state)
 
+    owned = await _check_with_adapter(client, url)
+    if owned is not None:
+        return owned
     return await _check_page(client, url, state)
 
 

@@ -15,7 +15,7 @@ import enum
 import datetime
 from sqlalchemy import (
     Boolean, Column, Date, Integer, String, Text, DateTime, Enum, JSON, Float,
-    ForeignKey, LargeBinary, UniqueConstraint, func, true,
+    ForeignKey, Index, LargeBinary, UniqueConstraint, func, true,
 )
 from sqlalchemy.orm import deferred
 from backend.db.database import Base
@@ -199,6 +199,46 @@ class ScrapedJob(Base):
     # {"v": <version>, "dl": <description length>, "posting": {...}}. NULL or a
     # legacy local-scorer entry = parse on next read. migrations/add_job_match_terms.py
     match_terms = Column(JSON, nullable=True)
+
+    # --- Scraper v2 (backend/ingest; migrations/add_scraper_v2.py) ---
+    # All nullable without a default: NULL means "not computed yet", and on
+    # Postgres a column added that way never rewrites this table.
+    # Career family slugs (ingest/taxonomy.FAMILIES), primary and optional second.
+    career_family = Column(String(48), nullable=True)
+    career_family_secondary = Column(String(48), nullable=True)
+    # Where a remote role may be worked from, as the source states it.
+    remote_scope = Column(String(16), nullable=True)
+    # taxonomy.ENRICHMENT_VERSION of the rules that tagged experience_level and
+    # the families, so rows tagged by older rules can be found and re-tagged.
+    enrichment_version = Column(Integer, nullable=True)
+    # sha256 of (company domain | normalized title | sorted locations |
+    # employment type). A match key for cross-source twins, never unique: one
+    # employer posts the same title as separate requisitions.
+    fingerprint = Column(String(64), nullable=True, index=True)
+    # companies.id of the employer, when the companies table has it.
+    company_id = Column(Integer, nullable=True, index=True)
+    # Why the listing closed: delisted | 404 | redirect_home | closed_text | ttl.
+    closed_reason = Column(String(32), nullable=True)
+    # Checks in a row that missed the posting (the lifecycle closes a row
+    # after two such misses at least 24 h apart).
+    consecutive_failures = Column(Integer, nullable=True)
+    # The source estimated the pay instead of the employer posting it.
+    salary_is_estimated = Column(Boolean, nullable=True)
+    # The employer's own apply link when an aggregator gives one; url stays
+    # the aggregator posting it was found on.
+    apply_url = Column(String(2048), nullable=True)
+    # When the source says the posting closes.
+    expires_at = Column(DateTime, nullable=True)
+
+    # The v2 feed filters, the liveness worker's rotation and the companies
+    # join. Named like the migration's, so a table create_all builds takes the
+    # migration's no-DDL path.
+    __table_args__ = (
+        Index("ix_scraped_jobs_status_family", "listing_status", "career_family"),
+        Index("ix_scraped_jobs_status_level", "listing_status", "experience_level"),
+        Index("ix_scraped_jobs_status_geo", "listing_status", "country", "region"),
+        Index("ix_scraped_jobs_status_probed", "listing_status", "last_probed_at"),
+    )
 
 
 class PendingQuestion(Base):
@@ -967,6 +1007,11 @@ class SourceHealth(Base):
     last_job_count = Column(Integer, default=0)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
+    # Scraper v2 (migrations/add_scraper_v2.py): the breaker's cooldown end
+    # (no crawl before it), and the board's average job count over 7 days, so
+    # a board whose yield suddenly drops is reported instead of trusted.
+    disabled_until = Column(DateTime, nullable=True)
+    jobs_7d_avg = Column(Float, nullable=True)
 
 
 # ─── Self-hosted company logos (one validated image per employer) ────────────
@@ -1020,3 +1065,81 @@ class CompanyLogo(Base):
     created_at = Column(DateTime, default=datetime.datetime.utcnow)
     updated_at = Column(DateTime, default=datetime.datetime.utcnow,
                         onupdate=datetime.datetime.utcnow)
+
+
+# ─── Scraper v2: employers, runs and the work queue (backend/ingest) ─────────
+# create_all builds these tables at boot, like every other model.
+
+class Company(Base):
+    """One employer board, mirrored from the registry
+    (backend/data/ats_companies.json) by the v2 runner. ``ats`` is the
+    entry's ats_platform and ``ats_token`` its board_slug (a board token,
+    tenant or site), so a board appears once however often the mirror runs;
+    ``config`` is the entry's adapter-specific config object.
+    scraped_jobs.company_id points here.
+    """
+    __tablename__ = "companies"
+
+    id = Column(Integer, primary_key=True, index=True)
+    name = Column(String, nullable=False)
+    domain = Column(String, nullable=True)
+    country = Column(String, nullable=True)
+    sector = Column(String, nullable=True)
+    ats = Column(String, nullable=False)
+    ats_token = Column(String, nullable=False)
+    careers_url = Column(String, nullable=True)
+    config = Column(JSON, nullable=True)
+    enabled = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow)
+    updated_at = Column(DateTime, default=datetime.datetime.utcnow,
+                        onupdate=datetime.datetime.utcnow)
+
+    __table_args__ = (
+        UniqueConstraint("ats", "ats_token", name="uq_companies_ats_token"),
+    )
+
+
+class ScrapeRun(Base):
+    """One run of the v2 crawler (python -m backend.ingest.run): its counts,
+    free-text notes and a JSON ``stats`` blob for the run summary. ``trigger``
+    says who started it (cron | manual)."""
+    __tablename__ = "scrape_runs"
+
+    id = Column(Integer, primary_key=True, index=True)
+    started_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+    trigger = Column(String, default="manual", nullable=False)
+    status = Column(String, default="running", nullable=False)
+    tasks_total = Column(Integer, default=0, nullable=False)
+    tasks_ok = Column(Integer, default=0, nullable=False)
+    tasks_failed = Column(Integer, default=0, nullable=False)
+    jobs_seen = Column(Integer, default=0, nullable=False)
+    jobs_new = Column(Integer, default=0, nullable=False)
+    jobs_closed = Column(Integer, default=0, nullable=False)
+    notes = Column(Text, nullable=True)
+    stats = Column(JSON, nullable=True)
+
+
+class ScrapeTask(Base):
+    """The v2 work queue (ingest/core/queue.py): one unit of work for a run.
+    ``kind`` is list | fetch | enrich | liveness and ``payload`` says what to
+    work on. A worker claims a task by leasing it until ``lease_until`` (with
+    FOR UPDATE SKIP LOCKED on Postgres), so a crashed worker's task is picked
+    up again once the lease runs out; the (status, lease_until) index serves
+    that claim."""
+    __tablename__ = "scrape_tasks"
+
+    id = Column(Integer, primary_key=True, index=True)
+    run_id = Column(Integer, ForeignKey("scrape_runs.id", ondelete="CASCADE"), nullable=False)
+    kind = Column(String, nullable=False)
+    payload = Column(JSON, nullable=True)
+    status = Column(String, default="pending", nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    lease_until = Column(DateTime, nullable=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.utcnow, nullable=False)
+    finished_at = Column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index("ix_scrape_tasks_status_lease", "status", "lease_until"),
+    )

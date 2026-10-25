@@ -21,10 +21,19 @@ listing_freshness.board_key_from_url() derives for rows stored from URLs and
 those rows get reconciled. When one tenant hosts several career sites
 (BlackBerry and QNX both on "bb"), each site takes its own slug instead and
 cron-ats moves the tenant-keyed rows onto the site whose URLs they carry.
+
+Optional fields (scraper v2): ``hq_country`` ("CA" or "US", where the
+employer is based and mostly hires), ``country`` (the board posts in that one
+country only, which switches off the location filter, so it is set only on
+single-country boards such as hospitals, universities and governments),
+``sector``, ``careers_url``, and ``config``, an object the platform's v2
+adapter reads (load_board_config). Platforms beyond the five built-ins are
+crawled by adapters in backend/ingest/adapters.
 """
 
 from __future__ import annotations
 
+import copy
 import datetime
 import json
 import logging
@@ -75,12 +84,15 @@ def load_companies(
 
     Args:
         include_disabled: include entries with ``enabled: false``.
-        supported_only: only return platforms the scraper can fetch.
+        supported_only: only return platforms the scraper can fetch: the
+            built-ins, plus any platform whose v2 adapter is enabled (one
+            that lacks its API keys is not).
 
     Deduplicates on (platform, slug). Skips malformed rows.
     """
     out: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str]] = set()
+    crawlable: dict[str, bool] = {}
 
     for entry in _load_raw():
         try:
@@ -96,7 +108,10 @@ def load_companies(
         if not include_disabled and not enabled:
             continue
         if supported_only and platform not in SUPPORTED_PLATFORMS:
-            continue
+            if platform not in crawlable:
+                crawlable[platform] = _adapter_enabled(platform)
+            if not crawlable[platform]:
+                continue
         if supported_only and platform == "workday" and not (
             entry.get("workday_url_template") or ""
         ).strip():
@@ -109,6 +124,14 @@ def load_companies(
         out.append((platform, slug, name))
 
     return out
+
+
+def _adapter_enabled(platform: str) -> bool:
+    # Imported here, not at the top: the adapter registry imports adapter
+    # modules, which import the scraper, which imports this module.
+    from backend.ingest.adapters import adapter_enabled
+
+    return adapter_enabled(platform)
 
 
 def _shard_count(companies: list[tuple[str, str, str]]) -> int:
@@ -207,6 +230,25 @@ def load_workday_bases() -> dict[str, str]:
         if slug and template:
             out[slug] = template.rstrip("/")
     return out
+
+
+def load_board_config(platform: str, slug: str) -> dict:
+    """The ``config`` object of the registry entry for (platform, slug), the
+    first one when the registry lists the board twice; {} when the entry has
+    none or the board is not listed. A copy: the adapter may change it
+    without touching the cached registry."""
+    platform = (platform or "").strip().lower()
+    slug = (slug or "").strip()
+    for entry in _load_raw():
+        try:
+            listed = ((entry.get("ats_platform") or "").strip().lower() == platform
+                      and (entry.get("board_slug") or "").strip() == slug)
+        except AttributeError:  # a malformed row, skipped as load_companies does
+            continue
+        if listed:
+            config = entry.get("config")
+            return copy.deepcopy(config) if isinstance(config, dict) else {}
+    return {}
 
 
 def load_board_countries() -> dict[str, str]:

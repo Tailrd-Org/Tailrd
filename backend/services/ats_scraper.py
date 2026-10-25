@@ -69,6 +69,10 @@ class ATSJob:
     # ("San Francisco; Toronto" beside a primary "London"). Read for the NA
     # verdict and the country column only, never displayed or stored.
     location_hint: str = ""
+    # The employer's own apply link, when an aggregator adapter's listing
+    # gives one (scraped_jobs.apply_url); ``url`` stays the posting it was
+    # found on.
+    apply_url: str = ""
 
 
 def _text(value) -> str:
@@ -249,18 +253,7 @@ _LEGACY_ATS_COMPANIES: list[tuple[str, str, str]] = [
     ("smartrecruiters", "Deloitte4", "Deloitte"),
 ]
 
-
-# Canonical company list: loaded from backend/data/ats_companies.json.
-# Falls back to the legacy hardcoded list if the registry can't be read.
-try:
-    from backend.data.company_registry import load_companies
-
-    ATS_COMPANIES: list[tuple[str, str, str]] = load_companies() or _LEGACY_ATS_COMPANIES
-    if ATS_COMPANIES is _LEGACY_ATS_COMPANIES:
-        logger.warning("Company registry empty; using legacy fallback list")
-except Exception as e:  # pragma: no cover - defensive
-    logger.error("Failed to load company registry, using legacy list: %s", e)
-    ATS_COMPANIES = _LEGACY_ATS_COMPANIES
+# The canonical list, ATS_COMPANIES, is loaded at the end of this module.
 
 
 # ─── Entry-level classification ──────────────────────────────────────────────
@@ -899,8 +892,23 @@ class ATSScraper:
         elif platform == "workday":
             listings, complete, total = await self._fetch_workday(client, slug, company_name)
         else:
-            return BoardSnapshot(platform=platform, slug=slug, company=company_name,
-                                 complete=False)
+            # Every other platform is a v2 adapter (backend/ingest/adapters),
+            # which lists the whole board unfiltered; the filters below apply
+            # as they do to the built-ins. A platform with no adapter, or one
+            # whose API keys are missing, keeps the empty incomplete snapshot:
+            # nothing ingested, and nothing reconciled away.
+            from backend.data.company_registry import load_board_config
+            from backend.ingest.adapters import adapter_enabled, get_adapter
+
+            adapter = get_adapter(platform)
+            if adapter is None or not adapter_enabled(platform):
+                return BoardSnapshot(platform=platform, slug=slug, company=company_name,
+                                     complete=False)
+            listings, complete, total = await adapter.list_jobs(
+                client, slug, company_name,
+                config=load_board_config(platform, slug), deadline=self.deadline,
+            )
+            listings = list(listings)
 
         from backend.data.company_registry import load_board_countries
 
@@ -1402,3 +1410,19 @@ async def fetch_workday_detail(
         "description": clean_html(info.get("jobDescription", "") or "")[:10000],
         "employment_type": info.get("timeType", "") or "",
     }
+
+
+# Canonical company list: loaded from backend/data/ats_companies.json.
+# Falls back to the legacy hardcoded list if the registry can't be read.
+# Last in the module on purpose: an enabled board on a v2 adapter's platform
+# makes load_companies import that adapter, and adapters import from this
+# module, which by this line defines every name they might ask for.
+try:
+    from backend.data.company_registry import load_companies
+
+    ATS_COMPANIES: list[tuple[str, str, str]] = load_companies() or _LEGACY_ATS_COMPANIES
+    if ATS_COMPANIES is _LEGACY_ATS_COMPANIES:
+        logger.warning("Company registry empty; using legacy fallback list")
+except Exception as e:  # pragma: no cover - defensive
+    logger.error("Failed to load company registry, using legacy list: %s", e)
+    ATS_COMPANIES = _LEGACY_ATS_COMPANIES
