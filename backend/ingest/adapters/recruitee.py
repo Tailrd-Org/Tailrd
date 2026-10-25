@@ -11,9 +11,9 @@ https://<subdomain>.recruitee.com/api/offers/<slug>. The slug follows the
 title, so an edited title gets a new slug while the numeric id stays; the id
 is what identifies the posting here, the page URL is what is shown.
 
-The response is large (about 30 KB an offer, mostly the application form's
-questions and translated copies of the text), which is the cost of having
-the descriptions in the list.
+The response is large (10 to 30 KB an offer, mostly the application form's
+questions and translated copies of the text; a 186 offer site is 2.5 MB),
+which is the cost of having the descriptions in the list.
 """
 
 from __future__ import annotations
