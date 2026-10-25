@@ -21,6 +21,13 @@ The description is on the posting's own page, ``jobdetail.ftl?job={id}``, which
 ships it percent-encoded inside a data island that
 ``description_extractor._extract_taleo_html`` already knows how to open.
 
+There is no ``check_alive`` and no claimed URL, on purpose. A posting that is gone still
+answers 200 with the career section's search page, and the section's maintenance page
+("Career Section Unavailable") looks much the same from outside; the generic page check
+in ``platform_liveness`` already reads the maintenance page as "unknown", and a wrong
+"dead" from here would close live postings. A complete board listing is what retires a
+posting that is gone.
+
 Not covered, and raising when pointed at: Taleo Business Edition
 (``*.tbe.taleo.net``, an HTML list behind a session) and the older career
 section layout, which has no JSON search (its page has no portal id).
@@ -42,7 +49,6 @@ import httpx
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSJob
 from backend.services.description_extractor import _extract_taleo_html
-from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN, LivenessResult
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +57,7 @@ TIER = 2
 COUNTRIES = ("US", "CA")
 RATE_LIMIT = 1.0
 REQUIRED_ENV: tuple[str, ...] = ()
-HOST_PATTERNS = (r"^https?://[a-z0-9-]+\.taleo\.net/careersection/[^/]+/jobdetail\.ftl",)
+HOST_PATTERNS: tuple[str, ...] = ()
 
 # What the search replies with; the reply says its real page size.
 PAGE_SIZE = 25
@@ -71,8 +77,6 @@ _SEARCH_HEADERS = {**_PLAIN, "Accept": "application/json, text/javascript, */*; 
 _HOST_RE = re.compile(r"^[a-z0-9-]+\.taleo\.net$")
 _SECTION_RE = re.compile(r"^[A-Za-z0-9_.-]+$")
 _PORTAL_RE = re.compile(r"portal=(\d+)")
-_DETAIL_URL_RE = re.compile(r"^https?://([a-z0-9-]+\.taleo\.net)/careersection/([^/?#]+)/jobdetail\.ftl\?(?:[^#]*&)?job=([^&#]+)",
-                            re.IGNORECASE)
 _DATE_RE = re.compile(r"^\s*(\d{1,2}/\d{1,2}/\d{2,4}|[A-Z][a-z]{2,8}\.? \d{1,2}, \d{4}.*|\d{4}-\d{2}-\d{2}.*)$")
 # A column counts as a commitment or a workplace only when every word in it is
 # one of these: "Permanent Full-Time" is a commitment, "Long Term Care" is not.
@@ -284,37 +288,3 @@ async def fetch_job(client: httpx.AsyncClient, slug: str, ref: str, *, config: d
     response.raise_for_status()
     description = _extract_taleo_html(response.text) if _has_job_data(response.text) else ""
     return {"description": description, "employment_type": ""} if description else {}
-
-
-async def check_alive(client: httpx.AsyncClient, url: str) -> LivenessResult:
-    """Is this posting still open? An open one ships its requisition in the page;
-    one that is gone still answers 200, with the career section's bare search
-    page. That is a soft answer, so it is not marked authoritative."""
-    match = _DETAIL_URL_RE.match(url or "")
-    if not match:
-        return LivenessResult(UNKNOWN, "taleo_url_unreadable")
-    host, section, job_id = match.group(1).lower(), match.group(2), match.group(3)
-    if not job_id.isdigit():
-        return LivenessResult(UNKNOWN, "taleo_url_unreadable")
-    page = _detail_url(host, section, job_id)
-    try:
-        if not await http.robots_allowed(client, page):
-            return LivenessResult(UNKNOWN, "robots_disallowed")
-        response = await http.request(client, "GET", page, rate_limit=RATE_LIMIT, headers=_PLAIN)
-    except httpx.TimeoutException:
-        return LivenessResult(UNKNOWN, "timeout")
-    except httpx.HTTPStatusError as exc:
-        return LivenessResult(UNKNOWN, f"http_{exc.response.status_code}")
-    except httpx.HTTPError:
-        return LivenessResult(UNKNOWN, "network_error")
-    if response.status_code in (404, 410):
-        return LivenessResult(DEAD, f"taleo_{response.status_code}", True)
-    if response.status_code != 200:
-        return LivenessResult(UNKNOWN, f"http_{response.status_code}")
-    if _has_job_data(response.text):
-        return LivenessResult(ALIVE, "taleo_requisition", True)
-    # Only a page that is plainly the career section counts as "gone"; anything
-    # else (a block page, an error) says nothing about the posting.
-    if "/careersection/" in response.text and "jobsearch" in response.text.lower():
-        return LivenessResult(DEAD, "taleo_no_requisition")
-    return LivenessResult(UNKNOWN, "taleo_unrecognised_page")

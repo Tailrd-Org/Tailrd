@@ -1017,13 +1017,14 @@ async def taleo_list(server, slug="bayshore", company="Bayshore HealthCare", con
         return await taleo.list_jobs(client, slug, company, config=config, **kwargs)
 
 
-def test_taleo_is_registered_and_owns_career_section_posting_urls():
+def test_taleo_is_registered_and_claims_no_urls():
     assert adapters.get_adapter("taleo") is taleo
     assert adapters.adapter_enabled("taleo")
     assert (taleo.PLATFORM, taleo.TIER, taleo.RATE_LIMIT) == ("taleo", 2, 1.0)
-    assert adapters.adapter_for_url("https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en") is taleo
-    assert adapters.adapter_for_url("https://tre.tbe.taleo.net/tre01/ats/careers/v2/viewRequisition?org=CNLLTD&cws=37&rid=8915") is None
-    assert adapters.adapter_for_url("https://bayshore.taleo.net/careersection/bs_ex/jobsearch.ftl") is None
+    # A gone posting and the maintenance page look alike from outside, and the generic page
+    # check already reads the maintenance page as unknown: Taleo URLs stay with it.
+    assert taleo.HOST_PATTERNS == () and not hasattr(taleo, "check_alive")
+    assert adapters.adapter_for_url("https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en") is None
 
 
 @pytest.mark.asyncio
@@ -1254,45 +1255,6 @@ async def test_taleo_fetch_job_is_empty_when_there_is_nothing_to_read(clock):
         assert len(server.requests) == before  # a ref that is not a job id is not fetched
 
 
-TALEO_POSTING = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
-
-
-@pytest.mark.asyncio
-async def test_taleo_check_alive_reads_the_requisition_in_the_page(clock):
-    server = TaleoServer(details={"525949": (200, fixture_text("taleo_jobdetail_bayshore.html"))})
-    async with client_for(server) as client:
-        result = await taleo.check_alive(client, TALEO_POSTING)
-    assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "taleo_requisition", True)
-
-
-@pytest.mark.asyncio
-async def test_taleo_check_alive_calls_a_posting_gone_only_when_the_page_is_the_bare_career_section(clock):
-    server = TaleoServer(details={"1": (200, fixture_text("taleo_jobdetail_gone.html")), "2": (404, ""), "3": (410, ""),
-                                  "4": (200, "<html><body>Please verify you are human</body></html>"),
-                                  "5": (403, ""), "6": (503, "busy")})
-    base = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job="
-    async with client_for(server) as client:
-        # A gone posting still answers 200 with the section's search page: a soft answer.
-        assert (await taleo.check_alive(client, base + "1&lang=en")) == (DEAD, "taleo_no_requisition", False)
-        assert (await taleo.check_alive(client, base + "2")) == (DEAD, "taleo_404", True)
-        assert (await taleo.check_alive(client, base + "3")) == (DEAD, "taleo_410", True)
-        assert (await taleo.check_alive(client, base + "4")) == (UNKNOWN, "taleo_unrecognised_page", False)
-        assert (await taleo.check_alive(client, base + "5")) == (UNKNOWN, "http_403", False)
-        assert (await taleo.check_alive(client, base + "6")) == (UNKNOWN, "http_503", False)
-
-
-@pytest.mark.asyncio
-async def test_taleo_check_alive_never_calls_a_host_that_is_not_taleo(clock):
-    server = TaleoServer()
-    async with client_for(server) as client:
-        for url in ("https://evil.example.com/careersection/x/jobdetail.ftl?job=1",
-                    "https://tre.tbe.taleo.net/careersection/x/jobdetail.ftl?job=1",
-                    "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=abc",
-                    "https://bayshore.taleo.net/careersection/bs_ex/jobsearch.ftl", ""):
-            assert (await taleo.check_alive(client, url)) == (UNKNOWN, "taleo_url_unreadable", False)
-    assert server.requests == []
-
-
 # --- network: three real career sections (RUN_NETWORK_TESTS=1) -----------------
 
 TALEO_NETWORK_BOARDS = [
@@ -1313,7 +1275,6 @@ async def test_taleo_network_lists_a_real_career_section_and_reads_one_posting(s
         assert all(job.url.startswith(f"https://{config['host']}/careersection/{config['section']}/jobdetail.ftl?job=") for job in jobs)
         detail = await taleo.fetch_job(client, slug, jobs[0].detail_ref, config=config)
         assert len(detail["description"]) > 100
-        assert (await taleo.check_alive(client, jobs[0].url)).verdict == ALIVE
 
 
 # =============================================================================
@@ -1378,14 +1339,14 @@ async def sf_list(server, slug="rogers", company="Rogers Communications", config
         return await successfactors.list_jobs(client, slug, company, config=config, **kwargs)
 
 
-def test_successfactors_is_registered_and_owns_the_shape_of_its_posting_urls():
+def test_successfactors_is_registered_and_claims_no_urls():
     assert adapters.get_adapter("successfactors") is successfactors
     assert adapters.adapter_enabled("successfactors")
     assert (successfactors.PLATFORM, successfactors.TIER, successfactors.RATE_LIMIT) == ("successfactors", 2, 1.0)
-    assert adapters.adapter_for_url("https://jobs.rogers.com" + ROGERS_JOB) is successfactors
-    assert adapters.adapter_for_url("https://careers.telus.com/job/Toronto-Senior-Account-Manager-ON-M5J-2V5/605601117") is successfactors
-    assert adapters.adapter_for_url("https://example.com/job/short-id/123/") is None
-    assert adapters.adapter_for_url("https://jobs.rogers.com/search/?q=") is None
+    # The sites sit on employers' domains and a URL shape fits other sites too; the generic
+    # page check already reads the product's /errorpage redirect as dead.
+    assert successfactors.HOST_PATTERNS == () and not hasattr(successfactors, "check_alive")
+    assert adapters.adapter_for_url("https://jobs.rogers.com" + ROGERS_JOB) is None
 
 
 @pytest.mark.asyncio
@@ -1608,47 +1569,6 @@ async def test_successfactors_fetch_job_respects_robots_txt(clock):
     assert [r.url.path for r in server.requests] == ["/robots.txt"]
 
 
-@pytest.mark.asyncio
-async def test_successfactors_check_alive_reads_the_posting_page(clock):
-    server = SfServer(jobs={ROGERS_JOB: (200, fixture_text("successfactors_job_rogers.html"))})
-    async with client_for(server) as client:
-        result = await successfactors.check_alive(client, "https://jobs.rogers.com" + ROGERS_JOB + "?utm_source=x")
-    assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "successfactors_job_page", True)
-    assert [r.url.path for r in server.requests] == ["/robots.txt", ROGERS_JOB]  # the tracking query is not sent on
-
-
-@pytest.mark.asyncio
-async def test_successfactors_check_alive_treats_the_error_page_as_a_soft_dead(clock):
-    base = "https://jobs.rogers.com"
-    server = SfServer(jobs={
-        "/job/A-Gone-ON/100000001/": (302, "", {"Location": "/errorpage/?errortype=Exception"}),
-        "/job/B-Gone-ON/100000002/": (404, ""), "/job/C-Gone-ON/100000003/": (410, ""),
-        "/job/D-Plain-ON/100000004/": (200, "<html><body>no job data</body></html>"),
-        "/job/E-Forbidden-ON/100000005/": (403, ""), "/job/F-Busy-ON/100000006/": (503, "busy"),
-        "/job/G-Moved-ON/100000007/": (302, "", {"Location": "https://careers.example.org/job/x/100000007/"}),
-    })
-    async with client_for(server) as client:
-        # The error page is where a gone posting lands, and also where a server fault does: soft.
-        assert (await successfactors.check_alive(client, base + "/job/A-Gone-ON/100000001/")) == (DEAD, "successfactors_errorpage", False)
-        assert (await successfactors.check_alive(client, base + "/job/B-Gone-ON/100000002/")) == (DEAD, "successfactors_404", True)
-        assert (await successfactors.check_alive(client, base + "/job/C-Gone-ON/100000003/")) == (DEAD, "successfactors_410", True)
-        assert (await successfactors.check_alive(client, base + "/job/D-Plain-ON/100000004/")) == (UNKNOWN, "successfactors_no_job_data", False)
-        assert (await successfactors.check_alive(client, base + "/job/E-Forbidden-ON/100000005/")) == (UNKNOWN, "http_403", False)
-        assert (await successfactors.check_alive(client, base + "/job/F-Busy-ON/100000006/")) == (UNKNOWN, "http_503", False)
-        # Sent to another site, a 404 is that site's answer, not this posting's.
-        assert (await successfactors.check_alive(client, base + "/job/G-Moved-ON/100000007/")) == (UNKNOWN, "successfactors_redirected", False)
-
-
-@pytest.mark.asyncio
-async def test_successfactors_check_alive_never_calls_what_it_does_not_own(clock):
-    server = SfServer()
-    async with client_for(server) as client:
-        for url in ("https://jobs.rogers.com/search/?q=", "https://career17.sapsf.com/job/x/123456789/",
-                    "ftp://jobs.rogers.com/job/x/123456789/", "not a url", ""):
-            assert (await successfactors.check_alive(client, url)) == (UNKNOWN, "successfactors_url_unreadable", False)
-    assert server.requests == []
-
-
 # --- network: three real Recruiting Marketing sites (RUN_NETWORK_TESTS=1) ------
 
 SF_NETWORK_SITES = [
@@ -1669,7 +1589,6 @@ async def test_successfactors_network_lists_a_real_site_and_reads_one_posting(sl
         assert all(job.url.startswith(f"https://{config['host']}/job/") for job in jobs)
         detail = await successfactors.fetch_job(client, slug, jobs[0].detail_ref, config=config)
         assert len(detail["description"]) > 100
-        assert (await successfactors.check_alive(client, jobs[0].url)).verdict == ALIVE
 
 
 # =============================================================================

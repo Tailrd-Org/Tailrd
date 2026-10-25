@@ -18,6 +18,12 @@ page holds, and each row is a ``tr.data-row`` with ``td.colTitle`` (the link),
 (``colDepartment``, ``colFacility``, ``colShifttype``). The posting page holds
 the description in ``span.jobdescription``.
 
+There is no ``check_alive`` and no claimed URL, on purpose. The sites sit on employers'
+domains, so a posting URL can only be recognised by its shape, and a shape also fits
+other sites; the generic page check in ``platform_liveness`` already reads this product's
+gone-posting redirect (``/errorpage``) as dead, so an adapter check would add nothing
+and could only shadow the generic one.
+
 Config: ``{"host": "jobs.rogers.com"}``, the employer's own Recruiting Marketing
 site. A registry entry with only a ``careerNN.sapsf.com`` address has no such
 host yet and is not crawlable.
@@ -38,7 +44,6 @@ import httpx
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSJob
 from backend.services.description_extractor import clean_html
-from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN, LivenessResult
 
 logger = logging.getLogger(__name__)
 
@@ -47,9 +52,7 @@ TIER = 2
 COUNTRIES = ("US", "CA")
 RATE_LIMIT = 1.0
 REQUIRED_ENV: tuple[str, ...] = ()
-# Employers run this on their own domains, so a posting URL is recognised by its
-# shape: /job/<city-and-title>/<9 or 10 digit id>/.
-HOST_PATTERNS = (r"^https?://[^/]+/job/[^/]+/\d{9,10}/?(?:[?#].*)?$",)
+HOST_PATTERNS: tuple[str, ...] = ()
 
 # The biggest site found (EY) lists 9,100 postings at 25 a page; a board past
 # the cap stays incomplete and only confirms what it listed.
@@ -270,37 +273,3 @@ async def fetch_job(client: httpx.AsyncClient, slug: str, ref: str, *, config: d
         return {}
     description = clean_html(_description_html(response.text))[:DESCRIPTION_MAX_CHARS]
     return {"description": description, "employment_type": ""} if description else {}
-
-
-async def check_alive(client: httpx.AsyncClient, url: str) -> LivenessResult:
-    """Is this posting still open? An open one is a page with its description; a
-    posting that is gone sends the visitor on to the site's error page. That
-    page is also where a server fault lands, so it is a soft answer, not an
-    authoritative one."""
-    parsed = urlparse(url or "")
-    host = (parsed.hostname or "").lower()
-    if not parsed.scheme.startswith("http") or not _HOST_RE.match(host) or _BACK_END_RE.search(host) \
-            or not _JOB_PATH_RE.match(parsed.path):
-        return LivenessResult(UNKNOWN, "successfactors_url_unreadable")
-    page = f"https://{host}{parsed.path}"
-    try:
-        if not await http.robots_allowed(client, page):
-            return LivenessResult(UNKNOWN, "robots_disallowed")
-        response = await _get(client, page)
-    except httpx.TimeoutException:
-        return LivenessResult(UNKNOWN, "timeout")
-    except httpx.HTTPStatusError as exc:
-        return LivenessResult(UNKNOWN, f"http_{exc.response.status_code}")
-    except httpx.HTTPError:
-        return LivenessResult(UNKNOWN, "network_error")
-    if (response.url.host or "").lower() != host:
-        return LivenessResult(UNKNOWN, "successfactors_redirected")  # whatever another site answers is not this posting's
-    if response.status_code in (404, 410):
-        return LivenessResult(DEAD, f"successfactors_{response.status_code}", True)
-    if response.status_code != 200:
-        return LivenessResult(UNKNOWN, f"http_{response.status_code}")
-    if response.url.path.startswith("/errorpage"):
-        return LivenessResult(DEAD, "successfactors_errorpage")
-    if _description_html(response.text):
-        return LivenessResult(ALIVE, "successfactors_job_page", True)
-    return LivenessResult(UNKNOWN, "successfactors_no_job_data")
