@@ -517,10 +517,8 @@ def test_has_direct_twin_ignores_an_expired_direct_row(db_session):
     assert not has_direct_twin(db_session, **kwargs)
     _closed(db_session, row, "removed")
     assert has_direct_twin(db_session, **kwargs)
-    # stale is hidden from the feed since scraper v2, and a hidden row stands in
-    # for its twins only after a death verdict (removed), so it no longer counts.
     _closed(db_session, row, "stale")
-    assert not has_direct_twin(db_session, **kwargs)
+    assert has_direct_twin(db_session, **kwargs)
 
 
 def test_release_gives_back_a_repost_hidden_behind_a_closed_copy(db_session):
@@ -571,6 +569,40 @@ def test_release_leaves_mirrors_of_a_removed_direct_row_and_closed_rows(db_sessi
     db_session.refresh(closed_repost)
     assert mirror.duplicate_of == direct.id
     assert closed_repost.duplicate_of == old.id
+
+
+def test_a_stale_spell_of_the_direct_row_never_frees_its_mirror(db_session):
+    """stale is hidden from the feed (scraper v2) but usually recovers. Its
+    LinkedIn mirror must stay hidden through the stale spell: released, it
+    would sit beside the recovered row as a duplicate nothing hides again."""
+    from backend.services.cross_source_dedup import (
+        absorb_new_aggregator_rows,
+        release_from_closed_winners,
+        stands_in_for_twins,
+    )
+
+    direct = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/74",
+                 source="ats", description=_DESC)
+    mirror = _mk(db_session, "https://ca.linkedin.com/jobs/view/4465089144")
+    mirror.duplicate_of = direct.id
+    db_session.commit()
+
+    _closed(db_session, direct, "stale")
+    assert stands_in_for_twins("stale", "ats", direct.url)
+    # A stale aggregator row stands in for no one: only direct rows speak when hidden.
+    assert not stands_in_for_twins("stale", "linkedin", mirror.url)
+    assert release_from_closed_winners(db_session) == []
+    absorb_new_aggregator_rows(db_session)  # the hourly backfill pass
+    db_session.refresh(mirror)
+    assert mirror.duplicate_of == direct.id
+    # A new copy arriving while the direct row is stale is hidden too.
+    assert has_direct_twin(db_session, company="Kinaxis", company_domain="kinaxis.com",
+                           title="Software Engineer Intern", city="ottawa")
+
+    _closed(db_session, direct, "active")  # the board lists it again
+    absorb_new_aggregator_rows(db_session)
+    db_session.refresh(mirror)
+    assert mirror.duplicate_of == direct.id
 
 
 # One LinkedIn posting under two host spellings (prod TD 61534/62435,

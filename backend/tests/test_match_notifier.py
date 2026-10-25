@@ -209,6 +209,8 @@ def _make_job(db_session, title="Engineer", company="Globex"):
         url=f"https://jobs.example.com/{title}-{company}".replace(" ", "-"),
         description="x" * 200,
         posted_date=datetime.datetime.utcnow(),
+        # Alerts cover only jobs at the user's levels (none chosen: Intern/New Grad, Entry).
+        experience_level="new_grad",
     )
     db_session.add(job)
     db_session.commit()
@@ -397,6 +399,7 @@ def test_cron_match_alerts_endpoint(client, db_session, monkeypatch, fake_engine
 # ─── Alerts only for rows the feed shows ─────────────────────────────────────
 
 def _job(db_session, title, company="Globex", **fields):
+    fields.setdefault("experience_level", "new_grad")  # see _make_job
     job = ScrapedJob(
         title=title,
         company=company,
