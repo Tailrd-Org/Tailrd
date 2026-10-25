@@ -536,7 +536,9 @@ def test_a_long_whitespace_run_is_read_quickly(call):
     taxonomy.classify_experience("Warm Up")
     started = time.perf_counter()
     call()
-    assert time.perf_counter() - started < 0.05
+    # Linear takes ~30 ms here and the old quadratic took 125 s at 40,000
+    # spaces; 0.5 s leaves room for a busy shared CI runner.
+    assert time.perf_counter() - started < 0.5
 
 
 def test_pathological_input_is_read_quickly():
