@@ -18,7 +18,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import recruitee, workable
+from backend.ingest.adapters import recruitee, teamtailor, workable
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper
 from backend.services.platform_liveness import LivenessResult
@@ -72,7 +72,7 @@ def json_response(payload, status: int = 200) -> httpx.Response:
 
 # --- The registry sees all of them ------------------------------------------------------
 
-TIER_1 = ("workable", "recruitee")
+TIER_1 = ("workable", "recruitee", "teamtailor")
 
 
 @pytest.mark.parametrize("platform", TIER_1)
@@ -92,6 +92,9 @@ def test_the_registry_discovers_each_adapter_and_its_contract(platform):
     ("https://apply.workable.com/financeit/j/DC11C09247/", "workable"),
     ("https://apply.workable.com/financeit/j/D3CF97088A/apply/", "workable"),
     ("https://petalmd.recruitee.com/o/medical-billing-specialist-duncan", "recruitee"),
+    ("https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst", "teamtailor"),
+    ("https://nordastelo.teamtailor.com/en-GB/jobs/8558815-intermediate-senior-structural-engineer",
+     "teamtailor"),
 ])
 def test_a_posting_url_belongs_to_its_adapter(url, platform):
     assert adapters.adapter_for_url(url).PLATFORM == platform
@@ -102,6 +105,8 @@ def test_a_posting_url_belongs_to_its_adapter(url, platform):
     "https://apply.workable.com/api/v1/widget/accounts/financeit",
     "https://petalmd.recruitee.com/",
     "https://petalmd.recruitee.com/api/offers/",
+    "https://owlco.na.teamtailor.com/jobs",
+    "https://owlco.na.teamtailor.com/jobs.rss",
 ])
 def test_a_page_that_is_not_a_posting_is_nobody_s(url):
     assert adapters.adapter_for_url(url) is None
@@ -477,11 +482,155 @@ async def test_recruitee_check_alive_reads_a_bot_wall_and_odd_payloads_as_unknow
     assert unsupported == LivenessResult("unknown", "unsupported_url")
 
 
+# --- Teamtailor -------------------------------------------------------------------------
+
+TEAMTAILOR_FEED = "https://owlco.na.teamtailor.com/jobs.rss"
+OWLCO = {"host": "owlco.na.teamtailor.com"}
+
+
+def rss_response(text: str, status: int = 200) -> httpx.Response:
+    return httpx.Response(status, content=text.encode("utf-8"),
+                          headers={"content-type": "application/rss+xml; charset=utf-8"})
+
+
+async def list_teamtailor(text: str, slug: str = "owlco", config: dict = OWLCO):
+    client, _ = served({TEAMTAILOR_FEED: rss_response(text)})
+    async with client:
+        return await teamtailor.list_jobs(client, slug, "Owl.co", config=config)
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_parses_every_field_of_the_rss_feed():
+    client, seen = served({TEAMTAILOR_FEED: rss_response(load("teamtailor_jobs_owlco.rss"))})
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+
+    assert (complete, total, len(jobs)) == (True, 3, 3)
+    assert [str(r.url) for r in seen] == [TEAMTAILOR_FEED]
+    assert seen[0].headers["user-agent"] == http.USER_AGENT
+
+    first = jobs[0]
+    assert first.title == "Part-time Data Quality Analyst"
+    assert first.company == "Owl.co"
+    assert first.url == "https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst"
+    assert first.external_id == "teamtailor:owlco:719055"
+    assert first.location == "Toronto, Canada"
+    # "Tue, 13 Oct 2026 11:06:34 -0700" in UTC.
+    assert first.posted_date == datetime.datetime(2026, 10, 13, 18, 6, 34, tzinfo=UTC)
+    assert first.department == "Review"
+    assert first.work_type == "Remote"
+    assert first.employment_type == ""
+    assert first.description.startswith("We’re building applied")
+    assert "<" not in first.description
+
+    hybrid = next(j for j in jobs if j.external_id.endswith(":559258"))
+    assert (hybrid.work_type, hybrid.location) == ("Hybrid", "Vancouver, Canada")
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_keeps_every_place_of_a_multi_location_job_in_one_job():
+    jobs, _, _ = await list_teamtailor(load("teamtailor_jobs_owlco.rss"))
+    both = next(j for j in jobs if j.external_id.endswith(":559259"))
+    assert both.location == "New York, United States; Toronto, Canada"
+    assert both.location_hint == "Toronto, Canada"
+    assert both.work_type == "On Site"
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_asks_the_tenant_host_the_registry_names_else_its_own_subdomain():
+    text = load("teamtailor_jobs_owlco.rss")
+    client, seen = served({"https://usg.example.com/jobs.rss": rss_response(text),
+                           "https://owlco.teamtailor.com/jobs.rss": rss_response(text)})
+    async with client:
+        await teamtailor.list_jobs(client, "usg", "USG", config={"host": "usg.example.com"})
+        await teamtailor.list_jobs(client, "owlco", "Owl.co", config={})
+    assert [str(r.url) for r in seen] == ["https://usg.example.com/jobs.rss",
+                                          "https://owlco.teamtailor.com/jobs.rss"]
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_takes_the_url_the_feed_gives_even_on_the_employer_s_domain():
+    text = load("teamtailor_jobs_owlco.rss").replace(
+        "https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst",
+        "https://careers.owl.example/en-GB/jobs/719055-part-time-data-quality-analyst?utm_source=rss#top",
+    )
+    jobs, _, _ = await list_teamtailor(text)
+    assert jobs[0].url == "https://careers.owl.example/en-GB/jobs/719055-part-time-data-quality-analyst"
+    assert jobs[0].external_id == "teamtailor:owlco:719055"
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_places_a_fully_remote_job_with_no_place_as_remote():
+    text = load("teamtailor_jobs_owlco.rss")
+    start = text.index("<tt:locations>")
+    stripped = text[:start] + text[text.index("</tt:locations>", start) + len("</tt:locations>"):]
+    jobs, _, _ = await list_teamtailor(stripped)
+    assert (jobs[0].location, jobs[0].work_type) == ("Remote", "Remote")
+    assert jobs[0].location_hint == ""
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_does_not_call_a_board_complete_when_an_item_could_not_be_read():
+    text = load("teamtailor_jobs_owlco.rss").replace(
+        "<link>https://owlco.na.teamtailor.com/jobs/559258-enterprise-account-executive</link>",
+        "<link></link>",
+    )
+    jobs, complete, total = await list_teamtailor(text)
+    assert (len(jobs), complete, total) == (2, False, 3)
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_falls_back_to_the_guid_when_the_link_has_no_job_number():
+    text = load("teamtailor_jobs_owlco.rss").replace(
+        "https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst",
+        "https://owlco.na.teamtailor.com/jobs/part-time-data-quality-analyst",
+    )
+    jobs, _, _ = await list_teamtailor(text)
+    assert jobs[0].external_id == "teamtailor:owlco:40d7e5f3-239d-4930-a95c-c7bdc670f6f8"
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_empty_feed_missing_tenant_and_foreign_documents():
+    channel = '<?xml version="1.0"?><rss version="2.0"><channel><title>Owl</title></channel></rss>'
+    assert await list_teamtailor(channel) == ([], True, 0)
+    client, _ = served({})
+    async with client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+    with pytest.raises(ValueError):
+        await list_teamtailor("<html><body>Welcome to our career site</body></html>")
+    with pytest.raises(ValueError):
+        await list_teamtailor("<rss version='2.0'><notchannel/></rss>")
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_refuses_a_feed_that_declares_entities():
+    bomb = ('<?xml version="1.0"?><!DOCTYPE rss [<!ENTITY a "aaaaaaaaaa">]>'
+            '<rss version="2.0"><channel><title>&a;</title></channel></rss>')
+    with pytest.raises(ValueError):
+        await list_teamtailor(bomb)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug, config", [
+    ("evil.com/x#", {}), ("a b", {}), ("", {}), ("owlco", {"host": "evil.com/x"}),
+    ("owlco", {"host": "localhost"}), ("owlco", {"host": "a b.example.com"}),
+])
+async def test_teamtailor_refuses_a_slug_or_host_that_is_not_a_hostname(slug, config):
+    client, seen = served({})
+    async with client:
+        with pytest.raises(ValueError):
+            await teamtailor.list_jobs(client, slug, "Evil", config=config)
+    assert seen == []
+
+
 # --- Through the scraper, as the cron runs it -----------------------------------------------
 
 BOARDS = [
     ("workable", "financeit", WORKABLE_API, "workable_widget_financeit.json", 5),
     ("recruitee", "petalmd", RECRUITEE_API, "recruitee_offers_petalmd.json", 5),
+    # No registry entry names a host, so the feed is asked at <slug>.teamtailor.com.
+    ("teamtailor", "owlco", "https://owlco.teamtailor.com/jobs.rss", "teamtailor_jobs_owlco.rss", 3),
 ]
 
 
@@ -537,3 +686,20 @@ async def test_network_recruitee_lists_a_real_board(slug):
             assert (await recruitee.check_alive(client, job.url)).verdict == "alive"
             gone = await recruitee.check_alive(client, f"https://{slug}.recruitee.com/o/no-such-offer-zzz")
             assert gone.verdict == "dead"
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug, config", [
+    ("owlco", {"host": "owlco.na.teamtailor.com"}),
+    ("usgnorthamerica", {}),
+    ("nordastelo", {}),
+])
+async def test_network_teamtailor_lists_a_real_board(slug, config):
+    async with http.make_client() as client:
+        jobs, complete, total = await teamtailor.list_jobs(client, slug, slug, config=config)
+    assert jobs and complete and total == len(jobs)
+    job = jobs[0]
+    assert job.title and job.description and job.posted_date
+    assert "/jobs/" in job.url and job.url.startswith("https://")
+    assert job.external_id.startswith(f"teamtailor:{slug}:")
