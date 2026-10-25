@@ -1,0 +1,62 @@
+{
+ "count": 1,
+ "hasMore": false,
+ "limit": 200,
+ "offset": 0,
+ "links": [
+  {
+   "rel": "self",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions",
+   "name": "recruitingCEJobRequisitions",
+   "kind": "collection"
+  },
+  {
+   "rel": "action",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions/action/getRequisitionsLocationCoordinates",
+   "name": "getRequisitionsLocationCoordinates",
+   "kind": "other"
+  },
+  {
+   "rel": "action",
+   "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitions/action/getRequisitionDetailsForMap",
+   "name": "getRequisitionDetailsForMap",
+   "kind": "other"
+  }
+ ],
+ "items": [
+  {
+   "SearchId": 1,
+   "Keyword": null,
+   "CorrectedKeyword": null,
+   "UseExactKeywordFlag": false,
+   "SuggestedKeyword": null,
+   "ExecuteSpellCheckFlag": true,
+   "Location": null,
+   "LocationId": null,
+   "Radius": 0,
+   "RadiusUnit": "MI",
+   "Facets": "TITLES;LOCATIONS;LOCATION_LEVEL1;LOCATION_LEVEL2;LOCATION_LEVEL3;CATEGORIES;POSTING_DATES;WORK_LOCATIONS;FLEX_FIELDS;ORGANIZATIONS;WORKPLACE_TYPES",
+   "Offset": 0,
+   "Limit": 5,
+   "SortBy": "RELEVANCY",
+   "TotalJobsCount": 7250,
+   "Latitude": null,
+   "Longitude": null,
+   "SiteNumber": "NOPE_999",
+   "JobFamilyId": null,
+   "PostingStartDate": null,
+   "PostingEndDate": null,
+   "RequisitionId": null,
+   "CandidateNumber": null,
+   "WorkLocationZipCode": null,
+   "WorkLocationCountryCode": null,
+   "SelectedFlexFieldsFacets": null,
+   "OrganizationId": null,
+   "UserTargetFacetName": null,
+   "UserTargetFacetInputTerm": null,
+   "HotJobFlag": null,
+   "WorkplaceType": null,
+   "BotQRShortCode": null
+  }
+ ]
+}
