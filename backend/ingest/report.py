@@ -112,7 +112,7 @@ def build_report(db, now: datetime.datetime | None = None) -> dict:
     """Every number the report prints."""
     from backend.db.models import ScrapedJob
 
-    now = now or datetime.datetime.utcnow()
+    now = now or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     live_total = _live(db.query(func.count(ScrapedJob.id))).scalar() or 0
     return {
         "generated_at": now.isoformat(timespec="seconds"),

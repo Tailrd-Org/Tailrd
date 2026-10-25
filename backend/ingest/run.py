@@ -65,7 +65,7 @@ _IN_CHUNK = 400
 
 
 def _utcnow() -> datetime.datetime:
-    return datetime.datetime.utcnow()
+    return datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
 
 
 def log_event(event_name: str, **fields) -> None:

@@ -104,7 +104,7 @@ def reclaim(db, *, apply: bool = False, days: int = DEFAULT_DAYS, batch: int = D
     ``batch`` ids taken in id order. Returns counts."""
     from backend.db.models import ScrapedJob as SJ
 
-    now = now or datetime.datetime.utcnow()
+    now = now or datetime.datetime.now(datetime.timezone.utc).replace(tzinfo=None)
     cutoff = now - datetime.timedelta(days=days)
     stats = {"cutoff": cutoff.isoformat(timespec="seconds"), **measure(db, cutoff),
              "applied": apply, "cleared": 0, "batches": 0}

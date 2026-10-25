@@ -900,11 +900,17 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
             break
         scraped_job = _new_row(db, job, snapshot, ctx, board_country)
         db.add(scraped_job)
+        # Committed without expiring the new row: the twin check below reads
+        # its fields, and a refresh would read the whole row (description
+        # and all) back over the wire for each insert.
+        expire_on_commit, db.expire_on_commit = db.expire_on_commit, False
         try:
             db.commit()
         except Exception:
             db.rollback()
             continue
+        finally:
+            db.expire_on_commit = expire_on_commit
         totals["new_jobs"] += 1
         board["inserted"] += 1
         ctx.inserted += 1
