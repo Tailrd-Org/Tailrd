@@ -149,7 +149,9 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
     """List one search, at most ``max_pages`` pages of ``page_size`` ads.
 
     Returns (jobs, complete, total) with ``total`` Jooble's ``totalCount``. The
-    listing is complete only when every matching ad was returned. A page that
+    listing is complete only when Jooble reported a positive count and every
+    matching ad was returned; ads that come without a count are refused like any
+    unusable page, so one page can never stand for the whole board. A page that
     fails after the first keeps what was listed as an incomplete listing."""
     config = config if isinstance(config, dict) else {}
     keywords = str(config.get("keywords") or "").strip()
@@ -182,6 +184,8 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
             data = response.json()
             ads = data["jobs"]
             page_total = int(data.get("totalCount") or 0)
+            if ads and page_total <= 0:
+                raise ValueError("ads without a total")
         except httpx.HTTPStatusError as exc:
             if page_number == 1:
                 raise JoobleError(f"Jooble answered HTTP {exc.response.status_code}") from None
@@ -204,4 +208,4 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
         if not ads or len(seen) >= total:
             break
 
-    return jobs, bool(jobs) and len(seen) >= total, total
+    return jobs, bool(jobs) and total > 0 and len(seen) >= total, total

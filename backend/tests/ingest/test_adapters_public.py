@@ -412,6 +412,61 @@ async def test_a_job_bank_board_goes_through_the_scraper(paced, monkeypatch):
     assert set(filtered.rejected.values()) == {"level"}
 
 
+def test_a_blank_result_count_is_not_a_search_page():
+    # A search that found nothing prints 0 (jobbank_search_empty.html). A blank count
+    # would switch off the check that the listing covers the count.
+    page = fixture_text("jobbank_search_page.html")
+    blanked = page.replace(">69,078<", "><")
+    assert blanked != page
+    with pytest.raises(ValueError, match="empty result count"):
+        jobbank_ca.parse_search_page(blanked)
+
+
+def test_a_page_whose_items_all_lack_a_title_is_not_a_search_page():
+    untitled = re.sub(r'<span class="noctitle">.*?</span>', '<span class="noctitle"></span>',
+                      fixture_text("jobbank_search_page.html"), flags=re.S)
+    with pytest.raises(ValueError, match="no item has a title"):
+        jobbank_ca.parse_search_page(untitled)
+
+
+@pytest.mark.asyncio
+async def test_a_blank_count_fails_a_first_page_and_keeps_a_later_listing_incomplete(paced):
+    blanked = fixture_text("jobbank_search_page.html").replace(">69,078<", "><")
+    async with mock_client(FakeJobBank(search=lambda request: httpx.Response(200, text=blanked))) as client:
+        with pytest.raises(ValueError, match="empty result count"):
+            await jobbank_ca.list_jobs(client, "x", "Job Bank Canada", config={})
+
+    def search(request):
+        if request.url.params["page"] == "1":
+            return httpx.Response(200, text=jobbank_search_html(80, list(range(500, 525))))
+        return httpx.Response(200, text=blanked)
+
+    async with mock_client(FakeJobBank(search=search)) as client:
+        jobs, complete, total = await jobbank_ca.list_jobs(client, "x", "Job Bank Canada", config={})
+
+    assert (len(jobs), complete, total) == (25, False, 80)
+
+
+@pytest.mark.asyncio
+async def test_a_page_with_rows_but_a_zero_count_is_never_complete(paced):
+    page = jobbank_search_html(0, [1001, 1002, 1003])
+    assert 'id="results-count">0<' in page
+    async with mock_client(FakeJobBank(search=lambda request: httpx.Response(200, text=page))) as client:
+        jobs, complete, total = await jobbank_ca.list_jobs(client, "x", "Job Bank Canada", config={})
+
+    assert (len(jobs), complete, total) == (3, False, 3)
+
+
+@pytest.mark.asyncio
+async def test_an_item_without_a_title_is_left_out_and_the_listing_stays_incomplete(paced):
+    page = jobbank_search_html(3, [1001, 1002, 1003]).replace("job number 1002", "")
+    async with mock_client(FakeJobBank(search=lambda request: httpx.Response(200, text=page))) as client:
+        jobs, complete, total = await jobbank_ca.list_jobs(client, "x", "Job Bank Canada", config={})
+
+    assert [job.detail_ref for job in jobs] == ["1001", "1003"]
+    assert (complete, total) == (False, 3)
+
+
 @pytest.mark.network
 @pytest.mark.asyncio
 async def test_job_bank_live_federal_postings():
@@ -637,6 +692,52 @@ async def test_a_usajobs_board_is_skipped_by_the_scraper_until_the_keys_exist(pa
 
     assert snapshot.jobs == [] and snapshot.all_urls == set() and snapshot.complete is False
     assert site.requests == []
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("total", ["missing", None, 0])
+async def test_usajobs_rows_without_a_total_are_never_a_listing(paced, usajobs_keys, total):
+    def with_total(page):
+        if total == "missing":
+            del page["SearchResult"]["SearchResultCountAll"]
+        else:
+            page["SearchResult"]["SearchResultCountAll"] = total
+        return page
+
+    # On the first page the board fails: one page must not stand for the whole board.
+    async with mock_client(FakeUsaJobs(pages={"1": with_total(usajobs_page(1))})) as client:
+        with pytest.raises((ValueError, KeyError, TypeError)):
+            await usajobs.list_jobs(client, "all", "USAJOBS", config={})
+
+    # On a later page the rows already listed are kept, as an incomplete listing.
+    site = FakeUsaJobs(pages={"1": usajobs_page(1), "2": with_total(usajobs_page(2))})
+    async with mock_client(site) as client:
+        jobs, complete, reported = await usajobs.list_jobs(client, "all", "USAJOBS", config={"page_size": 3})
+
+    assert (len(jobs), complete, reported) == (3, False, 5)
+
+
+def test_usajobs_pay_is_written_the_way_the_salary_parser_reads_it():
+    from backend.services.structured_extraction import parse_salary
+
+    def pay(low, high, code, label):
+        return {"PositionRemuneration": [{"MinimumRange": low, "MaximumRange": high,
+                                          "RateIntervalCode": code, "Description": label}]}
+
+    cases = [
+        (pay("92108", "119746", "PA", "Per Year"), "92108-119746 USD yearly", (92108, 119746, "USD", "year")),
+        (pay("17.54", "22.1", "PH", "Per Hour"), "17.54-22.1 USD hourly", (18, 22, "USD", "hour")),
+        (pay("4200", "4200", "PM", "Per Month"), "USD 4200 monthly", (4200, 4200, "USD", "month")),
+        (pay("92108", "119746", "", "Per Year"), "92108-119746 USD yearly", (92108, 119746, "USD", "year")),
+    ]
+    for descriptor, text, parsed in cases:
+        assert usajobs._salary_text(descriptor) == text
+        assert parse_salary(text) == parsed
+    # The parser reads biweekly and weekly pay as monthly pay and does not read daily pay,
+    # so those periods (and pay with no period) are left out instead of stored wrong.
+    for code, label in (("BW", "Bi-weekly"), ("PW", "Per Week"), ("PD", "Per Day"),
+                        ("WC", "Without Compensation"), ("", ""), ("XX", "Per Semi-Monthly Period")):
+        assert usajobs._salary_text(pay("1200", "1500", code, label)) == ""
 
 
 # --- Adzuna --------------------------------------------------------------------------------------
@@ -872,6 +973,32 @@ async def test_an_adzuna_board_goes_through_the_scraper_once_the_keys_exist(pace
     assert site.requests[0].url.params["what_or"] == "intern graduate"
 
 
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", ["missing", None, 0])
+async def test_adzuna_ads_without_a_count_are_never_a_listing(paced, adzuna_keys, count):
+    def with_count(page):
+        if count == "missing":
+            del page["count"]
+        else:
+            page["count"] = count
+        return page
+
+    # On the first page the board fails: one page must not stand for the whole board.
+    first = with_count(adzuna_page("adzuna_search_ca_page1.json"))
+    async with mock_client(FakeAdzuna(pages={("ca", "1"): first})) as client:
+        with pytest.raises(adzuna.AdzunaError):
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"})
+
+    # On a later page the ads already listed are kept, as an incomplete listing.
+    pages = {("ca", "1"): adzuna_page("adzuna_search_ca_page1.json"),
+             ("ca", "2"): with_count(adzuna_page("adzuna_search_ca_page2.json"))}
+    async with mock_client(FakeAdzuna(pages=pages)) as client:
+        jobs, complete, total = await adzuna.list_jobs(client, "x", "Adzuna",
+                                                       config={"country": "ca", "page_size": 3})
+
+    assert (len(jobs), complete, total) == (3, False, 5)
+
+
 # --- Jooble --------------------------------------------------------------------------------------
 # The fixtures (jooble_search_page*.json) follow help.jooble.org "REST API
 # Documentation": totalCount and jobs[] with id, title, location, snippet, salary,
@@ -1080,3 +1207,27 @@ async def test_a_jooble_board_goes_through_the_scraper_once_the_key_exists(paced
 
     assert len(snapshot.jobs) == 4 and snapshot.complete and snapshot.total_listed == 4
     assert site.bodies[0]["keywords"] == "sales associate"
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", ["missing", None, 0])
+async def test_jooble_ads_without_a_total_are_never_a_listing(paced, jooble_key, count):
+    def with_count(page):
+        if count == "missing":
+            del page["totalCount"]
+        else:
+            page["totalCount"] = count
+        return page
+
+    config = {"keywords": "nurse", "location": "Florida"}
+    # On the first page the board fails: one page must not stand for the whole board.
+    async with mock_client(FakeJooble(pages={1: with_count(jooble_page(1))})) as client:
+        with pytest.raises(jooble.JoobleError):
+            await jooble.list_jobs(client, "x", "Jooble", config=config)
+
+    # On a later page the ads already listed are kept, as an incomplete listing.
+    site = FakeJooble(pages={1: jooble_page(1), 2: with_count(jooble_page(2))})
+    async with mock_client(site) as client:
+        jobs, complete, total = await jooble.list_jobs(client, "x", "Jooble", config=config)
+
+    assert (len(jobs), complete, total) == (3, False, 4)

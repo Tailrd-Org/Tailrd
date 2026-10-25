@@ -203,8 +203,10 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
     """List one search, newest ads first, at most ``max_pages`` pages.
 
     Returns (jobs, complete, total) with ``total`` Adzuna's ``count`` of matching
-    ads. The listing is complete only when every matching ad was returned. A page
-    that fails after the first keeps what was listed as an incomplete listing."""
+    ads. The listing is complete only when Adzuna reported a positive count and
+    every matching ad was returned; ads that come without a count are refused like
+    any unusable page, so one page can never stand for the whole board. A page that
+    fails after the first keeps what was listed as an incomplete listing."""
     config = config if isinstance(config, dict) else {}
     country = str(config.get("country") or "").strip().lower()
     if country not in DETAIL_HOSTS:
@@ -237,6 +239,8 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
             body = response.json()
             ads = body["results"]
             page_total = int(body.get("count") or 0)
+            if ads and page_total <= 0:
+                raise ValueError("ads without a total")
         except httpx.HTTPStatusError as exc:
             if page_number == 1:
                 raise _failure(exc) from None
@@ -259,4 +263,4 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
         if not ads or len(seen) >= total:
             break
 
-    return jobs, bool(jobs) and len(seen) >= total, total
+    return jobs, bool(jobs) and total > 0 and len(seen) >= total, total
