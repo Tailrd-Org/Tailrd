@@ -1,0 +1,206 @@
+{
+  "LanguageCode": "EN",
+  "SearchParameters": {},
+  "SearchResult": {
+    "SearchResultCount": 2,
+    "SearchResultCountAll": 5,
+    "SearchResultItems": [
+      {
+        "MatchedObjectId": "786712345",
+        "MatchedObjectDescriptor": {
+          "PositionID": "VA-26-NUR-7781",
+          "PositionTitle": "Registered Nurse (Telework Eligible)",
+          "PositionURI": "https://www.usajobs.gov/job/786712345",
+          "ApplyURI": [
+            "https://www.usajobs.gov/job/786712345?PostingChannelID=RESTAPI"
+          ],
+          "PositionLocationDisplay": "Multiple Locations",
+          "PositionLocation": [
+            {
+              "LocationName": "Tampa, Florida",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Florida",
+              "CityName": "Tampa, Florida",
+              "Longitude": -82.4572,
+              "Latitude": 27.9506
+            },
+            {
+              "LocationName": "Orlando, Florida",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Florida",
+              "CityName": "Orlando, Florida",
+              "Longitude": -81.3792,
+              "Latitude": 28.5383
+            }
+          ],
+          "OrganizationName": "Veterans Health Administration",
+          "DepartmentName": "Department of Veterans Affairs",
+          "JobCategory": [
+            {
+              "Name": "Nurse",
+              "Code": "0610"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full Time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Current, unrestricted registered nurse license.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "78592",
+              "MaximumRange": "102166",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2026-10-22T00:00:00.0000",
+          "PositionEndDate": "2026-11-21T23:59:59.9970",
+          "PublicationStartDate": "2026-10-22T00:00:00.0000",
+          "ApplicationCloseDate": "2026-11-21T23:59:59.9970",
+          "PositionFormattedDescription": [
+            {
+              "Content": "Nursing care for veterans.",
+              "Label": "Dynamic Teaser",
+              "LabelDescription": "Hit highlighting for keyword searches."
+            }
+          ],
+          "UserArea": {
+            "Details": {
+              "MajorDuties": "Provides direct nursing care.",
+              "Education": "",
+              "Requirements": "",
+              "Evaluations": "",
+              "HowToApply": "",
+              "WhatToExpectNext": "",
+              "RequiredDocuments": "",
+              "Benefits": "",
+              "BenefitsUrl": "",
+              "OtherInformation": "",
+              "KeyRequirements": [],
+              "JobSummary": "Registered nurse on a medical-surgical unit.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": "15514"
+              },
+              "LowGrade": "07",
+              "HighGrade": "07",
+              "SubAgencyName": "Veterans Health Administration",
+              "OrganizationCodes": "VA/VATA"
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "786799001",
+        "MatchedObjectDescriptor": {
+          "PositionID": "NPS-26-SEA-0042",
+          "PositionTitle": "Park Ranger (Interpretation)",
+          "PositionURI": "https://www.usajobs.gov/job/786799001",
+          "PositionLocationDisplay": "Yosemite National Park, California",
+          "PositionLocation": [
+            {
+              "LocationName": "Yosemite National Park, California",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "California",
+              "CityName": "Yosemite National Park, California",
+              "Longitude": -119.5383,
+              "Latitude": 37.8651
+            }
+          ],
+          "OrganizationName": "National Park Service",
+          "DepartmentName": "Department of the Interior",
+          "JobCategory": [
+            {
+              "Name": "Park Ranger",
+              "Code": "0025"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Seasonal",
+              "Code": "6"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Temporary",
+              "Code": "15318"
+            }
+          ],
+          "QualificationSummary": "",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "0",
+              "MaximumRange": "0",
+              "RateIntervalCode": "WC",
+              "Description": "Without Compensation"
+            }
+          ],
+          "PositionStartDate": "2026-10-10T00:00:00.0000",
+          "PositionEndDate": "2026-10-31T23:59:59.9970",
+          "PublicationStartDate": "2026-10-10T00:00:00.0000",
+          "ApplicationCloseDate": "2026-10-31T23:59:59.9970",
+          "PositionFormattedDescription": [
+            {
+              "Content": "Seasonal interpretive ranger.",
+              "Label": "Dynamic Teaser",
+              "LabelDescription": "Hit highlighting for keyword searches."
+            }
+          ],
+          "UserArea": {
+            "Details": {
+              "MajorDuties": "",
+              "Education": "",
+              "Requirements": "",
+              "Evaluations": "",
+              "HowToApply": "",
+              "WhatToExpectNext": "",
+              "RequiredDocuments": "",
+              "Benefits": "",
+              "BenefitsUrl": "",
+              "OtherInformation": "",
+              "KeyRequirements": [],
+              "JobSummary": "Leads ranger talks and walks.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": "15514"
+              },
+              "LowGrade": "05",
+              "HighGrade": "05",
+              "SubAgencyName": "National Park Service",
+              "OrganizationCodes": "IN/INNP"
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0.0
+      }
+    ],
+    "UserArea": {
+      "Refiners": {},
+      "NumberOfPages": "2",
+      "IsRadialSearch": false
+    }
+  }
+}

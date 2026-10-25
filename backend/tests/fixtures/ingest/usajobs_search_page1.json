@@ -1,0 +1,350 @@
+{
+  "LanguageCode": "EN",
+  "SearchParameters": {},
+  "SearchResult": {
+    "SearchResultCount": 3,
+    "SearchResultCountAll": 5,
+    "SearchResultItems": [
+      {
+        "MatchedObjectId": "21947200",
+        "MatchedObjectDescriptor": {
+          "PositionID": "SW62210-05-1716110PB411413H",
+          "PositionTitle": "IT SPECIALIST (INFOSEC/NETWORK)",
+          "PositionURI": "https://www.usajobs.gov/GetJob/ViewDetails/21947200",
+          "ApplyURI": [
+            "https://www.usajobs.gov/GetJob/ViewDetails/21947200?PostingChannelID=RESTAPI"
+          ],
+          "PositionLocationDisplay": "Point Loma Complex, San Diego, California",
+          "PositionLocation": [
+            {
+              "LocationName": "Point Loma Complex, San Diego, California",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "California",
+              "CityName": "Point Loma Complex, San Diego, California",
+              "Longitude": -117.194382,
+              "Latitude": 32.7042961
+            }
+          ],
+          "OrganizationName": "Space and Naval Warfare Systems Command",
+          "DepartmentName": "Department of the Navy",
+          "JobCategory": [
+            {
+              "Name": "Information Technology",
+              "Code": "2200"
+            },
+            {
+              "Name": "Information Technology Management",
+              "Code": "2210"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "NO"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full Time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "Applicants must have one year of specialized experience equivalent to the GS-04 level in the Federal service, performing network administration or information security tasks.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "92108",
+              "MaximumRange": "119746",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2016-06-05T00:00:00Z",
+          "PositionEndDate": "2016-12-01T00:00:00Z",
+          "PublicationStartDate": "2016-06-05T00:00:00Z",
+          "ApplicationCloseDate": "2016-12-01T00:00:00Z",
+          "PositionFormattedDescription": [
+            {
+              "Content": "This announcement is being used to recruit qualified individuals, under the Office of Personnel Management (OPM) Direct Hire Authority, authorized by 5 United States Code (U.S.C.), Section 3304 and 5 Code of Federal Regulations (CFR) Part 337, Subpart B. The Rule of Three, Veteran's Preference and t",
+              "Label": "Dynamic Teaser",
+              "LabelDescription": "Hit highlighting for keyword searches."
+            }
+          ],
+          "UserArea": {
+            "Details": {
+              "MajorDuties": "Major Duties and Responsibilities: Administers the command network and responds to information security incidents.",
+              "Education": "EDUCATION: Not required for this series.",
+              "Requirements": "",
+              "Evaluations": "Your application will be rated on the competencies listed in the announcement.",
+              "HowToApply": "To apply for this position, you must complete the online application.",
+              "WhatToExpectNext": "Applications are reviewed after the announcement closes.",
+              "RequiredDocuments": "Resume and transcripts.",
+              "Benefits": "Federal employees receive health insurance, retirement and paid leave.",
+              "BenefitsUrl": "",
+              "OtherInformation": "This is a drug free workplace.",
+              "KeyRequirements": [],
+              "JobSummary": "Serves as an IT Specialist (INFOSEC/Network) supporting the Point Loma complex.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": "15514"
+              },
+              "LowGrade": "05",
+              "HighGrade": "05",
+              "SubAgencyName": "Space and Naval Warfare System Command Pacific",
+              "OrganizationCodes": "DD/NV/NV39"
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "786654300",
+        "MatchedObjectDescriptor": {
+          "PositionID": "26-STU-0412-DE",
+          "PositionTitle": "Student Trainee (Biological Sciences)",
+          "PositionURI": "https://www.usajobs.gov/job/786654300",
+          "ApplyURI": [
+            "https://www.usajobs.gov/job/786654300?PostingChannelID=RESTAPI"
+          ],
+          "PositionLocationDisplay": "Fort Collins, Colorado",
+          "PositionLocation": [
+            {
+              "LocationName": "Fort Collins, Colorado",
+              "CountryCode": "United States",
+              "CountrySubDivisionCode": "Colorado",
+              "CityName": "Fort Collins, Colorado",
+              "Longitude": -105.0844,
+              "Latitude": 40.5853
+            }
+          ],
+          "OrganizationName": "Agricultural Research Service",
+          "DepartmentName": "Department of Agriculture",
+          "JobCategory": [
+            {
+              "Name": "Biological Sciences",
+              "Code": "0400"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Part-Time",
+              "Code": "2"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Internships",
+              "Code": "15327"
+            }
+          ],
+          "QualificationSummary": "You must be enrolled at least half time in a qualifying degree program.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "17.54",
+              "MaximumRange": "22.1",
+              "RateIntervalCode": "PH",
+              "Description": "Per Hour"
+            }
+          ],
+          "PositionStartDate": "2026-10-20T00:00:00.0000",
+          "PositionEndDate": "2026-11-13T23:59:59.9970",
+          "PublicationStartDate": "2026-10-20T00:00:00.0000",
+          "ApplicationCloseDate": "2026-11-13T23:59:59.9970",
+          "PositionFormattedDescription": [
+            {
+              "Content": "Student interns work alongside scientists on field and laboratory projects.",
+              "Label": "Dynamic Teaser",
+              "LabelDescription": "Hit highlighting for keyword searches."
+            }
+          ],
+          "UserArea": {
+            "Details": {
+              "MajorDuties": [
+                "Assists with soil and plant sampling.",
+                "Enters data into laboratory records."
+              ],
+              "Education": "You must be a current student.",
+              "Requirements": "",
+              "Evaluations": "",
+              "HowToApply": "",
+              "WhatToExpectNext": "",
+              "RequiredDocuments": "",
+              "Benefits": "",
+              "BenefitsUrl": "",
+              "OtherInformation": "",
+              "KeyRequirements": [],
+              "JobSummary": "Work in a federal research laboratory while you finish your degree.",
+              "WhoMayApply": {
+                "Name": "Students",
+                "Code": "15515"
+              },
+              "LowGrade": "03",
+              "HighGrade": "05",
+              "SubAgencyName": "Agricultural Research Service",
+              "OrganizationCodes": "AG/AGRS"
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0.0
+      },
+      {
+        "MatchedObjectId": "786700112",
+        "MatchedObjectDescriptor": {
+          "PositionID": "DOS-STG-26-0098",
+          "PositionTitle": "Management Analyst",
+          "PositionURI": "https://www.usajobs.gov/job/786700112",
+          "ApplyURI": [
+            "https://www.usajobs.gov/job/786700112?PostingChannelID=RESTAPI"
+          ],
+          "PositionLocationDisplay": "Stuttgart, Germany",
+          "PositionLocation": [
+            {
+              "LocationName": "Stuttgart, Germany",
+              "CountryCode": "Germany",
+              "CountrySubDivisionCode": "",
+              "CityName": "Stuttgart, Germany",
+              "Longitude": 9.1829,
+              "Latitude": 48.7758
+            }
+          ],
+          "OrganizationName": "U.S. Army Garrison Stuttgart",
+          "DepartmentName": "Department of the Army",
+          "JobCategory": [
+            {
+              "Name": "Management and Program Analysis",
+              "Code": "0343"
+            }
+          ],
+          "JobGrade": [
+            {
+              "Code": "GS"
+            }
+          ],
+          "PositionSchedule": [
+            {
+              "Name": "Full Time",
+              "Code": "1"
+            }
+          ],
+          "PositionOfferingType": [
+            {
+              "Name": "Permanent",
+              "Code": "15317"
+            }
+          ],
+          "QualificationSummary": "One year of specialized experience at the next lower grade.",
+          "PositionRemuneration": [
+            {
+              "MinimumRange": "67521",
+              "MaximumRange": "87777",
+              "RateIntervalCode": "PA",
+              "Description": "Per Year"
+            }
+          ],
+          "PositionStartDate": "2026-10-18T00:00:00.0000",
+          "PositionEndDate": "2026-11-02T23:59:59.9970",
+          "PublicationStartDate": "2026-10-18T00:00:00.0000",
+          "ApplicationCloseDate": "2026-11-02T23:59:59.9970",
+          "PositionFormattedDescription": [
+            {
+              "Content": "Overseas assignment.",
+              "Label": "Dynamic Teaser",
+              "LabelDescription": "Hit highlighting for keyword searches."
+            }
+          ],
+          "UserArea": {
+            "Details": {
+              "MajorDuties": "Analyzes garrison programs.",
+              "Education": "",
+              "Requirements": "",
+              "Evaluations": "",
+              "HowToApply": "",
+              "WhatToExpectNext": "",
+              "RequiredDocuments": "",
+              "Benefits": "",
+              "BenefitsUrl": "",
+              "OtherInformation": "",
+              "KeyRequirements": [],
+              "JobSummary": "Management analyst for the garrison resource office.",
+              "WhoMayApply": {
+                "Name": "United States Citizens",
+                "Code": "15514"
+              },
+              "LowGrade": "09",
+              "HighGrade": "09",
+              "SubAgencyName": "U.S. Army Garrison Stuttgart",
+              "OrganizationCodes": "AR/AR48"
+            },
+            "IsRadialSearch": false
+          }
+        },
+        "RelevanceRank": 0.0
+      }
+    ],
+    "UserArea": {
+      "Refiners": {
+        "Organization": [
+          {
+            "RefinementName": "AG/AGRS",
+            "RefinementCount": "1",
+            "RefinementToken": "^AG/AGRS$",
+            "RefinementValue": "AG/AGRS"
+          }
+        ],
+        "GradeBucket": [
+          {
+            "RefinementName": "9",
+            "RefinementCount": "3",
+            "RefinementToken": "^9$",
+            "RefinementValue": "9"
+          }
+        ],
+        "SalaryBucket": [
+          {
+            "RefinementName": "75",
+            "RefinementCount": "2",
+            "RefinementToken": "^75$",
+            "RefinementValue": "75"
+          }
+        ],
+        "PositionOfferingTypeCode": [
+          {
+            "RefinementName": "15317",
+            "RefinementCount": "4",
+            "RefinementToken": "15317",
+            "RefinementValue": "15317"
+          }
+        ],
+        "PositionScheduleTypeCode": [
+          {
+            "RefinementName": "1",
+            "RefinementCount": "4",
+            "RefinementToken": "1",
+            "RefinementValue": "1"
+          }
+        ],
+        "JobCategoryCode": [
+          {
+            "RefinementName": "2200/2210",
+            "RefinementCount": "1",
+            "RefinementToken": "^2200/2210$",
+            "RefinementValue": "2200/2210"
+          }
+        ]
+      },
+      "NumberOfPages": "2",
+      "IsRadialSearch": false
+    }
+  }
+}
