@@ -742,11 +742,21 @@ def workday_public_base(cxs_base: str) -> str:
 
     "https://bmo.wd3.myworkdayjobs.com/wday/cxs/bmo/external"
       → "https://bmo.wd3.myworkdayjobs.com/external"
+
+    A myworkdaysite.com host serves every tenant from one pod ("wd1") and
+    names the tenant in the path instead, under /recruiting/. Checked live
+    2026-10-25: Workday's own externalUrl for a posting of each of the 23
+    boards is this URL (one site name differs in letter case only):
+    "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn"
+      → "https://wd1.myworkdaysite.com/recruiting/upenn/careers-at-penn"
     """
-    m = re.match(r"(https?://[^/]+)/wday/cxs/[^/]+/([^/?#]+)", (cxs_base or "").rstrip("/"))
+    m = re.match(r"(https?://[^/]+)/wday/cxs/([^/]+)/([^/?#]+)", (cxs_base or "").rstrip("/"))
     if not m:
         return (cxs_base or "").rstrip("/")
-    return f"{m.group(1)}/{m.group(2)}"
+    host, tenant, site = m.groups()
+    if host.lower().endswith(".myworkdaysite.com"):
+        return f"{host}/recruiting/{tenant}/{site}"
+    return f"{host}/{site}"
 
 
 SMARTRECRUITERS_POSTING_BASE = "https://jobs.smartrecruiters.com/"

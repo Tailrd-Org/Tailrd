@@ -10713,14 +10713,13 @@
       "company_name": "BYU-Hawaii",
       "ats_platform": "workday",
       "board_slug": "byuh",
+      "workday_url_template": "https://wd501.myworkdaysite.com/wday/cxs/byuh/BYU_H",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd501.myworkdaysite.com/recruiting/byuh/BYU_H",
-      "enabled": false,
-      "open_postings_at_verify": 26,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd501.myworkdaysite.com/wday/cxs/byuh/BYU_H"
+      "enabled": true,
+      "open_postings_at_verify": 26
     },
     {
       "company_name": "Calvin University",
@@ -10762,14 +10761,13 @@
       "company_name": "Colorado Mountain College",
       "ats_platform": "workday",
       "board_slug": "coloradomtn",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/coloradomtn/ColoradoMountainCollege",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/coloradomtn/ColoradoMountainCollege",
-      "enabled": false,
-      "open_postings_at_verify": 86,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/coloradomtn/ColoradoMountainCollege"
+      "enabled": true,
+      "open_postings_at_verify": 86
     },
     {
       "company_name": "Colorado School of Mines",
@@ -11332,14 +11330,13 @@
       "company_name": "Santa Clara University",
       "ats_platform": "workday",
       "board_slug": "scu",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/scu/scu",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/scu/scu",
-      "enabled": false,
-      "open_postings_at_verify": 99,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/scu/scu"
+      "enabled": true,
+      "open_postings_at_verify": 99
     },
     {
       "company_name": "Santa Fe College",
@@ -11677,14 +11674,13 @@
       "company_name": "University of Pennsylvania",
       "ats_platform": "workday",
       "board_slug": "upenn",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/upenn/careers-at-penn",
-      "enabled": false,
-      "open_postings_at_verify": 475,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn"
+      "enabled": true,
+      "open_postings_at_verify": 475
     },
     {
       "company_name": "University of Rochester",
@@ -11766,14 +11762,13 @@
       "company_name": "University of Washington",
       "ats_platform": "workday",
       "board_slug": "uw",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/uw/UWHires",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/uw/UWHires",
-      "enabled": false,
-      "open_postings_at_verify": 567,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/uw/UWHires"
+      "enabled": true,
+      "open_postings_at_verify": 567
     },
     {
       "company_name": "University System of New Hampshire",
@@ -11851,14 +11846,13 @@
       "company_name": "Wellesley College",
       "ats_platform": "workday",
       "board_slug": "wellesley",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/wellesley/wellesley-faculty",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/wellesley/wellesley-faculty",
-      "enabled": false,
-      "open_postings_at_verify": 9,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/wellesley/wellesley-faculty"
+      "enabled": true,
+      "open_postings_at_verify": 9
     },
     {
       "company_name": "Wesleyan University",
@@ -11888,14 +11882,13 @@
       "company_name": "Williams College",
       "ats_platform": "workday",
       "board_slug": "williamscollege",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/williamscollege/External_Career_Site",
       "hq_country": "US",
       "country": "US",
       "sector": "education",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/williamscollege/External_Career_Site",
-      "enabled": false,
-      "open_postings_at_verify": 24,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/williamscollege/External_Career_Site"
+      "enabled": true,
+      "open_postings_at_verify": 24
     },
     {
       "company_name": "Yale University",
@@ -12019,13 +12012,12 @@
       "company_name": "Devon Energy",
       "ats_platform": "workday",
       "board_slug": "devonenergy",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/devonenergy/Careers",
       "hq_country": "US",
       "sector": "energy_utilities",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/devonenergy/Careers",
-      "enabled": false,
-      "open_postings_at_verify": 62,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/devonenergy/Careers"
+      "enabled": true,
+      "open_postings_at_verify": 62
     },
     {
       "company_name": "Duke Energy",
@@ -12334,13 +12326,12 @@
       "company_name": "IMEG Corp",
       "ats_platform": "workday",
       "board_slug": "imeg",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/imeg/Imeg_Careers",
       "hq_country": "US",
       "sector": "engineering_construction",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/imeg/Imeg_Careers",
-      "enabled": false,
-      "open_postings_at_verify": 342,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/imeg/Imeg_Careers"
+      "enabled": true,
+      "open_postings_at_verify": 342
     },
     {
       "company_name": "McCown Gordon Construction",
@@ -12622,14 +12613,13 @@
       "company_name": "City of Lee's Summit",
       "ats_platform": "workday",
       "board_slug": "cityofls",
+      "workday_url_template": "https://wd12.myworkdaysite.com/wday/cxs/cityofls/COLS",
       "hq_country": "US",
       "country": "US",
       "sector": "government",
       "careers_url": "https://wd12.myworkdaysite.com/recruiting/cityofls/COLS",
-      "enabled": false,
-      "open_postings_at_verify": 23,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd12.myworkdaysite.com/wday/cxs/cityofls/COLS"
+      "enabled": true,
+      "open_postings_at_verify": 23
     },
     {
       "company_name": "City of Littleton",
@@ -12670,14 +12660,13 @@
       "company_name": "City of Virginia Beach",
       "ats_platform": "workday",
       "board_slug": "vbgov",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/vbgov/City_Of_Virginia_Beach_Careers",
       "hq_country": "US",
       "country": "US",
       "sector": "government",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/vbgov/City_Of_Virginia_Beach_Careers",
-      "enabled": false,
-      "open_postings_at_verify": 110,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/vbgov/City_Of_Virginia_Beach_Careers"
+      "enabled": true,
+      "open_postings_at_verify": 110
     },
     {
       "company_name": "Clark County Washington",
@@ -12770,14 +12759,13 @@
       "company_name": "Johnson County Iowa",
       "ats_platform": "workday",
       "board_slug": "johnsoncountyiowa",
+      "workday_url_template": "https://wd501.myworkdaysite.com/wday/cxs/johnsoncountyiowa/jocoia",
       "hq_country": "US",
       "country": "US",
       "sector": "government",
       "careers_url": "https://wd501.myworkdaysite.com/recruiting/johnsoncountyiowa/jocoia",
-      "enabled": false,
-      "open_postings_at_verify": 6,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd501.myworkdaysite.com/wday/cxs/johnsoncountyiowa/jocoia"
+      "enabled": true,
+      "open_postings_at_verify": 6
     },
     {
       "company_name": "Maricopa County",
@@ -13238,27 +13226,25 @@
       "company_name": "Bon Secours",
       "ats_platform": "workday",
       "board_slug": "easyservice-bon_secours_careers",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/bon_secours_careers",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/easyservice/bon_secours_careers",
-      "enabled": false,
-      "open_postings_at_verify": 34,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/bon_secours_careers"
+      "enabled": true,
+      "open_postings_at_verify": 34
     },
     {
       "company_name": "Bon Secours Mercy Health (Mercy Health)",
       "ats_platform": "workday",
       "board_slug": "easyservice",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/MercyHealthCareers",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/easyservice/MercyHealthCareers",
-      "enabled": false,
-      "open_postings_at_verify": 1305,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/MercyHealthCareers"
+      "enabled": true,
+      "open_postings_at_verify": 1305
     },
     {
       "company_name": "Boston Medical Center",
@@ -13612,14 +13598,13 @@
       "company_name": "Franciscan Health",
       "ats_platform": "workday",
       "board_slug": "franciscanalliance",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/franciscanalliance/fa_external_career_site",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/franciscanalliance/fa_external_career_site",
-      "enabled": false,
-      "open_postings_at_verify": 851,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/franciscanalliance/fa_external_career_site"
+      "enabled": true,
+      "open_postings_at_verify": 851
     },
     {
       "company_name": "Geisinger",
@@ -13686,14 +13671,13 @@
       "company_name": "HCA Healthcare",
       "ats_platform": "workday",
       "board_slug": "hcahealthcare",
+      "workday_url_template": "https://wd3.myworkdaysite.com/wday/cxs/hcahealthcare/hcacareers",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd3.myworkdaysite.com/recruiting/hcahealthcare/hcacareers",
-      "enabled": false,
-      "open_postings_at_verify": 140,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd3.myworkdaysite.com/wday/cxs/hcahealthcare/hcacareers"
+      "enabled": true,
+      "open_postings_at_verify": 140
     },
     {
       "company_name": "HealthPartners",
@@ -14250,14 +14234,13 @@
       "company_name": "Parkland Health",
       "ats_platform": "workday",
       "board_slug": "parklandhospital",
+      "workday_url_template": "https://wd12.myworkdaysite.com/wday/cxs/parklandhospital/Parkland_Careers",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd12.myworkdaysite.com/recruiting/parklandhospital/Parkland_Careers",
-      "enabled": false,
-      "open_postings_at_verify": 293,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd12.myworkdaysite.com/wday/cxs/parklandhospital/Parkland_Careers"
+      "enabled": true,
+      "open_postings_at_verify": 293
     },
     {
       "company_name": "Parkview Health",
@@ -14278,14 +14261,13 @@
       "company_name": "Prisma Health",
       "ats_platform": "workday",
       "board_slug": "prismahealth",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/prismahealth/PrismaHealthCorporate",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/prismahealth/PrismaHealthCorporate",
-      "enabled": false,
-      "open_postings_at_verify": 1775,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/prismahealth/PrismaHealthCorporate"
+      "enabled": true,
+      "open_postings_at_verify": 1775
     },
     {
       "company_name": "Providence",
@@ -14330,14 +14312,13 @@
       "company_name": "Roper St. Francis Healthcare",
       "ats_platform": "workday",
       "board_slug": "easyservice-roperstfrancishealthcare",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/RoperStFrancisHealthcare",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/easyservice/RoperStFrancisHealthcare",
-      "enabled": false,
-      "open_postings_at_verify": 332,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/easyservice/RoperStFrancisHealthcare"
+      "enabled": true,
+      "open_postings_at_verify": 332
     },
     {
       "company_name": "Roswell Park Comprehensive Cancer Center",
@@ -14535,14 +14516,13 @@
       "company_name": "Sutter Health",
       "ats_platform": "workday",
       "board_slug": "sutterhealth",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/sutterhealth/SH",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/sutterhealth/SH",
-      "enabled": false,
-      "open_postings_at_verify": 1275,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/sutterhealth/SH"
+      "enabled": true,
+      "open_postings_at_verify": 1275
     },
     {
       "company_name": "Tenet Healthcare",
@@ -14758,14 +14738,13 @@
       "company_name": "Wood County Hospital",
       "ats_platform": "workday",
       "board_slug": "woodcountyhospital",
+      "workday_url_template": "https://wd503.myworkdaysite.com/wday/cxs/woodcountyhospital/jobs",
       "hq_country": "US",
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://wd503.myworkdaysite.com/recruiting/woodcountyhospital/jobs",
-      "enabled": false,
-      "open_postings_at_verify": 57,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd503.myworkdaysite.com/wday/cxs/woodcountyhospital/jobs"
+      "enabled": true,
+      "open_postings_at_verify": 57
     },
     {
       "company_name": "BlueCross BlueShield of South Carolina",
@@ -15047,13 +15026,12 @@
       "company_name": "White and Case",
       "ats_platform": "workday",
       "board_slug": "whitecase",
+      "workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/whitecase/External",
       "hq_country": "US",
       "sector": "legal",
       "careers_url": "https://wd1.myworkdaysite.com/recruiting/whitecase/External",
-      "enabled": false,
-      "open_postings_at_verify": 163,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd1.myworkdaysite.com/wday/cxs/whitecase/External"
+      "enabled": true,
+      "open_postings_at_verify": 163
     },
     {
       "company_name": "Wilson Sonsini Goodrich and Rosati",
@@ -15114,13 +15092,12 @@
       "company_name": "Enterprise Community Partners",
       "ats_platform": "workday",
       "board_slug": "enterprisecommunity",
+      "workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/enterprisecommunity/EnterpriseCareers",
       "hq_country": "US",
       "sector": "nonprofit",
       "careers_url": "https://wd5.myworkdaysite.com/recruiting/enterprisecommunity/EnterpriseCareers",
-      "enabled": false,
-      "open_postings_at_verify": 46,
-      "disabled_reason": "held: myworkdaysite.com host; workday_public_base() builds myworkdayjobs.com posting URLs, so apply links would break until it supports this host (verified live 2026-10-25)",
-      "held_workday_url_template": "https://wd5.myworkdaysite.com/wday/cxs/enterprisecommunity/EnterpriseCareers"
+      "enabled": true,
+      "open_postings_at_verify": 46
     },
     {
       "company_name": "Foundation for California Community Colleges",
