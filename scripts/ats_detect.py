@@ -342,7 +342,7 @@ def crawlable_platforms() -> set[str]:
 # ─── The registry entry ──────────────────────────────────────────────────────
 
 _PREFIX_LABELS = {"www", "careers", "career", "jobs", "job", "apply", "join", "talent", "recruiting",
-                  "hiring", "work", "en", "fr"}
+                  "hiring", "work", "en", "fr", "boards", "job-boards", "api", "app", "ats"}
 _SECOND_LEVELS = {"co", "com", "org", "gov", "edu", "ac", "net"}
 # A <title> that names no employer.
 _GENERIC_TITLES = {"jobs", "job", "careers", "career", "home", "join us", "work with us", "open roles",
@@ -379,7 +379,7 @@ def page_name(html: str) -> str:
 
 _LOCALE_SEGMENT = re.compile(r"[a-z]{2}(?:-[A-Za-z]{2})?")
 _GENERIC_SEGMENTS = {"jobs", "job", "careers", "career", "apply", "search", "o", "p", "positions",
-                     "postings", "openings", "companies", "company"}
+                     "postings", "openings", "companies", "company", "recruiting"}
 
 
 def _first_segment(path: str) -> str:
@@ -398,20 +398,26 @@ def guess_slug(hit: Hit, page_url: str) -> str:
     the same: the leftmost label of a vendor subdomain ("acme" for
     acme.applytojob.com); on a vendor's own host the employer in the path
     ("index-exchange" for jobs.gem.com/index-exchange); else the employer's
-    name in the page's own host."""
+    name in the page's own host. "" when all that is left is the vendor's own
+    name: a wrong slug that looks right is worse than none."""
     parts = urlsplit(page_url if hit.source == "marker" else _clean_url(hit.evidence))
     host = (parts.hostname or "").lower()
     vendor = _VENDOR_BY_PLATFORM.get(hit.platform)
+    brands = {hit.platform}
     for suffix in (vendor.hosts if vendor else ()):
         suffix = suffix.lower()
+        if suffix.count(".") == 1:
+            brands.add(suffix.split(".")[0])  # lever.co -> lever; not an employer's own domain
         if host.endswith("." + suffix):
             label = host[: -len(suffix) - 1].split(".")[0]
-            if label not in _PREFIX_LABELS:
+            # A pod ("wd5") or a vendor subdomain ("boards") is not the employer.
+            if label not in _PREFIX_LABELS and not re.fullmatch(r"wd\d+", label):
                 return label
-            return _first_segment(parts.path) or host_slug(page_url)
+            return _first_segment(parts.path) or ""
         if host == suffix:
-            return _first_segment(parts.path) or host_slug(page_url)
-    return host_slug(page_url)
+            return _first_segment(parts.path) or ("" if host_slug(page_url) in brands else host_slug(page_url))
+    slug = host_slug(page_url)
+    return "" if slug in brands else slug
 
 
 @dataclass
@@ -437,7 +443,9 @@ def build_entry(hit: Hit, html: str = "", name: str = "",
     slug = hit.slug
     if not slug:
         slug = guess_slug(hit, page_url)
-        notes.append(f"board_slug '{slug}' is a guess: {label} was found, not the employer's board name")
+        notes.append(f"board_slug '{slug}' is a guess: {label} was found, not the employer's board name"
+                     if slug else
+                     f"board_slug is empty: {label} was found, but nothing names the employer's board")
     careers_url = hit.careers_url or page_url.split("#")[0]
     config = dict(hit.config)
     if hit.platform == "teamtailor" and not config:
@@ -458,14 +466,17 @@ def build_entry(hit: Hit, html: str = "", name: str = "",
     if config:
         entry["config"] = config
     entry["careers_url"] = careers_url
-    can_crawl = hit.platform in supported and (hit.platform != "workday" or bool(hit.cxs))
+    can_crawl = hit.platform in supported and (hit.platform != "workday" or bool(hit.cxs)) and bool(slug)
     entry["enabled"] = can_crawl
     if not can_crawl:
+        host = urlsplit(careers_url).hostname or ""
         entry["disabled_reason"] = (
-            f"{label} career site; host {urlsplit(careers_url).hostname or ''}; "
-            f"no connector for {hit.platform} yet.")
+            f"{label} career site; host {host}; no connector for {hit.platform} yet."
+            if hit.platform not in supported else
+            f"{label} career site; host {host}; the board name was not found.")
     if not name:
-        notes.append("company_name is a guess" + (" from the page" if page_name(html) else "") + ": check it")
+        notes.append("company_name is a guess" + (" from the page" if page_name(html) else "") + ": check it"
+                     if company else "company_name is empty: nothing names the employer")
     notes.append("add hq_country (CA or US) and sector before this goes in the registry")
     return Detection(hit, [], entry, can_crawl, notes)
 

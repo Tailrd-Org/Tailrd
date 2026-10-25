@@ -170,6 +170,28 @@ def test_a_vendors_own_page_is_not_an_employers_board(ats, url):
     assert found is None or not found.hit.board
 
 
+@pytest.mark.parametrize("url", [
+    "https://jobs.lever.co/", "https://boards.greenhouse.io/", "https://jobs.lever.co/%E4%B8%AD%E6%96%87",
+])
+def test_a_vendors_own_address_leaves_the_slug_and_name_empty(ats, url):
+    # "lever" would look like a slug and be wrong; an empty one is skipped by
+    # the registry loader and cannot be pasted in unseen.
+    found = ats.detect(url, supported=CRAWLABLE)
+
+    assert found.entry["board_slug"] == "" and found.entry["company_name"] == ""
+    assert found.entry["enabled"] is False and "board name was not found" in found.entry["disabled_reason"]
+    assert any("board_slug is empty" in note for note in found.notes)
+    assert any("company_name is empty" in note for note in found.notes)
+
+
+def test_a_myworkdaysite_address_without_a_site_still_names_the_tenant(ats):
+    found = ats.detect("https://wd5.myworkdaysite.com/en-US/recruiting/acmecare", supported=CRAWLABLE)
+
+    assert found.entry["ats_platform"] == "workday" and found.entry["board_slug"] == "acmecare"
+    assert "workday_url_template" not in found.entry and found.entry["enabled"] is False
+    assert any("site name" in note for note in found.notes)
+
+
 @pytest.mark.parametrize("url, platform", [
     ("https://www.acme.example/careers/platform-engineer?gh_jid=4285367", "greenhouse"),
     ("https://www.acme.example/jobs?ashby_jid=5d1c2b7e-0000-4111-9222-333344445555", "ashby"),
