@@ -73,34 +73,24 @@ def test_date_posted_24h_filter():
         engine.dispose()
 
 
+# One row per stored experience level (scraper v2 stores all eight), titled by level.
+_LEVEL_TITLES = {
+    "internship": "Intern", "new_grad": "Grad", "entry": "Entry", "mid": "Mid",
+    "senior": "Senior", "lead": "Lead", "director": "Director", "executive": "Chief",
+}
+
+
 def _catalogue():
-    """The only three spellings that reach the DB: the two real levels, plus a
-    stray 'senior' row to prove dead levels stay excluded."""
     return [
         ScrapedJob(
-            title="Intern",
+            title=title,
             company="Acme",
             location="Remote",
-            url="https://example.com/intern",
-            experience_level="internship",
+            url=f"https://example.com/{level}",
+            experience_level=level,
             country="US",
-        ),
-        ScrapedJob(
-            title="Grad",
-            company="Acme",
-            location="Remote",
-            url="https://example.com/grad",
-            experience_level="new_grad",
-            country="US",
-        ),
-        ScrapedJob(
-            title="Senior",
-            company="Acme",
-            location="Remote",
-            url="https://example.com/senior",
-            experience_level="senior",
-            country="US",
-        ),
+        )
+        for level, title in _LEVEL_TITLES.items()
     ]
 
 
@@ -116,24 +106,27 @@ def _titles_for(experience_level: str) -> list[str]:
         engine.dispose()
 
 
-def test_experience_filter_canonical_values():
-    """The UI now sends the DB's own spellings."""
-    assert _titles_for("internship") == ["Intern"]
-    assert _titles_for("new_grad") == ["Grad"]
-    assert _titles_for("internship,new_grad") == ["Grad", "Intern"]
+def test_experience_filter_six_options():
+    """Jobright's six options, as the Jobs page sends them."""
+    assert _titles_for("intern_new_grad") == ["Grad", "Intern"]
+    assert _titles_for("entry") == ["Entry"]
+    assert _titles_for("mid") == ["Mid"]
+    assert _titles_for("senior") == ["Senior"]
+    assert _titles_for("lead") == ["Lead"]
+    assert _titles_for("director") == ["Chief", "Director"]
+    # The default for a person who never chose: Intern/New Grad plus Entry Level.
+    assert _titles_for("intern_new_grad,entry") == ["Entry", "Grad", "Intern"]
 
 
 def test_experience_filter_legacy_values_still_resolve():
     """Stale clients, open tabs, and bookmarked URLs keep working."""
-    assert _titles_for("intern_new_grad") == ["Grad", "Intern"]
-    assert _titles_for("entry") == ["Grad", "Intern"]
+    assert _titles_for("internship") == ["Intern"]
+    # The old "New Grad / Entry Level" option.
+    assert _titles_for("new_grad") == ["Entry", "Grad"]
+    assert _titles_for("internship,new_grad") == ["Entry", "Grad", "Intern"]
+    assert _titles_for("executive") == ["Chief"]
 
 
-def test_experience_filter_dead_legacy_values_never_widen():
-    """Dropping mid/senior/lead/director from the map must not make them silently
-    widen into the real catalogue. They keep matching only their own (nonexistent)
-    rows, which is exactly what they did before."""
-    for dead in ("mid", "senior", "lead", "director"):
-        titles = _titles_for(dead)
-        assert "Intern" not in titles
-        assert "Grad" not in titles
+def test_experience_filter_unknown_values_never_widen():
+    """A value no option or legacy key knows matches nothing rather than everything."""
+    assert _titles_for("expert") == []

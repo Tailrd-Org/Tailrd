@@ -2098,8 +2098,8 @@ class TestListVisibility:
         assert "https://boards.greenhouse.io/acme/jobs/1" in urls
         assert "https://boards.greenhouse.io/acme/jobs/2" not in urls
         assert "https://boards.greenhouse.io/acme/jobs/3" not in urls
-        # stale is a crawl-lag state, not evidence of death, stays visible
-        assert "https://boards.greenhouse.io/acme/jobs/4" in urls
+        # stale (missed a listing or failed a check) is hidden too since scraper v2
+        assert "https://boards.greenhouse.io/acme/jobs/4" not in urls
 
     def test_saved_view_keeps_removed_jobs(self, client, db_session):
         removed = _row(db_session, url="https://boards.greenhouse.io/acme/jobs/2",

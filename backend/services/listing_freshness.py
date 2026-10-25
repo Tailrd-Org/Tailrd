@@ -83,9 +83,9 @@ LISTING_OFF_TARGET = "off_target"
 
 # Closed: the posting no longer takes applications (or nothing vouches for it).
 CLOSED_LISTING_STATUSES = (LISTING_REMOVED, LISTING_EXPIRED)
-# Listing statuses hidden from the default catalogue view. ``stale`` stays
-# visible: it usually means the board crawl is behind, not that the job died.
-HIDDEN_LISTING_STATUSES = CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET,)
+# Listing statuses hidden from the default catalogue view. ``stale`` (missed a
+# listing or failed a check) is hidden too, until a crawl or check vouches again.
+HIDDEN_LISTING_STATUSES = CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET, LISTING_STALE)
 # ats_scraper.RETIRABLE_REJECTIONS: the listing verdicts that retire a row.
 _RETIRABLE = frozenset({"level", "location"})
 

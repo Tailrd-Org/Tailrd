@@ -32,7 +32,7 @@ from backend.db.models import (
     UserSettings,
 )
 from backend.services import fit_reads
-from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES
+from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES, LISTING_STALE
 from backend.services.structured_extraction import _SKILL_SYNONYMS, extract_skills
 
 logger = logging.getLogger(__name__)
@@ -349,6 +349,9 @@ def _closing_section(db: Session, user_id: int, now: datetime.datetime) -> list[
             or_(
                 ScrapedJob.listing_status.is_(None),
                 ScrapedJob.listing_status.notin_(HIDDEN_LISTING_STATUSES),
+                # Hidden from the feed, but a saved stale job is exactly what
+                # this card warns about: it may be closing.
+                ScrapedJob.listing_status == LISTING_STALE,
             ),
         )
         .all()

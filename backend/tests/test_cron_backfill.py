@@ -220,17 +220,19 @@ def test_backfill_fetches_the_newest_active_job_first(client, db_session, monkey
     assert _attempted(db_session, older, newer, expired) == [0, 1, 0]
 
 
-def test_backfill_counts_a_stale_or_unset_status_as_active(client, db_session, monkeypatch):
-    stale = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/14")
-    stale.listing_status = "stale"
-    unset = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/15")
+def test_backfill_counts_an_unset_status_as_active_and_stale_as_hidden(client, db_session,
+                                                                      monkeypatch):
+    # stale is hidden from the feed since scraper v2, so it waits with the closed rows.
+    unset = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/14")
     unset.listing_status = None
+    stale = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/15")
+    stale.listing_status = "stale"
     closed = _mk(db_session, "https://boards.greenhouse.io/acme/jobs/16")
     closed.listing_status = "removed"
     db_session.commit()
     _no_fetch(monkeypatch)
-    client.post("/jobs/cron-backfill", params={"batch_size": 2}, headers=_cron_headers(monkeypatch))
-    assert _attempted(db_session, stale, unset, closed) == [1, 1, 0]
+    client.post("/jobs/cron-backfill", params={"batch_size": 1}, headers=_cron_headers(monkeypatch))
+    assert _attempted(db_session, unset, stale, closed) == [1, 0, 0]
 
 
 def _hangs(started: list):

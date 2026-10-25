@@ -58,6 +58,9 @@ class ScrapedJobOut(BaseModel):
     # Job aggregator classification fields
     work_type: str = "onsite"
     role_category: str = ""
+    # Scraper v2 career family slugs (taxonomy.FAMILIES); None on rows no tagger has reached.
+    career_family: Optional[str] = None
+    career_family_secondary: Optional[str] = None
     country: str = ""
     experience_level: str = ""
     posted_date: Optional[datetime.datetime] = None
