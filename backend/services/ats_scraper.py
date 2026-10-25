@@ -361,6 +361,10 @@ WEAK_ENTRY = re.compile(
 _HARD_SENIOR_WORDS = re.compile(
     r"\bsenior\b|\bsr\b\.?|\bprincipal\b|\bdirector\b|\b[aers]?vp\b|\bvice[- ]president\b"
     r"|\bhead of\b|\bchief\b|\bdistinguished\b|\bfellow\b|\bcounsel\b"
+    # A dean is a senior academic post whatever its qualifier ("Associate
+    # Dean" must not read as the entry-level "Associate"); "Dean's Office
+    # Assistant" names an office, not a rank, as taxonomy.json reads it too.
+    r"|\bdean\b(?!['’]s)"
     r"|\bmanaging\b|\bassociate partner\b"
     r"|\bmid[- ]?level\b|\bintermediate\b|\bexperienced\b"
     r"|\biii\b|\biv\b"
