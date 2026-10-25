@@ -285,12 +285,16 @@ def _employer_filter(company: str, company_domain: str):
 # missing evidence, never a death verdict, so an expired row speaks for no
 # one.
 
+# Open, not closed. ``stale`` is hidden from the feed since scraper v2, but it
+# is no closure (usually a board crawl that is behind), so it counts as open here.
 _VISIBLE_LISTING_STATUSES = (LISTING_ACTIVE, LISTING_STALE)
 # An ``off_target`` direct row speaks for its mirrors too: the employer's own
 # listing says the posting is not entry level or not in North America, and a
 # LinkedIn copy of the same posting is no more on target than the original,
-# so its twins stay hidden rather than coming back in its place.
-_SPEAKS_WHEN_HIDDEN = (LISTING_REMOVED, LISTING_OFF_TARGET)
+# so its twins stay hidden rather than coming back in its place. So does a
+# ``stale`` direct row: it usually recovers, and a mirror released while it
+# was stale would then sit beside it as a duplicate nothing hides again.
+_SPEAKS_WHEN_HIDDEN = (LISTING_REMOVED, LISTING_OFF_TARGET, LISTING_STALE)
 
 
 def stands_in_for_twins(listing_status: str | None, source_platform: str, url: str) -> bool:

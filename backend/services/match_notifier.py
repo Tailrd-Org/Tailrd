@@ -125,14 +125,8 @@ def _alert_levels(raw: Optional[str]) -> list[str]:
 
 def _level_filter(levels: list[str]):
     """SQL: the job's experience level is one of ``levels``. A row with no
-    level stays in: nothing in today's visible feed is untagged and every
-    ingest path tags one, so the rule only ever drops rows tagged with a
-    level the user did not choose."""
-    return or_(
-        ScrapedJob.experience_level.in_(levels),
-        ScrapedJob.experience_level.is_(None),
-        ScrapedJob.experience_level == "",
-    )
+    level is never alerted: it could be any level, a Director role included."""
+    return ScrapedJob.experience_level.in_(levels)
 
 
 def _alert_prefs(db: Session, user_id: int) -> tuple[bool, list[str], list[str]]:

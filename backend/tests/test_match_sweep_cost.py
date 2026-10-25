@@ -62,6 +62,8 @@ def swept_user(db_session):
 
 
 def _make_job(db_session, title="Engineer", company="Globex", **fields):
+    # Alerts cover only jobs at the user's levels (none chosen: Intern/New Grad, Entry).
+    fields.setdefault("experience_level", "new_grad")
     job = ScrapedJob(
         title=title,
         company=company,
