@@ -11,6 +11,7 @@ for one that only advances when something sleeps.
 """
 
 import datetime
+import json
 import pathlib
 import re
 
@@ -19,7 +20,7 @@ import pytest
 
 from backend.data import company_registry
 from backend.ingest import adapters
-from backend.ingest.adapters import jobbank_ca
+from backend.ingest.adapters import jobbank_ca, usajobs
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper
 
@@ -417,3 +418,203 @@ async def test_job_bank_live_federal_postings():
         # Posting ids this old have been removed; the site answers 410.
         gone = await jobbank_ca.check_alive(client, "https://www.jobbank.gc.ca/jobsearch/jobposting/40000000")
         assert (gone.verdict, gone.authoritative) == ("dead", True)
+
+
+# --- USAJOBS -------------------------------------------------------------------------------------
+# The fixtures (usajobs_search_page*.json) are written to the response shape in
+# developer.usajobs.gov "GET /api/Search": the documentation's own example is the
+# first item.
+
+USAJOBS_ENV = {"USAJOBS_API_KEY": "test-key", "USAJOBS_USER_AGENT": "developer@example.com"}
+
+
+def usajobs_page(number: int) -> dict:
+    return json.loads(fixture_text(f"usajobs_search_page{number}.json"))
+
+
+@pytest.fixture
+def usajobs_keys(monkeypatch):
+    for name, value in USAJOBS_ENV.items():
+        monkeypatch.setenv(name, value)
+
+
+class FakeUsaJobs:
+    def __init__(self, pages=None, status=200):
+        self.pages = pages or {"1": usajobs_page(1), "2": usajobs_page(2)}
+        self.status = status
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.status != 200:
+            return httpx.Response(self.status, json={"error": "denied"})
+        body = self.pages.get(request.url.params["Page"])
+        if body is None:
+            body = {"SearchResult": {"SearchResultCount": 0, "SearchResultCountAll": 5, "SearchResultItems": []}}
+        return httpx.Response(200, json=body)
+
+
+def test_usajobs_contract_constants():
+    assert usajobs.PLATFORM == "usajobs"
+    assert usajobs.TIER == 2
+    assert usajobs.COUNTRIES == ("US",)
+    assert usajobs.REQUIRED_ENV == ("USAJOBS_API_KEY", "USAJOBS_USER_AGENT")
+    assert usajobs.RATE_LIMIT > 0
+
+
+def test_usajobs_stays_disabled_until_both_keys_exist(monkeypatch):
+    for name in USAJOBS_ENV:
+        monkeypatch.delenv(name, raising=False)
+    assert adapters.get_adapter("usajobs") is usajobs
+    assert not adapters.adapter_enabled("usajobs")
+    monkeypatch.setenv("USAJOBS_API_KEY", "test-key")
+    assert not adapters.adapter_enabled("usajobs")  # the registered email is missing
+    monkeypatch.setenv("USAJOBS_USER_AGENT", "developer@example.com")
+    assert adapters.adapter_enabled("usajobs")
+
+
+def test_usajobs_owns_both_forms_of_its_posting_urls():
+    for url in ("https://www.usajobs.gov/job/786654300",
+                "https://www.usajobs.gov/GetJob/ViewDetails/21947200"):
+        assert adapters.adapter_for_url(url) is usajobs
+    assert adapters.adapter_for_url("https://www.usajobs.gov/help/") is not usajobs
+
+
+def test_usajobs_items_become_listings():
+    items = usajobs_page(1)["SearchResult"]["SearchResultItems"] + usajobs_page(2)["SearchResult"]["SearchResultItems"]
+    jobs = [usajobs._to_job(item, "students", "USAJOBS") for item in items]
+    it_specialist, student, overseas, nurse, ranger = jobs
+
+    assert it_specialist.external_id == "usajobs:students:21947200"
+    assert it_specialist.title == "IT SPECIALIST (INFOSEC/NETWORK)"
+    assert it_specialist.company == "Space and Naval Warfare Systems Command"
+    assert it_specialist.url == "https://www.usajobs.gov/GetJob/ViewDetails/21947200"
+    assert it_specialist.apply_url == "https://www.usajobs.gov/GetJob/ViewDetails/21947200?PostingChannelID=RESTAPI"
+    assert it_specialist.location == "Point Loma Complex, San Diego, California, United States"
+    assert it_specialist.department == "Information Technology"
+    assert it_specialist.employment_type == "Full Time, Permanent"
+    assert it_specialist.salary_text == "92108-119746 USD yearly"
+    assert it_specialist.posted_date == datetime.datetime(2016, 6, 5, tzinfo=datetime.timezone.utc)
+    assert it_specialist.description.startswith("Serves as an IT Specialist (INFOSEC/Network)")
+    assert "Administers the command network" in it_specialist.description
+    assert "one year of specialized experience" in it_specialist.description
+
+    assert student.employment_type == "Part-Time, Internships"
+    assert student.salary_text == "17.54-22.1 USD hourly"
+    assert student.posted_date == datetime.datetime(2026, 10, 20, tzinfo=datetime.timezone.utc)
+    assert "Assists with soil and plant sampling.\nEnters data into laboratory records." in student.description
+    # A posting abroad names its country, so the location filter can see it.
+    assert overseas.location == "Stuttgart, Germany"
+    assert nurse.location == "Multiple Locations, United States"
+    assert nurse.work_type == "Remote"  # "Telework Eligible" in the title
+    # No pay figures, no apply link: both stay empty rather than invented.
+    assert ranger.salary_text == "" and ranger.apply_url == ""
+    assert ranger.url == "https://www.usajobs.gov/job/786799001"
+
+
+@pytest.mark.asyncio
+async def test_usajobs_sends_the_documented_headers_and_pages_to_the_end(paced, usajobs_keys):
+    site = FakeUsaJobs()
+    async with mock_client(site) as client:
+        jobs, complete, total = await usajobs.list_jobs(
+            client, "students", "USAJOBS",
+            config={"params": {"HiringPath": "student"}, "page_size": 3, "max_pages": 5})
+
+    assert (len(jobs), complete, total) == (5, True, 5)
+    assert [r.url.params["Page"] for r in site.requests] == ["1", "2"]
+    first = site.requests[0]
+    assert first.url.host == "data.usajobs.gov" and first.url.path.lower() == "/api/search"
+    assert first.url.params["HiringPath"] == "student" and first.url.params["ResultsPerPage"] == "3"
+    assert (first.url.params["SortField"], first.url.params["SortDirection"]) == ("opendate", "desc")
+    # The three headers the authentication guide asks for. The User-Agent is the
+    # email the key was requested with, not TailrdBot's.
+    assert first.headers["host"] == "data.usajobs.gov"
+    assert first.headers["authorization-key"] == "test-key"
+    assert first.headers["user-agent"] == "developer@example.com"
+    assert first.headers["accept"] == "application/json"
+
+
+@pytest.mark.asyncio
+async def test_usajobs_page_cap_leaves_the_listing_incomplete(paced, usajobs_keys):
+    site = FakeUsaJobs()
+    async with mock_client(site) as client:
+        jobs, complete, total = await usajobs.list_jobs(
+            client, "all", "USAJOBS", config={"page_size": 3, "max_pages": 1})
+
+    assert (len(jobs), complete, total) == (3, False, 5)
+    assert len(site.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_usajobs_config_cannot_override_the_page_and_the_page_size_is_capped(paced, usajobs_keys):
+    site = FakeUsaJobs()
+    async with mock_client(site) as client:
+        await usajobs.list_jobs(client, "all", "USAJOBS", config={
+            "params": {"Page": "7", "ResultsPerPage": "9", "SortField": "closedate"},
+            "page_size": 5000, "max_pages": 1, "fields": "Full"})
+
+    params = site.requests[0].url.params
+    assert (params["Page"], params["ResultsPerPage"]) == ("1", "500")
+    assert (params["SortField"], params["Fields"]) == ("closedate", "Full")
+
+
+@pytest.mark.asyncio
+async def test_usajobs_a_shifted_page_does_not_double_count_a_posting(paced, usajobs_keys):
+    repeated = usajobs_page(2)
+    repeated["SearchResult"]["SearchResultItems"].insert(0, usajobs_page(1)["SearchResult"]["SearchResultItems"][-1])
+    site = FakeUsaJobs(pages={"1": usajobs_page(1), "2": repeated})
+    async with mock_client(site) as client:
+        jobs, complete, total = await usajobs.list_jobs(client, "all", "USAJOBS", config={"page_size": 3})
+
+    assert len(jobs) == 5 and len({job.url for job in jobs}) == 5
+    assert (complete, total) == (True, 5)
+
+
+@pytest.mark.asyncio
+async def test_usajobs_an_empty_answer_is_never_complete(paced, usajobs_keys):
+    empty = {"SearchResult": {"SearchResultCount": 0, "SearchResultCountAll": 0, "SearchResultItems": []}}
+    async with mock_client(FakeUsaJobs(pages={"1": empty})) as client:
+        assert await usajobs.list_jobs(client, "all", "USAJOBS", config={}) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_usajobs_a_denied_key_fails_the_board(paced, usajobs_keys):
+    async with mock_client(FakeUsaJobs(status=401)) as client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await usajobs.list_jobs(client, "all", "USAJOBS", config={})
+
+
+@pytest.mark.asyncio
+async def test_usajobs_a_later_page_that_fails_keeps_the_first_as_incomplete(paced, usajobs_keys):
+    def handler(request):
+        if request.url.params["Page"] == "1":
+            return httpx.Response(200, json=usajobs_page(1))
+        return httpx.Response(200, text="<html>maintenance</html>")
+
+    async with mock_client(handler) as client:
+        jobs, complete, total = await usajobs.list_jobs(client, "all", "USAJOBS", config={"page_size": 3})
+
+    assert (len(jobs), complete, total) == (3, False, 5)
+
+
+@pytest.mark.asyncio
+async def test_usajobs_without_keys_it_refuses_to_run(paced, monkeypatch):
+    for name in USAJOBS_ENV:
+        monkeypatch.delenv(name, raising=False)
+    site = FakeUsaJobs()
+    async with mock_client(site) as client:
+        with pytest.raises(RuntimeError):
+            await usajobs.list_jobs(client, "all", "USAJOBS", config={})
+    assert site.requests == []
+
+
+@pytest.mark.asyncio
+async def test_a_usajobs_board_is_skipped_by_the_scraper_until_the_keys_exist(paced, monkeypatch):
+    for name in USAJOBS_ENV:
+        monkeypatch.delenv(name, raising=False)
+    site = FakeUsaJobs()
+    async with mock_client(site) as client:
+        snapshot = await ATSScraper().scrape_board(client, "usajobs", "students", "USAJOBS")
+
+    assert snapshot.jobs == [] and snapshot.all_urls == set() and snapshot.complete is False
+    assert site.requests == []
