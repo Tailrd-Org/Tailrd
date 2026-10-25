@@ -187,12 +187,17 @@ def parse_search_page(page: str) -> tuple[int, list[_Listing]]:
     if not count:
         raise ValueError("not a Job Bank search page: no result count")
     digits = re.sub(r"\D", "", count.group(1))
-    total = int(digits) if digits else 0
+    if not digits:
+        # A search that found nothing prints 0. A blank count is a broken page, and
+        # without a count the listing could not be checked for completeness.
+        raise ValueError("not a Job Bank search page: empty result count")
     items = []
     for match in _ARTICLE_RE.finditer(page):
         link = _POSTING_ID_RE.search(match.group(2))
         items.append(_Listing(link.group(1) if link else match.group(1), match.group(2)))
-    return total, items
+    if items and not any(item.title for item in items):
+        raise ValueError("not a Job Bank search page: no item has a title")
+    return int(digits), items
 
 
 def _canonical_url(posting_id: str) -> str:
@@ -232,9 +237,9 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
 
     Returns (jobs, complete, total): ``total`` is the result count the site
     reports. The listing is complete only when the pages ran out before the cap
-    or the deadline and the postings seen cover that count; a search that found
-    nothing is never called complete, because a site hiccup that serves an empty
-    page would otherwise read as every posting being taken down. A page that
+    or the deadline and the postings seen cover that (positive) count; a search
+    that found nothing is never called complete, because a site hiccup that serves
+    an empty page would otherwise read as every posting being taken down. A page that
     fails after the first keeps what was listed so far, as an incomplete listing."""
     config = config if isinstance(config, dict) else {}
     params = {key: value for key, value in (config.get("params") or {}).items()
@@ -270,6 +275,8 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
         for item in items:
             if item.posting_id in seen:
                 continue  # the list shifted under us between pages
+            if not item.title:
+                continue  # unusable; left out of ``seen`` so the listing stays short of the count
             seen.add(item.posting_id)
             jobs.append(_to_job(item, slug, company_name))
             added += 1
@@ -277,7 +284,7 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
             pages_ran_out = True
             break
 
-    complete = pages_ran_out and bool(jobs) and len(seen) >= first_total
+    complete = pages_ran_out and bool(jobs) and first_total > 0 and len(seen) >= first_total
     return jobs, complete, max(total, len(seen))
 
 

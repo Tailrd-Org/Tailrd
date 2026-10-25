@@ -58,8 +58,11 @@ DEFAULT_MAX_PAGES = 5        # 500 postings a board unless the registry asks for
 ROW_CEILING = 10_000         # "Maximum of 10,000 rows per query"
 DESCRIPTION_LIMIT = 10000
 
-_PAY_PERIODS = (("PA", "yearly"), ("PH", "hourly"), ("PD", "daily"), ("PW", "weekly"),
-                ("BW", "biweekly"), ("PM", "monthly"))
+# The salary parser reads these three periods correctly. It takes biweekly or weekly pay for
+# monthly pay and does not read daily pay at all, so any other period (or none) leaves the
+# salary out rather than stored wrong.
+_PAY_PERIODS = (("PA", "yearly"), ("PH", "hourly"), ("PM", "monthly"))
+_PAY_LABELS = {"per year": "yearly", "per hour": "hourly", "per month": "monthly"}
 
 
 class _Credentials(httpx.Auth):
@@ -153,8 +156,8 @@ def _amount(value) -> str:
 
 
 def _salary_text(descriptor: dict) -> str:
-    """The first pay range as "92108-119746 USD yearly", the shape the salary
-    parser reads; "" without a usable one."""
+    """The first pay range per year, hour or month as "92108-119746 USD yearly",
+    the shape the salary parser reads; "" without such a range."""
     for pay in descriptor.get("PositionRemuneration") or []:
         if not isinstance(pay, dict):
             continue
@@ -162,12 +165,11 @@ def _salary_text(descriptor: dict) -> str:
         if not low or not high or float(high) <= 0:
             continue
         code = _text(pay.get("RateIntervalCode")).upper()
-        label = _text(pay.get("Description")).lower()
-        period = dict(_PAY_PERIODS).get(code) or next(
-            (name for word, name in (("year", "yearly"), ("hour", "hourly"), ("month", "monthly"),
-                                     ("week", "weekly"), ("day", "daily")) if word in label), "")
+        period = dict(_PAY_PERIODS).get(code) or _PAY_LABELS.get(_text(pay.get("Description")).lower())
+        if not period:
+            continue  # biweekly, weekly, daily, no pay: the salary parser would misread it
         amounts = f"USD {low}" if low == high else f"{low}-{high} USD"
-        return f"{amounts} {period}".strip()
+        return f"{amounts} {period}"
     return ""
 
 
@@ -228,9 +230,11 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
     """List one query, newest first, at most ``max_pages`` pages of ``page_size``.
 
     Returns (jobs, complete, total) with ``total`` the API's SearchResultCountAll.
-    The listing is complete only when every row the query matched was returned
-    and the query fits under the API's 10,000-row ceiling. A page that fails
-    after the first keeps what was listed as an incomplete listing."""
+    The listing is complete only when the API reported a positive count, every row
+    the query matched was returned and the query fits under the 10,000-row ceiling;
+    rows that come without a count are refused like any unusable page, so one page
+    can never stand for the whole board. A page that fails after the first keeps
+    what was listed as an incomplete listing."""
     config = config if isinstance(config, dict) else {}
     auth = _credentials()
     query = {key: value for key, value in (config.get("params") or {}).items()
@@ -257,6 +261,8 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
             result = response.json()["SearchResult"]
             items = result["SearchResultItems"]
             page_total = int(result["SearchResultCountAll"])
+            if items and page_total <= 0:
+                raise ValueError("rows without a total")
         except (httpx.HTTPError, ValueError, KeyError, TypeError):
             if page_number == 1:
                 raise
@@ -273,4 +279,4 @@ async def list_jobs(client, slug, company_name, *, config, deadline=None):
         if not items or len(seen) >= total:
             break
 
-    return jobs, bool(jobs) and len(seen) >= total and total <= ROW_CEILING, total
+    return jobs, bool(jobs) and 0 < total <= ROW_CEILING and len(seen) >= total, total
