@@ -41,7 +41,7 @@ from backend.ingest.core import http
 from backend.services.ats_scraper import ATSJob
 from backend.services.description_extractor import clean_html
 from backend.services.na_location import names_north_american_place
-from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN, LivenessResult
+from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN, LivenessResult, says_dead
 
 logger = logging.getLogger(__name__)
 
@@ -357,4 +357,8 @@ async def check_alive(client: httpx.AsyncClient, url: str) -> LivenessResult:
         return LivenessResult(UNKNOWN, f"http_{response.status_code}")
     if _job_posting(response.text) is not None:
         return LivenessResult(ALIVE, "icims_job_posting", True)
+    # A portal that answers 200 with a "no longer available" notice instead of 410 is
+    # read the way the generic page check reads it.
+    if says_dead(response.text):
+        return LivenessResult(DEAD, "icims_body_closed")
     return LivenessResult(UNKNOWN, "icims_no_posting_data")

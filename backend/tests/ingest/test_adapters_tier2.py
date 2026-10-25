@@ -876,11 +876,13 @@ async def test_icims_check_alive_does_not_guess(clock):
     base = "https://careers-kinaxis.icims.com"
     server = IcimsServer(postings={
         "/jobs/1/a/job": (200, "<html><body>no job data</body></html>"),
+        "/jobs/4/d/job": (200, "<html><body><h1>Sorry</h1><p>This job is no longer available.</p></body></html>"),
         "/jobs/2/b/job": (403, ""),
         "/jobs/3/c/job": (503, "busy"),
     })
     async with client_for(server) as client:
         assert (await icims.check_alive(client, base + "/jobs/1/a/job")) == (UNKNOWN, "icims_no_posting_data", False)
+        assert (await icims.check_alive(client, base + "/jobs/4/d/job")) == (DEAD, "icims_body_closed", False)
         assert (await icims.check_alive(client, base + "/jobs/2/b/job")) == (UNKNOWN, "http_403", False)
         assert (await icims.check_alive(client, base + "/jobs/3/c/job")) == (UNKNOWN, "http_503", False)
     robots = IcimsServer(robots="User-agent: *\nDisallow: /jobs/\n", postings={"/jobs/1/a/job": (200, "x")})
