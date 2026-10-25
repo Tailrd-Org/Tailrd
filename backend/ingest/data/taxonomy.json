@@ -23,6 +23,30 @@
 
     "new_grad": ["\\b(?:mba|leadership|management|associate|analyst|graduate|career)\\s+development\\s+program\\b(?!\\s+(?:manager|lead|director|coordinator|specialist|partner|advis[eo]r))"],
 
+    "school_word": "\\b(?:teach\\w*|educat\\w*|instruct\\w*|tutor\\w*|school|classroom|kindergarten|elementary|secondary|immersion|curriculum|homeroom|pupils?)\\b",
+    "school_grade": "\\b(?:grades?|years?|class(?:es)?)\\s?(?:\\d{1,2}|k|jk|sk)(?:\\s?(?:[/&,-]|to|and|\u2013)\\s?(?:\\d{1,2}|k))*\\b",
+    "school_stage": "\\b(?:junior|senior)\\s+(?=(?:kindergarten|high|school|secondary|elementary)\\b)",
+    "_school_grade": "A grade, year or class beside a teaching word is the pupils' level, not the job's: 'Grade 3 Teacher', 'Grade 7/8 Teacher' and 'Senior Kindergarten Teacher' all read as 'Teacher', before the entry tier reads the title. A pay grade without a teaching word still counts.",
+
+    "ranks": [
+      {"title": "\\b(?:associate|assistant|deputy|vice)[- ]provost\\b", "level": "director"},
+      {"title": "\\bprovost\\b", "level": "executive"},
+      {"title": "\\b(?:associate|assistant|deputy)\\s+dean\\b", "level": "director"},
+      {"title": "\\bassociate\\s+superintendents?\\b", "level": "director"},
+      {"title": "\\b(?:assistant|deputy)\\s+superintendents?\\b", "if_title": "\\b(?:schools?|education|educational|district|curriculum|instruction|instructional|learning|students?|academic|teaching|k-12)\\b", "level": "director"},
+      {"title": "\\bsuperintendents?\\b", "if_title": "\\b(?:schools?|education|educational|district|curriculum|instruction|instructional|learning|students?|academic|teaching|k-12)\\b", "level": "executive"},
+      {"title": "\\b(?:vice|assistant|associate)[- ]principal\\b", "level": "lead"},
+      {"title": "\\bprincipal\\b(?!\\s+(?:engineer|developer|scientist|analyst|consultant|designer|architect|investigator|product|program|software|data|security))", "if_title": "\\b(?:schools?|elementary|secondary|middle|junior high|academy|collegiate|k-12|catholic)\\b", "level": "director"},
+      {"title": "\\b(?:adjunct|visiting|sessional)\\s+professors?\\b", "level": "mid"},
+      {"title": "\\bassistant(?:\\s+|\\s?/\\s?)(?:\\w+\\s+){0,2}?professors?\\b", "level": "mid"},
+      {"title": "\\bassociate\\s+(?:\\w+\\s+){0,2}?professors?\\b", "level": "senior"},
+      {"title": "\\bprofessors?\\b", "level": "senior"},
+      {"title": "\\bassociate\\s+(?:wardens?|commissioners?)\\b", "level": "director"},
+      {"title": "\\bassociate\\s+registrars?\\b", "level": "lead"},
+      {"title": "\\bassociate\\s+(?:judges?|justices?)\\b", "level": "senior"}
+    ],
+    "_ranks": "Academic, school and public ranks, read before the entry tier's level words (the scraper reads 'Associate Professor' as an entry-level associate). Assistant professor mid, associate and full professor senior, adjunct, visiting and sessional mid; associate and assistant deans director (dean itself is in director); provost executive and its associates director; a school superintendent executive and its deputies director, while a construction superintendent stays lead; a school principal director, a vice or assistant principal lead; associate warden and commissioner director, associate registrar lead, associate judge senior. The first matching rank wins; 'if_title' must match too.",
+
     "deputy_chief": ["\\b(?:deputy|assistant|associate)\\s+chief\\b"],
     "_deputy_chief": "A deputy to a chief is a director.",
 
@@ -140,7 +164,7 @@
     "_comment": "years_required(): the lower bound of the first experience requirement in the text. A figure above max_years is a company's age ('25+ years of experience' in an About Us), not a requirement.",
     "max_years": 20,
     "number_words": {"one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6, "seven": 7, "eight": 8, "nine": 9, "ten": 10, "eleven": 11, "twelve": 12, "fifteen": 15, "un": 1, "deux": 2, "trois": 3, "quatre": 4, "cinq": 5},
-    "requirement": "(?<![\\d.,$/])(?P<low>\\d{1,2})\\s*(?:\\+|plus)?\\s*(?:(?:-|\u2013|to|or|\u00e0)\\s*(?P<high>\\d{1,2})\\s*\\+?\\s*)?(?:or\\s+more\\s+|\\+\\s*)?(?:years?|yrs?|ans)['\u2019]?(?P<gap>[^.;:!?\\n]{0,60}?)\\b(?:experience|exp\\b|exp\u00e9rience)",
+    "requirement": "(?<![\\d.,$/])(?P<low>\\d{1,2})\\s{0,3}(?:\\+|plus)?\\s{0,3}(?:(?:-|\u2013|to|or|\u00e0)\\s{0,3}(?P<high>\\d{1,2})\\s{0,3}\\+?\\s{0,3})?(?:or\\s{1,3}more\\s{1,3}|\\+\\s{0,3})?(?:years?|yrs?|ans)['\u2019]?(?P<gap>[^.;:!?\\n]{0,60}?)\\b(?:experience|exp\\b|exp\u00e9rience)",
     "not_a_requirement": "\\b(?:age|old|older|ago|in business|history|anniversary)\\b"
   },
 
@@ -162,7 +186,7 @@
 
       {"family": "operations_supply_chain", "title": ["\\bhse\\b", "\\behs\\b", "\\bhealth (?:and|&) safety\\b", "\\blife safety\\b"]},
 
-      {"family": "government_public_sector", "title": ["\\bgovernment\\s+(?:affairs|relations)\\b", "\\bpublic affairs\\b", "\\bpublic policy\\b", "\\bcommunity (?:relations|engagement)\\b", "\\bgovernment (?:&|and) community\\b", "(?<!quality )\\binspectors?\\b", "\\bbylaw\\b", "\\bpolice\\b", "\\bcorrection(?:s|al)? officers?\\b", "\\bparole officers?\\b", "\\blegislative\\b", "\\bmunicipal\\b"]},
+      {"family": "government_public_sector", "title": ["\\bgovernment\\s+(?:affairs|relations)\\b", "\\bpublic affairs\\b", "\\bpublic policy\\b", "\\bcommunity (?:relations|engagement)\\b", "\\bgovernment (?:&|and) community\\b", "(?<!quality )\\binspectors?\\b", "\\bbylaw\\b", "\\bpolice\\b", "\\bcorrection(?:s|al)? officers?\\b", "\\bparole officers?\\b", "\\blegislative\\b", "\\bmunicipal\\b", "\\bwardens?\\b", "\\bcommissioners?\\b"]},
 
       {"family": "banking_insurance_investment", "title": ["\\bclaims?\\s+(?:specialist|adjuster|examiner|analyst|representative|manager|handler|consultant)s?\\b", "\\bclaims? adjust", "\\bcash management\\b"]},
 
@@ -170,25 +194,25 @@
 
       {"family": "finance_accounting", "title": ["\\binternal audit\\b", "\\baudit interne\\b"]},
 
-      {"family": "legal", "title": ["\\bcounsel\\b", "\\blegal\\b", "\\blawyers?\\b", "\\battorneys?\\b", "\\bparalegal", "\\bcompliance\\b", "\\bregulatory\\b", "\\bprivacy\\b", "\\bcontracts?\\s+(?:manager|specialist|administrator|negotiator|analyst|attorney|lead|director)\\b", "\\be?aml\\b", "\\banti[- ]money laundering\\b", "\\bfinancial crimes?\\b", "\\blitigat", "\\bjuriste\\b", "\\bavocat"],
+      {"family": "legal", "title": ["\\bcounsel\\b", "\\blegal\\b", "\\blawyers?\\b", "\\battorneys?\\b", "\\bparalegal", "\\bcompliance\\b", "\\bregulatory\\b", "\\bprivacy\\b", "\\bcontracts?\\s+(?:manager|specialist|administrator|negotiator|analyst|attorney|lead|director)\\b", "\\baml\\b", "\\banti[- ]money laundering\\b", "\\bfinancial crimes?\\b", "\\blitigat", "\\bjuriste\\b", "\\bavocat", "\\bjudges?\\b", "\\bjustice of the peace\\b"],
        "department": ["\\blegal\\b", "\\bcompliance\\b"]},
 
-      {"family": "education_research", "title": ["\\bcurriculum\\b", "\\blecturers?\\b", "\\bprofessors?\\b", "\\badjunct\\b", "\\bteaching\\b", "\\bdean\\b(?!'s|\u2019s)", "\\bprovost\\b", "\\benrol?lment\\b", "\\badmissions?\\b", "\\bstudent (?:services|success|affairs|life|advis)", "\\bcareer (?:advis[eo]r|consultant|coach|counsel)", "\\barchivists?\\b", "\\blibrar(?:ian|ians|y)\\b", "\\bpost-?doc"]},
+      {"family": "education_research", "title": ["\\bcurriculum\\b", "\\blecturers?\\b", "\\bprofessors?\\b", "\\badjunct\\b", "\\bteaching\\b", "\\bdean\\b(?!'s|\u2019s)", "\\bprovost\\b", "\\benrol?lment\\b", "\\badmissions?\\b", "\\bstudent (?:services|success|affairs|life|advis)", "\\bcareer (?:advis[eo]r|consultant|coach|counsel)", "\\barchivists?\\b", "\\blibrar(?:ian|ians|y)\\b", "\\bpost-?doc", "\\bassociate superintendents?\\b", "\\bsuperintendents?\\b.*\\b(?:schools?|education|educational|district|curriculum|instruction|instructional|learning|students?|academic|teaching|k-12)\\b", "\\b(?:schools?|education|educational|district|curriculum|instruction|instructional|learning|students?|academic|teaching|k-12)\\b.*\\bsuperintendents?\\b", "\\b(?:vice|assistant|associate)[- ]principals?\\b", "\\bregistrars?\\b"]},
 
       {"family": "software_engineering", "title": ["\\bsalesforce\\b", "\\bsitecore\\b"]},
 
       {"family": "sales_bizdev", "title": ["\\bsolutions?\\s+(?:engineer|engineering|architect|consultant)", "\\bsales engineer", "\\bpre-?sales\\b", "\\btechnical solutions\\b"]},
 
-      {"family": "it_security_infrastructure", "title": ["\\binfrastructure engineer", "\\bdevops\\b", "\\bsite reliability\\b", "\\bsre\\b", "\\bcloud (?:engineer|platform|architect|operations|administrator)", "\\bnetwork (?:engineer|administrator|technician|analyst|specialist)", "\\bsystems? administrator", "\\bsysadmin\\b", "\\bhelp ?desk\\b", "\\bservice desk\\b", "\\bdesktop\\b", "(?-i:\\bIT\\b)", "\\binformation technology\\b", "\\binformation management (?:&|and) technology\\b", "\\benterprise technology\\b", "\\btechnology (?:portfolio|services|operations|infrastructure)\\b", "\\berp\\b", "\\bworkload automation\\b", "\\bapplications? (?:specialist|analyst|administrator|support)\\b", "\\btechnical specialist,? applications\\b", "\\bchief information officer\\b", "\\bcio\\b", "\\bdatabase administrator\\b", "\\bdba\\b", "\\bdata cent(?:er|re)s?\\b"],
+      {"family": "it_security_infrastructure", "title": ["\\binfrastructure engineer", "\\bdevops\\b", "\\bsite reliability\\b", "\\bsre\\b", "\\bcloud (?:engineer|platform|architect|operations|administrator)", "\\bnetwork (?:engineer|administrator|technician|analyst|specialist)", "\\bsystems? administrator", "\\bsysadmin\\b", "\\bhelp ?desk\\b", "\\bservice desk\\b", "\\bdesktop\\b", "(?-i:\\bIT\\b)", "\\binformation technology\\b", "\\binformation management (?:&|and) technology\\b", "\\benterprise technology\\b", "\\btechnology (?:portfolio|services|operations|infrastructure)\\b", "\\berp\\b", "\\bapplications? (?:specialist|analyst|administrator|support)\\b", "\\bchief information officer\\b", "\\bcio\\b", "\\bdatabase administrator\\b", "\\bdba\\b", "\\bdata cent(?:er|re)s?\\b"],
        "department": ["\\binformation technology\\b", "(?-i:\\bIT\\b)", "\\bsecurity\\b", "\\binfrastructure\\b", "\\bcloud\\b"]},
 
       {"family": "marketing_communications", "title": ["\\bproduct marketing\\b", "\\btechnical marketing\\b", "\\bcommunications?\\b"]},
 
-      {"family": "software_engineering", "title": ["\\bsoftware\\b", "\\bdevelopers?\\b", "\\bd[\u00e9e]veloppeu", "\\blogiciel", "\\bprogrammers?\\b", "\\bfront[- ]?end\\b", "\\bback[- ]?end\\b", "\\bfull[- ]?stack\\b", "\\bsde\\b", "\\bswe\\b", "\\bweb (?:engineer|developer|qa)\\b", "\\b(?:ios|android|mobile) (?:engineer|developer)", "\\bqa\\b", "\\bquality (?:assurance|engineering)\\b", "\\btest automation\\b", "\\bautomatisation des tests\\b", "\\bsdet\\b", "\\bgameplay\\b", "\\bgame (?:engineer|programmer|developer)", "\\bforward deployed\\b", "\\bdeployed engineer", "\\bproduct engineer", "\\bplatform engineer", "\\bmember of te\\w*nical staff\\b", "\\bengineering (?:manager|director|lead)\\b", "\\b(?:director|head|vp|vice president),? (?:of )?engineering\\b", "\\bdeveloper tooling\\b", "\\bbusiness engineer", "\\banti-cheat\\b", "\\bfirmware\\b", "\\bembedded\\b", "\\bpython\\b", "\\bjava\\b", "\\bgolang\\b", "\\bkotlin\\b", "\\breact\\b", "\\btypescript\\b", "\\bnode\\.?js\\b", "\\bc\\+\\+", "\\.net\\b"],
+      {"family": "software_engineering", "title": ["\\bsoftware\\b", "\\bdevelopers?\\b", "\\bd[\u00e9e]veloppeu", "\\blogiciel", "\\bprogrammers?\\b", "\\bfront[- ]?end\\b", "\\bback[- ]?end\\b", "\\bfull[- ]?stack\\b", "\\bsde\\b", "\\bswe\\b", "\\bweb (?:engineer|developer|qa)\\b", "\\b(?:ios|android|mobile) (?:engineer|developer)", "\\bqa\\b", "\\bquality (?:assurance|engineering)\\b", "\\btest automation\\b", "\\bautomatisation des tests\\b", "\\bsdet\\b", "\\bgameplay\\b", "\\bgame (?:engineer|programmer|developer)", "\\bforward deployed\\b", "\\bdeployed engineer", "\\bproduct engineer", "\\bplatform engineer", "\\bmember of technical staff\\b", "\\bengineering (?:manager|director|lead)\\b", "\\b(?:director|head|vp|vice president),? (?:of )?engineering\\b", "\\bfirmware\\b", "\\bembedded\\b", "\\bpython\\b", "\\bjava\\b", "\\bgolang\\b", "\\bkotlin\\b", "\\breact\\b", "\\btypescript\\b", "\\bnode\\.?js\\b", "\\bc\\+\\+", "\\.net\\b"],
        "department": ["^\\s*engineering\\b", "\\bsoftware\\b", "\\br ?& ?d\\b", "\\bresearch (?:and|&) development\\b"],
        "title_weak": ["\\bchief technology officer\\b", "\\bcto\\b"]},
 
-      {"family": "product_design", "title": ["\\bproduct manag", "\\bproduct owners?\\b", "\\bproduct lead\\b", "\\bhead of product\\b", "\\bproduct design", "\\bdesigners?\\b", "\\bgraphic design", "\\bux\\b", "\\bui\\b", "\\buser experience\\b", "\\buser research", "\\bdirector,? pm\\b", "\\b(?:group|senior|principal|staff)\\s+pm\\b", "\\bapm\\b", "\\bproduct strateg"],
+      {"family": "product_design", "title": ["\\bproduct manag", "\\bproduct owners?\\b", "\\bproduct lead\\b", "\\bhead of product\\b", "\\bproduct design", "\\bdesigners?\\b", "\\bgraphic design", "\\bux\\b", "\\bui\\b", "\\buser experience\\b", "\\buser research", "\\b(?:director|head|vp|lead|group|senior|principal|staff),?\\s+pm\\b(?!\\s+shift)", "\\bapm\\b", "\\bproduct strateg"],
        "department": ["\\bproduct management\\b", "^\\s*product\\s*$", "\\bproduct design\\b", "^\\s*design\\s*$", "\\bpricing\\b"]},
 
       {"family": "customer_support_admin", "title": ["\\bcustomer (?:service|support|care|experience|success)\\b", "\\bclient (?:success|support)\\b", "\\bsupport (?:specialist|representative|rep|agent|advocate|engineer|analyst|associate|lead|team)s?\\b", "\\btechnical support\\b", "\\bcall cent(?:er|re)\\b", "\\bcontact cent(?:er|re)\\b", "\\bimplementation (?:consultant|specialist|manager|engineer|lead)\\b", "\\bonboarding (?:specialist|manager|consultant)\\b", "\\bprofessional services\\b", "\\bdeployment consultant\\b"],
@@ -198,7 +222,7 @@
       {"family": "sales_bizdev", "title": ["\\bpartnerships?\\b", "\\bpartner (?:manager|success|development|sales|account)", "\\baccount (?:executive|manager|director|development|management)", "\\bbusiness development\\b", "\\brelationship manager\\b", "\\bchief revenue\\b", "\\brevenue officer\\b", "\\bleasing (?:consultant|agent|specialist)s?\\b", "\\b[bs]drs?\\b", "\\bsales development\\b", "\\binside sales\\b", "\\boutside sales\\b", "\\binternal sales\\b", "\\bsales (?:representative|engineer|executive|manager|director|lead|operations|velocity|analyst|intern)"],
        "department": ["\\bsales\\b", "\\brevenue\\b", "\\bbusiness development\\b", "\\baccount management\\b", "\\bpartnerships\\b"]},
 
-      {"family": "operations_supply_chain", "title": ["\\bsupply chain\\b", "\\blogistics?\\b", "\\bprocurement\\b", "\\bpurchasing\\b", "\\bbuyers?\\b", "\\binventory\\b", "\\bwarehouse\\b", "\\bfulfil+ment\\b", "\\bdistribution (?:center|centre|associate|manager)", "\\bshipping\\b", "\\breceiving\\b", "\\breturns\\b", "\\bstorekeepers?\\b", "(?<!device )\\bdrivers?\\b", "\\bcouriers?\\b", "\\bdispatch", "\\bfleet\\b", "\\bfreight\\b", "\\bproject manag", "\\bprogram manag", "\\bpmo\\b", "\\btechnical program\\b", "\\bbusiness operations\\b", "\\bbiz ?ops\\b", "\\bstrategy (?:and|&) operations\\b", "\\boperations (?:manager|director|lead|analyst|enablement|coordinator)", "\\b(?:of|,)\\s+operations\\b", "\\boperational (?:lead|manager|excellence|support)\\b", "\\bchief of staff\\b", "\\bprocess (?:management|improvement)\\b", "\\bgeneral management\\b", "\\bfacilities\\b", "\\breal estate\\b", "\\blocation management\\b", "\\bmaintenance (?:coordinator|planner|advis[eo]r|scheduler)", "\\bpreventative maintenance\\b", "\\bdeployment (?:specialist|strategist)", "\\bchief operating\\b", "\\bcoo\\b", "\\bchief executive\\b", "\\bceo\\b", "(?<!vice )(?<!vice-)\\bpresident\\b", "\\bchief administrative\\b", "\\bgestionnaire de projet\\b"],
+      {"family": "operations_supply_chain", "title": ["\\bsupply chain\\b", "\\blogistics?\\b", "\\bprocurement\\b", "\\bpurchasing\\b", "\\bbuyers?\\b", "\\binventory\\b", "\\bwarehouse\\b", "\\bfulfil+ment\\b", "\\bdistribution (?:center|centre|associate|manager)", "\\bshipping\\b", "\\breceiving\\b", "\\breturns\\b", "\\bstorekeepers?\\b", "(?<!device )\\bdrivers?\\b", "\\bcouriers?\\b", "\\bdispatch", "\\bfleet\\b", "\\bfreight\\b", "\\bproject manag", "\\bprogram manag", "\\bpmo\\b", "\\btechnical program\\b", "\\bbusiness operations\\b", "\\bbiz ?ops\\b", "\\bstrategy (?:and|&) operations\\b", "\\boperations (?:manager|director|lead|analyst|enablement|coordinator)", "\\b(?:of|,)\\s+operations\\b", "\\boperational (?:lead|manager|excellence|support)\\b", "\\bchief of staff\\b", "\\bprocess (?:management|improvement)\\b", "\\bgeneral management\\b", "\\bfacilities\\b", "\\breal estate\\b", "\\bmaintenance (?:coordinator|planner|advis[eo]r|scheduler)", "\\bpreventative maintenance\\b", "\\bdeployment (?:specialist|strategist)", "\\bchief operating\\b", "\\bcoo\\b", "\\bchief executive\\b", "\\bceo\\b", "(?<!vice )(?<!vice-)\\bpresident\\b", "\\bchief administrative\\b", "\\bgestionnaire de projet\\b"],
        "department": ["\\boperations\\b", "\\bsupply chain\\b", "\\blogistics\\b", "\\bfacilities\\b", "\\bprogram management\\b"],
        "title_weak": ["\\boperations\\b"],
        "description": ["\\bproject manager\\b"]},
@@ -208,7 +232,7 @@
       {"family": "healthcare_clinical", "title": ["\\bnurs(?:e|es|ing)\\b", "\\brns?\\b", "\\blpns?\\b", "\\bphysicians?\\b", "\\bdoctors?\\b", "\\bmedical director\\b", "\\bchief medical\\b", "\\bprimary care\\b", "\\bfamily medicine\\b", "\\bphysiatr", "\\bpsychiatr", "\\bpsycholog", "\\btherap(?:ist|ists|y)\\b", "\\bcounsel+ors?\\b", "\\bpharmac(?:ist|ists|y)\\b", "\\btechnologists?\\b", "\\bradiolog", "\\bx-?ray\\b", "\\bimaging\\b", "\\bsonograph", "\\bultrasound\\b", "\\bnuclear med", "\\bmedical lab", "\\bclinical (?:scientist|lab|laboratory|nurse|pharmacist|specialist|supervisor|manager|director|educator)", "\\bdental\\b", "\\bhygienists?\\b", "\\bparamedics?\\b", "\\bemts?\\b", "\\brespiratory\\b", "\\bphysio", "\\boccupational therap", "\\bspeech[- ]language\\b", "\\bdietitians?\\b", "\\bnurse practitioner\\b", "\\bphysician assistant\\b", "\\badvanced practice\\b", "\\baides?\\b", "\\bpsws?\\b", "\\bpersonal support workers?\\b", "\\bcaregivers?\\b", "\\bveterinar", "\\bdvm\\b", "\\brehab", "\\bsurg(?:ery|ical|eon)", "\\boncology\\b", "\\bicu\\b", "\\bpatient care\\b", "\\bdirector of care\\b", "\\baddiction", "\\bmental health\\b", "\\bcardio", "\\bmidwi", "\\boptometr", "\\baudiolog", "\\bchiropract", "\\bphlebotom", "\\banesthe", "\\bpediatric", "\\bobstetric", "\\bmedical assistants?\\b"],
        "department": ["\\bclinical\\b", "\\bnursing\\b", "\\bpharmacy\\b", "\\bmedical\\b"]},
 
-      {"family": "skilled_trades", "title": ["\\belectricians?\\b", "\\bforem[ae]n\\b", "\\bplumb", "\\bhvac (?:technician|mechanic|installer|apprentice|service)\\b", "\\bcarpent", "\\bweld", "\\bmachinists?\\b", "\\bmechanics?\\b", "\\btechnicians?\\b", "\\bmillwrights?\\b", "\\bpipefitter", "\\bconstruction\\b", "\\bsuperintendents?\\b", "\\bassembl", "\\bproduction (?:associate|technician|worker|operator|manager|supervisor|lead)", "\\boperators?\\b", "\\bmaintenance\\b", "\\bmanufacturing (?:associate|technician|operator|worker)", "\\breman\\b", "\\bequipment tech", "\\belectronics tech", "\\bdiesel\\b", "\\bautomotive\\b", "\\bbrake\\b", "\\btires?\\b", "\\blabou?rers?\\b", "\\bskilled trades?\\b", "\\btrades(?:person|man|men)\\b", "\\bapprentice\\b(?!\\s+manager)", "\\baudio[ /-]?visual\\b", "\\bcnc\\b", "\\bfabricat", "\\binstallers?\\b", "\\blinem[ae]n\\b", "\\bpainters?\\b", "\\broofer", "\\bboilermaker", "\\bironworker"],
+      {"family": "skilled_trades", "title": ["\\belectricians?\\b", "\\bforem[ae]n\\b", "\\bplumb", "\\bhvac (?:technician|mechanic|installer|apprentice|service)\\b", "\\bcarpent", "\\bweld", "\\bmachinists?\\b", "\\bmechanics?\\b", "\\btechnicians?\\b", "\\bmillwrights?\\b", "\\bpipefitter", "\\bconstruction\\b", "\\bsuperintendents?\\b", "\\bassembl", "\\bproduction (?:associate|technician|worker|operator|manager|supervisor|lead)", "\\boperators?\\b", "\\bmaintenance\\b", "\\bmanufacturing (?:associate|technician|operator|worker)", "\\bequipment tech", "\\belectronics tech", "\\bdiesel\\b", "\\bautomotive\\b", "\\bbrake\\b", "\\btires?\\b", "\\blabou?rers?\\b", "\\bskilled trades?\\b", "\\btrades(?:person|man|men)\\b", "\\bapprentice\\b(?!\\s+manager)", "\\baudio[ /-]?visual\\b", "\\bcnc\\b", "\\bfabricat", "\\binstallers?\\b", "\\blinem[ae]n\\b", "\\bpainters?\\b", "\\broofer", "\\bboilermaker", "\\bironworker"],
        "department": ["\\bproduction\\b", "\\bmanufacturing\\b", "\\breconditioning\\b", "\\bmaintenance\\b", "\\bconstruction\\b"],
        "description": ["\\bconstruction\\b", "\\bjob ?sites?\\b"]},
 
@@ -232,7 +256,7 @@
        "title_weak": ["\\banalysts?\\b"],
        "description": ["\\bdata (?:&|and) analytics\\b"]},
 
-      {"family": "education_research", "title": ["\\binstructors?\\b", "\\bteachers?\\b", "\\btutors?\\b", "\\beducat(?:or|ors|ion)\\b", "\\bacademic\\b", "\\bschool\\b", "\\bresearch (?:associate|assistant|coordinator|technician|fellow)", "\\bscientists?\\b", "\\bearly childhood\\b", "\\bfaculty\\b"],
+      {"family": "education_research", "title": ["\\binstructors?\\b", "\\bteachers?\\b", "\\btutors?\\b", "\\beducat(?:or|ors|ion)\\b", "\\bacademic\\b", "\\bschool\\b", "\\bresearch (?:associate|assistant|coordinator|technician|fellow)", "\\bscientists?\\b", "\\bearly childhood\\b", "\\bfaculty\\b", "\\belementary\\b", "\\b(?:high|middle|secondary) school\\b"],
        "department": ["\\beducational services\\b", "\\bfaculty\\b", "\\bschool\\b", "\\beducation\\b"],
        "description": ["\\buniversity\\b", "\\bcollege\\b", "\\bschool district\\b"]},
 
@@ -251,7 +275,7 @@
        "department": ["\\bpolicy\\b", "\\bgovernment\\b", "\\bpublic affairs\\b"],
        "description": ["\\bgovernment\\b", "\\bcounty\\b", "\\bmunicipal", "\\bstate of\\b", "\\bcity of\\b", "\\bministry\\b", "\\bpublic service\\b", "\\bfederal\\b", "\\bdepartment of\\b", "\\bagency\\b"]},
 
-      {"family": "other", "title": ["\\bcustodians?\\b", "\\bjanitor", "\\bcleaners?\\b", "\\bsecurity (?:guard|officer)s?\\b", "\\basset protection\\b", "\\bloss prevention\\b", "\\bhorticultur", "\\barboretum\\b", "\\blandscap", "\\bgroundskeep", "\\bathletics?\\b", "\\brecreation\\b", "\\borganizers?\\b", "\\bcase ?workers?\\b"]},
+      {"family": "other", "title": ["\\bcustodians?\\b", "\\bjanitor", "\\bcleaners?\\b", "\\bsecurity (?:guard|officer)s?\\b", "\\basset protection\\b", "\\bloss prevention\\b", "\\bhorticultur", "\\blandscap", "\\bgroundskeep", "\\bathletics?\\b", "\\brecreation\\b", "\\borganizers?\\b", "\\bcase ?workers?\\b"]},
 
       {"family": "customer_support_admin", "title": ["\\bclerks?\\b", "\\bsecretar", "\\badministrative\\b"]}
     ]

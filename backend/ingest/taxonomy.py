@@ -92,9 +92,12 @@ _MAX_TITLE = 500
 _SPACE = re.compile(r"\s+")
 _RANK = {level: rank for rank, level in enumerate(LEVELS)}
 # "five (5) years": the figure in brackets repeats the word before it.
-_REPEATED_NUMBER = re.compile(r"\b(\d{1,2})\s*\(\s*\1\s*\)")
+# Whitespace is bounded here and in the years rule: descriptions are raw
+# third-party text, and an unbounded \s* after a digit backtracks
+# quadratically through a long run of spaces.
+_REPEATED_NUMBER = re.compile(r"\b(\d{1,2})\s{0,3}\(\s{0,3}\1\s{0,3}\)")
 # Most descriptions never mention years; those skip the full parse.
-_YEARS_HINT = re.compile(r"year|yrs|\bans?\b", re.IGNORECASE)
+_YEARS_HINT = re.compile(r"year|yrs|\bans\b", re.IGNORECASE)
 
 
 def _alternation(patterns, flags=re.IGNORECASE) -> re.Pattern | None:
@@ -125,7 +128,12 @@ def _rules() -> SimpleNamespace:
                                    re.IGNORECASE),
         numeral=re.compile(raw["numeral"], re.IGNORECASE),
         numeral_levels=raw["numeral_levels"],
+        ranks=[SimpleNamespace(title=_alternation(rank["title"]),
+                               if_title=_alternation(rank.get("if_title")),
+                               level=rank["level"])
+               for rank in raw["ranks"]],
         **{name: _alternation(raw[name]) for name in (
+            "school_word", "school_grade", "school_stage",
             "internship", "new_grad", "deputy_chief", "executive", "vice_president",
             "individual_role", "director", "member_of_staff", "group_manager",
             "individual_manager", "associate_manager", "lead", "senior", "mid", "entry",
@@ -201,6 +209,26 @@ def _lowest_band(title: str) -> str:
     return rules.trailing_senior.sub("", title)
 
 
+def _school_title(title: str) -> str:
+    """'Grade 3 Teacher' -> 'Teacher', 'Senior Kindergarten Teacher' ->
+    'Kindergarten Teacher': beside a teaching word, a grade, year or class
+    is the pupils' level, not the job's. Other titles are returned as is
+    (a pay grade still counts)."""
+    rules = _rules().experience
+    if not rules.school_word.search(title):
+        return title
+    return _clean(rules.school_grade.sub(" ", rules.school_stage.sub("", title)))
+
+
+def _rank(title: str) -> str | None:
+    """The level of an academic, school or public rank ("Associate
+    Professor", "Associate Dean", "Superintendent of Schools"), or None."""
+    for rank in _rules().experience.ranks:
+        if rank.title.search(title) and (rank.if_title is None or rank.if_title.search(title)):
+            return rank.level
+    return None
+
+
 def _named_track(title: str) -> str | None:
     """internship or new_grad for a track the scraper's entry tier does not
     name: a summer associate, a course's teaching assistant, an MBA
@@ -216,6 +244,14 @@ def _named_track(title: str) -> str | None:
     if rules.new_grad.search(title):
         return "new_grad"
     return None
+
+
+def _weak_tier_exception(title: str) -> str | None:
+    """The level of a named track or a rank, which outranks the entry tier's
+    level words: "MBA Marketing Summer Associate" is an internship and
+    "Associate Professor" senior, not entry. None for every other title."""
+    title = _without_boss(title)
+    return _named_track(title) or _rank(title)
 
 
 def _title_level(title: str) -> str | None:
@@ -286,7 +322,14 @@ def classify_experience(title: str, department: str = "", employment_type: str =
     if tier == "strong":
         return scraper.experience_level_for(title or "", department, employment_type)
     title = _clean(title, _MAX_TITLE)
-    level = _named_track(_without_boss(title))
+    school_title = _school_title(title)
+    if school_title != title:
+        # The tier reads a teacher's title without the pupils' grade.
+        title = school_title
+        tier = scraper.entry_tier(title, department, employment_type)
+        if tier == "strong":
+            return scraper.experience_level_for(title, department, employment_type)
+    level = _weak_tier_exception(title)
     if level:
         return level
     if tier == "weak":
