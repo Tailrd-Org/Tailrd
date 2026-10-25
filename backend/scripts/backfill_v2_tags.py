@@ -14,7 +14,13 @@ family and per level. ``--apply`` writes them, in batches of ``--batch``
 
 Every row gets career_family, career_family_secondary and enrichment_version
 from its title (taxonomy.classify_family). ATS rows (source_platform 'ats')
-also get experience_level recomputed with taxonomy.classify_experience;
+also get experience_level recomputed with taxonomy.classify_experience, with
+one limit: a row stored as internship or new_grad moves at most to entry.
+Those rows passed the old entry-level filter, perhaps on a department or a
+commitment this script cannot see, so a title that says mid or above is no
+proof that the row left the student feed. Such a row keeps its stored label
+(the run prints how many) and the next crawl, which has the department,
+derives the level. Rows stored with any other level are recomputed freely.
 GitHub-list and LinkedIn/Indeed rows keep the level their own path decided
 (they are student lists).
 
@@ -26,10 +32,8 @@ crawl that tagged it in the meantime keeps its fresher tags.
 
 What it cannot see: scraped_jobs has no department column and the
 description is not read, so a family comes from the title alone (92.5% on
-the labeled sample, against 96.5% with department and description), and an
-ATS row whose student label came only from its department ("Early Career")
-is leveled from its title. The next crawl of a board, which has the
-department, corrects the level; the family stays until the title changes.
+the labeled sample, against 96.5% with department and description) and stays
+until the title changes.
 """
 
 from __future__ import annotations
@@ -41,6 +45,10 @@ from collections import Counter, defaultdict
 STATUSES = ("active", "stale", "off_target")
 DEFAULT_BATCH = 1000
 ATS = "ats"
+# The two levels the old entry-level crawler wrote, and the levels a row stored
+# as one of them may be given: the student feed (Intern/New Grad plus Entry).
+STUDENT_LABELS = ("internship", "new_grad")
+FEED_LEVELS = ("internship", "new_grad", "entry")
 
 
 def candidate_filter() -> tuple:
@@ -50,9 +58,10 @@ def candidate_filter() -> tuple:
     return (SJ.listing_status.in_(STATUSES), SJ.enrichment_version.is_(None))
 
 
-def retag(row) -> dict:
-    """The columns to write for one row (id, title, source_platform,
-    experience_level, employment_type, experience_years_required)."""
+def retag(row) -> tuple[dict, bool]:
+    """(the columns to write for one row, whether its stored student label was
+    kept). ``row`` carries id, title, source_platform, experience_level,
+    employment_type and experience_years_required."""
     from backend.ingest import taxonomy
 
     family, secondary = taxonomy.classify_family(row.title or "")
@@ -61,6 +70,7 @@ def retag(row) -> dict:
         "career_family_secondary": secondary,
         "enrichment_version": taxonomy.ENRICHMENT_VERSION,
     }
+    kept = False
     if row.source_platform == ATS:
         # The stored employment_type is the crawler's commitment field, or
         # else what the title or the description's opening said ("prior
@@ -70,9 +80,18 @@ def retag(row) -> dict:
         commitment = ""
         if row.experience_level == "internship" and row.employment_type == "internship":
             commitment = "internship"
-        values["experience_level"] = taxonomy.classify_experience(
+        level = taxonomy.classify_experience(
             row.title or "", "", commitment, years_required=row.experience_years_required)
-    return values
+        if row.experience_level in STUDENT_LABELS and level not in FEED_LEVELS:
+            # The old crawler kept this row, perhaps on a department or a
+            # commitment that is not stored; the title alone saying mid or
+            # above must not push it out of the student feed. The label is
+            # left as it is (not written) and the next crawl, which has the
+            # department, derives the level.
+            kept = True
+        else:
+            values["experience_level"] = level
+    return values, kept
 
 
 def backfill(db, *, apply: bool = False, batch: int = DEFAULT_BATCH, progress=None) -> dict:
@@ -83,7 +102,7 @@ def backfill(db, *, apply: bool = False, batch: int = DEFAULT_BATCH, progress=No
     stats = {
         "applied": apply, "rows": 0, "updated": 0, "batches": 0,
         "by_status": Counter(), "by_source": Counter(), "families": Counter(),
-        "levels": Counter(), "ats_rows": 0, "level_changes": Counter(),
+        "levels": Counter(), "ats_rows": 0, "kept": 0, "level_changes": Counter(),
     }
     last_id = 0
     while True:
@@ -101,17 +120,21 @@ def backfill(db, *, apply: bool = False, batch: int = DEFAULT_BATCH, progress=No
 
         groups: dict[tuple, list[int]] = defaultdict(list)
         for row in rows:
-            values = retag(row)
+            values, kept = retag(row)
             groups[tuple(values.items())].append(row.id)
             stats["rows"] += 1
             stats["by_status"][row.listing_status] += 1
             stats["by_source"][row.source_platform or ""] += 1
             stats["families"][values["career_family"]] += 1
-            if "experience_level" in values:
+            if row.source_platform == ATS:
+                stored = row.experience_level or ""
+                level = stored if kept else values["experience_level"]
                 stats["ats_rows"] += 1
-                stats["levels"][values["experience_level"]] += 1
-                if values["experience_level"] != (row.experience_level or ""):
-                    stats["level_changes"][(row.experience_level or "", values["experience_level"])] += 1
+                stats["levels"][level] += 1
+                if kept:
+                    stats["kept"] += 1
+                elif level != stored:
+                    stats["level_changes"][(stored, level)] += 1
 
         stats["batches"] += 1
         if apply:
@@ -154,6 +177,8 @@ def format_report(stats: dict) -> str:
                  + (": " + ", ".join(f"{old or '(none)'} -> {new} {n:,}"
                                       for (old, new), n in stats["level_changes"].most_common(8))
                     if changed else ""))
+    lines.append(f"  kept the stored internship/new_grad label on {stats['kept']:,} of "
+                 f"{stats['ats_rows']:,} ATS rows (the title alone says mid or above)")
     return "\n".join(lines)
 
 
