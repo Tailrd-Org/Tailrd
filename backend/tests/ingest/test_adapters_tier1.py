@@ -18,7 +18,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import recruitee, teamtailor, workable
+from backend.ingest.adapters import bamboohr, recruitee, teamtailor, workable
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper
 from backend.services.platform_liveness import LivenessResult
@@ -72,7 +72,7 @@ def json_response(payload, status: int = 200) -> httpx.Response:
 
 # --- The registry sees all of them ------------------------------------------------------
 
-TIER_1 = ("workable", "recruitee", "teamtailor")
+TIER_1 = ("workable", "recruitee", "teamtailor", "bamboohr")
 
 
 @pytest.mark.parametrize("platform", TIER_1)
@@ -95,6 +95,7 @@ def test_the_registry_discovers_each_adapter_and_its_contract(platform):
     ("https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst", "teamtailor"),
     ("https://nordastelo.teamtailor.com/en-GB/jobs/8558815-intermediate-senior-structural-engineer",
      "teamtailor"),
+    ("https://urban.bamboohr.com/careers/113", "bamboohr"),
 ])
 def test_a_posting_url_belongs_to_its_adapter(url, platform):
     assert adapters.adapter_for_url(url).PLATFORM == platform
@@ -107,6 +108,9 @@ def test_a_posting_url_belongs_to_its_adapter(url, platform):
     "https://petalmd.recruitee.com/api/offers/",
     "https://owlco.na.teamtailor.com/jobs",
     "https://owlco.na.teamtailor.com/jobs.rss",
+    "https://urban.bamboohr.com/careers",
+    "https://urban.bamboohr.com/careers/list",
+    "https://www.bamboohr.com/careers/human-resources-team",
 ])
 def test_a_page_that_is_not_a_posting_is_nobody_s(url):
     assert adapters.adapter_for_url(url) is None
@@ -624,6 +628,202 @@ async def test_teamtailor_refuses_a_slug_or_host_that_is_not_a_hostname(slug, co
     assert seen == []
 
 
+# --- BambooHR ---------------------------------------------------------------------------
+
+CARFAX_LIST = "https://carfaxcanada.bamboohr.com/careers/list"
+URBAN_DETAIL = "https://urban.bamboohr.com/careers/113/detail"
+
+
+def carfax_list(**overrides):
+    """Carfax Canada's fixture with ``overrides`` applied to its first posting."""
+    payload = load_json("bamboohr_list_carfaxcanada.json")
+    payload["result"][0].update(overrides)
+    return payload
+
+
+async def list_carfax(payload):
+    client, _ = served({CARFAX_LIST: json_response(payload)})
+    async with client:
+        return await bamboohr.list_jobs(client, "carfaxcanada", "Carfax Canada", config={})
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_parses_every_field_of_the_careers_list():
+    client, seen = served({CARFAX_LIST: json_response(load("bamboohr_list_carfaxcanada.json"))})
+    async with client:
+        jobs, complete, total = await bamboohr.list_jobs(
+            client, "carfaxcanada", "Carfax Canada", config={})
+
+    assert (complete, total, len(jobs)) == (True, 2, 2)
+    assert [str(r.url) for r in seen] == [CARFAX_LIST]
+    assert seen[0].headers["user-agent"] == http.USER_AGENT
+    assert seen[0].headers["accept"] == "application/json"
+
+    first = jobs[0]
+    assert first.title == "Manager - Revenue Operations & Analytics"
+    assert first.company == "Carfax Canada"
+    assert first.url == "https://carfaxcanada.bamboohr.com/careers/82"
+    assert first.external_id == "bamboohr:carfaxcanada:82"
+    assert first.location == "London, Ontario"
+    assert first.department == "Automotive Sales"
+    assert first.employment_type == "Full-Time"
+    assert first.work_type == "Hybrid"  # locationType "2"
+    # The list has neither, so the ingest fetches the detail for the description.
+    assert first.description == ""
+    assert first.posted_date is None
+    assert first.detail_ref == "82"
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_reads_remote_postings_with_no_place_and_pads_in_titles():
+    client, _ = served({"https://flyio.bamboohr.com/careers/list":
+                        json_response(load("bamboohr_list_flyio.json"))})
+    async with client:
+        jobs, complete, total = await bamboohr.list_jobs(client, "flyio", "Fly.io", config={})
+    # The fixture keeps three of the tenant's ten postings: a partial list.
+    assert (len(jobs), complete, total) == (3, False, 10)
+    remote, hybrid, vp = jobs
+    assert (remote.location, remote.work_type) == ("Remote", "Remote")
+    assert remote.employment_type == "US Employee"
+    assert hybrid.title == "Executive Assistant to the CEO"  # padded in the source
+    assert (hybrid.location, hybrid.work_type) == ("chicago, Illinois", "Hybrid")
+    assert (vp.title, vp.location) == ("VP Finance", "Remote")
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_reads_on_site_and_the_is_remote_flag():
+    jobs, _, _ = await list_carfax(carfax_list(locationType="0"))
+    assert jobs[0].work_type == "On Site"
+    jobs, _, _ = await list_carfax(carfax_list(locationType="0", isRemote=True))
+    assert jobs[0].work_type == "Remote"
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_adds_the_ats_location_s_country_when_the_tenant_sets_one():
+    ats = {"country": "Canada", "state": None, "province": "Ontario", "city": "Ottawa"}
+    jobs, _, _ = await list_carfax(carfax_list(location={"city": None, "state": None}, atsLocation=ats))
+    assert jobs[0].location == "Ottawa, Ontario, Canada"
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_does_not_call_a_board_complete_when_a_posting_could_not_be_read():
+    payload = load_json("bamboohr_list_carfaxcanada.json")
+    payload["result"].append({"id": "99"})
+    payload["meta"]["totalCount"] = 3
+    jobs, complete, total = await list_carfax(payload)
+    assert (len(jobs), complete, total) == (2, False, 3)
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_empty_board_missing_tenant_and_foreign_payload():
+    assert await list_carfax({"meta": {"totalCount": 0}, "result": []}) == ([], True, 0)
+    client, _ = served({})
+    async with client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await bamboohr.list_jobs(client, "carfaxcanada", "Carfax Canada", config={})
+    with pytest.raises(ValueError):
+        await list_carfax({"unexpected": True})
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_raises_for_a_tenant_whose_list_redirects_to_the_home_page():
+    # What a tenant without a careers page (or one that does not exist) answers.
+    home = httpx.Response(200, text="<!DOCTYPE html><title>BambooHR</title>",
+                          headers={"content-type": "text/html; charset=utf-8"})
+    client, _ = served({CARFAX_LIST: httpx.Response(302, headers={"location": "https://www.bamboohr.com"}),
+                        "https://www.bamboohr.com": home})
+    async with client:
+        with pytest.raises(ValueError):
+            await bamboohr.list_jobs(client, "carfaxcanada", "Carfax Canada", config={})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug", ["evil.com/x#", "a b", "", "-lead"])
+async def test_bamboohr_refuses_a_slug_that_is_not_a_subdomain(slug):
+    client, seen = served({})
+    async with client:
+        with pytest.raises(ValueError):
+            await bamboohr.list_jobs(client, slug, "Evil", config={})
+        assert await bamboohr.fetch_job(client, "carfaxcanada", "", config={}) == {}
+        with pytest.raises(ValueError):
+            await bamboohr.fetch_job(client, slug, "1", config={})
+    assert seen == []
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_fetch_job_returns_the_description_and_commitment():
+    client, seen = served({URBAN_DETAIL: json_response(load("bamboohr_detail_urban_113.json"))})
+    async with client:
+        detail = await bamboohr.fetch_job(client, "urban", "113", config={})
+    assert str(seen[0].url) == URBAN_DETAIL
+    assert detail["employment_type"] == "Full-Time"
+    assert detail["description"].startswith("Urban Infraconstruction is looking for a")
+    assert "Senior Estimator" in detail["description"]
+    assert "<" not in detail["description"]
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_fetch_job_raises_for_a_gone_posting_and_a_foreign_payload():
+    client, _ = served({URBAN_DETAIL: json_response({"type": "not_found"}, status=404)})
+    async with client:
+        with pytest.raises(httpx.HTTPStatusError):
+            await bamboohr.fetch_job(client, "urban", "113", config={})
+    client, _ = served({URBAN_DETAIL: json_response({"result": {}})})
+    async with client:
+        with pytest.raises(ValueError):
+            await bamboohr.fetch_job(client, "urban", "113", config={})
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_check_alive_asks_the_detail_endpoint():
+    client, seen = served({URBAN_DETAIL: json_response(load("bamboohr_detail_urban_113.json"))})
+    async with client:
+        result = await bamboohr.check_alive(client, "https://urban.bamboohr.com/careers/113")
+    assert result == LivenessResult("alive", "bamboohr_api_200", True)
+    assert str(seen[0].url) == URBAN_DETAIL
+    assert seen[0].headers["user-agent"] == http.USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_check_alive_reads_the_json_404_as_gone():
+    gone = {"type": "not_found", "title": "Resource not found.", "meta": []}
+    client, _ = served({"https://urban.bamboohr.com/careers/999999/detail":
+                        json_response(gone, status=404)})
+    async with client:
+        result = await bamboohr.check_alive(client, "https://urban.bamboohr.com/careers/999999")
+    assert result == LivenessResult("dead", "bamboohr_not_found", True)
+
+
+@pytest.mark.asyncio
+async def test_bamboohr_check_alive_never_calls_anything_else_dead():
+    detail = "https://urban.bamboohr.com/careers/"
+    html = httpx.Response(200, text="<html>BambooHR</html>", headers={"content-type": "text/html"})
+    filled = load_json("bamboohr_detail_urban_113.json")
+    filled["result"]["jobOpening"]["jobOpeningStatus"] = "Filled"
+    answers = {
+        "1": httpx.Response(404, text="not json"),   # a 404 that is not the posting's own
+        "2": html,                                   # a tenant that redirects home
+        "3": httpx.Response(403, text="blocked"),
+        "4": json_response(filled),
+    }
+    results = {}
+    for job_id, answer in answers.items():
+        client, _ = served({f"{detail}{job_id}/detail": answer})
+        async with client:
+            results[job_id] = await bamboohr.check_alive(client, f"{detail}{job_id}")
+    assert results == {
+        "1": LivenessResult("unknown", "http_404"),
+        "2": LivenessResult("unknown", "bamboohr_api_unreadable"),
+        "3": LivenessResult("unknown", "bot_wall_403"),
+        "4": LivenessResult("unknown", "bamboohr_status_filled"),
+    }
+    client, seen = served({})
+    async with client:
+        assert await bamboohr.check_alive(client, "https://urban.bamboohr.com/careers/list") \
+            == LivenessResult("unknown", "unsupported_url")
+    assert seen == []
+
+
 # --- Through the scraper, as the cron runs it -----------------------------------------------
 
 BOARDS = [
@@ -631,6 +831,7 @@ BOARDS = [
     ("recruitee", "petalmd", RECRUITEE_API, "recruitee_offers_petalmd.json", 5),
     # No registry entry names a host, so the feed is asked at <slug>.teamtailor.com.
     ("teamtailor", "owlco", "https://owlco.teamtailor.com/jobs.rss", "teamtailor_jobs_owlco.rss", 3),
+    ("bamboohr", "carfaxcanada", CARFAX_LIST, "bamboohr_list_carfaxcanada.json", 2),
 ]
 
 
@@ -703,3 +904,22 @@ async def test_network_teamtailor_lists_a_real_board(slug, config):
     assert job.title and job.description and job.posted_date
     assert "/jobs/" in job.url and job.url.startswith("https://")
     assert job.external_id.startswith(f"teamtailor:{slug}:")
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug", ["urban", "carfaxcanada", "calgaryscope"])
+async def test_network_bamboohr_lists_a_real_board(slug):
+    async with http.make_client() as client:
+        jobs, complete, total = await bamboohr.list_jobs(client, slug, slug, config={})
+        assert jobs and complete and total == len(jobs)
+        job = jobs[0]
+        assert job.title and job.detail_ref
+        assert job.url == f"https://{slug}.bamboohr.com/careers/{job.detail_ref}"
+        assert job.external_id == f"bamboohr:{slug}:{job.detail_ref}"
+        if slug == "urban":
+            detail = await bamboohr.fetch_job(client, slug, job.detail_ref, config={})
+            assert detail["description"]
+            assert (await bamboohr.check_alive(client, job.url)).verdict == "alive"
+            gone = await bamboohr.check_alive(client, f"https://{slug}.bamboohr.com/careers/999999")
+            assert gone.verdict == "dead"
