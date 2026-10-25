@@ -1,0 +1,47 @@
+{
+  "meta": {
+    "totalCount": 2
+  },
+  "result": [
+    {
+      "id": "82",
+      "jobOpeningName": "Manager - Revenue Operations & Analytics",
+      "departmentId": "18232",
+      "departmentLabel": "Automotive Sales",
+      "employmentStatusLabel": "Full-Time",
+      "employmentType": null,
+      "location": {
+        "city": "London",
+        "state": "Ontario"
+      },
+      "atsLocation": {
+        "country": null,
+        "state": null,
+        "province": null,
+        "city": null
+      },
+      "isRemote": null,
+      "locationType": "2"
+    },
+    {
+      "id": "83",
+      "jobOpeningName": "Director - Commercial Sales",
+      "departmentId": "18232",
+      "departmentLabel": "Automotive Sales",
+      "employmentStatusLabel": "Full-Time",
+      "employmentType": null,
+      "location": {
+        "city": "London",
+        "state": "Ontario"
+      },
+      "atsLocation": {
+        "country": null,
+        "state": null,
+        "province": null,
+        "city": null
+      },
+      "isRemote": null,
+      "locationType": "2"
+    }
+  ]
+}
