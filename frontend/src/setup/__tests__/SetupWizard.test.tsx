@@ -41,7 +41,7 @@ function advanceToFinalStep() {
   fireEvent.click(screen.getByRole("button", { name: /next/i }));
 
   // Step 3: experience level + job type
-  fireEvent.click(screen.getByText("Internship / Co-op"));
+  fireEvent.click(screen.getByText("Intern/New Grad"));
   fireEvent.click(screen.getByText("Full-time"));
   fireEvent.click(screen.getByRole("button", { name: /next/i }));
 }
@@ -103,8 +103,8 @@ describe("SetupWizard", () => {
       "/settings",
       expect.objectContaining({
         regions: ["CA"],
-        // Canonical value: the spelling scraped_jobs actually stores.
-        experience_levels: ["internship"],
+        // The option's value; the backend's EXPERIENCE_FILTER_MAP expands it for alerts.
+        experience_levels: ["intern_new_grad"],
         prefilled_answers: expect.objectContaining({ job_types: "full_time" }),
       }),
     );
@@ -117,8 +117,10 @@ describe("SetupWizard", () => {
 
     const stored = JSON.parse(localStorage.getItem("job-aggregator-filters") as string);
     expect(stored.country).toBe("CA");
-    expect(stored.role_category).toContain("Software Engineering");
-    expect(stored.experience_level).toEqual(["internship"]);
+    // Job functions are career families, stored as slugs.
+    expect(stored.career_family).toEqual(["software_engineering"]);
+    expect(stored).not.toHaveProperty("role_category");
+    expect(stored.experience_level).toEqual(["intern_new_grad"]);
 
     expect(navigateMock).toHaveBeenCalledWith("/app");
   });
@@ -135,7 +137,7 @@ describe("SetupWizard", () => {
     fireEvent.click(noUs);
     fireEvent.click(screen.getByText("I will need visa sponsorship"));
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
-    fireEvent.click(screen.getByText("Internship / Co-op"));
+    fireEvent.click(screen.getByText("Intern/New Grad"));
     fireEvent.change(screen.getByLabelText(/expected graduation/i), { target: { value: "2027-04" } });
     fireEvent.click(screen.getByRole("button", { name: /next/i }));
     await uploadResumeOnFinalStep();
@@ -159,7 +161,22 @@ describe("SetupWizard", () => {
     expect(putMock).not.toHaveBeenCalledWith("/api/user/application-profile", expect.anything());
   });
 
-  it("offers only levels the job catalogue actually has, in student language", () => {
+  it("offers the 20 career families as job functions", () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // welcome -> role
+
+    // The step's first grid; the work-authorization yes/no grids follow it.
+    const grid = document.querySelector(".setup-checkgrid") as HTMLElement;
+    const functions = Array.from(grid.querySelectorAll(".setup-check")).map((el) => el.textContent?.trim());
+    expect(functions).toHaveLength(20);
+    expect(functions[0]).toBe("Software Engineering");
+    expect(functions).toContain("Healthcare, Clinical");
+    expect(functions).toContain("Hospitality, Retail & Food Service");
+    // The old job functions are gone.
+    expect(screen.queryByText("Engineering and Development")).toBeNull();
+  });
+
+  it("offers Jobright's six experience levels, now that the catalogue has every level", () => {
     renderWizard();
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // welcome -> role
 
@@ -171,16 +188,39 @@ describe("SetupWizard", () => {
     fireEvent.change(countrySelect, { target: { value: "CA" } });
     fireEvent.click(screen.getByRole("button", { name: /next/i })); // role -> experience
 
-    expect(screen.getByText("Internship / Co-op")).toBeInTheDocument();
-    expect(screen.getByText("New Grad / Entry Level")).toBeInTheDocument();
+    const levels = Array.from(document.querySelectorAll('input[name="experience"]'))
+      .map((input) => input.closest("label")?.textContent?.trim());
+    expect(levels).toEqual([
+      "Intern/New Grad", "Entry Level", "Mid Level", "Senior Level", "Lead/Staff", "Director/Executive",
+    ]);
     // Job Type now lives here, alongside experience.
     expect(screen.getByText("Job Type")).toBeInTheDocument();
     expect(screen.getByText("Full-time")).toBeInTheDocument();
+    // The two-option labels are gone.
+    expect(screen.queryByText("Internship / Co-op")).toBeNull();
+    expect(screen.queryByText("New Grad / Entry Level")).toBeNull();
+  });
 
-    // The corporate-ladder options the catalogue has no jobs for are gone.
-    for (const dead of ["Director/Executive", "Lead/Staff", "Senior", "Mid Level", "Entry Level"]) {
-      expect(screen.queryByText(dead)).toBeNull();
-    }
+  it("saves a senior choice as that one level, for the feed and for alerts", async () => {
+    renderWizard();
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // welcome -> role
+    fireEvent.click(screen.getByText("Legal"));
+    const countrySelect = screen.getByText("Select country").closest("select") as HTMLSelectElement;
+    fireEvent.change(countrySelect, { target: { value: "US" } });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // role -> experience
+    fireEvent.click(screen.getByText("Senior Level"));
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    await uploadResumeOnFinalStep();
+    fireEvent.click(screen.getByRole("button", { name: /start matching/i }));
+    await waitFor(() => expect(navigateMock).toHaveBeenCalledWith("/app"));
+
+    expect(putMock).toHaveBeenCalledWith(
+      "/settings",
+      expect.objectContaining({ experience_levels: ["senior"], regions: ["US"] }),
+    );
+    const stored = JSON.parse(localStorage.getItem("job-aggregator-filters") as string);
+    expect(stored.career_family).toEqual(["legal"]);
+    expect(stored.experience_level).toEqual(["senior"]);
   });
 
   it("goes straight from experience to the resume step (no target-titles page)", () => {
