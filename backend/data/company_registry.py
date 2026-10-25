@@ -127,8 +127,8 @@ def load_companies(
 
 
 def _adapter_enabled(platform: str) -> bool:
-    # Imported here, not at the top: the adapter registry imports adapter
-    # modules, which import the scraper, which imports this module.
+    # Imported here, not at the top, so loading this module never loads the
+    # ingest package.
     from backend.ingest.adapters import adapter_enabled
 
     return adapter_enabled(platform)

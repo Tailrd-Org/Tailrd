@@ -253,7 +253,27 @@ _LEGACY_ATS_COMPANIES: list[tuple[str, str, str]] = [
     ("smartrecruiters", "Deloitte4", "Deloitte"),
 ]
 
-# The canonical list, ATS_COMPANIES, is loaded at the end of this module.
+
+def _registry_companies() -> list[tuple[str, str, str]]:
+    """The canonical company list: backend/data/ats_companies.json through
+    company_registry.load_companies(), or the legacy list above when the
+    registry is empty or unreadable.
+
+    Read when called, never at import. The registry asks the v2 adapter
+    registry which platforms are enabled, and adapters import this module, so
+    an import-time read ran adapter discovery while an adapter imported first
+    was still half-loaded, and that adapter dropped out of the registry."""
+    try:
+        from backend.data.company_registry import load_companies
+
+        companies = load_companies()
+    except Exception as e:  # pragma: no cover - defensive
+        logger.error("Failed to load company registry, using legacy list: %s", e)
+        return _LEGACY_ATS_COMPANIES
+    if not companies:
+        logger.warning("Company registry empty; using legacy fallback list")
+        return _LEGACY_ATS_COMPANIES
+    return companies
 
 
 # ─── Entry-level classification ──────────────────────────────────────────────
@@ -844,7 +864,7 @@ class ATSScraper:
         registry when omitted. Returns filtered job list."""
         all_jobs: list[ATSJob] = []
         if companies is None:
-            companies = ATS_COMPANIES
+            companies = _registry_companies()
 
         async with httpx.AsyncClient(timeout=30) as client:
             for platform, slug, company_name in companies:
@@ -1410,19 +1430,3 @@ async def fetch_workday_detail(
         "description": clean_html(info.get("jobDescription", "") or "")[:10000],
         "employment_type": info.get("timeType", "") or "",
     }
-
-
-# Canonical company list: loaded from backend/data/ats_companies.json.
-# Falls back to the legacy hardcoded list if the registry can't be read.
-# Last in the module on purpose: an enabled board on a v2 adapter's platform
-# makes load_companies import that adapter, and adapters import from this
-# module, which by this line defines every name they might ask for.
-try:
-    from backend.data.company_registry import load_companies
-
-    ATS_COMPANIES: list[tuple[str, str, str]] = load_companies() or _LEGACY_ATS_COMPANIES
-    if ATS_COMPANIES is _LEGACY_ATS_COMPANIES:
-        logger.warning("Company registry empty; using legacy fallback list")
-except Exception as e:  # pragma: no cover - defensive
-    logger.error("Failed to load company registry, using legacy list: %s", e)
-    ATS_COMPANIES = _LEGACY_ATS_COMPANIES

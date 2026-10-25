@@ -78,7 +78,7 @@ def adapter_package(tmp_path, monkeypatch):
     monkeypatch.setattr(adapters, "_registry", None)
     importlib.invalidate_caches()
     yield directory
-    for name in [*MODULES, "fake_late"]:
+    for name in [*MODULES, "fake_late", "fake_direct"]:
         sys.modules.pop(f"{PACKAGE}.{name}", None)
 
 
@@ -113,6 +113,26 @@ def test_a_broken_adapter_is_logged_once_and_skipped(adapter_package, caplog):
 def test_an_adapter_asking_the_registry_during_discovery_sees_what_is_loaded(adapter_package):
     assert adapters.adapter_platforms() == ["fakeats", "keyedats", "reentrant"]
     assert _module("fake_reentrant").SEEN_DURING_IMPORT == ["fakeats", "keyedats"]
+
+
+def test_an_adapter_imported_first_is_not_dropped_by_the_discovery_its_import_runs(adapter_package):
+    """An adapter imported directly, not by discovery, whose own import asks
+    the registry (an adapter importing services.ats_scraper first used to:
+    the scraper loaded the registry at import). The discovery that triggers
+    finds the adapter half-loaded, without PLATFORM yet, and must not cache a
+    registry that lacks it for the rest of the process."""
+    (adapter_package / "fake_direct.py").write_text(_source("""
+        from backend.ingest import adapters
+        SEEN_DURING_IMPORT = adapters.adapter_platforms()
+        PLATFORM = "direct"
+    """), encoding="utf-8")
+    importlib.invalidate_caches()
+
+    direct = importlib.import_module(f"{PACKAGE}.fake_direct")
+
+    assert "direct" not in direct.SEEN_DURING_IMPORT  # it was still loading
+    assert adapters.get_adapter("direct") is direct
+    assert adapters.adapter_platforms() == ["direct", "fakeats", "keyedats", "reentrant"]
 
 
 def test_discovery_runs_once(adapter_package):

@@ -24,7 +24,11 @@ load_companies accepts a board whose adapter is enabled, and platform_liveness
 asks the adapter that owns a URL before falling back to the page itself. A
 module that fails to import is logged and skipped, and never breaks the import
 of anything else. Modules named with a leading underscore are helpers, never
-adapters.
+adapters. Nothing may ask the registry at import time (adapters import
+services.ats_scraper, so an import-time question would run discovery while
+the adapter imported first is still half-loaded); if something does, that
+discovery answers without the half-loaded adapter and is not cached, so no
+adapter drops out for the rest of the process.
 
 Tests swap in fakes by replacing ``_registry`` (platform -> module, or any
 object with the same attributes), e.g. ``monkeypatch.setattr(adapters,
@@ -58,12 +62,12 @@ def _adapters() -> dict[str, ModuleType]:
         return _registry
     partial = getattr(_discovering, "found", None)
     if partial is not None:
-        # Re-entered from inside an adapter's own import: adapters import
-        # services.ats_scraper, whose import-time registry load asks which
-        # adapters are enabled. Answer with what is loaded so far; the outer
-        # discovery caches the full set when it finishes.
+        # Re-entered from inside the import of an adapter this discovery is
+        # loading (its import-time code asked the registry): answer with what
+        # is loaded so far; the outer discovery decides what to cache.
         return partial
     found: dict[str, ModuleType] = {}
+    complete = True
     _discovering.found = found
     try:
         for info in sorted(pkgutil.iter_modules(__path__), key=lambda module: module.name):
@@ -73,6 +77,13 @@ def _adapters() -> dict[str, ModuleType]:
                 module = importlib.import_module(f"{__name__}.{info.name}")
             except Exception:
                 logger.exception("Adapter module %s failed to import; skipped", info.name)
+                continue
+            if _still_loading(module):
+                # Imported first, and something its own import runs asked the
+                # registry: its PLATFORM may not exist yet. Leave it out of
+                # this answer and cache nothing, so the next call, made once
+                # it has loaded, finds it.
+                complete = False
                 continue
             platform = getattr(module, "PLATFORM", None)
             if (not isinstance(platform, str) or not platform.strip()
@@ -86,8 +97,16 @@ def _adapters() -> dict[str, ModuleType]:
             found[platform] = module
     finally:
         _discovering.found = None
-    _registry = found
+    if complete:
+        _registry = found
     return found
+
+
+def _still_loading(module: ModuleType) -> bool:
+    """Whether the module's own import is still running. importlib flags the
+    module's spec while it executes; it is the flag CPython reads to call a
+    module "partially initialized" in import errors."""
+    return bool(getattr(getattr(module, "__spec__", None), "_initializing", False))
 
 
 def adapter_platforms() -> list[str]:
