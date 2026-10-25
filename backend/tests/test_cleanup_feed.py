@@ -328,7 +328,8 @@ class TestPhaseB:
         # terminal expiry is not part of the pre-check sweeps any more
         assert "sweep_terminal_expiry" not in stats
         projected = set(dry.hidden)
-        assert projected == {rows["linkedin"].id}
+        # A row going stale leaves the visible feed too (stale is hidden since scraper v2).
+        assert projected == {rows["to_stale"].id, rows["linkedin"].id}
 
         applied = _report(db_session, dry_run=False)
         cleanup_feed.phase_b(db_session, applied, write=True, now=NOW)

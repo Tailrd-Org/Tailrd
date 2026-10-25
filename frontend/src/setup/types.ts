@@ -3,13 +3,13 @@ import type { ComponentType } from "react";
 export interface SetupAnswers {
   first_name: string;
   last_name: string;
-  job_functions: string[];      // values from JOB_FUNCTION_OPTIONS -> role_category
+  job_functions: string[];      // CAREER_FAMILY_OPTIONS values (slugs) -> career_family
   job_types: string[];          // "full_time"|"part_time"|"contract" (captured only)
   country: string;              // "CA" | "US" | ""
   city: string;
   open_to_remote: boolean;
   work_authorization: string[]; // e.g. ["needs_sponsorship"] (captured only)
-  experience_level: string;     // one EXPERIENCE_OPTIONS value: "internship" | "new_grad"
+  experience_level: string;     // one EXPERIENCE_OPTIONS value: "intern_new_grad" | "entry" | ... | "director"
   // Screening answers the extension fills employer questions from, saved to the
   // application profile on finish (2026-10-03). "" = not answered.
   authorized_canada: "" | "yes" | "no";

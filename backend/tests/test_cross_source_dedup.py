@@ -517,8 +517,10 @@ def test_has_direct_twin_ignores_an_expired_direct_row(db_session):
     assert not has_direct_twin(db_session, **kwargs)
     _closed(db_session, row, "removed")
     assert has_direct_twin(db_session, **kwargs)
+    # stale is hidden from the feed since scraper v2, and a hidden row stands in
+    # for its twins only after a death verdict (removed), so it no longer counts.
     _closed(db_session, row, "stale")
-    assert has_direct_twin(db_session, **kwargs)
+    assert not has_direct_twin(db_session, **kwargs)
 
 
 def test_release_gives_back_a_repost_hidden_behind_a_closed_copy(db_session):

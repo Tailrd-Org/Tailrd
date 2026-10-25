@@ -1,5 +1,5 @@
 import type { StepProps } from "../types";
-import { JOB_FUNCTION_OPTIONS, COUNTRY_OPTIONS } from "../../components/JobFilterBar";
+import { CAREER_FAMILY_OPTIONS, COUNTRY_OPTIONS } from "../../components/JobFilterBar";
 
 function toggle(list: string[], v: string): string[] {
   return list.includes(v) ? list.filter((x) => x !== v) : [...list, v];
@@ -18,11 +18,12 @@ export function RolePreferencesStep({ answers, update }: StepProps) {
       <div className="setup-field">
         <label className="setup-label"><span className="req">*</span>Job Function</label>
         <div className="setup-checkgrid">
-          {JOB_FUNCTION_OPTIONS.map((fn) => (
-            <label key={fn} className={`setup-check${answers.job_functions.includes(fn) ? " checked" : ""}`}>
-              <input type="checkbox" checked={answers.job_functions.includes(fn)}
-                onChange={() => update({ job_functions: toggle(answers.job_functions, fn) })} />
-              {fn}
+          {/* The 20 career families; answers keep the slug, the box shows the label. */}
+          {CAREER_FAMILY_OPTIONS.map((fn) => (
+            <label key={fn.value} className={`setup-check${answers.job_functions.includes(fn.value) ? " checked" : ""}`}>
+              <input type="checkbox" checked={answers.job_functions.includes(fn.value)}
+                onChange={() => update({ job_functions: toggle(answers.job_functions, fn.value) })} />
+              {fn.label}
             </label>
           ))}
         </div>

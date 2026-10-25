@@ -1,118 +1,103 @@
-import { describe, it, expect, beforeEach } from "vitest";
+import { describe, it, expect } from "vitest";
 import * as fc from "fast-check";
-import { normalizeExperienceLevels } from "../components/JobFilterBar";
+import {
+  CAREER_FAMILY_OPTIONS,
+  EXPERIENCE_OPTIONS,
+  defaultFilters,
+  restoreFilters,
+} from "../components/JobFilterBar";
 
 /**
  * Feature: job-scraper-aggregator, Property 11: Filter Persistence Round-Trip
  * Validates: Requirements 10.7
+ *
+ * restoreFilters is what the Jobs page runs on localStorage["job-aggregator-filters"].
  */
-
-const FILTER_STORAGE_KEY = "job-aggregator-filters";
-
-interface JobFilters {
-  country: string;
-  work_type: string[];
-  role_category: string[];
-  experience_level: string[];
-}
 
 const COUNTRY_VALUES = ["", "US", "CA"];
 const WORK_TYPE_VALUES = ["remote", "hybrid", "onsite"];
-const ROLE_CATEGORIES = [
-  "Software Engineering", "Data Analysis", "Business Analyst",
-  "Management and Executive", "Engineering and Development",
-  "Creatives and Design", "Product Management", "Sales",
-  "Accounting and Finance", "Arts and Entertainment",
-  "Legal and Compliance", "Human Resources",
-  "Public Sector and Government", "Education and Training",
-  "Customer Service and Support", "Marketing", "Consultant",
-];
-const EXPERIENCE_VALUES = ["internship", "new_grad"];
+const FAMILY_VALUES = CAREER_FAMILY_OPTIONS.map((o) => o.value);
+const EXPERIENCE_VALUES = EXPERIENCE_OPTIONS.map((o) => o.value);
+const DATE_VALUES = ["", "24h", "3d", "week", "month"];
 
-// Strategy for generating valid JobFilters
 const jobFiltersArb = fc.record({
   country: fc.constantFrom(...COUNTRY_VALUES),
+  location: fc.array(fc.constantFrom("Toronto", "Ottawa, ON", "Remote"), { maxLength: 3 }),
   work_type: fc.subarray(WORK_TYPE_VALUES),
-  role_category: fc.subarray(ROLE_CATEGORIES),
-  experience_level: fc.subarray(EXPERIENCE_VALUES),
+  career_family: fc.subarray(FAMILY_VALUES),
+  // The level filter is never empty: nothing chosen means the default levels.
+  experience_level: fc.subarray(EXPERIENCE_VALUES, { minLength: 1 }),
+  date_posted: fc.constantFrom(...DATE_VALUES),
 });
 
-// Simulate the save/load logic from Jobs.tsx
-function saveFilters(filters: JobFilters): void {
-  localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(filters));
-}
-
-function loadFilters(): JobFilters {
-  try {
-    const saved = localStorage.getItem(FILTER_STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return {
-        country: parsed.country || "",
-        work_type: Array.isArray(parsed.work_type) ? parsed.work_type : [],
-        role_category: Array.isArray(parsed.role_category) ? parsed.role_category : [],
-        experience_level: normalizeExperienceLevels(parsed.experience_level),
-      };
-    }
-  } catch {
-    // Ignore parse errors
-  }
-  return { country: "", work_type: [], role_category: [], experience_level: [] };
-}
-
 describe("Property 11: Filter Persistence Round-Trip", () => {
-  beforeEach(() => {
-    localStorage.clear();
-  });
-
-  it("saving and loading filters produces equivalent state", () => {
+  it("saving and restoring filters produces the same state", () => {
     fc.assert(
       fc.property(jobFiltersArb, (filters) => {
-        saveFilters(filters);
-        const loaded = loadFilters();
-
-        expect(loaded.country).toBe(filters.country);
-        expect(loaded.work_type).toEqual(filters.work_type);
-        expect(loaded.role_category).toEqual(filters.role_category);
-        expect(loaded.experience_level).toEqual(filters.experience_level);
+        expect(restoreFilters(JSON.stringify(filters))).toEqual(filters);
       }),
-      { numRuns: 100 }
+      { numRuns: 100 },
     );
   });
 
-  it("loading from empty localStorage returns defaults", () => {
-    const loaded = loadFilters();
-    expect(loaded.country).toBe("");
-    expect(loaded.work_type).toEqual([]);
-    expect(loaded.role_category).toEqual([]);
-    expect(loaded.experience_level).toEqual([]);
+  it("nothing saved gives the defaults: every filter open except the levels", () => {
+    expect(restoreFilters(null)).toEqual(defaultFilters());
+    expect(restoreFilters("")).toEqual(defaultFilters());
+    expect(defaultFilters()).toEqual({
+      country: "",
+      location: [],
+      work_type: [],
+      career_family: [],
+      experience_level: ["intern_new_grad", "entry"],
+      date_posted: "",
+    });
   });
 
-  it("loading from corrupted localStorage returns defaults", () => {
-    localStorage.setItem(FILTER_STORAGE_KEY, "not valid json{{{");
-    const loaded = loadFilters();
-    expect(loaded.country).toBe("");
-    expect(loaded.work_type).toEqual([]);
-    expect(loaded.role_category).toEqual([]);
-    expect(loaded.experience_level).toEqual([]);
+  it("corrupted storage gives the defaults", () => {
+    for (const bad of ["not valid json{{{", "null", "42", "[]", '"text"']) {
+      expect(restoreFilters(bad)).toEqual(defaultFilters());
+    }
   });
 
-  it("loading from partial data fills in defaults", () => {
+  it("partial data fills in the defaults", () => {
     fc.assert(
-      fc.property(
-        fc.record({
-          country: fc.constantFrom(...COUNTRY_VALUES),
-        }),
-        (partial) => {
-          localStorage.setItem(FILTER_STORAGE_KEY, JSON.stringify(partial));
-          const loaded = loadFilters();
-          expect(loaded.country).toBe(partial.country);
-          expect(loaded.work_type).toEqual([]);
-          expect(loaded.role_category).toEqual([]);
-          expect(loaded.experience_level).toEqual([]);
-        }
-      ),
-      { numRuns: 50 }
+      fc.property(fc.constantFrom(...COUNTRY_VALUES), (country) => {
+        expect(restoreFilters(JSON.stringify({ country }))).toEqual({ ...defaultFilters(), country });
+      }),
+      { numRuns: 20 },
     );
+  });
+});
+
+describe("Saved filters from before the six levels and the career families", () => {
+  it("someone who never chose a level gets Intern/New Grad and Entry Level", () => {
+    // The old page saved its empty default, which then meant the whole (student) catalogue.
+    const old = { country: "CA", location: [], work_type: [], role_category: [], experience_level: [], date_posted: "" };
+    expect(restoreFilters(JSON.stringify(old)).experience_level).toEqual(["intern_new_grad", "entry"]);
+  });
+
+  it("the old experience values migrate", () => {
+    const restore = (experience_level: unknown) =>
+      restoreFilters(JSON.stringify({ experience_level })).experience_level;
+    expect(restore(["internship"])).toEqual(["intern_new_grad"]);
+    expect(restore(["new_grad"])).toEqual(["intern_new_grad", "entry"]);
+    expect(restore(["senior", "bogus"])).toEqual(["senior"]);
+    expect(restore(["bogus"])).toEqual(["intern_new_grad", "entry"]);
+  });
+
+  it("saved job functions become career families, and role_category is gone", () => {
+    const restored = restoreFilters(JSON.stringify({
+      role_category: ["Software Engineering", "Accounting and Finance", "Arts and Entertainment"],
+    }));
+    expect(restored.career_family).toEqual([
+      "software_engineering",
+      "finance_accounting",
+      "banking_insurance_investment",
+    ]);
+    expect(restored).not.toHaveProperty("role_category");
+  });
+
+  it("a single legacy location string becomes a one-tag list", () => {
+    expect(restoreFilters(JSON.stringify({ location: "Ottawa" })).location).toEqual(["Ottawa"]);
   });
 });

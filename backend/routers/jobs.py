@@ -173,6 +173,7 @@ def list_jobs(
     country: Optional[str] = None,
     work_type: Optional[str] = None,
     role_category: Optional[str] = None,
+    career_family: Optional[str] = None,
     experience_level: Optional[str] = None,
     date_posted: Optional[str] = None,
     sort: Optional[str] = None,
@@ -185,11 +186,15 @@ def list_jobs(
 ):
     """List scraped jobs, optionally filtered by status, match score, source, country, work_type, etc.
 
+    ``career_family`` takes comma-separated family slugs (taxonomy.FAMILIES);
+    ``role_category`` (the old job functions) still works for older clients.
     ``strong=1`` keeps only the user's strong matches (their own banked score,
     best first); ``since`` keeps jobs first seen at or after that time."""
     from backend.services.job_filters import (
         date_posted_cutoff,
         expand_experience_filter_values,
+        legacy_categories_for_families,
+        parse_career_families,
     )
 
     # min_score is applied below to the user's own engine score; the global
@@ -217,7 +222,8 @@ def list_jobs(
     else:
         q = q.filter(ScrapedJob.duplicate_of.is_(None))
         # Freshness: listings the source took down (or that aged out) leave
-        # the catalogue. `stale` stays visible, usually crawl lag, not death.
+        # the catalogue, and so do `stale` ones (missed a listing or failed a
+        # check) until a crawl or a check vouches for them again.
         q = q.filter(
             or_(
                 ScrapedJob.listing_status.is_(None),
@@ -285,6 +291,21 @@ def list_jobs(
         if category_values:
             from backend.services.role_classifier import expand_filter_values
             q = q.filter(ScrapedJob.role_category.in_(expand_filter_values(category_values)))
+    if career_family:
+        families = parse_career_families(career_family)
+        if families:
+            matches = [ScrapedJob.career_family.in_(families)]
+            # Rows no tagger has reached (everything stored before scraper v2,
+            # and sources that set only role_category) answer through their old
+            # job function, so a family filter never hides them.
+            legacy = legacy_categories_for_families(families)
+            if legacy:
+                from backend.services.role_classifier import expand_filter_values
+                matches.append(and_(
+                    or_(ScrapedJob.career_family.is_(None), ScrapedJob.career_family == ""),
+                    ScrapedJob.role_category.in_(expand_filter_values(legacy)),
+                ))
+            q = q.filter(or_(*matches))
     if experience_level:
         level_values = [l.strip() for l in experience_level.split(",") if l.strip()]
         if level_values:
@@ -617,7 +638,7 @@ async def cron_backfill(
         ScrapedJob.description.is_(None),
         func.length(func.trim(ScrapedJob.description)) < 50,
     )
-    # Jobs the feed shows (active, stale, or no status) come first: one with
+    # Jobs the feed shows (active, or no status) come first: one with
     # no description reads "We couldn't score this" until it is filled, while
     # a closed one can wait. Then LinkedIn/Indeed pages, login-walled
     # og-snippets at best, after direct URLs; newest first within each.
@@ -1028,7 +1049,9 @@ def job_stats(
     user_id: Optional[int] = Depends(get_optional_user_id),
     db: Session = Depends(get_db),
 ):
-    """Return aggregate job stats with breakdowns by country, work_type, role_category, experience_level."""
+    """Return aggregate job stats with breakdowns by country, work_type, role_category,
+    career_family and experience_level. The breakdowns count the same visible rows as
+    ``total``, so each one says how many live jobs a filter value has behind it."""
     # Exclude blank-company jobs, hidden duplicates, and dead listings to
     # match the listing query.
     _has_company = (
@@ -1077,49 +1100,15 @@ def job_stats(
             )
             avg_match_score = round(avg_score) if avg_score is not None else None
 
-    # Breakdown by country
-    by_country = {}
-    country_counts = (
-        db.query(ScrapedJob.country, func.count(ScrapedJob.id))
-        .filter(ScrapedJob.country != "")
-        .group_by(ScrapedJob.country)
-        .all()
-    )
-    for country, count in country_counts:
-        by_country[country] = count
-
-    # Breakdown by work_type
-    by_work_type = {}
-    work_type_counts = (
-        db.query(ScrapedJob.work_type, func.count(ScrapedJob.id))
-        .filter(ScrapedJob.work_type != "")
-        .group_by(ScrapedJob.work_type)
-        .all()
-    )
-    for wt, count in work_type_counts:
-        by_work_type[wt] = count
-
-    # Breakdown by role_category
-    by_role_category = {}
-    category_counts = (
-        db.query(ScrapedJob.role_category, func.count(ScrapedJob.id))
-        .filter(ScrapedJob.role_category != "")
-        .group_by(ScrapedJob.role_category)
-        .all()
-    )
-    for cat, count in category_counts:
-        by_role_category[cat] = count
-
-    # Breakdown by experience_level
-    by_experience_level = {}
-    level_counts = (
-        db.query(ScrapedJob.experience_level, func.count(ScrapedJob.id))
-        .filter(ScrapedJob.experience_level != "")
-        .group_by(ScrapedJob.experience_level)
-        .all()
-    )
-    for level, count in level_counts:
-        by_experience_level[level] = count
+    def breakdown(column) -> dict:
+        """Visible rows per non-blank value of one column."""
+        rows = (
+            db.query(column, func.count(ScrapedJob.id))
+            .filter(_has_company, column.isnot(None), column != "")
+            .group_by(column)
+            .all()
+        )
+        return {value: count for value, count in rows}
 
     return {
         "total": total,
@@ -1127,10 +1116,11 @@ def job_stats(
         "new": new,
         "saved_count": saved_count,
         "avg_match_score": avg_match_score,
-        "by_country": by_country,
-        "by_work_type": by_work_type,
-        "by_role_category": by_role_category,
-        "by_experience_level": by_experience_level,
+        "by_country": breakdown(ScrapedJob.country),
+        "by_work_type": breakdown(ScrapedJob.work_type),
+        "by_role_category": breakdown(ScrapedJob.role_category),
+        "by_career_family": breakdown(ScrapedJob.career_family),
+        "by_experience_level": breakdown(ScrapedJob.experience_level),
     }
 
 

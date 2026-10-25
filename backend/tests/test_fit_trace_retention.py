@@ -68,7 +68,9 @@ def _prune(db, **kw):
 # ─── what is pruned ──────────────────────────────────────────────────────────────────────────
 
 
-@pytest.mark.parametrize("status", ["removed", "expired", "off_target"])
+# ``stale`` joined HIDDEN_LISTING_STATUSES with scraper v2 (hidden from the feed until a
+# crawl or a check vouches for it again), so an old trace of a stale job goes too.
+@pytest.mark.parametrize("status", ["removed", "expired", "off_target", "stale"])
 def test_closed_old_traces_and_scores_are_pruned(db_session, status):
     user = _user(db_session)
     job = _job(db_session, status, status)
@@ -78,7 +80,7 @@ def test_closed_old_traces_and_scores_are_pruned(db_session, status):
     assert _pairs(db_session) == ([], [])
 
 
-@pytest.mark.parametrize("status", ["active", "stale", None, "paused", ""])
+@pytest.mark.parametrize("status", ["active", None, "paused", ""])
 def test_open_null_and_unknown_statuses_never_prune(db_session, status):
     user = _user(db_session)
     job = _job(db_session, f"kept-{status}", status)
