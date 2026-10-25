@@ -12,6 +12,7 @@ pacing sleep stubbed so a test never waits out a RATE_LIMIT.
 
 import datetime
 import json
+import re
 from pathlib import Path
 
 import httpx
@@ -522,6 +523,29 @@ async def list_teamtailor(text: str, slug: str = "owlco", config: dict = OWLCO):
         return await teamtailor.list_jobs(client, slug, "Owl.co", config=config)
 
 
+def feed_of(first: int, count: int) -> str:
+    """An RSS feed of ``count`` jobs numbered from ``first`` (ids 100000 + n):
+    the fixture's real first item, copied with a new id, guid and title."""
+    text = load("teamtailor_jobs_owlco.rss")
+    item = re.search(r"<item>.*?</item>", text, re.DOTALL).group(0)
+    items = [
+        item.replace("719055-part-time-data-quality-analyst", f"{100000 + n}-job-{n}")
+            .replace("40d7e5f3-239d-4930-a95c-c7bdc670f6f8", f"guid-{n}")
+            .replace("<title>Part-time Data Quality Analyst</title>", f"<title>Job {n}</title>")
+        for n in range(first, first + count)
+    ]
+    return text[:text.index("<item>")] + "\n".join(items) + "\n  </channel>\n</rss>\n"
+
+
+def paged(total: int):
+    """A route that serves a feed of ``total`` jobs the way Teamtailor does:
+    ``per_page`` jobs from ``offset``, and a valid feed with none past the end."""
+    def answer(request: httpx.Request) -> httpx.Response:
+        offset, per_page = int(request.url.params["offset"]), int(request.url.params["per_page"])
+        return rss_response(feed_of(offset, max(0, min(per_page, total - offset))))
+    return answer
+
+
 @pytest.mark.asyncio
 async def test_teamtailor_parses_every_field_of_the_rss_feed():
     client, seen = served({TEAMTAILOR_FEED: rss_response(load("teamtailor_jobs_owlco.rss"))})
@@ -529,7 +553,9 @@ async def test_teamtailor_parses_every_field_of_the_rss_feed():
         jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
 
     assert (complete, total, len(jobs)) == (True, 3, 3)
-    assert [str(r.url) for r in seen] == [TEAMTAILOR_FEED]
+    assert [str(r.url).split("?")[0] for r in seen] == [TEAMTAILOR_FEED]
+    # Without a page size the feed shows only its first 100 jobs.
+    assert dict(seen[0].url.params) == {"per_page": "100", "offset": "0"}
     assert seen[0].headers["user-agent"] == http.USER_AGENT
 
     first = jobs[0]
@@ -567,8 +593,8 @@ async def test_teamtailor_asks_the_tenant_host_the_registry_names_else_its_own_s
     async with client:
         await teamtailor.list_jobs(client, "usg", "USG", config={"host": "usg.example.com"})
         await teamtailor.list_jobs(client, "owlco", "Owl.co", config={})
-    assert [str(r.url) for r in seen] == ["https://usg.example.com/jobs.rss",
-                                          "https://owlco.teamtailor.com/jobs.rss"]
+    assert [(r.url.host, r.url.path) for r in seen] == [("usg.example.com", "/jobs.rss"),
+                                                        ("owlco.teamtailor.com", "/jobs.rss")]
 
 
 @pytest.mark.asyncio
@@ -610,6 +636,90 @@ async def test_teamtailor_falls_back_to_the_guid_when_the_link_has_no_job_number
     )
     jobs, _, _ = await list_teamtailor(text)
     assert jobs[0].external_id == "teamtailor:owlco:40d7e5f3-239d-4930-a95c-c7bdc670f6f8"
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_pages_through_a_feed_longer_than_one_page():
+    client, seen = served({TEAMTAILOR_FEED: paged(140)})  # a full page of 100, then 40
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+
+    assert (len(jobs), complete, total) == (140, True, 140)
+    assert [dict(r.url.params) for r in seen] == [
+        {"per_page": "100", "offset": "0"}, {"per_page": "100", "offset": "100"}]
+    assert len({job.external_id for job in jobs}) == 140
+    assert (jobs[0].external_id, jobs[-1].external_id) == ("teamtailor:owlco:100000",
+                                                           "teamtailor:owlco:100139")
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_asks_for_one_more_page_after_an_exactly_full_one():
+    client, seen = served({TEAMTAILOR_FEED: paged(100)})
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+    # The second page is empty: a full page alone never proves the feed ended.
+    assert (len(jobs), complete, total) == (100, True, 100)
+    assert [r.url.params["offset"] for r in seen] == ["0", "100"]
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_reports_a_feed_that_never_ends_as_incomplete():
+    client, seen = served({TEAMTAILOR_FEED: paged(10 ** 9)})
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+    cap = teamtailor.MAX_PAGES * teamtailor.PAGE_SIZE
+    assert (len(jobs), complete, total) == (cap, False, cap)
+    assert len(seen) == teamtailor.MAX_PAGES
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_stops_paging_at_the_deadline_and_says_so(monkeypatch):
+    clock = [1000.0]
+    monkeypatch.setattr(teamtailor, "_now", lambda: clock[0])
+    feed = paged(350)
+
+    def slow_pages(request):
+        clock[0] += 5.0  # every page takes five seconds
+        return feed(request)
+
+    client, seen = served({TEAMTAILOR_FEED: slow_pages})
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(
+            client, "owlco", "Owl.co", config=OWLCO, deadline=1007.0)
+    # t=1000 and t=1005 are before the deadline, so two pages are read; at
+    # t=1010 the walk stops with 150 jobs still unlisted.
+    assert len(seen) == 2
+    assert (len(jobs), complete, total) == (200, False, 200)
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_always_reads_the_first_page_even_past_the_deadline(monkeypatch):
+    monkeypatch.setattr(teamtailor, "_now", lambda: 5000.0)
+    client, seen = served({TEAMTAILOR_FEED: paged(3)})
+    async with client:
+        short = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO, deadline=1.0)
+    # A feed that ends on its first page is whole, whatever the clock says.
+    assert (len(short[0]), short[1], short[2], len(seen)) == (3, True, 3, 1)
+
+    client, seen = served({TEAMTAILOR_FEED: paged(300)})
+    async with client:
+        cut = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO, deadline=1.0)
+    assert (len(cut[0]), cut[1], cut[2], len(seen)) == (100, False, 100, 1)
+
+
+@pytest.mark.asyncio
+async def test_teamtailor_calls_a_walk_incomplete_when_a_job_repeats_across_pages():
+    def shifted(request):
+        # A job published between the two requests pushes the last job of page
+        # one (number 99) onto page two.
+        return rss_response(feed_of(0, 100) if request.url.params["offset"] == "0"
+                            else feed_of(99, 20))
+
+    client, _ = served({TEAMTAILOR_FEED: shifted})
+    async with client:
+        jobs, complete, total = await teamtailor.list_jobs(client, "owlco", "Owl.co", config=OWLCO)
+    assert (len(jobs), complete, total) == (119, False, 120)
+    assert len({job.external_id for job in jobs}) == 119
 
 
 @pytest.mark.asyncio
@@ -841,6 +951,45 @@ async def test_bamboohr_check_alive_never_calls_anything_else_dead():
         assert await bamboohr.check_alive(client, "https://urban.bamboohr.com/careers/list") \
             == LivenessResult("unknown", "unsupported_url")
     assert seen == []
+
+
+# --- check_alive when the connection fails (Teamtailor has no check_alive) ----------------
+
+LIVENESS_URLS = [
+    (workable, "https://apply.workable.com/financeit/j/DC11C09247/"),
+    (recruitee, OFFER_PAGE),
+    (bamboohr, "https://urban.bamboohr.com/careers/113"),
+]
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("module, url", LIVENESS_URLS, ids=[m.PLATFORM for m, _ in LIVENESS_URLS])
+@pytest.mark.parametrize("error, reason", [
+    (httpx.ReadTimeout("slow"), "timeout"),
+    (httpx.ConnectTimeout("slow"), "timeout"),
+    (httpx.ConnectError("refused"), "network_error"),
+    (httpx.ReadError("reset"), "network_error"),
+], ids=["read-timeout", "connect-timeout", "connect-error", "read-error"])
+async def test_check_alive_answers_unknown_when_the_connection_fails(module, url, error, reason):
+    def drop(request: httpx.Request) -> httpx.Response:
+        raise error
+
+    client = http.make_client(transport=httpx.MockTransport(drop))
+    async with client:
+        result = await module.check_alive(client, url)
+    # The same reasons platform_liveness gives its own timeouts and network errors.
+    assert result == LivenessResult("unknown", reason)
+
+
+@pytest.mark.asyncio
+async def test_recruitee_check_alive_does_not_call_an_offer_dead_when_the_confirming_page_times_out():
+    def slow(request: httpx.Request) -> httpx.Response:
+        raise httpx.ReadTimeout("slow")
+
+    client, _ = served({OFFER_API: httpx.Response(404, text="{}"), OFFER_PAGE: slow})
+    async with client:
+        result = await recruitee.check_alive(client, OFFER_PAGE)
+    assert result == LivenessResult("unknown", "timeout")
 
 
 # --- Through the scraper, as the cron runs it -----------------------------------------------

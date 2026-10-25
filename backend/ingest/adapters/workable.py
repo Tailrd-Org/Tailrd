@@ -160,6 +160,11 @@ async def check_alive(client, url: str) -> LivenessResult:
                                       follow_redirects=True)
     except httpx.HTTPStatusError as exc:
         return _unknown_for_status(exc.response.status_code)
+    # A timeout or a dropped connection says nothing about the posting.
+    except httpx.TimeoutException:
+        return LivenessResult(UNKNOWN, "timeout")
+    except httpx.HTTPError:
+        return LivenessResult(UNKNOWN, "network_error")
     if response.status_code == 404:
         return LivenessResult(DEAD, "workable_job_404", True)
     if response.status_code != 200:

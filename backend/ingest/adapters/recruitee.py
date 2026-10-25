@@ -223,6 +223,12 @@ async def check_alive(client, url: str) -> LivenessResult:
                                   headers={"Accept": "text/html"}, follow_redirects=True)
     except httpx.HTTPStatusError as exc:
         return _unknown_for_status(exc.response.status_code)
+    # A timeout or a dropped connection says nothing about the offer, and on
+    # the confirming page fetch it must not leave the 404 above standing as death.
+    except httpx.TimeoutException:
+        return LivenessResult(UNKNOWN, "timeout")
+    except httpx.HTTPError:
+        return LivenessResult(UNKNOWN, "network_error")
     if page.status_code in (404, 410):
         return LivenessResult(DEAD, "recruitee_offer_404", True)
     if page.history:

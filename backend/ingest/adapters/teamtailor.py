@@ -4,7 +4,16 @@ Teamtailor adapter (scraper v2, Tier 1).
 Every Teamtailor career site publishes its open jobs as an RSS feed, no key
 needed, descriptions included:
 
-    GET https://<host>/jobs.rss
+    GET https://<host>/jobs.rss?per_page=100&offset=0
+
+The feed shows only the first 100 jobs unless it is paged (Teamtailor's RSS
+guide: "By default, the RSS feed will show the first 100 jobs"), so the
+adapter asks for pages of exactly 100 with ``offset`` and walks on until a page
+comes back short; an exactly full last page is followed by an empty one. Both
+parameters count jobs: on a 70 job tenant pages of 30, 30 and 10 join to the
+unpaged feed in order, and an offset past the end is a valid feed with no
+items. The walk stops at 30 pages (3,000 jobs) or, after the first page, at
+the crawl ``deadline``, and a walk that stopped early is not complete.
 
 ``<host>`` is where the tenant's career site lives, and that varies: the
 usual <name>.teamtailor.com, the North American data centre's
@@ -25,6 +34,7 @@ import datetime
 import email.utils
 import logging
 import re
+import time
 import xml.etree.ElementTree as ET
 from urllib.parse import urlsplit, urlunsplit
 
@@ -49,28 +59,53 @@ _JOB_ID = re.compile(r"/jobs/(\d+)")
 # made to expand into a huge one.
 _DECLARATIONS = re.compile(rb"<!(?:DOCTYPE|ENTITY)", re.IGNORECASE)
 _WORK_TYPES = {"fully": "Remote", "hybrid": "Hybrid"}
+# The feed's own page size. Asking for it explicitly makes any shorter page the
+# last one, whatever ceiling the host puts on a bigger request.
+PAGE_SIZE = 100
+# 3,000 jobs; a feed that goes on longer is reported incomplete.
+MAX_PAGES = 30
+
+
+def _now() -> float:
+    """The clock ``deadline`` is measured on (time.monotonic()); a test seam."""
+    return time.monotonic()
 
 
 async def list_jobs(client, slug, company_name, *, config, deadline=None):
     """Every job in the tenant's feed, unfiltered, descriptions included.
-    Raises when the feed is missing or is not an RSS document, so a broken
-    board is never read as an empty one."""
+
+    ``complete`` is True only when the walk reached the end of the feed (a page
+    came back short) and every item was read and seen once. A walk cut off by
+    the page cap or the deadline, an item that could not be read, or an id on
+    two pages (a job published or taken down mid-walk shifts the pages) leaves
+    it False: a stored row missing from a partial listing must not be marked
+    removed. The first page is always fetched; ``deadline`` only stops the
+    pages after it. Raises when the feed is missing or is not an RSS document,
+    so a broken board is never read as an empty one."""
     host = _feed_host(slug, config)
-    response = await http.request(
-        client, "GET", f"https://{host}/jobs.rss", rate_limit=RATE_LIMIT,
-        headers={"Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.1"},
-        follow_redirects=True,
-    )
-    response.raise_for_status()
-    items = _items(response.content, host)
-    jobs = []
-    for item in items:
-        job = _parse(item, slug, company_name)
-        if job is not None:
-            jobs.append(job)
-    # An item that could not be read is missing from the URL set, so the
-    # board must not count as complete: its stored row would be marked removed.
-    return jobs, len(jobs) == len(items), len(items)
+    jobs, seen, total, clean = [], set(), 0, True
+    for page in range(MAX_PAGES):
+        if page and deadline is not None and _now() >= deadline:
+            return jobs, False, total
+        response = await http.request(
+            client, "GET", f"https://{host}/jobs.rss", rate_limit=RATE_LIMIT,
+            params={"per_page": PAGE_SIZE, "offset": page * PAGE_SIZE},
+            headers={"Accept": "application/rss+xml, application/xml;q=0.9, */*;q=0.1"},
+            follow_redirects=True,
+        )
+        response.raise_for_status()
+        items = _items(response.content, host)
+        total += len(items)
+        for item in items:
+            job = _parse(item, slug, company_name)
+            if job is None or job.external_id in seen:
+                clean = False
+            else:
+                seen.add(job.external_id)
+                jobs.append(job)
+        if len(items) < PAGE_SIZE:
+            return jobs, clean, total
+    return jobs, False, total
 
 
 def _feed_host(slug: str, config) -> str:
