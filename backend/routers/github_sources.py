@@ -167,6 +167,9 @@ def cleanup_blank_companies(
 # can't recover it later). Cap per run; jobs past the cap simply stay
 # un-inserted and surface as "new" again on the board's next shard pass.
 # ~0.4 s a request, so the run's 40 add ~16 s against the 300 s limit.
+# SmartRecruiters and v2 adapters whose lists carry no description share the
+# budget: with every experience level crawled, one such board can list
+# thousands of new postings.
 WORKDAY_DETAIL_BUDGET = 40
 # ...and per board: the budget goes to boards in the order their lists
 # finish, so a big new board (PwC's 212 postings) took all 40 for days while
@@ -180,6 +183,12 @@ WORKDAY_DETAIL_PER_BOARD = 10
 # partial: they confirm what they listed and remove nothing. No board starts
 # after it either; those wait for the shard's next run.
 CRON_ATS_LIST_BUDGET_SECONDS = float(os.getenv("CRON_ATS_LIST_BUDGET_SECONDS", "150"))
+
+# Wall-clock budget, from the start of the run, for inserting new rows. With
+# every experience level crawled a shard can hold thousands of new postings;
+# past this mark the run stores no more (they surface as new on the next
+# pass) and only refreshes and reconciles, so it ends inside Vercel's 300 s.
+CRON_ATS_INSERT_BUDGET_SECONDS = float(os.getenv("CRON_ATS_INSERT_BUDGET_SECONDS", "220"))
 
 # Boards crawled at once. Never two on one API host, so Greenhouse, Lever,
 # Ashby and SmartRecruiters boards still go one after another at the per-host
@@ -212,21 +221,26 @@ async def cron_ats(
     so vanished postings are marked removed the same run, the freshness edge
     over aggregators.
 
-    Per-board failures are isolated and recorded in source_health; a board
-    failing repeatedly is skipped for a cooldown (circuit breaker) instead of
-    burning the run's budget. Filters to entry-level + US/Canada only, and a
-    stored row whose own listing now fails those filters (a London, UK row
+    Each snapshot goes through ingest/core/pipeline.ingest_snapshot, the
+    write path the v2 runner shares. Per-board failures are isolated and
+    recorded in source_health; a board failing repeatedly is skipped for a
+    cooldown (circuit breaker) instead of burning the run's budget. Every
+    experience level is kept (a tag, not a filter); only US/Canada postings
+    are, and a stored row whose own listing is outside them (a London, UK row
     from before the NA filter knew better) is retired as off_target instead
-    of confirmed; CRON_ATS_RETIRE_OFF_TARGET=0 switches that off.
+    of confirmed; CRON_ATS_RETIRE_OFF_TARGET=0 switches that off. The storage
+    caps in ingest/data/limits.json bound what a run inserts ("caps" in the
+    response says what they held back).
     """
     try:
         from backend.services.ats_scraper import ATSScraper
         from backend.services import source_health
         from backend.data import company_registry
 
+        started = time.monotonic()
         scraper = ATSScraper(
-            filter_entry_level=True, filter_north_america=True,
-            deadline=time.monotonic() + CRON_ATS_LIST_BUDGET_SECONDS,
+            filter_entry_level=False, filter_north_america=True,
+            deadline=started + CRON_ATS_LIST_BUDGET_SECONDS,
         )
 
         # The workflow's "hourly" schedule really fires ~6x a day at uneven
@@ -244,12 +258,13 @@ async def cron_ats(
         ctx = pipeline.new_context(
             db, [name for _, _, name in companies],
             detail_budget=WORKDAY_DETAIL_BUDGET, detail_per_board=WORKDAY_DETAIL_PER_BOARD,
+            insert_deadline=started + CRON_ATS_INSERT_BUDGET_SECONDS,
         )
         totals = ctx.totals
 
         runnable = []
         for platform, slug, company_name in companies:
-            if source_health.in_cooldown(health_map.get(f"{platform}:{slug}")):
+            if pipeline.in_cooldown(health_map.get(f"{platform}:{slug}")):
                 totals["boards_skipped_cooldown"] += 1
             else:
                 runnable.append((platform, slug, company_name))
@@ -266,8 +281,8 @@ async def cron_ats(
             async for (platform, slug, company_name), snapshot, error in crawl:
                 if error is not None:
                     totals["boards_failed"] += 1
-                    source_health.record_failure(
-                        db, f"{platform}:{slug}", platform, slug, repr(error))
+                    pipeline.record_board_failure(
+                        db, f"{platform}:{slug}", platform, slug, pipeline.safe_error(error))
                     continue
                 await pipeline.ingest_snapshot(db, client, snapshot, ctx)
 
@@ -289,6 +304,7 @@ async def cron_ats(
                 "count": shard_count,
                 "companies": len(companies),
             },
+            "caps": {**ctx.caps, "inserting_stopped": ctx.stopped or None},
         }
     except Exception:
         logger.error(f"ATS cron failed: {traceback.format_exc()}")

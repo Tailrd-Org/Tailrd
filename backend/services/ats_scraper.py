@@ -607,8 +607,10 @@ def experience_level_for(title: str, department: str = "", employment_type: str 
 # posting is off target, so a stored row at its URL is retired (listing_status
 # off_target) instead of confirmed. "unplaced" (no North American location,
 # and no evidence against one either: Workday's "2 Locations", "Hybrid") never
-# retires a row.
-RETIRABLE_REJECTIONS = frozenset({"level", "location"})
+# retires a row. Scraper v2 keeps every experience level (a tag, not a
+# filter), so "level" retires nothing either: only a posting outside the US
+# and Canada is off target.
+RETIRABLE_REJECTIONS = frozenset({"location"})
 
 # Workday names one location and counts the rest ("PRAGUE DC (2 Locations)",
 # "3 Locations"): the unnamed ones may be North American, so a foreign name
