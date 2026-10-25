@@ -79,10 +79,13 @@ _HIDDEN_LABEL_RE = re.compile(r'<span class="wb-inv">.*?</span>', re.S)
 _PROVINCE_RE = re.compile(r"\s*\(([A-Z]{2})\)\s*$")
 _DATE_RE = re.compile(r"([A-Za-z]+)\s+(\d{1,2}),\s*(\d{4})")
 _PAY_RE = re.compile(
-    r"\$\s*([\d,]+(?:\.\d+)?)(?:\s*(?:to|-)\s*\$?\s*([\d,]+(?:\.\d+)?))?\s*(hourly|weekly|bi-weekly|monthly|annually|yearly|daily)?",
+    r"\$\s*([\d,]+(?:\.\d+)?)(?:\s*(?:to|-)\s*\$?\s*([\d,]+(?:\.\d+)?))?\s*(hourly|weekly|bi-weekly|biweekly|monthly|annually|yearly|daily)?",
     re.I,
 )
 _PAY_PERIOD = {"annually": "yearly"}
+# The salary parser reads these three periods correctly. It takes "$2,123 to $2,348 biweekly" for a
+# monthly figure (and weekly or daily pay the same way), so those are left out rather than stored wrong.
+_PAY_PERIODS_READ = {"hourly", "yearly", "monthly"}
 _MONTHS = {name: number for number, name in enumerate(
     ("january", "february", "march", "april", "may", "june", "july", "august",
      "september", "october", "november", "december"), start=1)}
@@ -144,8 +147,9 @@ def _salary_text(text: str) -> str:
     """The listing's pay in a shape the salary parser reads with the right
     currency: "27.61-30.44 CAD hourly" for a range, "CAD 21 hourly" for one rate
     (the listing says "$27.61 to $30.44 hourly" and never names the currency).
-    Pay that is not a plain amount per period, such as a commission, stays as
-    the site wrote it."""
+    Pay that is not an amount per period, such as a commission, stays as the
+    site wrote it; weekly, biweekly and daily pay is left out (see
+    _PAY_PERIODS_READ)."""
     text = re.sub(r"^Salary\s*", "", text or "").strip()
     match = _PAY_RE.search(text)
     if not match or not match.group(3):
@@ -153,6 +157,8 @@ def _salary_text(text: str) -> str:
     low, high = _amount(match.group(1)), _amount(match.group(2) or match.group(1))
     period = match.group(3).lower()
     period = _PAY_PERIOD.get(period, period)
+    if period not in _PAY_PERIODS_READ:
+        return ""
     return f"CAD {low} {period}" if low == high else f"{low}-{high} CAD {period}"
 
 

@@ -154,6 +154,25 @@ def test_search_page_is_read_into_listings():
     assert various.location == "Various locations"
 
 
+def test_pay_is_written_the_way_the_salary_parser_reads_it():
+    from backend.services.structured_extraction import parse_salary
+
+    cases = {
+        "Salary $27.61 to $30.44 hourly": ("27.61-30.44 CAD hourly", (28, 30, "CAD", "hour")),
+        "Salary $21.00 hourly": ("CAD 21 hourly", (21, 21, "CAD", "hour")),
+        "Salary $52,000.00 to $65,000.00 annually": ("52000-65000 CAD yearly", (52000, 65000, "CAD", "year")),
+        "Salary $4,500.00 monthly (to be negotiated)": ("CAD 4500 monthly", (4500, 4500, "CAD", "month")),
+    }
+    for listing, (text, parsed) in cases.items():
+        assert jobbank_ca._salary_text(listing) == text
+        assert parse_salary(text) == parsed
+    # The parser would read these as monthly pay; they are left out instead.
+    for listing in ("Salary $2,123.03 to $2,348.18 biweekly", "Salary $800 weekly", "Salary $250.00 daily"):
+        assert jobbank_ca._salary_text(listing) == ""
+    assert jobbank_ca._salary_text("Salary To be discussed") == "To be discussed"
+    assert jobbank_ca._salary_text("") == ""
+
+
 def test_search_page_parser_rejects_a_page_that_is_not_a_search():
     with pytest.raises(ValueError):
         jobbank_ca.parse_search_page("<html><body><h1>Request Rejected</h1></body></html>")
