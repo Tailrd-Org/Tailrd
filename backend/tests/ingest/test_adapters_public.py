@@ -20,7 +20,7 @@ import pytest
 
 from backend.data import company_registry
 from backend.ingest import adapters
-from backend.ingest.adapters import adzuna, jobbank_ca, usajobs
+from backend.ingest.adapters import adzuna, jobbank_ca, jooble, usajobs
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper
 
@@ -870,3 +870,213 @@ async def test_an_adzuna_board_goes_through_the_scraper_once_the_keys_exist(pace
 
     assert len(snapshot.jobs) == 5 and snapshot.complete and snapshot.total_listed == 5
     assert site.requests[0].url.params["what_or"] == "intern graduate"
+
+
+# --- Jooble --------------------------------------------------------------------------------------
+# The fixtures (jooble_search_page*.json) follow help.jooble.org "REST API
+# Documentation": totalCount and jobs[] with id, title, location, snippet, salary,
+# source, type, link, company, updated.
+
+JOOBLE_ENV = {"JOOBLE_API_KEY": "test-jooble-key"}
+
+
+def jooble_page(number: int) -> dict:
+    return json.loads(fixture_text(f"jooble_search_page{number}.json"))
+
+
+@pytest.fixture
+def jooble_key(monkeypatch):
+    monkeypatch.setenv("JOOBLE_API_KEY", "test-jooble-key")
+
+
+class FakeJooble:
+    """Answers POST /api/{key} with the fixture page named by the body's ``page``."""
+
+    def __init__(self, pages=None, status=200):
+        self.pages = pages if pages is not None else {1: jooble_page(1), 2: jooble_page(2)}
+        self.status = status
+        self.requests: list[httpx.Request] = []
+        self.bodies: list[dict] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        body = json.loads(request.content)
+        self.bodies.append(body)
+        if self.status != 200:
+            return httpx.Response(self.status, text="denied")
+        return httpx.Response(200, json=self.pages.get(body["page"]) or {"totalCount": 4, "jobs": []})
+
+
+def test_jooble_contract_constants():
+    assert jooble.PLATFORM == "jooble"
+    assert jooble.TIER == 3
+    assert jooble.COUNTRIES == ("CA", "US")
+    assert jooble.REQUIRED_ENV == ("JOOBLE_API_KEY",)
+    assert jooble.RATE_LIMIT > 0
+
+
+def test_jooble_stays_disabled_until_the_key_exists(monkeypatch):
+    monkeypatch.delenv("JOOBLE_API_KEY", raising=False)
+    assert adapters.get_adapter("jooble") is jooble
+    assert not adapters.adapter_enabled("jooble")
+    monkeypatch.setenv("JOOBLE_API_KEY", "test-jooble-key")
+    assert adapters.adapter_enabled("jooble")
+
+
+def test_jooble_owns_its_ad_pages_on_every_country_site():
+    for url in ("https://jooble.org/jdp/7203851104418", "https://jooble.org/desc/7203851104417",
+                "https://ca.jooble.org/jdp/-123456"):
+        assert adapters.adapter_for_url(url) is jooble
+
+
+def test_jooble_ads_become_listings():
+    ads = jooble_page(1)["jobs"] + jooble_page(2)["jobs"]
+    jobs = [jooble._to_job(ad, "us-retail", "Jooble US") for ad in ads]
+    sales, engineer, warehouse, nurse = jobs
+
+    assert sales.external_id == "jooble:us-retail:7203851104417"
+    assert sales.title == "Sales Associate" and sales.company == "Lone Star Outdoor Supply"
+    assert sales.location == "Austin, TX"
+    # The ad's page on Jooble, without the click-tracking query string.
+    assert sales.url == "https://jooble.org/desc/7203851104417"
+    assert sales.apply_url == ""  # Jooble gives no employer link
+    assert sales.employment_type == "Part-time" and sales.salary_text == "$16 - $19 per hour"
+    assert sales.posted_date == datetime.datetime(2026, 10, 24, 13, 21, 5, tzinfo=datetime.timezone.utc)
+    assert sales.description.startswith("...Greet customers and help them find the right product.")
+    assert "<b>" not in sales.description and "&nbsp;" not in sales.description
+
+    assert engineer.salary_text == "" and engineer.url == "https://jooble.org/jdp/7203851104418"
+    # No company in the ad: the board's name stands in; no snippet, no type: empty.
+    assert warehouse.company == "Jooble US" and warehouse.description == "" and warehouse.employment_type == ""
+    assert nurse.work_type == "Remote" and nurse.salary_text == "$75,000 - $95,000 per year"
+
+
+@pytest.mark.asyncio
+async def test_jooble_posts_the_documented_body_and_pages_to_the_end(paced, jooble_key):
+    site = FakeJooble()
+    async with mock_client(site) as client:
+        jobs, complete, total = await jooble.list_jobs(
+            client, "us-retail", "Jooble US",
+            config={"keywords": "sales associate", "location": "Texas", "radius": "40", "page_size": 3,
+                    "max_pages": 4})
+
+    assert (len(jobs), complete, total) == (4, True, 4)
+    assert [body["page"] for body in site.bodies] == [1, 2]
+    assert site.bodies[0] == {"keywords": "sales associate", "location": "Texas", "ResultOnPage": 3,
+                              "radius": "40", "page": 1}
+    first = site.requests[0]
+    assert first.method == "POST" and first.url.host == "jooble.org"
+    assert first.url.path == "/api/test-jooble-key"
+    assert first.headers["content-type"] == "application/json"
+    assert first.headers["user-agent"] == http.USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_jooble_page_cap_leaves_the_listing_incomplete(paced, jooble_key):
+    site = FakeJooble()
+    async with mock_client(site) as client:
+        jobs, complete, total = await jooble.list_jobs(
+            client, "x", "Jooble US", config={"keywords": "nurse", "location": "Florida", "max_pages": 1})
+
+    assert (len(jobs), complete, total) == (3, False, 4)
+    assert len(site.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_jooble_defaults_to_two_pages_because_the_free_key_allows_500_requests_ever(paced, jooble_key):
+    site = FakeJooble(pages={1: jooble_page(1), 2: {"totalCount": 400, "jobs": jooble_page(2)["jobs"]},
+                             3: jooble_page(2)})
+    async with mock_client(site) as client:
+        await jooble.list_jobs(client, "x", "Jooble US", config={"keywords": "nurse", "location": "Florida"})
+
+    assert len(site.requests) == 2
+
+
+@pytest.mark.asyncio
+async def test_jooble_a_canadian_board_names_its_country_site(paced, jooble_key):
+    site = FakeJooble()
+    async with mock_client(site) as client:
+        await jooble.list_jobs(client, "ca", "Jooble Canada", config={
+            "host": "ca.jooble.org", "keywords": "intern", "location": "Canada", "max_pages": 1})
+        with pytest.raises(ValueError, match="not a Jooble site"):
+            await jooble.list_jobs(client, "x", "Jooble", config={
+                "host": "evil.example.com", "keywords": "intern", "location": "Canada"})
+
+    assert site.requests[0].url.host == "ca.jooble.org" and site.requests[0].url.path == "/api/test-jooble-key"
+    assert len(site.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_jooble_requires_keywords_and_location_and_the_key(paced, monkeypatch):
+    site = FakeJooble()
+    async with mock_client(site) as client:
+        monkeypatch.setenv("JOOBLE_API_KEY", "test-jooble-key")
+        for bad in ({}, {"keywords": "nurse"}, {"location": "Florida"}):
+            with pytest.raises(ValueError, match="keywords and config.location"):
+                await jooble.list_jobs(client, "x", "Jooble", config=bad)
+        monkeypatch.delenv("JOOBLE_API_KEY")
+        with pytest.raises(RuntimeError):
+            await jooble.list_jobs(client, "x", "Jooble", config={"keywords": "nurse", "location": "Florida"})
+    assert site.requests == []
+
+
+@pytest.mark.asyncio
+async def test_jooble_errors_and_logs_never_carry_the_key(paced, jooble_key, caplog):
+    # The app turns INFO on for its own "backend" loggers only, not for root, so
+    # httpx's request lines (which print the final URL) stay off.
+    caplog.set_level("INFO", logger="backend")
+    # 403 is "Access Denied: invalid or missing API key" in Jooble's documentation.
+    async with mock_client(FakeJooble(status=403)) as client:
+        with pytest.raises(jooble.JoobleError) as denied:
+            await jooble.list_jobs(client, "x", "Jooble", config={"keywords": "nurse", "location": "Florida"})
+    assert str(denied.value) == "Jooble answered HTTP 403"
+    assert denied.value.__cause__ is None
+
+    # A server error that outlasts the retries: the helper logs each retry with the URL it was given.
+    async with mock_client(FakeJooble(status=503)) as client:
+        with pytest.raises(jooble.JoobleError) as broken:
+            await jooble.list_jobs(client, "x", "Jooble", config={"keywords": "nurse", "location": "Florida"})
+    assert str(broken.value) == "Jooble answered HTTP 503"
+    assert "Retrying POST" in caplog.text
+    assert "test-jooble-key" not in caplog.text and "test-jooble-key" not in str(broken.value)
+
+
+@pytest.mark.asyncio
+async def test_jooble_a_later_page_that_fails_keeps_the_first_as_incomplete(paced, jooble_key):
+    def handler(request):
+        if json.loads(request.content)["page"] == 1:
+            return httpx.Response(200, json=jooble_page(1))
+        return httpx.Response(200, text="<html>maintenance</html>")
+
+    async with mock_client(handler) as client:
+        jobs, complete, total = await jooble.list_jobs(
+            client, "x", "Jooble", config={"keywords": "nurse", "location": "Florida"})
+
+    assert (len(jobs), complete, total) == (3, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jooble_an_empty_answer_is_never_complete(paced, jooble_key):
+    site = FakeJooble(pages={1: {"totalCount": 0, "jobs": []}})
+    async with mock_client(site) as client:
+        result = await jooble.list_jobs(client, "x", "Jooble", config={"keywords": "zzz", "location": "Florida"})
+    assert result == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_a_jooble_board_goes_through_the_scraper_once_the_key_exists(paced, monkeypatch):
+    entries = [{"company_name": "Jooble US: retail", "ats_platform": "jooble", "board_slug": "us-retail",
+                "enabled": True, "country": "US", "hq_country": "US",
+                "config": {"keywords": "sales associate", "location": "Texas", "max_pages": 2}}]
+    monkeypatch.setattr(company_registry, "_load_raw", lambda: entries)
+    monkeypatch.delenv("JOOBLE_API_KEY", raising=False)
+    site = FakeJooble()
+    async with mock_client(site) as client:
+        skipped = await ATSScraper(filter_entry_level=False).scrape_board(client, "jooble", "us-retail", "Jooble US")
+        assert skipped.jobs == [] and skipped.complete is False and site.requests == []
+
+        monkeypatch.setenv("JOOBLE_API_KEY", "test-jooble-key")
+        snapshot = await ATSScraper(filter_entry_level=False).scrape_board(client, "jooble", "us-retail", "Jooble US")
+
+    assert len(snapshot.jobs) == 4 and snapshot.complete and snapshot.total_listed == 4
+    assert site.bodies[0]["keywords"] == "sales associate"
