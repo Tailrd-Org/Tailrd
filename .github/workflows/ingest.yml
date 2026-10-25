@@ -20,6 +20,13 @@ name: Ingest
 # scrape_tasks, and run no DDL (the app's boot migrations stay in the app).
 # Until the secret INGEST_DATABASE_URL exists the workflow ends green with a
 # notice, so it never runs red for want of setup.
+#
+# Known gap: the runner also creates and migrates the schema when it starts
+# (ensure_schema), and several boot migrations send CREATE INDEX IF NOT EXISTS
+# on every start, which Postgres refuses to a role that does not own the table
+# even when the index exists ("must be owner of table cover_letters"). A role
+# with no DDL stops there until the runner can skip that step; one that owns
+# the tables does not.
 
 on:
   schedule:

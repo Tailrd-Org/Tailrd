@@ -347,6 +347,20 @@ def test_ingest_passes_each_adapter_key_and_the_alert_webhook_and_no_other_secre
     assert used == wanted | {"INGEST_DATABASE_URL"}
 
 
+def test_the_off_target_kill_switch_reaches_the_runner_and_an_unset_one_means_on(monkeypatch):
+    # The switch's twin on Vercel covers cron-ats only. A repository variable of
+    # the same name covers the runner, and a variable nobody set arrives as the
+    # empty string, which has to leave the retirement on.
+    from backend.services import listing_freshness
+
+    env = _ingest_step("ingest")["env"]
+    assert env["CRON_ATS_RETIRE_OFF_TARGET"] == "${{ vars.CRON_ATS_RETIRE_OFF_TARGET }}"
+    monkeypatch.setenv("CRON_ATS_RETIRE_OFF_TARGET", "")
+    assert listing_freshness.retire_off_target_enabled() is True
+    monkeypatch.setenv("CRON_ATS_RETIRE_OFF_TARGET", "0")
+    assert listing_freshness.retire_off_target_enabled() is False
+
+
 def test_every_step_after_the_secret_check_waits_for_it():
     steps = _ingest_steps()
     ids = [step.get("id") for step in steps]
