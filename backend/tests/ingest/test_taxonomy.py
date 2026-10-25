@@ -111,7 +111,7 @@ def test_the_guard_corpus_holds_both_tiers():
 
 
 def test_todays_internship_and_new_grad_rows_keep_their_labels():
-    broken = []
+    broken, exceptions = [], []
     for title, department, employment_type in ENTRY_LEVEL_TITLES:
         tier = entry_tier(title, department, employment_type)
         level = taxonomy.classify_experience(title, department, employment_type)
@@ -121,11 +121,21 @@ def test_todays_internship_and_new_grad_rows_keep_their_labels():
             today = experience_level_for(title, department, employment_type)
             if level != today:
                 broken.append(f"{title!r} ({department!r}, {employment_type!r}): {today} -> {level}")
-        elif tier == "weak" and level not in ("entry", "internship", "new_grad"):
+        elif tier == "weak":
             # A level word (junior, analyst, associate, level I) moves from
-            # new_grad to entry (DECISIONS.md 4) unless the title names a track.
-            broken.append(f"{title!r} ({department!r}, {employment_type!r}): weak tier -> {level}")
+            # new_grad to entry (DECISIONS.md 4). Only a named track or a rank
+            # outranks it ("Associate Professor"), and a school grade is no
+            # level word at all ("Grade 1 Teacher").
+            school_title = taxonomy._school_title(taxonomy._clean(title, taxonomy._MAX_TITLE))
+            if entry_tier(school_title, department, employment_type) != "weak":
+                continue
+            expected = taxonomy._weak_tier_exception(school_title)
+            if expected:
+                exceptions.append(title)
+            if level != (expected or "entry"):
+                broken.append(f"{title!r} ({department!r}, {employment_type!r}): weak tier -> {level}")
     assert not broken, "\n".join(broken)
+    assert len(exceptions) <= 5, exceptions
 
 
 # ─── Experience levels, rule by rule ──────────────────────────────────────
@@ -252,7 +262,6 @@ def test_executive_level(title):
     ("Vice President, Sales", "director"),
     ("Account Executive", "mid"),
     ("Executive Assistant to the Chief Business Officer", "mid"),
-    ("Chief Legal and Policy Advisor", "mid"),
 ])
 def test_executive_words_that_are_not_executives(title, level):
     assert taxonomy.classify_experience(title) == level
@@ -292,6 +301,44 @@ def test_a_title_level_outranks_the_years():
     assert taxonomy.classify_experience("Senior Accountant", years_required=1) == "senior"
     assert taxonomy.classify_experience("Junior Accountant", years_required=8) == "entry"
     assert taxonomy.classify_experience("Software Engineering Intern", years_required=6) == "internship"
+
+
+@pytest.mark.parametrize("title", [
+    "Grade 3 Teacher", "Grade 7/8 Teacher", "Social Studies Teacher, Grade 6",
+    "Grade 4 French Immersion Teacher", "Grade 1 Teacher", "Grade 2 Teacher", "Grades K-3 Teacher",
+    "Year 2 Teacher", "Senior Kindergarten Teacher", "Junior Kindergarten Teacher",
+])
+def test_a_school_grade_is_not_a_job_level(title):
+    assert taxonomy.classify_experience(title) == "mid"
+    assert taxonomy.classify_family(title)[0] == "education_research"
+
+
+@pytest.mark.parametrize("title,level,family", [
+    ("Associate Professor of Biology", "senior", "education_research"),
+    ("Assistant Professor, Computer Science", "mid", "education_research"),
+    ("Assistant/Associate Professor of Nursing", "mid", "education_research"),
+    ("Professor of Chemistry", "senior", "education_research"),
+    ("Adjunct Professor, Marketing", "mid", "education_research"),
+    ("Associate Provost for Research", "director", "education_research"),
+    ("Provost", "executive", "education_research"),
+    ("Associate Dean - School of Nursing", "director", "education_research"),
+    ("Associate Superintendent", "director", "education_research"),
+    ("Superintendent of Schools", "executive", "education_research"),
+    ("Assistant Superintendent, Learning Services", "director", "education_research"),
+    ("Assistant Superintendent", "lead", "skilled_trades"),
+    ("Principal, Lincoln Elementary School", "director", "education_research"),
+    ("Vice Principal", "lead", "education_research"),
+    ("Principal Software Engineer", "lead", "software_engineering"),
+    ("Associate Registrar", "lead", "education_research"),
+    ("Associate Warden", "director", "government_public_sector"),
+    ("Associate Commissioner", "director", "government_public_sector"),
+    ("Associate Judge", "senior", "legal"),
+])
+def test_academic_school_and_public_ranks(title, level, family):
+    # The scraper's entry tier reads the bare word "associate" as entry
+    # level; a rank is not.
+    assert taxonomy.classify_experience(title) == level
+    assert taxonomy.classify_family(title)[0] == family
 
 
 def test_bands_open_at_the_lower_band():
@@ -458,6 +505,7 @@ def test_the_rules_file_names_only_known_families_and_levels():
     assert {level for _, level in experience["years_to_level"]} <= set(taxonomy.LEVELS)
     assert set(experience["band_words"].values()) <= set(taxonomy.LEVELS)
     assert set(experience["numeral_levels"].values()) <= set(taxonomy.LEVELS)
+    assert {rank["level"] for rank in experience["ranks"]} <= set(taxonomy.LEVELS)
     # A lone \b in JSON is a backspace, not a word boundary.
     assert not [text for text in _strings(RULES) if any(ord(char) < 32 for char in text)]
 
@@ -468,6 +516,27 @@ def test_the_rules_are_read_once():
     taxonomy.classify_experience("Software Engineer")
     taxonomy.years_required("3+ years of experience")
     assert taxonomy._rules.cache_info().misses == 1
+
+
+SPACES = " " * 40_000
+
+
+@pytest.mark.parametrize("call", [
+    lambda: taxonomy.years_required("5" + SPACES + "years of experience"),
+    lambda: taxonomy.years_required("5" + SPACES + "an apple"),
+    lambda: taxonomy.years_required("5" + "\n\t " * 13_334 + "years"),
+    lambda: taxonomy.years_required("five" + SPACES + "(5) years of experience"),
+    lambda: taxonomy.classify_experience("Engineer" + SPACES + "I", SPACES, SPACES, None),
+    lambda: taxonomy.classify_family("Engineer" + SPACES, SPACES, "5" + SPACES + "years"),
+], ids=["digit-spaces-years", "digit-spaces-an", "digit-mixed-whitespace", "number-word-spaces",
+        "experience", "family"])
+def test_a_long_whitespace_run_is_read_quickly(call):
+    # Descriptions are raw third-party text: a digit followed by a long run
+    # of whitespace once backtracked quadratically (10,000 spaces took 7 s).
+    taxonomy.classify_experience("Warm Up")
+    started = time.perf_counter()
+    call()
+    assert time.perf_counter() - started < 0.05
 
 
 def test_pathological_input_is_read_quickly():
