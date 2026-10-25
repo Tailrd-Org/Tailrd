@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+Sitemap: http://careers.akima.com/sitemap.xml
+crawl-delay: 5
