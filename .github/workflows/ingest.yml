@@ -30,15 +30,15 @@ name: Ingest
 
 on:
   schedule:
-    # Once a day at 06:23 UTC (02:23 in Toronto and New York): the quietest
-    # hours for the app, and a run of up to three hours is over before the US
-    # morning. An off-peak minute, never 0: GitHub fires scheduled workflows
-    # from a shared queue whose top-of-hour slot is the most contended, and
-    # fires there get delayed or silently dropped (the 00:00Z and 02:00Z fires
-    # of scrape-jobs.yml on 2026-07-13 never ran). Not :17 or :47 either, the
-    # minutes scrape-jobs.yml fires on. A day the fire is lost costs nothing
-    # lasting: once INGEST_V2_RUNNER is on, cron-ats resumes crawling a board
-    # 20 hours after the runner last did.
+    # Once a day at 06:23 UTC (02:23 in Toronto and New York): a quiet hour
+    # for a Canada and US audience, and a run of up to three hours is over
+    # before the morning. An off-peak minute, never 0: GitHub fires scheduled
+    # workflows from a shared queue whose top-of-hour slot is the most
+    # contended, and fires there get delayed or silently dropped (the 00:00Z
+    # and 02:00Z fires of scrape-jobs.yml on 2026-07-13 never ran). Not :17 or
+    # :47 either, the minutes scrape-jobs.yml fires on. A day the fire is lost
+    # costs nothing lasting: once INGEST_V2_RUNNER is on, cron-ats resumes
+    # crawling a board 20 hours after the runner last did.
     - cron: '23 6 * * *'
   workflow_dispatch:
 
@@ -138,7 +138,8 @@ jobs:
         if: steps.secret.outputs.configured == 'true'
         with:
           persist-credentials: false
-      # 3.12 is what Vercel runs and what requirements-ingest.txt was resolved for.
+      # 3.12 is what Vercel runs and what requirements-ingest.txt was resolved
+      # for.
       - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
         if: steps.secret.outputs.configured == 'true'
         with:

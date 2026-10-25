@@ -485,9 +485,13 @@ def test_ci_postgres_job_runs_the_ingest_tests_on_a_postgres_17_service():
 
 
 def test_ci_postgres_job_installs_the_driver_the_app_uses():
+    # The version the repo already pins for Vercel (requirements.txt) and for
+    # the runner (requirements-ingest.txt).
     run = _ci_step(POSTGRES_JOB, "Install dependencies")["run"]
+    pinned = re.search(r"^pg8000==(\S+)", (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8"), re.M)
 
-    assert re.search(r"\bpg8000==\d", run)
+    assert pinned
+    assert re.search(r"\bpg8000==" + re.escape(pinned.group(1)) + r"\b", run)
 
 
 def test_ci_runs_every_test_that_waits_for_the_postgres_url():
