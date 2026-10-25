@@ -1,15 +1,15 @@
 {
   "_notes": {
     "why": "Neon's free plan caps the database at 512 MB, and at the cap every write in the app fails. These caps keep ingestion inside it; raise them after upgrading the plan. 0 or null switches a cap off.",
-    "max_live_per_company": "Live rows (active or stale) one employer may hold; a board whose employer is at the cap inserts no more until rows close.",
+    "max_live_per_company": "Live rows (active or stale) one employer may hold; a board whose employer is at the cap inserts no more until rows close. 60 spreads the free plan's room across ~1,200 employers instead of letting a few giants (Walmart, HCA, Dollar General list thousands) fill it.",
     "skip_posted_older_than_days": "A new posting the source dates older than this at first sight is not stored.",
     "description_max_chars": "Stored descriptions are cut here; hashes and extraction read the whole text. 12000 keeps every stored description whole (p99 10073, max 11817 on scraper-v2-dev, 2026-10-25).",
     "max_new_rows_per_run": "New rows one run (one cron-ats call, or one runner run) may insert.",
-    "stop_inserting_at_mb": "pg_database_size above this stops inserts for the run (checked every 500 inserts); refresh and reconciliation go on."
+    "stop_inserting_at_mb": "pg_database_size above this stops inserts for the run (checked every 500 inserts); refresh and reconciliation go on. Neon's logical size runs about 36 MB above pg_database_size, so 400 keeps the branch near 436 MB, under the 450 MB gate and the 512 MB cap."
   },
-  "max_live_per_company": 500,
+  "max_live_per_company": 60,
   "skip_posted_older_than_days": 90,
   "description_max_chars": 12000,
   "max_new_rows_per_run": 15000,
-  "stop_inserting_at_mb": 430
+  "stop_inserting_at_mb": 400
 }
