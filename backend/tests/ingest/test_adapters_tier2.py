@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import icims, oracle_hcm, successfactors, taleo
+from backend.ingest.adapters import icims, jibe, oracle_hcm, successfactors, taleo
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper, entry_tier
 from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN
@@ -394,7 +394,7 @@ async def test_oracle_fetch_job_is_empty_when_the_posting_is_gone(clock):
             await oracle_hcm.fetch_job(client, "jpmorgan", "1", config=config)
 
 
-POSTING = "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210587260"
+ORACLE_POSTING = "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210587260"
 
 
 @pytest.mark.asyncio
@@ -406,7 +406,7 @@ async def test_oracle_check_alive_asks_the_details_finder(clock):
         return httpx.Response(200, text=fixture_text("oracle_hcm_detail_inova.json"))
 
     async with client_for(answer) as client:
-        result = await oracle_hcm.check_alive(client, POSTING)
+        result = await oracle_hcm.check_alive(client, ORACLE_POSTING)
     assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "oracle_api_item", True)
     assert str(seen[0].url) == (
         "https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails"
@@ -417,18 +417,18 @@ async def test_oracle_check_alive_asks_the_details_finder(clock):
 @pytest.mark.asyncio
 async def test_oracle_check_alive_is_dead_only_on_an_empty_item_list(clock):
     async with client_for(lambda request: httpx.Response(200, text=fixture_text("oracle_hcm_detail_empty.json"))) as client:
-        result = await oracle_hcm.check_alive(client, POSTING)
+        result = await oracle_hcm.check_alive(client, ORACLE_POSTING)
     assert (result.verdict, result.reason, result.authoritative) == (DEAD, "oracle_items_0", True)
 
     for status in (403, 404):
         async with client_for(lambda request, s=status: httpx.Response(s, text="")) as client:
-            assert (await oracle_hcm.check_alive(client, POSTING)).verdict == UNKNOWN
+            assert (await oracle_hcm.check_alive(client, ORACLE_POSTING)).verdict == UNKNOWN
     async with client_for(lambda request: httpx.Response(503, text="")) as client:
-        assert (await oracle_hcm.check_alive(client, POSTING)) == (UNKNOWN, "http_503", False)
+        assert (await oracle_hcm.check_alive(client, ORACLE_POSTING)) == (UNKNOWN, "http_503", False)
     async with client_for(lambda request: httpx.Response(200, text="<html>not json</html>")) as client:
-        assert (await oracle_hcm.check_alive(client, POSTING)) == (UNKNOWN, "oracle_api_unreadable", False)
+        assert (await oracle_hcm.check_alive(client, ORACLE_POSTING)) == (UNKNOWN, "oracle_api_unreadable", False)
     async with client_for(lambda request: httpx.Response(200, json={"items": "?"})) as client:
-        assert (await oracle_hcm.check_alive(client, POSTING)) == (UNKNOWN, "oracle_api_unreadable", False)
+        assert (await oracle_hcm.check_alive(client, ORACLE_POSTING)) == (UNKNOWN, "oracle_api_unreadable", False)
 
 
 @pytest.mark.asyncio
@@ -1254,14 +1254,14 @@ async def test_taleo_fetch_job_is_empty_when_there_is_nothing_to_read(clock):
         assert len(server.requests) == before  # a ref that is not a job id is not fetched
 
 
-POSTING = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
+TALEO_POSTING = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
 
 
 @pytest.mark.asyncio
 async def test_taleo_check_alive_reads_the_requisition_in_the_page(clock):
     server = TaleoServer(details={"525949": (200, fixture_text("taleo_jobdetail_bayshore.html"))})
     async with client_for(server) as client:
-        result = await taleo.check_alive(client, POSTING)
+        result = await taleo.check_alive(client, TALEO_POSTING)
     assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "taleo_requisition", True)
 
 
@@ -1670,3 +1670,211 @@ async def test_successfactors_network_lists_a_real_site_and_reads_one_posting(sl
         detail = await successfactors.fetch_job(client, slug, jobs[0].detail_ref, config=config)
         assert len(detail["description"]) > 100
         assert (await successfactors.check_alive(client, jobs[0].url)).verdict == ALIVE
+
+
+# =============================================================================
+# Jibe (iCIMS Career Sites)
+# =============================================================================
+
+JIBE_AKIMA = {"host": "careers.akima.com"}
+JIBE_ROBOTS = fixture_text("jibe_robots.txt")  # the real file: "Allow: /" and "Crawl-delay: 5", as on every Jibe site checked
+
+
+class JibeServer:
+    """One Jibe career site: robots.txt and the jobs API, which answers the
+    requested ``page`` of ``limit`` postings under a ``totalCount``. ``totals``
+    scripts the count per request (the last repeats). Records every request."""
+
+    def __init__(self, items=None, *, total=None, totals=None, robots=JIBE_ROBOTS):
+        self.items = list(items or [])
+        self.total = len(self.items) if total is None else total
+        self.totals = list(totals) if totals else None
+        self.robots = robots
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404) if self.robots is None else httpx.Response(200, text=self.robots)
+        if request.url.path == "/api/jobs":
+            page, limit = int(request.url.params["page"]), int(request.url.params["limit"])
+            total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
+            start = (page - 1) * limit
+            return httpx.Response(200, json={"jobs": self.items[start:start + limit], "totalCount": total, "count": total,
+                                             "locations": [], "filter": {}})
+        return httpx.Response(404)
+
+    def pages(self) -> list[int]:
+        return [int(r.url.params["page"]) for r in self.requests if r.url.path == "/api/jobs"]
+
+
+def jibe_items() -> list[dict]:
+    """Four real postings: two from Akima, two from State Farm (one open in four places)."""
+    return fixture("jibe_akima_page.json")["jobs"] + fixture("jibe_statefarm_page.json")["jobs"]
+
+
+async def jibe_list(server, slug="akima", company="Akima", config=JIBE_AKIMA, **kwargs):
+    async with client_for(server) as client:
+        return await jibe.list_jobs(client, slug, company, config=config, **kwargs)
+
+
+def test_jibe_is_registered_claims_no_urls_and_has_no_per_posting_calls():
+    assert adapters.get_adapter("jibe") is jibe
+    assert adapters.adapter_enabled("jibe")
+    assert (jibe.PLATFORM, jibe.TIER, jibe.RATE_LIMIT) == ("jibe", 2, 5.0)
+    # Career sites live on the employer's own domain, so no URL can be claimed by its host.
+    assert jibe.HOST_PATTERNS == () and adapters.adapter_for_url("https://careers.akima.com/jobs/26403") is None
+    # The list carries every description and the API has no per-posting call.
+    assert not hasattr(jibe, "fetch_job") and not hasattr(jibe, "check_alive")
+
+
+@pytest.mark.asyncio
+async def test_jibe_maps_a_posting_with_its_full_description(clock):
+    jobs, complete, total = await jibe_list(JibeServer(jibe_items()))
+    assert (len(jobs), complete, total) == (4, True, 4)
+    first = jobs[0]
+    assert first.title == "Customer Service Representative I - DAYS - Written Correspondence"
+    assert first.company == "Akima"
+    assert first.location == "Portsmouth, New Hampshire, United States"
+    assert first.url == "https://careers.akima.com/jobs/26403"
+    assert first.external_id == "jibe:akima:26403"
+    assert first.posted_date.isoformat() == "2026-10-24T21:40:00+00:00"
+    assert (first.department, first.employment_type, first.work_type) == ("Office & Administrative Support", "Full-time", "On Site")
+    assert first.apply_url == "https://careers-akima.icims.com/jobs/26403/login"  # the employer's own apply link
+    assert first.description.startswith("As our Customer Service Representative")
+    assert "<p>" not in first.description and 1000 < len(first.description) <= jibe.DESCRIPTION_MAX_CHARS
+    assert len({job.url for job in jobs}) == 4
+
+
+@pytest.mark.asyncio
+async def test_jibe_lists_every_place_a_posting_is_open_in_and_reads_remote_and_hybrid(clock):
+    jobs, _, _ = await jibe_list(JibeServer(jibe_items()), "statefarm", "State Farm", {"host": "jobs.statefarm.com"})
+    by_id = {job.external_id: job for job in jobs}
+    multi = by_id["jibe:statefarm:43740"]
+    assert multi.location == ("Bloomington, Illinois, United States | Dunwoody, Georgia, United States | "
+                              "Richardson, Texas, United States | Tempe, Arizona, United States")
+    assert multi.work_type == "Hybrid"
+    assert by_id["jibe:statefarm:46792"].work_type == "Remote"
+    assert by_id["jibe:statefarm:46792"].url == "https://jobs.statefarm.com/jobs/46792"
+
+
+@pytest.mark.asyncio
+async def test_jibe_asks_for_newest_first_pages_of_100_and_waits_the_crawl_delay(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items())
+    await jibe_list(server)
+    api = [r for r in server.requests if r.url.path == "/api/jobs"]
+    assert str(api[0].url) == "https://careers.akima.com/api/jobs?limit=2&page=1&sortBy=posted_date&descending=true"
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+    assert server.pages() == [1, 2]
+    assert clock.sleeps == [1.0, 5.0]  # robots.txt is paced as the foundation paces it, then Crawl-delay: 5
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_site_that_asks_for_a_longer_crawl_delay_gets_it(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items(), robots="User-agent: *\nAllow: /\nCrawl-delay: 12\n")
+    await jibe_list(server)
+    assert clock.sleeps == [1.0, 12.0]
+
+
+@pytest.mark.asyncio
+async def test_jibe_lists_a_posting_repeated_across_pages_once(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 3)
+    items = jibe_items()
+    server = JibeServer(items + [items[0]], total=5)  # a posting added mid-crawl shifts one onto the next page
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2]
+    assert (len(jobs), complete, total) == (4, False, 5)  # five counted, four distinct listed: not the whole board
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_count_above_the_listing_or_a_count_that_changes_is_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    assert (await jibe_list(JibeServer(jibe_items(), total=9)))[1:] == (False, 9)
+    jobs, complete, total = await jibe_list(JibeServer(jibe_items(), totals=[4, 3]))
+    assert (len(jobs), complete, total) == (4, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_posting_it_cannot_read_makes_the_board_incomplete(clock):
+    items = jibe_items() + [{"data": {"title": "No id"}}, {"nope": True}]
+    jobs, complete, _ = await jibe_list(JibeServer(items, total=6))
+    assert (len(jobs), complete) == (4, False)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_site_with_no_postings_is_complete_and_empty(clock):
+    assert await jibe_list(JibeServer([])) == ([], True, 0)
+
+
+@pytest.mark.asyncio
+async def test_jibe_the_page_cap_and_the_deadline_leave_the_board_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 1)
+    monkeypatch.setattr(jibe, "MAX_PAGES", 2)
+    monkeypatch.setattr(jibe, "HEAD_PAGES", 2)
+    server = JibeServer(jibe_items())
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2] and (len(jobs), complete, total) == (2, False, 4)
+    monkeypatch.setattr(jibe, "MAX_PAGES", 10)
+    monkeypatch.setattr(jibe, "HEAD_PAGES", 1)
+    server = JibeServer(jibe_items())
+    jobs, complete, _ = await jibe_list(server, deadline=time.monotonic() - 1)
+    assert server.pages() == [1]  # the newest page is read whatever the clock says
+    assert (len(jobs), complete) == (1, False)
+
+
+@pytest.mark.asyncio
+async def test_jibe_an_error_body_or_a_server_error_raises_instead_of_returning_a_snapshot(clock):
+    def error_body(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(200, json={"error": "limit must be at most 100"})
+
+    with pytest.raises(ValueError, match="without a jobs list"):
+        await jibe_list(error_body)
+
+    def down(request):
+        return httpx.Response(404 if request.url.path == "/robots.txt" else 503, text="busy")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await jibe_list(down)
+
+
+@pytest.mark.asyncio
+async def test_jibe_robots_txt_that_bars_the_api_stops_the_board(clock):
+    server = JibeServer(jibe_items(), robots="User-agent: *\nDisallow: /api/\n")
+    with pytest.raises(PermissionError, match="robots.txt"):
+        await jibe_list(server)
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_jibe_rejects_a_config_that_cannot_work(clock):
+    server = JibeServer(jibe_items())
+    for config in ({}, {"host": ""}, {"host": "not a host"}):
+        with pytest.raises(ValueError, match="jibe/akima"):
+            await jibe_list(server, config=config)
+    assert server.requests == []
+    jobs, _, _ = await jibe_list(server, config={"host": "HTTPS://Careers.Akima.com/"})
+    assert len(jobs) == 4 and server.requests[0].url.host == "careers.akima.com"
+
+
+# --- network: three real Jibe sites (RUN_NETWORK_TESTS=1) -----------------------
+
+JIBE_NETWORK_SITES = [
+    ("cobank", "CoBank", {"host": "careers.cobank.com"}),
+    ("thunderbay", "City of Thunder Bay", {"host": "careers.thunderbay.ca"}),
+    ("docusign", "DocuSign", {"host": "careers.docusign.com"}),
+]
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug,company,config", JIBE_NETWORK_SITES, ids=[s[0] for s in JIBE_NETWORK_SITES])
+async def test_jibe_network_lists_a_real_career_site_with_descriptions(slug, company, config):
+    async with http.make_client() as client:
+        jobs, complete, total = await jibe.list_jobs(client, slug, company, config=config)
+    assert jobs and complete and total == len(jobs)
+    assert all(job.external_id.startswith(f"jibe:{slug}:") and job.description for job in jobs)
+    assert all(job.url.startswith(f"https://{config['host']}/jobs/") for job in jobs)
