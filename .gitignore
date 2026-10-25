@@ -4,6 +4,8 @@
 data/
 !backend/data/
 !backend/data/**
+!backend/ingest/data/
+!backend/ingest/data/**
 !match-engine/data/
 !match-engine/data/**
 __pycache__/

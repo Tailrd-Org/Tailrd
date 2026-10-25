@@ -24,7 +24,7 @@ export const SETUP_STEPS: SetupStep[] = [
   },
   {
     id: "experience",
-    headline: "Are you looking for an <b>internship</b> or a <b>new grad</b> role?",
+    headline: "What <b>level</b> of role are you looking for?",
     Component: ExperienceStep,
     validate: (a) => (a.experience_level ? null : "Please select what you're looking for."),
   },

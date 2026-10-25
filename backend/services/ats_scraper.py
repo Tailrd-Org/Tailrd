@@ -361,6 +361,10 @@ WEAK_ENTRY = re.compile(
 _HARD_SENIOR_WORDS = re.compile(
     r"\bsenior\b|\bsr\b\.?|\bprincipal\b|\bdirector\b|\b[aers]?vp\b|\bvice[- ]president\b"
     r"|\bhead of\b|\bchief\b|\bdistinguished\b|\bfellow\b|\bcounsel\b"
+    # A dean is a senior academic post whatever its qualifier ("Associate
+    # Dean" must not read as the entry-level "Associate"); "Dean's Office
+    # Assistant" names an office, not a rank, as taxonomy.json reads it too.
+    r"|\bdean\b(?!['’]s)"
     r"|\bmanaging\b|\bassociate partner\b"
     r"|\bmid[- ]?level\b|\bintermediate\b|\bexperienced\b"
     r"|\biii\b|\biv\b"
@@ -738,11 +742,21 @@ def workday_public_base(cxs_base: str) -> str:
 
     "https://bmo.wd3.myworkdayjobs.com/wday/cxs/bmo/external"
       → "https://bmo.wd3.myworkdayjobs.com/external"
+
+    A myworkdaysite.com host serves every tenant from one pod ("wd1") and
+    names the tenant in the path instead, under /recruiting/. Checked live
+    2026-10-25: Workday's own externalUrl for a posting of each of the 23
+    boards is this URL (one site name differs in letter case only):
+    "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn"
+      → "https://wd1.myworkdaysite.com/recruiting/upenn/careers-at-penn"
     """
-    m = re.match(r"(https?://[^/]+)/wday/cxs/[^/]+/([^/?#]+)", (cxs_base or "").rstrip("/"))
+    m = re.match(r"(https?://[^/]+)/wday/cxs/([^/]+)/([^/?#]+)", (cxs_base or "").rstrip("/"))
     if not m:
         return (cxs_base or "").rstrip("/")
-    return f"{m.group(1)}/{m.group(2)}"
+    host, tenant, site = m.groups()
+    if host.lower().endswith(".myworkdaysite.com"):
+        return f"{host}/recruiting/{tenant}/{site}"
+    return f"{host}/{site}"
 
 
 SMARTRECRUITERS_POSTING_BASE = "https://jobs.smartrecruiters.com/"

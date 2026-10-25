@@ -451,6 +451,7 @@ def ingest_batch(
     and frontline rules don't apply to these titles.
     """
     from sqlalchemy.exc import IntegrityError
+    from backend.ingest import taxonomy
     from backend.services.ats_scraper import HARD_SENIOR
     from backend.services.role_classifier import classify as classify_role
     from backend.services.structured_extraction import detect_employment_type
@@ -535,6 +536,12 @@ def ingest_batch(
             duplicates += 1
             continue
 
+        # Scraper v2 tags: the career family from the title (no department
+        # and no description yet), with the version of the rules that set it.
+        # The level stays the scraper's own: its searches are scoped to
+        # entry level, so only the family is added here.
+        career_family, career_family_secondary = taxonomy.classify_family(job.title)
+
         ingested_at = datetime.datetime.utcnow()
         to_insert.append(
             ScrapedJob(
@@ -550,6 +557,9 @@ def ingest_batch(
                 role_category=classify_role(job.title),
                 country=country,
                 experience_level=job.experience_level,
+                career_family=career_family,
+                career_family_secondary=career_family_secondary,
+                enrichment_version=taxonomy.ENRICHMENT_VERSION,
                 company_logo=company_logo,
                 company_domain=company_domain,
                 company_url=company_url,

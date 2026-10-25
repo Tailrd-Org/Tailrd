@@ -394,9 +394,15 @@ def test_every_enabled_workday_board_has_a_template():
 
 def test_workday_templates_are_cxs_bases_of_their_tenant():
     for slug, base in company_registry.load_workday_bases().items():
-        m = re.match(r"^https://([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com/wday/cxs/([a-z0-9-]+)/[^/]+$",
-                     base, re.IGNORECASE)
-        assert m and m.group(1).lower() == m.group(2).lower(), (slug, base)
+        # myworkdayjobs.com names the tenant in the host; myworkdaysite.com
+        # serves every tenant from a bare pod host (wd1) and names it only in
+        # the path.
+        m = re.match(
+            r"^https://(?:([a-z0-9-]+)\.wd\d+\.myworkdayjobs\.com|wd\d+\.myworkdaysite\.com)"
+            r"/wday/cxs/([a-z0-9-]+)/[^/]+$",
+            base, re.IGNORECASE)
+        assert m, (slug, base)
+        assert m.group(1) is None or m.group(1).lower() == m.group(2).lower(), (slug, base)
 
 
 def test_multi_site_workday_tenants_never_use_the_bare_tenant_slug():
