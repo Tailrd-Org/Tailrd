@@ -1,0 +1,13 @@
+# Scraper v2: decisions
+
+One rule per entry, with the reason. Each is easy to reverse. The spec's own "Decisions already made" (SPEC.md) are not repeated here.
+
+1. **Refactor, not rewrite.** One of the spec's five rewrite criteria is true (the cron-ats router mixes orchestration, normalization and writes); the table is in PLAN.md. The write path moves into `backend/ingest/core/pipeline.py`; `ATSJob`, `BoardSnapshot` and reconciliation stay.
+2. **Adapters return `(list[ATSJob], complete, total)`, not an async iterator of RawJob.** Reconciliation needs the whole board and a completeness flag; `ATSJob` already is the raw job every downstream function takes.
+3. **Career families are stored as slugs** (`healthcare_clinical`), with labels in the UI. Five of the twenty labels contain commas, and every list filter on `GET /jobs` is comma-separated.
+4. **The old "New Grad / Entry Level" choice maps to Intern/New Grad plus Entry Level.** That is what the option meant. The student-feed gate (spec: at least 5,000) therefore counts Intern/New Grad plus Entry Level: the weak entry tier (junior, level I, associate) moves from `new_grad` to `entry`, matching Jobright's split.
+5. **A posting missing from a complete board listing is still removed at once** (hidden and closed with `closed_reason` `delisted`), and revived if it is listed again. The spec's two-step stale-then-closed exists to survive a flaky listing; today's revive-on-reappearance already does that, and it is tested.
+6. **Classification runs inline at insert, not as queued enrich tasks.** Rules cost microseconds per job; a queue stage would add writes and transfer for nothing. `enrichment_version` still records which rules tagged a row.
+7. **`stale` rows are hidden from the feed and from alerts** (spec). There were 0 stale rows on 2026-10-25, so nothing disappears on deploy.
+8. **Full re-list once a day.** With every level, a board's stored rows grow about tenfold, and the refresh reads them back: re-crawling hourly would cost gigabytes of Neon transfer a month.
+9. **The fingerprint is a match key, not a unique index.** One employer posts identical titles as separate requisitions; uniqueness stays on `url` and `external_id`.
