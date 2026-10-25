@@ -17,10 +17,12 @@ from pathlib import Path
 import httpx
 import pytest
 
-from backend.ingest import adapters
+# ats_scraper first: finishing its import loads the adapter registry, and an
+# adapter module still importing at that moment would be left out of it.
+from backend.services.ats_scraper import ATSScraper  # isort: skip
+from backend.ingest import adapters  # isort: skip
 from backend.ingest.adapters import bamboohr, recruitee, teamtailor, workable
 from backend.ingest.core import http
-from backend.services.ats_scraper import ATSScraper
 from backend.services.platform_liveness import LivenessResult
 from backend.services.structured_extraction import detect_employment_type, parse_salary
 
@@ -48,6 +50,7 @@ def no_pacing(request, monkeypatch):
 
     monkeypatch.setattr(http, "_sleep", instant)
     monkeypatch.setattr(http, "_next_slot", {})
+    monkeypatch.setattr(http, "_robots", {})
 
 
 def served(routes: dict):
@@ -457,7 +460,23 @@ async def test_recruitee_check_alive_calls_an_offer_dead_only_when_the_page_is_g
     async with client:
         gone = await recruitee.check_alive(client, OFFER_PAGE)
     assert gone == LivenessResult("dead", "recruitee_offer_404", True)
-    assert [str(r.url) for r in seen] == [OFFER_API, OFFER_PAGE]
+    # The page is read only after robots.txt allows it (no robots.txt allows).
+    assert [str(r.url) for r in seen] == [
+        OFFER_API, "https://petalmd.recruitee.com/robots.txt", OFFER_PAGE]
+
+
+@pytest.mark.asyncio
+async def test_recruitee_check_alive_does_not_fetch_a_page_robots_txt_disallows():
+    client, seen = served({
+        OFFER_API: httpx.Response(404, text="{}"),
+        "https://petalmd.recruitee.com/robots.txt": httpx.Response(
+            200, text="User-agent: *\nDisallow: /o/\n"),
+        OFFER_PAGE: httpx.Response(404, text="Not Found"),
+    })
+    async with client:
+        result = await recruitee.check_alive(client, OFFER_PAGE)
+    assert result == LivenessResult("unknown", "robots_disallowed")
+    assert OFFER_PAGE not in [str(r.url) for r in seen]
 
 
 @pytest.mark.asyncio

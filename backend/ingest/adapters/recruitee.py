@@ -216,6 +216,9 @@ async def check_alive(client, url: str) -> LivenessResult:
             return LivenessResult(UNKNOWN, "recruitee_api_unreadable")
         if response.status_code not in (404, 410):
             return _unknown_for_status(response.status_code)
+        # The one HTML page this adapter reads, so robots.txt gets a say.
+        if not await http.robots_allowed(client, url):
+            return LivenessResult(UNKNOWN, "robots_disallowed")
         page = await http.request(client, "GET", url, rate_limit=RATE_LIMIT,
                                   headers={"Accept": "text/html"}, follow_redirects=True)
     except httpx.HTTPStatusError as exc:
