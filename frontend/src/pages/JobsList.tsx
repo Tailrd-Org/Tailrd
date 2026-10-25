@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Logo } from "../components/brand";
+import { DEFAULT_EXPERIENCE_LEVELS } from "../lib/jobFilterOptions";
 import "../jobslist.css";
 
 const API_BASE = "";
@@ -113,6 +114,8 @@ export default function JobsList() {
     params.set("page", String(page));
     params.set("page_size", String(pageSize));
     if (country) params.set("country", country);
+    // This is the new-grad and internship list; the catalogue holds every level.
+    params.set("experience_level", DEFAULT_EXPERIENCE_LEVELS.join(","));
     if (category) params.set("role_category", category);
     if (workType) params.set("work_type", workType);
     if (search) params.set("search", search);
