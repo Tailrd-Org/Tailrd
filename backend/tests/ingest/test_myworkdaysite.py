@@ -70,6 +70,17 @@ async def test_a_crawl_builds_the_public_url_on_the_myworkdaysite_host(monkeypat
     assert snapshot.board_key == "workday:upenn" and snapshot.complete
 
 
+def test_a_stored_myworkdaysite_url_maps_back_to_its_cxs_detail():
+    # The liveness check reads a stored URL back to the CxS posting endpoint
+    # the crawler's detail fetch uses: base + externalPath.
+    from backend.services.platform_liveness import _workday_api_url
+
+    base = "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn"
+    path = "/job/HUP/Penn-Medicine-Clinician_JR00128810"
+
+    assert _workday_api_url(workday_public_base(base) + path) == base + path
+
+
 def _site_boards():
     return [entry for entry in company_registry._load_raw()
             if ".myworkdaysite.com/" in (entry.get("workday_url_template") or "")]

@@ -140,7 +140,8 @@ def format_report(stats: dict) -> str:
     from backend.ingest import taxonomy
 
     verb = "tagged" if stats["applied"] else "would tag"
-    lines = [f"{stats['rows']:,} rows {verb} in {stats['batches']} batches"
+    batches = stats["batches"]
+    lines = [f"{stats['rows']:,} rows {verb} in {batches} batch{'' if batches == 1 else 'es'}"
              + (f" ({stats['updated']:,} written)" if stats["applied"] else "")]
     lines.append("by status:  " + ", ".join(f"{k} {v:,}" for k, v in stats["by_status"].most_common()))
     lines.append("by source:  " + ", ".join(f"{k or '(none)'} {v:,}" for k, v in stats["by_source"].most_common()))

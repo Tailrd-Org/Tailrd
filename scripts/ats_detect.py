@@ -20,10 +20,11 @@ saved by hand can be read with --html instead of fetching it.
 The vendor table is ported from chrome-extension/src/content/siteRegistry.ts,
 where the extension already detects most platforms by host; a test keeps the
 two in step. The extension's patterns match application pages, so they are
-reduced to their hosts here, which also name a careers page. Boards of the
-platforms the crawler can read get their slug (and, for Workday, iCIMS and
-Oracle, the config the connector needs); any other vendor gets a disabled
-entry saying there is no connector yet, as the registry already does.
+reduced to their hosts here, which also name a careers page. A board on a
+platform the crawler can read gets its slug, and whatever its connector needs
+(Workday's CxS template, the host of an iCIMS or Teamtailor site, the host and
+site of an Oracle one); a vendor with no connector yet gets a disabled entry
+saying so, as the registry already does.
 
 The entry has no hq_country and no sector: add them (CA or US, and one of the
 registry's sectors) before it goes in. company_name is a guess from the page.
