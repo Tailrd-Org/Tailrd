@@ -180,3 +180,17 @@ Files: `backend/data/ats_companies.json`, `scripts/ats_detect.py`, `backend/test
 ### Task 10: Full runs, gates, docs, report, rollout
 
 Controller-led. Reclaim on `scraper-v2-dev`, first full run, fixes, second run (idempotency), gates, README "Ingestion", rewrite of `docs/ingestion-pipeline.md`, `REPORT.md`, final review, then the production rollout if every gate passes.
+
+### Task 11: Follow-ups: tags on every ingest path, backfill, myworkdaysite, ats-detect
+
+Collected from the task reviews and reports. Model: sonnet. After Task 6 merges.
+
+Files: `backend/services/aggregator.py`, `backend/routers/jobs.py` (`ingest_batch` only), `backend/scripts/backfill_v2_tags.py` (new), `frontend/src/setup/setupConfig.tsx` (the experience question's headline only), `backend/services/ats_scraper.py` (`_HARD_SENIOR_WORDS`, `workday_public_base` only), `backend/data/ats_companies.json` (the 23 held myworkdaysite boards only), `backend/tests/test_connector_fixtures.py` (the template test's host pattern only), `.gitignore`, `scripts/ats_detect.py` (new), tests.
+
+1. GitHub-list rows (`aggregator.py`) and LinkedIn/Indeed `ingest_batch` rows also get `career_family`, `career_family_secondary` and `enrichment_version` from `taxonomy.classify_family`. Their `experience_level` logic stays exactly as it is (spec decision 6; the lists are student lists).
+2. `backend/scripts/backfill_v2_tags.py`: dry run by default. With `--apply`, it tags rows whose `listing_status` is active, stale or off_target and whose `enrichment_version` is NULL: `career_family`, `career_family_secondary` and `enrichment_version`. ATS rows (`source_platform` 'ats') also get `experience_level` recomputed with `taxonomy.classify_experience`. It reads columns only (title, department-equivalent fields; never description in bulk), updates in batches of 1,000, and prints counts per family and per level.
+3. The experience question's headline in `setupConfig.tsx` fits six levels, for example "What level of role are you looking for?"
+4. Add "dean" to `_HARD_SENIOR_WORDS`, with a test ("Associate Dean" is not entry level).
+5. `workday_public_base` builds `https://{host}/recruiting/{tenant}/{site}` for `wdN.myworkdaysite.com` CxS bases. Verify that pattern live on one posting first. Then move the 23 `held_workday_url_template` values back to `workday_url_template`, enabled, and let the template test accept that host.
+6. `.gitignore`: `!backend/ingest/data/` and `!backend/ingest/data/**`, like the existing `backend/data` exception.
+7. `scripts/ats_detect.py <careers url>`: detects the ATS from URL patterns and known script tags (patterns reused from `chrome-extension/src/content/siteRegistry.ts`) and prints a registry entry. Tests use offline HTML fixtures.
