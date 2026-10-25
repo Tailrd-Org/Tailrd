@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import icims, oracle_hcm, taleo
+from backend.ingest.adapters import icims, oracle_hcm, successfactors, taleo
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper, entry_tier
 from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN
@@ -905,6 +905,20 @@ async def test_icims_check_alive_notices_a_portal_that_moved_to_an_employer_site
 
 
 @pytest.mark.asyncio
+async def test_icims_check_alive_does_not_read_another_sites_404_as_the_portals_answer(clock):
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        if request.url.host == "jobs.uci.edu":
+            return httpx.Response(404, text="not found")
+        return httpx.Response(302, headers={"Location": "https://jobs.uci.edu/jobs/7"})
+
+    async with client_for(handler) as client:
+        result = await icims.check_alive(client, "https://careers-uci.icims.com/jobs/7/x/job")
+    assert (result.verdict, result.reason) == (UNKNOWN, "icims_redirected")
+
+
+@pytest.mark.asyncio
 async def test_icims_check_alive_never_calls_a_host_that_is_not_icims(clock):
     server = IcimsServer()
     async with client_for(server) as client:
@@ -1300,3 +1314,359 @@ async def test_taleo_network_lists_a_real_career_section_and_reads_one_posting(s
         detail = await taleo.fetch_job(client, slug, jobs[0].detail_ref, config=config)
         assert len(detail["description"]) > 100
         assert (await taleo.check_alive(client, jobs[0].url)).verdict == ALIVE
+
+
+# =============================================================================
+# SuccessFactors (Recruiting Marketing / Jobs2Web front ends)
+# =============================================================================
+
+ROGERS = {"host": "jobs.rogers.com"}
+SF_ROBOTS = fixture_text("successfactors_robots.txt")  # the real file: it bars the apply, alert and error pages
+FULL_ROW = re.compile(r"<tr\b[^>]*data-row[^>]*>.*?</tr>", re.S)
+ROGERS_JOB = "/job/London-Civil-Specialist-ON/1424344000/"
+
+
+class SfServer:
+    """One Recruiting Marketing site: robots.txt, the search by ``startrow`` (a
+    start it has no page for is the empty page) and posting pages by path, each
+    (status, body[, headers]). Records every request."""
+
+    def __init__(self, pages=None, *, robots=SF_ROBOTS, jobs=None):
+        self.pages = pages if pages is not None else {}
+        self.robots = robots
+        self.jobs = jobs or {}
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path == "/robots.txt":
+            return httpx.Response(404) if self.robots is None else httpx.Response(200, text=self.robots)
+        if path == "/search/":
+            start = int(request.url.params.get("startrow", "0"))
+            return httpx.Response(200, text=self.pages.get(start, fixture_text("successfactors_search_empty.html")))
+        if path.startswith("/errorpage"):
+            return httpx.Response(200, text="<html><body>Sorry, something went wrong</body></html>")
+        if path in self.jobs:
+            status, body, *headers = self.jobs[path]
+            return httpx.Response(status, text=body, headers=headers[0] if headers else {})
+        return httpx.Response(404)
+
+    def starts(self) -> list[int]:
+        return [int(r.url.params.get("startrow", "0")) for r in self.requests if r.url.path == "/search/"]
+
+
+def sf_rows() -> list[str]:
+    """Eight distinct real rows: Rogers' four and Telus' four."""
+    return (FULL_ROW.findall(fixture_text("successfactors_search_rogers.html"))
+            + FULL_ROW.findall(fixture_text("successfactors_search_telus.html")))
+
+
+def sf_page(rows: list[str], first: int, total: int, label: bool = True) -> str:
+    shown = f'<span class="paginationLabel">Results <b>{first + 1} – {first + len(rows)}</b> of <b>{total}</b></span>' if label else ""
+    return f'<html><body><div class="pagination-label-row">{shown}</div><table id="searchresults"><tbody>{"".join(rows)}</tbody></table></body></html>'
+
+
+def sf_pages(size: int, total: int | None = None) -> dict[int, str]:
+    rows = sf_rows()
+    total = len(rows) if total is None else total
+    return {start: sf_page(rows[start:start + size], start, total) for start in range(0, len(rows), size)}
+
+
+async def sf_list(server, slug="rogers", company="Rogers Communications", config=ROGERS, **kwargs):
+    async with client_for(server) as client:
+        return await successfactors.list_jobs(client, slug, company, config=config, **kwargs)
+
+
+def test_successfactors_is_registered_and_owns_the_shape_of_its_posting_urls():
+    assert adapters.get_adapter("successfactors") is successfactors
+    assert adapters.adapter_enabled("successfactors")
+    assert (successfactors.PLATFORM, successfactors.TIER, successfactors.RATE_LIMIT) == ("successfactors", 2, 1.0)
+    assert adapters.adapter_for_url("https://jobs.rogers.com" + ROGERS_JOB) is successfactors
+    assert adapters.adapter_for_url("https://careers.telus.com/job/Toronto-Senior-Account-Manager-ON-M5J-2V5/605601117") is successfactors
+    assert adapters.adapter_for_url("https://example.com/job/short-id/123/") is None
+    assert adapters.adapter_for_url("https://jobs.rogers.com/search/?q=") is None
+
+
+@pytest.mark.asyncio
+async def test_successfactors_maps_the_rows_of_a_site_with_a_location_and_a_date_column(clock):
+    server = SfServer({0: fixture_text("successfactors_search_rogers.html")})
+    jobs, complete, total = await sf_list(server)
+    assert (len(jobs), complete, total) == (4, False, 175)  # four rows of a 175-posting board: not the whole board
+    first = jobs[0]
+    assert first.title == "Civil Specialist"
+    assert first.company == "Rogers Communications"
+    assert first.location == "London, ON, Canada"
+    assert first.url == "https://jobs.rogers.com/job/London-Civil-Specialist-ON/1424344000/"
+    assert first.external_id == "successfactors:rogers:1424344000"
+    assert first.detail_ref == "/job/London-Civil-Specialist-ON/1424344000/"
+    assert first.posted_date.isoformat() == "2026-10-25T00:00:00+00:00"
+    assert (first.work_type, first.department, first.employment_type) == ("On Site", "", "")
+    # "Brampton, ON, CA +1 more" is one place and a count of others; the count goes.
+    assert "+1 more" in fixture_text("successfactors_search_rogers.html")
+    assert jobs[1].location == "Brampton, ON, Canada"
+    assert jobs[3].url == "https://jobs.rogers.com/job/Toronto-Sr-Analyst%2C-Wireline-eCommerce-ON/1413792300/"
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+
+
+@pytest.mark.asyncio
+async def test_successfactors_reads_department_and_drops_postal_codes(clock):
+    jobs, _, _ = await sf_list(SfServer({0: fixture_text("successfactors_search_telus.html")}), "telus", "TELUS",
+                               {"host": "careers.telus.com"})
+    assert jobs[0].department == "Sales & Professional Services"
+    assert jobs[0].location == "Toronto, ON, Canada"  # "Toronto, ON, CA, M5J 2V5"
+    assert jobs[1].title == "Retail Support Associate (Seasonal) | TELUS Devonshire Mall, Windsor"
+    assert [job.location for job in jobs] == ["Toronto, ON, Canada", "Windsor, ON, Canada", "Concord, ON, Canada", "Vancouver, BC, Canada"]
+
+
+@pytest.mark.asyncio
+async def test_successfactors_takes_the_place_from_the_title_cell_when_there_is_no_location_column(clock):
+    """University of Toronto: columns are title, facility, "Faculty" and date."""
+    jobs, _, _ = await sf_list(SfServer({0: fixture_text("successfactors_search_uoft.html")}), "uoft", "University of Toronto",
+                               {"host": "jobs.utoronto.ca"})
+    assert jobs[0].location == "Toronto, ON, Canada"
+    assert jobs[0].title == "Lecturer / Assistant Professor - Emergency & Trauma Radiologist - Sunnybrook Health Sciences Centre"
+    assert jobs[0].url.startswith("https://jobs.utoronto.ca/job/Toronto-Lecturer-Assistant-Professor-Emergency-&-Trauma-")
+    assert all(job.employment_type == "" for job in jobs)  # "Faculty" is an employee class, not a commitment
+    assert jobs[0].posted_date.date().isoformat() == "2026-10-25"
+
+
+@pytest.mark.asyncio
+async def test_successfactors_reads_the_count_in_the_sites_language(clock):
+    """Dollarama: "Resultats 1 - 20 sur 32", no date column, titles in French."""
+    server = SfServer({0: fixture_text("successfactors_search_dollarama.html")})
+    jobs, complete, total = await sf_list(server, "dollarama", "Dollarama", {"host": "jobs.dollarama.com"})
+    assert (len(jobs), complete, total) == (4, False, 32)
+    assert jobs[0].title == "Gestionnaire technique réseau"
+    assert (jobs[0].location, jobs[0].department, jobs[0].posted_date) == ("Mont-Royal, QC", "Siège Social", None)
+
+
+def test_successfactors_place_text_is_spelled_out():
+    assert successfactors._place("Toronto, ON, CA, M1K5L1") == "Toronto, ON, Canada"
+    assert successfactors._place("Los Angeles, CA, US") == "Los Angeles, CA, United States"
+    assert successfactors._place("Brampton, ON, CA +1 more…") == "Brampton, ON, Canada"
+    assert successfactors._place("CA") == "Canada" and successfactors._place("us") == "United States"
+    assert successfactors._place("Mont-Royal, QC") == "Mont-Royal, QC"
+    assert successfactors._place("London, GB") == "London, GB"
+    assert successfactors._place("Ottawa") == "Ottawa"
+
+
+@pytest.mark.asyncio
+async def test_successfactors_pages_through_the_whole_site(clock):
+    server = SfServer(sf_pages(3))
+    jobs, complete, total = await sf_list(server)
+    assert server.starts() == [0, 3, 6]
+    assert (len(jobs), complete, total) == (8, True, 8)
+    assert [r.url.path for r in server.requests][0] == "/robots.txt"
+    assert str(server.requests[1].url) == "https://jobs.rogers.com/search/?q=&sortColumn=referencedate&sortDirection=desc&startrow=0"
+    assert clock.sleeps == [1.0, 1.0, 1.0]  # robots.txt is paced like every other request to the host
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_board_that_counts_more_than_it_lists_is_incomplete(clock):
+    pages = sf_pages(4, total=10)  # the label promises ten and the second page is the last
+    jobs, complete, total = await sf_list(SfServer(pages))
+    assert (len(jobs), complete, total) == (8, False, 10)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_count_that_changes_mid_crawl_is_incomplete(clock):
+    rows = sf_rows()
+    pages = {0: sf_page(rows[:3], 0, 8), 3: sf_page(rows[3:6], 3, 7), 6: sf_page(rows[6:], 6, 7)}
+    jobs, complete, total = await sf_list(SfServer(pages))
+    assert (len(jobs), complete, total) == (8, False, 8)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_row_it_cannot_read_makes_the_board_incomplete(clock):
+    rows = sf_rows()[:3] + ['<tr class="data-row"><td class="colTitle">no link</td></tr>']
+    jobs, complete, _ = await sf_list(SfServer({0: sf_page(rows, 0, 4)}))
+    assert (len(jobs), complete) == (3, False)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_site_without_a_count_cannot_be_called_complete(clock):
+    jobs, complete, total = await sf_list(SfServer({0: sf_page(sf_rows()[:3], 0, 3, label=False)}))
+    assert (len(jobs), complete, total) == (3, False, 3)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_follows_next_page_links_when_the_site_shows_no_count(clock):
+    rows = sf_rows()
+    first = sf_page(rows[:3], 0, 8, label=False).replace("</body>", '<a href="?q=&amp;startrow=3">2</a></body>')
+    jobs, complete, _ = await sf_list(SfServer({0: first, 3: sf_page(rows[3:6], 3, 8, label=False)}))
+    assert len(jobs) == 6 and not complete
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_site_with_no_postings_is_complete_and_empty(clock):
+    assert await sf_list(SfServer({})) == ([], True, 0)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_page_that_is_not_a_job_search_raises(clock):
+    with pytest.raises(RuntimeError, match="did not answer with a Recruiting Marketing job search page"):
+        await sf_list(SfServer({0: "<html><body>Please sign in</body></html>"}))
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_site_that_sends_its_search_elsewhere_raises(clock):
+    def handler(request):
+        if request.url.host == "careers.example.org":
+            return httpx.Response(200, text="<html>elsewhere</html>")
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(302, headers={"Location": "https://careers.example.org/jobs"})
+
+    with pytest.raises(RuntimeError, match="sends its job search to careers.example.org"):
+        await sf_list(handler)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_robots_txt_that_bars_the_search_stops_the_board(clock):
+    server = SfServer(sf_pages(3), robots="User-agent: *\nDisallow: /search/\n")
+    with pytest.raises(PermissionError, match="robots.txt"):
+        await sf_list(server)
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_successfactors_the_page_cap_and_the_deadline_leave_the_board_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(successfactors, "MAX_PAGES", 2)
+    monkeypatch.setattr(successfactors, "HEAD_PAGES", 2)
+    server = SfServer(sf_pages(3))
+    jobs, complete, total = await sf_list(server)
+    assert server.starts() == [0, 3]
+    assert (len(jobs), complete, total) == (6, False, 8)
+    monkeypatch.setattr(successfactors, "MAX_PAGES", 10)
+    monkeypatch.setattr(successfactors, "HEAD_PAGES", 1)
+    server = SfServer(sf_pages(3))
+    jobs, complete, _ = await sf_list(server, deadline=time.monotonic() - 1)
+    assert server.starts() == [0]  # the newest-first head is read whatever the clock says
+    assert (len(jobs), complete) == (3, False)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_rejects_a_config_that_cannot_work(clock):
+    server = SfServer(sf_pages(3))
+    for config in ({}, {"host": ""}, {"host": "not a host"}, {"host": "career17.sapsf.com"},
+                   {"host": "career4.successfactors.com"}, {"host": "career5.successfactors.eu"}):
+        with pytest.raises(ValueError, match="successfactors/rogers"):
+            await sf_list(server, config=config)
+    assert server.requests == []  # the robots-barred back end is never touched
+    jobs, _, _ = await sf_list(server, config={"host": "HTTPS://Jobs.Rogers.com/"})
+    assert len(jobs) == 8 and server.requests[0].url.host == "jobs.rogers.com"
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_server_error_raises_instead_of_returning_a_snapshot(clock):
+    def down(request):
+        return httpx.Response(404 if request.url.path == "/robots.txt" else 503, text="busy")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await sf_list(down)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_fetch_job_reads_the_description_span_with_its_nested_spans(clock):
+    server = SfServer(jobs={ROGERS_JOB: (200, fixture_text("successfactors_job_rogers.html"))})
+    async with client_for(server) as client:
+        result = await successfactors.fetch_job(client, "rogers", ROGERS_JOB, config=ROGERS)
+    assert set(result) == {"description", "employment_type"}
+    assert result["description"].startswith("Our Technology team wakes up every day")
+    assert "<span" not in result["description"] and "<p>" not in result["description"]
+    assert 1000 < len(result["description"]) <= successfactors.DESCRIPTION_MAX_CHARS
+    assert [r.url.path for r in server.requests] == ["/robots.txt", ROGERS_JOB]
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+
+
+@pytest.mark.asyncio
+async def test_successfactors_fetch_job_is_empty_when_there_is_nothing_to_read(clock):
+    server = SfServer(jobs={
+        "/job/A-Gone-ON/100000001/": (404, ""), "/job/B-Gone-ON/100000002/": (410, ""),
+        "/job/C-Moved-ON/100000003/": (302, "", {"Location": "/errorpage/?errortype=Exception"}),
+        "/job/D-Plain-ON/100000004/": (200, "<html><body>no description here</body></html>"),
+        "/job/E-Forbidden-ON/100000005/": (403, ""),
+    })
+    async with client_for(server) as client:
+        for path in ("/job/A-Gone-ON/100000001/", "/job/B-Gone-ON/100000002/", "/job/C-Moved-ON/100000003/",
+                     "/job/D-Plain-ON/100000004/"):
+            assert await successfactors.fetch_job(client, "rogers", path, config=ROGERS) == {}
+        with pytest.raises(httpx.HTTPStatusError):
+            await successfactors.fetch_job(client, "rogers", "/job/E-Forbidden-ON/100000005/", config=ROGERS)
+        before = len(server.requests)
+        for ref in ("", "/search/", "https://elsewhere.example/job/x/123456789/"):
+            assert await successfactors.fetch_job(client, "rogers", ref, config=ROGERS) == {}
+        assert len(server.requests) == before
+
+
+@pytest.mark.asyncio
+async def test_successfactors_fetch_job_respects_robots_txt(clock):
+    server = SfServer(robots="User-agent: *\nDisallow: /job/\n", jobs={ROGERS_JOB: (200, fixture_text("successfactors_job_rogers.html"))})
+    async with client_for(server) as client:
+        assert await successfactors.fetch_job(client, "rogers", ROGERS_JOB, config=ROGERS) == {}
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_successfactors_check_alive_reads_the_posting_page(clock):
+    server = SfServer(jobs={ROGERS_JOB: (200, fixture_text("successfactors_job_rogers.html"))})
+    async with client_for(server) as client:
+        result = await successfactors.check_alive(client, "https://jobs.rogers.com" + ROGERS_JOB + "?utm_source=x")
+    assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "successfactors_job_page", True)
+    assert [r.url.path for r in server.requests] == ["/robots.txt", ROGERS_JOB]  # the tracking query is not sent on
+
+
+@pytest.mark.asyncio
+async def test_successfactors_check_alive_treats_the_error_page_as_a_soft_dead(clock):
+    base = "https://jobs.rogers.com"
+    server = SfServer(jobs={
+        "/job/A-Gone-ON/100000001/": (302, "", {"Location": "/errorpage/?errortype=Exception"}),
+        "/job/B-Gone-ON/100000002/": (404, ""), "/job/C-Gone-ON/100000003/": (410, ""),
+        "/job/D-Plain-ON/100000004/": (200, "<html><body>no job data</body></html>"),
+        "/job/E-Forbidden-ON/100000005/": (403, ""), "/job/F-Busy-ON/100000006/": (503, "busy"),
+        "/job/G-Moved-ON/100000007/": (302, "", {"Location": "https://careers.example.org/job/x/100000007/"}),
+    })
+    async with client_for(server) as client:
+        # The error page is where a gone posting lands, and also where a server fault does: soft.
+        assert (await successfactors.check_alive(client, base + "/job/A-Gone-ON/100000001/")) == (DEAD, "successfactors_errorpage", False)
+        assert (await successfactors.check_alive(client, base + "/job/B-Gone-ON/100000002/")) == (DEAD, "successfactors_404", True)
+        assert (await successfactors.check_alive(client, base + "/job/C-Gone-ON/100000003/")) == (DEAD, "successfactors_410", True)
+        assert (await successfactors.check_alive(client, base + "/job/D-Plain-ON/100000004/")) == (UNKNOWN, "successfactors_no_job_data", False)
+        assert (await successfactors.check_alive(client, base + "/job/E-Forbidden-ON/100000005/")) == (UNKNOWN, "http_403", False)
+        assert (await successfactors.check_alive(client, base + "/job/F-Busy-ON/100000006/")) == (UNKNOWN, "http_503", False)
+        # Sent to another site, a 404 is that site's answer, not this posting's.
+        assert (await successfactors.check_alive(client, base + "/job/G-Moved-ON/100000007/")) == (UNKNOWN, "successfactors_redirected", False)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_check_alive_never_calls_what_it_does_not_own(clock):
+    server = SfServer()
+    async with client_for(server) as client:
+        for url in ("https://jobs.rogers.com/search/?q=", "https://career17.sapsf.com/job/x/123456789/",
+                    "ftp://jobs.rogers.com/job/x/123456789/", "not a url", ""):
+            assert (await successfactors.check_alive(client, url)) == (UNKNOWN, "successfactors_url_unreadable", False)
+    assert server.requests == []
+
+
+# --- network: three real Recruiting Marketing sites (RUN_NETWORK_TESTS=1) ------
+
+SF_NETWORK_SITES = [
+    ("rogers", "Rogers Communications", {"host": "jobs.rogers.com"}),
+    ("hydroone", "Hydro One", {"host": "jobs.hydroone.com"}),
+    ("saskatoon", "City of Saskatoon", {"host": "careers.saskatoon.ca"}),
+]
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug,company,config", SF_NETWORK_SITES, ids=[s[0] for s in SF_NETWORK_SITES])
+async def test_successfactors_network_lists_a_real_site_and_reads_one_posting(slug, company, config):
+    async with http.make_client() as client:
+        jobs, complete, total = await successfactors.list_jobs(client, slug, company, config=config)
+        assert jobs and complete and total == len(jobs)
+        assert all(job.external_id.startswith(f"successfactors:{slug}:") for job in jobs)
+        assert all(job.url.startswith(f"https://{config['host']}/job/") for job in jobs)
+        detail = await successfactors.fetch_job(client, slug, jobs[0].detail_ref, config=config)
+        assert len(detail["description"]) > 100
+        assert (await successfactors.check_alive(client, jobs[0].url)).verdict == ALIVE

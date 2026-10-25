@@ -349,12 +349,12 @@ async def check_alive(client: httpx.AsyncClient, url: str) -> LivenessResult:
         return LivenessResult(UNKNOWN, f"http_{exc.response.status_code}")
     except httpx.HTTPError:
         return LivenessResult(UNKNOWN, "network_error")
+    if (response.url.host or "").lower() != host:
+        return LivenessResult(UNKNOWN, "icims_redirected")  # the employer's own front end took over; its answer is not ours to read
     if response.status_code in (404, 410):
         return LivenessResult(DEAD, f"icims_{response.status_code}", True)
     if response.status_code != 200:
         return LivenessResult(UNKNOWN, f"http_{response.status_code}")
-    if (response.url.host or "").lower() != host:
-        return LivenessResult(UNKNOWN, "icims_redirected")  # the employer's own front end took over
     if _job_posting(response.text) is not None:
         return LivenessResult(ALIVE, "icims_job_posting", True)
     return LivenessResult(UNKNOWN, "icims_no_posting_data")
