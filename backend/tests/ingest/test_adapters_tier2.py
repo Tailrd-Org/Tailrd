@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import oracle_hcm
+from backend.ingest.adapters import icims, oracle_hcm
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper, entry_tier
 from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN
@@ -501,3 +501,437 @@ async def test_oracle_network_reads_the_newest_page_of_a_very_large_board(monkey
     async with http.make_client() as client:
         jobs, complete, total = await oracle_hcm.list_jobs(client, "jpmorgan", "JPMorgan Chase", config=JPMORGAN)
     assert len(jobs) == 200 and total > 1000 and not complete
+
+
+# =============================================================================
+# iCIMS
+# =============================================================================
+
+KINAXIS = {"host": "careers-kinaxis.icims.com"}
+ROBOTS = fixture_text("icims_robots.txt")  # kinaxis' real file: it bars login, referral and candidate pages only
+
+
+class IcimsServer:
+    """One iCIMS portal: robots.txt, the search pages by ``pr`` and posting pages
+    by path. A page number it has no page for is the empty page the portal sends
+    past the last one. Records every request."""
+
+    def __init__(self, pages=None, *, robots=ROBOTS, postings=None):
+        self.pages = pages if pages is not None else {}
+        self.robots = robots
+        self.postings = postings or {}
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path == "/robots.txt":
+            return httpx.Response(404) if self.robots is None else httpx.Response(200, text=self.robots)
+        if path == "/jobs/search":
+            page = self.pages.get(int(request.url.params.get("pr", "0")), fixture_text("icims_kinaxis_search_4.html"))
+            return httpx.Response(200, text=page)
+        if path in self.postings:
+            status, body = self.postings[path]
+            return httpx.Response(status, text=body)
+        return httpx.Response(404)
+
+    def paths(self) -> list[str]:
+        return [r.url.raw_path.decode() for r in self.requests]
+
+
+def kinaxis_pages() -> dict[int, str]:
+    return {i: fixture_text(f"icims_kinaxis_search_{i + 1}.html") for i in range(3)}
+
+
+async def icims_list(server, slug="kinaxis", company="Kinaxis", config=KINAXIS, **kwargs):
+    async with client_for(server) as client:
+        return await icims.list_jobs(client, slug, company, config=config, **kwargs)
+
+
+def test_icims_is_registered_and_owns_its_posting_urls():
+    assert adapters.get_adapter("icims") is icims
+    assert adapters.adapter_enabled("icims")
+    assert (icims.PLATFORM, icims.TIER, icims.RATE_LIMIT) == ("icims", 2, 1.0)
+    assert adapters.adapter_for_url("https://careers-kinaxis.icims.com/jobs/35595/senior-payroll-specialist/job") is icims
+    assert adapters.adapter_for_url("https://us-erac.icims.com/jobs/1234/x/job?in_iframe=1") is icims
+    assert adapters.adapter_for_url("https://example.com/jobs/1234/x/job") is None
+    assert adapters.adapter_for_url("https://careers-kinaxis.icims.com/jobs/search") is None
+
+
+@pytest.mark.asyncio
+async def test_icims_pages_through_a_portal_to_the_last_page(clock):
+    server = IcimsServer(kinaxis_pages())
+    jobs, complete, total = await icims_list(server)
+    assert server.paths() == ["/robots.txt", "/jobs/search?pr=0&in_iframe=1",
+                              "/jobs/search?pr=1&in_iframe=1", "/jobs/search?pr=2&in_iframe=1"]
+    assert (len(jobs), complete, total) == (8, True, 8)
+    assert [job.detail_ref.split("/")[2] for job in jobs] == [
+        "35595", "35592", "35590", "35323", "35322", "35319", "34510", "34500"]
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+    assert clock.sleeps == [1.0, 1.0, 1.0]  # robots.txt is paced like every other request to the host
+
+
+@pytest.mark.asyncio
+async def test_icims_maps_the_cards_of_a_portal_with_dates_and_categories(clock):
+    jobs, _, _ = await icims_list(IcimsServer(kinaxis_pages()))
+    payroll = jobs[0]
+    assert payroll.title == "Senior Payroll Specialist"
+    assert payroll.company == "Kinaxis"
+    assert payroll.location == "Ottawa, ON, Canada"
+    assert payroll.url == "https://careers-kinaxis.icims.com/jobs/35595/senior-payroll-specialist/job"  # no ?in_iframe=1
+    assert payroll.external_id == "icims:kinaxis:35595"
+    assert payroll.detail_ref == "/jobs/35595/senior-payroll-specialist/job"
+    assert (payroll.department, payroll.employment_type, payroll.work_type) == ("Finance", "Full-Time", "On Site")
+    assert payroll.posted_date.isoformat() == "2026-10-23T11:54:00+00:00"  # the title attribute, not "2 days ago"
+    assert payroll.description == ""  # the posting page carries it; fetch_job reads it
+    remote = jobs[1]
+    assert (remote.location, remote.work_type) == ("Remote, United States", "Remote")
+    assert remote.location_hint == "Remote, Canada"  # its additional location, spelled out
+    assert len({job.url for job in jobs}) == 8
+
+
+@pytest.mark.asyncio
+async def test_icims_reads_a_country_coded_place_as_the_country_first(clock):
+    """"CA-Remote" is Canada, not California; foreign places stay as written."""
+    jobs, _, _ = await icims_list(IcimsServer(kinaxis_pages()))
+    by_id = {job.external_id: job for job in jobs}
+    assert by_id["icims:kinaxis:34510"].location == "Remote, Canada"
+    assert by_id["icims:kinaxis:34500"].location == "IN-KA-Bangalore"
+    assert icims._place("US-NC-Winston-Salem") == "Winston-Salem, NC, United States"
+    assert icims._place("CA-QC-Saint-Laurent") == "Saint-Laurent, QC, Canada"
+    assert icims._place("US-NY") == "NY, United States"
+    assert icims._place("Greater Toronto Area") == "Greater Toronto Area"
+    assert icims._places("US-NJ-MORRISTOWN | US-IL-CHICAGO | US-NJ-MORRISTOWN") == (
+        "MORRISTOWN, NJ, United States | CHICAGO, IL, United States")
+
+
+@pytest.mark.asyncio
+async def test_icims_an_intern_position_type_feeds_the_entry_level_read(clock):
+    jobs, _, _ = await icims_list(IcimsServer(kinaxis_pages()))
+    coop = next(job for job in jobs if job.external_id == "icims:kinaxis:35323")
+    assert (coop.employment_type, coop.department) == ("Intern", "Engineering")
+    assert coop.location_hint == "Toronto, ON, Canada"
+    assert entry_tier(coop.title, coop.department, coop.employment_type)
+
+
+@pytest.mark.asyncio
+async def test_icims_reads_the_labels_of_other_portals(clock):
+    """Crum & Forster: "Job Locations" with several places, "Category", "Type"."""
+    server = IcimsServer({0: fixture_text("icims_cfins_search.html")})
+    jobs, _, _ = await icims_list(server, "cfins", "Crum & Forster", {"host": "careers-cfins.icims.com"})
+    by_id = {job.external_id: job for job in jobs}
+    assert by_id["icims:cfins:5188"].location == "ORANGE, CA, United States"
+    assert (by_id["icims:cfins:5188"].department, by_id["icims:cfins:5188"].employment_type) == ("Claims", "Regular")
+    assert by_id["icims:cfins:5188"].posted_date is None  # this portal shows none
+    assert by_id["icims:cfins:5184"].location == (
+        "MORRISTOWN, NJ, United States | CHICAGO, IL, United States | JERSEY CITY, NJ, United States")
+    intern = by_id["icims:cfins:5180"]
+    assert intern.department == "INTERN"
+    assert entry_tier(intern.title, intern.department, intern.employment_type)
+
+
+@pytest.mark.asyncio
+async def test_icims_reads_position_type_and_schedule_and_decodes_entities(clock):
+    """Novelis: "Job Type" (Cooperative, Internship) beside "Schedule"."""
+    server = IcimsServer({0: fixture_text("icims_novelis_search.html")})
+    jobs, _, _ = await icims_list(server, "novelis", "Novelis", {"host": "careers-novelis.icims.com"})
+    by_id = {job.external_id: job for job in jobs}
+    assert by_id["icims:novelis:55849"].employment_type == "Cooperative, Full Time"
+    assert by_id["icims:novelis:53425"].title == "R&D Lab Intern"
+    assert by_id["icims:novelis:53425"].department == "Research & Development"
+    assert entry_tier(by_id["icims:novelis:55849"].title, by_id["icims:novelis:55849"].department,
+                      by_id["icims:novelis:55849"].employment_type)
+    assert by_id["icims:novelis:55612"].location == "Ashville, OH, United States | Warren, OH, United States"
+
+
+@pytest.mark.asyncio
+async def test_icims_builds_the_place_from_city_and_never_reads_a_closing_date_as_posted(clock):
+    """Vancouver Coastal Health: a "City" label, "Closing Date", "Position Start Date"."""
+    server = IcimsServer({0: fixture_text("icims_vch_search.html")})
+    jobs, _, _ = await icims_list(server, "vch", "Vancouver Coastal Health", {"host": "careers-vch.icims.com"})
+    assert [job.location for job in jobs] == ["Victoria", "Vancouver", "Vancouver"]
+    assert all(job.posted_date is None for job in jobs)
+    assert jobs[0].employment_type == "Regular Part-Time"
+
+
+@pytest.mark.asyncio
+async def test_icims_reads_a_relative_date_with_its_stamp_and_labels_with_colons(clock):
+    """Humber River Health shows "2 days ago (10/23/2026 3:30 PM)" and no place;
+    Guelph's labels are "Job ID:" and "Job Type :"."""
+    humber = await icims_list(IcimsServer({0: fixture_text("icims_humber_search.html")}), "humber", "Humber River Health",
+                              {"host": "careersen-hrrh.icims.com"})
+    first = humber[0][0]
+    assert first.posted_date.isoformat() == "2026-10-23T15:30:00+00:00"
+    assert (first.location, first.department, first.employment_type) == ("", "13 East Medicine", "Temporary Full-Time")
+    guelph = await icims_list(IcimsServer({0: fixture_text("icims_guelph_search.html")}), "guelph", "City of Guelph",
+                              {"host": "careers-guelph.icims.com"})
+    assert [job.employment_type for job in guelph[0]] == ["Contract", "Contract", "Full Time"]
+    assert guelph[0][2].url == "https://careers-guelph.icims.com/jobs/4312/trails-technician/job"
+
+
+@pytest.mark.asyncio
+async def test_icims_a_portal_with_no_postings_is_complete_and_empty(clock):
+    server = IcimsServer({0: fixture_text("icims_kinaxis_search_4.html")})
+    assert await icims_list(server) == ([], True, 0)
+
+
+@pytest.mark.asyncio
+async def test_icims_a_page_that_is_not_a_job_search_raises(clock):
+    with pytest.raises(RuntimeError, match="did not answer with an iCIMS job search page"):
+        await icims_list(IcimsServer({0: "<html><body>Down for maintenance</body></html>"}))
+    layout = '<html><form id="searchForm"></form><a href="https://x.icims.com/jobs/12/a/job">A</a></html>'
+    with pytest.raises(RuntimeError, match="layout this adapter does not read"):
+        await icims_list(IcimsServer({0: layout}))
+
+
+@pytest.mark.asyncio
+async def test_icims_a_portal_that_sends_its_search_to_an_employer_site_raises(clock):
+    def handler(request):
+        if request.url.host == "jobs.uci.edu":
+            return httpx.Response(200, text="<html>custom front end</html>")
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(302, headers={"Location": "https://jobs.uci.edu/jobs"})
+
+    with pytest.raises(RuntimeError, match="sends its job search to jobs.uci.edu"):
+        await icims_list(handler, "uci", "UC Irvine", {"host": "careers-uci.icims.com"})
+
+
+@pytest.mark.asyncio
+async def test_icims_robots_txt_that_bars_the_search_stops_the_board(clock):
+    for robots in ("User-agent: *\nDisallow: /jobs/search\n", "User-agent: TailrdBot\nDisallow: /\n"):
+        server = IcimsServer(kinaxis_pages(), robots=robots)
+        with pytest.raises(PermissionError, match="robots.txt"):
+            await icims_list(server)
+        assert server.paths() == ["/robots.txt"]  # not one page was read
+        http._robots.clear()
+
+
+@pytest.mark.asyncio
+async def test_icims_a_missing_robots_txt_allows(clock):
+    jobs, complete, _ = await icims_list(IcimsServer(kinaxis_pages(), robots=None))
+    assert len(jobs) == 8 and complete
+
+
+@pytest.mark.asyncio
+async def test_icims_the_page_cap_leaves_the_board_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(icims, "MAX_PAGES", 2)
+    monkeypatch.setattr(icims, "HEAD_PAGES", 2)
+    server = IcimsServer(kinaxis_pages())
+    jobs, complete, total = await icims_list(server)
+    assert server.paths()[1:] == ["/jobs/search?pr=0&in_iframe=1", "/jobs/search?pr=1&in_iframe=1"]
+    assert (len(jobs), complete, total) == (6, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_icims_the_deadline_stops_the_crawl_after_the_head_pages(clock, monkeypatch):
+    monkeypatch.setattr(icims, "HEAD_PAGES", 1)
+    server = IcimsServer(kinaxis_pages())
+    jobs, complete, _ = await icims_list(server, deadline=time.monotonic() - 1)
+    assert server.paths()[1:] == ["/jobs/search?pr=0&in_iframe=1"]
+    assert (len(jobs), complete) == (3, False)
+
+
+@pytest.mark.asyncio
+async def test_icims_a_page_count_that_changes_mid_crawl_is_incomplete(clock):
+    pages = kinaxis_pages()
+    pages[1] = pages[1].replace("Page 2 of 3", "Page 2 of 4")
+    jobs, complete, _ = await icims_list(IcimsServer(pages))
+    assert (len(jobs), complete) == (8, False)
+
+
+@pytest.mark.asyncio
+async def test_icims_an_empty_page_before_the_last_one_promised_is_incomplete(clock):
+    jobs, complete, _ = await icims_list(IcimsServer({0: kinaxis_pages()[0]}))
+    assert (len(jobs), complete) == (3, False)
+
+
+@pytest.mark.asyncio
+async def test_icims_a_card_it_cannot_read_makes_the_board_incomplete(clock):
+    pages = kinaxis_pages()
+    pages[0] = pages[0] + '<li class="iCIMS_JobCardItem"><div class="row">no link</div></li>'
+    jobs, complete, _ = await icims_list(IcimsServer(pages))
+    assert (len(jobs), complete) == (8, False)
+
+
+@pytest.mark.asyncio
+async def test_icims_a_posting_shifted_onto_the_next_page_is_listed_once(clock):
+    pages = kinaxis_pages()
+    pages[1] = pages[1] + icims._CARD_RE.search(pages[0]).group(0)
+    jobs, complete, total = await icims_list(IcimsServer(pages))
+    assert (len(jobs), complete, total) == (8, True, 8)
+
+
+@pytest.mark.asyncio
+async def test_icims_a_server_error_raises_instead_of_returning_a_snapshot(clock):
+    def down(request):
+        return httpx.Response(404 if request.url.path == "/robots.txt" else 503, text="busy")
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await icims_list(down)
+
+
+@pytest.mark.asyncio
+async def test_icims_rejects_a_config_that_cannot_work(clock):
+    server = IcimsServer(kinaxis_pages())
+    for config in ({}, {"host": ""}, {"host": "careers.example.com"}):
+        with pytest.raises(ValueError, match="icims/kinaxis"):
+            await icims_list(server, config=config)
+    assert server.requests == []
+    jobs, _, _ = await icims_list(server, config={"host": "HTTPS://Careers-Kinaxis.icims.com/"})
+    assert len(jobs) == 8 and server.requests[0].url.host == "careers-kinaxis.icims.com"
+
+
+KINAXIS_JOB = "/jobs/35595/senior-payroll-specialist/job"
+
+
+@pytest.mark.asyncio
+async def test_icims_fetch_job_reads_the_json_ld_description(clock):
+    server = IcimsServer(postings={KINAXIS_JOB: (200, fixture_text("icims_kinaxis_job.html"))})
+    async with client_for(server) as client:
+        result = await icims.fetch_job(client, "kinaxis", KINAXIS_JOB, config=KINAXIS)
+    assert set(result) == {"description", "employment_type"}
+    assert result["employment_type"] == "Full-time"
+    assert "About Kinaxis" in result["description"]
+    assert "<p>" not in result["description"] and "&nbsp;" not in result["description"]
+    assert 0 < len(result["description"]) <= icims.DESCRIPTION_MAX_CHARS
+    assert server.paths() == ["/robots.txt", KINAXIS_JOB]
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+
+
+@pytest.mark.asyncio
+async def test_icims_fetch_job_ignores_an_uninformative_commitment(clock):
+    path = "/jobs/6075/manager-insights-and-reporting/job"
+    server = IcimsServer(postings={path: (200, fixture_text("icims_mackenzie_job.html"))})
+    async with client_for(server) as client:
+        result = await icims.fetch_job(client, "mackenzie", path, config={"host": "careersen-mackenzieinvestments.icims.com"})
+    assert result["employment_type"] == ""  # schema.org "OTHER" says nothing
+    assert result["description"].startswith("Job Description")
+    assert "Mackenzie Investments" in result["description"]
+
+
+@pytest.mark.asyncio
+async def test_icims_fetch_job_caps_the_description_and_reads_a_list_of_commitments(clock):
+    path = "/jobs/7/long/job"
+    block = json.dumps({"@type": "JobPosting", "description": "<p>" + "word " * 5000 + "</p>",
+                        "employmentType": ["FULL_TIME", "INTERN"]})
+    page = f'<html><script type="application/ld+json">{block}</script></html>'
+    async with client_for(IcimsServer(postings={path: (200, page)})) as client:
+        result = await icims.fetch_job(client, "kinaxis", path, config=KINAXIS)
+    assert len(result["description"]) == icims.DESCRIPTION_MAX_CHARS
+    assert result["employment_type"] == "Full-time, Intern"
+
+
+@pytest.mark.asyncio
+async def test_icims_fetch_job_is_empty_when_there_is_nothing_to_read(clock):
+    server = IcimsServer(postings={
+        "/jobs/1/gone/job": (410, "<html>gone</html>"),
+        "/jobs/2/missing/job": (404, ""),
+        "/jobs/3/plain/job": (200, "<html><body>no job data</body></html>"),
+        "/jobs/4/forbidden/job": (403, ""),
+    })
+    async with client_for(server) as client:
+        for path in ("/jobs/1/gone/job", "/jobs/2/missing/job", "/jobs/3/plain/job"):
+            assert await icims.fetch_job(client, "kinaxis", path, config=KINAXIS) == {}
+        with pytest.raises(httpx.HTTPStatusError):
+            await icims.fetch_job(client, "kinaxis", "/jobs/4/forbidden/job", config=KINAXIS)
+        before = len(server.requests)
+        for ref in ("", "/jobs/search", "https://elsewhere.example/jobs/5/x/job"):
+            assert await icims.fetch_job(client, "kinaxis", ref, config=KINAXIS) == {}
+        assert len(server.requests) == before  # a ref that is not a posting path is not fetched
+
+
+@pytest.mark.asyncio
+async def test_icims_fetch_job_respects_robots_txt(clock):
+    server = IcimsServer(robots="User-agent: *\nDisallow: /jobs/\n",
+                         postings={KINAXIS_JOB: (200, fixture_text("icims_kinaxis_job.html"))})
+    async with client_for(server) as client:
+        assert await icims.fetch_job(client, "kinaxis", KINAXIS_JOB, config=KINAXIS) == {}
+    assert server.paths() == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_reads_the_posting_page(clock):
+    url = "https://careers-kinaxis.icims.com" + KINAXIS_JOB + "?in_iframe=1"
+    server = IcimsServer(postings={KINAXIS_JOB: (200, fixture_text("icims_kinaxis_job.html"))})
+    async with client_for(server) as client:
+        result = await icims.check_alive(client, url)
+    assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "icims_job_posting", True)
+    assert server.paths() == ["/robots.txt", KINAXIS_JOB]  # the tracking query is not sent on
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_is_dead_on_410_the_portals_word_for_gone(clock):
+    base = "https://careers-kinaxis.icims.com"
+    server = IcimsServer(postings={"/jobs/9/gone/job": (410, fixture_text("icims_kinaxis_search_1.html")),
+                                   "/jobs/8/missing/job": (404, "")})
+    async with client_for(server) as client:
+        # The 410 page is a full job-search page full of other postings; the status decides.
+        assert (await icims.check_alive(client, base + "/jobs/9/gone/job")) == (DEAD, "icims_410", True)
+        assert (await icims.check_alive(client, base + "/jobs/8/missing/job")) == (DEAD, "icims_404", True)
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_does_not_guess(clock):
+    base = "https://careers-kinaxis.icims.com"
+    server = IcimsServer(postings={
+        "/jobs/1/a/job": (200, "<html><body>no job data</body></html>"),
+        "/jobs/2/b/job": (403, ""),
+        "/jobs/3/c/job": (503, "busy"),
+    })
+    async with client_for(server) as client:
+        assert (await icims.check_alive(client, base + "/jobs/1/a/job")) == (UNKNOWN, "icims_no_posting_data", False)
+        assert (await icims.check_alive(client, base + "/jobs/2/b/job")) == (UNKNOWN, "http_403", False)
+        assert (await icims.check_alive(client, base + "/jobs/3/c/job")) == (UNKNOWN, "http_503", False)
+    robots = IcimsServer(robots="User-agent: *\nDisallow: /jobs/\n", postings={"/jobs/1/a/job": (200, "x")})
+    http._robots.clear()
+    async with client_for(robots) as client:
+        assert (await icims.check_alive(client, base + "/jobs/1/a/job")) == (UNKNOWN, "robots_disallowed", False)
+    assert robots.paths() == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_notices_a_portal_that_moved_to_an_employer_site(clock):
+    def handler(request):
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        if request.url.host == "jobs.uci.edu":
+            return httpx.Response(200, text='<script type="application/ld+json">{"@type": "JobPosting"}</script>')
+        return httpx.Response(302, headers={"Location": "https://jobs.uci.edu/jobs/7"})
+
+    async with client_for(handler) as client:
+        result = await icims.check_alive(client, "https://careers-uci.icims.com/jobs/7/x/job")
+    assert (result.verdict, result.reason) == (UNKNOWN, "icims_redirected")
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_never_calls_a_host_that_is_not_icims(clock):
+    server = IcimsServer()
+    async with client_for(server) as client:
+        for url in ("https://evil.example.com/jobs/1/x/job", "https://careers-kinaxis.icims.com/jobs/search",
+                    "https://careers-kinaxis.icims.com/", ""):
+            assert (await icims.check_alive(client, url)) == (UNKNOWN, "icims_url_unreadable", False)
+    assert server.requests == []
+
+
+# --- network: three real portals (RUN_NETWORK_TESTS=1) -------------------------
+
+ICIMS_NETWORK_PORTALS = [
+    ("kinaxis", "Kinaxis", {"host": "careers-kinaxis.icims.com"}),
+    ("mackenzieinvestments", "Mackenzie Investments", {"host": "careersen-mackenzieinvestments.icims.com"}),
+    ("guelph", "City of Guelph", {"host": "careers-guelph.icims.com"}),
+]
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug,company,config", ICIMS_NETWORK_PORTALS, ids=[p[0] for p in ICIMS_NETWORK_PORTALS])
+async def test_icims_network_lists_a_real_portal_and_reads_one_posting(slug, company, config):
+    async with http.make_client() as client:
+        jobs, complete, total = await icims.list_jobs(client, slug, company, config=config)
+        assert jobs and complete and total == len(jobs)
+        assert all(job.external_id.startswith(f"icims:{slug}:") for job in jobs)
+        assert all(job.url.startswith(f"https://{config['host']}/jobs/") and "?" not in job.url for job in jobs)
+        detail = await icims.fetch_job(client, slug, jobs[0].detail_ref, config=config)
+        assert len(detail["description"]) > 100
+        assert (await icims.check_alive(client, jobs[0].url)).verdict == ALIVE
