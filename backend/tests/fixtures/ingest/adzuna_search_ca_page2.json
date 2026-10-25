@@ -1,0 +1,75 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 5,
+  "mean": 58750.5,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4567999001",
+      "title": "Junior Accountant",
+      "description": "Support the month-end close, prepare reconciliations and assist with year-end audit work ...",
+      "created": "2026-10-21T12:00:00Z",
+      "redirect_url": "https://www.adzuna.ca/land/ad/4567999001?se=Kq7Z1xPeEe2gRQ8lOhFkgA&utm_medium=api&utm_source=testappid&v=aabbccddeeff00112233445566778899aabbccdd",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJpIjoiNDU2Nzk5OTAwMSJ9.example",
+      "latitude": 43.6532,
+      "longitude": -79.3832,
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "area": [
+          "Canada",
+          "Ontario",
+          "Toronto"
+        ],
+        "display_name": "Toronto, Ontario"
+      },
+      "category": {
+        "__CLASS__": "Adzuna::API::Response::Category",
+        "tag": "accounting-finance-jobs",
+        "label": "Accounting & Finance Jobs"
+      },
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Northern Ledger Inc."
+      },
+      "salary_min": 48000,
+      "salary_max": 48000,
+      "salary_is_predicted": "0",
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    },
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "4567999002",
+      "title": "Data Analyst &amp; Reporting Lead",
+      "description": "Own the weekly reporting pack and build dashboards for the operations team ...",
+      "created": "2026-10-20T08:15:00Z",
+      "redirect_url": "https://www.adzuna.ca/land/ad/4567999002?se=Kq7Z1xPeEe2gRQ8lOhFkgA&utm_medium=api&utm_source=testappid&v=99887766554433221100ffeeddccbbaa99887766",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJpIjoiNDU2Nzk5OTAwMiJ9.example",
+      "latitude": 49.2827,
+      "longitude": -123.1207,
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "area": [
+          "Canada",
+          "British Columbia",
+          "Vancouver"
+        ],
+        "display_name": "Vancouver, British Columbia"
+      },
+      "category": {
+        "__CLASS__": "Adzuna::API::Response::Category",
+        "tag": "it-jobs",
+        "label": "IT Jobs"
+      },
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Harbour &amp; Pine Logistics"
+      },
+      "salary_min": 70000,
+      "salary_max": 90000,
+      "salary_is_predicted": "0",
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    }
+  ]
+}

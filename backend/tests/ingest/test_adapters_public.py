@@ -20,7 +20,7 @@ import pytest
 
 from backend.data import company_registry
 from backend.ingest import adapters
-from backend.ingest.adapters import jobbank_ca, usajobs
+from backend.ingest.adapters import adzuna, jobbank_ca, usajobs
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper
 
@@ -637,3 +637,236 @@ async def test_a_usajobs_board_is_skipped_by_the_scraper_until_the_keys_exist(pa
 
     assert snapshot.jobs == [] and snapshot.all_urls == set() and snapshot.complete is False
     assert site.requests == []
+
+
+# --- Adzuna --------------------------------------------------------------------------------------
+# The fixtures (adzuna_search_*.json) follow the "Search ads" endpoint of Adzuna's
+# OpenAPI description (developer.adzuna.com/swagger/spec/test2.json): count, mean,
+# results[] with id, title, description, created, redirect_url, adref, location,
+# category, company, salary_min/max, salary_is_predicted, contract_time/type.
+
+ADZUNA_ENV = {"ADZUNA_APP_ID": "test-app-id", "ADZUNA_APP_KEY": "test-secret-key"}
+
+
+def adzuna_page(name: str) -> dict:
+    return json.loads(fixture_text(name))
+
+
+@pytest.fixture
+def adzuna_keys(monkeypatch):
+    for name, value in ADZUNA_ENV.items():
+        monkeypatch.setenv(name, value)
+
+
+class FakeAdzuna:
+    """Answers /v1/api/jobs/{country}/search/{page} from ``pages`` keyed by (country, page)."""
+
+    def __init__(self, pages=None, status=200, body=None):
+        self.pages = pages if pages is not None else {
+            ("ca", "1"): adzuna_page("adzuna_search_ca_page1.json"),
+            ("ca", "2"): adzuna_page("adzuna_search_ca_page2.json"),
+            ("us", "1"): adzuna_page("adzuna_search_us_page1.json"),
+        }
+        self.status = status
+        self.body = body
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        if self.status != 200:
+            return httpx.Response(self.status, json=self.body or {})
+        match = re.fullmatch(r"/v1/api/jobs/(\w+)/search/(\d+)", request.url.path)
+        assert match, request.url.path
+        page = self.pages.get((match.group(1), match.group(2)))
+        return httpx.Response(200, json=page or {"count": 5, "mean": 0, "results": []})
+
+
+def test_adzuna_contract_constants():
+    assert adzuna.PLATFORM == "adzuna"
+    assert adzuna.TIER == 3
+    assert adzuna.COUNTRIES == ("CA", "US")
+    assert adzuna.REQUIRED_ENV == ("ADZUNA_APP_ID", "ADZUNA_APP_KEY")
+    assert adzuna.RATE_LIMIT > 0
+
+
+def test_adzuna_stays_disabled_until_both_keys_exist(monkeypatch):
+    for name in ADZUNA_ENV:
+        monkeypatch.delenv(name, raising=False)
+    assert adapters.get_adapter("adzuna") is adzuna
+    assert not adapters.adapter_enabled("adzuna")
+    monkeypatch.setenv("ADZUNA_APP_ID", "test-app-id")
+    assert not adapters.adapter_enabled("adzuna")
+    monkeypatch.setenv("ADZUNA_APP_KEY", "test-secret-key")
+    assert adapters.adapter_enabled("adzuna")
+
+
+def test_adzuna_owns_its_ad_pages():
+    for url in ("https://www.adzuna.ca/details/4568129073", "https://www.adzuna.com/details/5012345678"):
+        assert adapters.adapter_for_url(url) is adzuna
+
+
+def test_adzuna_ads_become_listings():
+    ads = adzuna_page("adzuna_search_ca_page1.json")["results"] + adzuna_page("adzuna_search_ca_page2.json")["results"]
+    jobs = [adzuna._to_job(ad, "ca-new-grad", "Adzuna Canada", "ca") for ad in ads]
+    internship, nurse, support, accountant, analyst = jobs
+
+    assert internship.external_id == "adzuna:ca-new-grad:4568129073"
+    assert internship.title == "Software Developer Intern"  # Adzuna's keyword highlighting is stripped
+    assert internship.company == "Shopify"
+    assert internship.location == "Ottawa, Ontario"
+    # The ad's own page, without the tracking in Adzuna's redirect link (which carries our app id) ...
+    assert internship.url == "https://www.adzuna.ca/details/4568129073"
+    # ... and the redirect link itself, which Adzuna's terms say users must be sent through.
+    assert internship.apply_url.startswith("https://www.adzuna.ca/land/ad/4568129073?")
+    assert "utm_source=testappid" in internship.apply_url
+    assert internship.posted_date == datetime.datetime(2026, 10, 24, 14, 2, 11, tzinfo=datetime.timezone.utc)
+    assert internship.department == "IT Jobs"
+    assert internship.employment_type == "Full-time, Contract"
+    assert internship.salary_text == "55000-65000 CAD yearly"
+    assert internship.description.startswith("Join the platform team as a software developer intern.")
+    assert "<strong>" not in internship.description
+
+    # A salary Adzuna predicted itself is not a posted salary.
+    assert nurse.salary_text == "" and nurse.employment_type == "Part-time, Permanent"
+    # No company in the ad: the board's name stands in. "Work From Home" marks it remote.
+    assert support.company == "Adzuna Canada" and support.location == "Canada"
+    assert support.work_type == "Remote" and support.salary_text == "" and support.employment_type == ""
+    assert accountant.salary_text == "CAD 48000 yearly"
+    assert analyst.title == "Data Analyst & Reporting Lead" and analyst.company == "Harbour & Pine Logistics"
+
+    us_ad = adzuna_page("adzuna_search_us_page1.json")["results"][0]
+    us_job = adzuna._to_job(us_ad, "us-entry", "Adzuna US", "us")
+    assert us_job.url == "https://www.adzuna.com/details/5012345678"
+    assert us_job.salary_text == "45000-52000 USD yearly"
+
+
+@pytest.mark.asyncio
+async def test_adzuna_sends_the_documented_request_and_pages_to_the_end(paced, adzuna_keys):
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        jobs, complete, total = await adzuna.list_jobs(
+            client, "ca-new-grad", "Adzuna Canada",
+            config={"country": "ca", "params": {"what_or": "intern graduate", "max_days_old": 14},
+                    "page_size": 3, "max_pages": 4})
+
+    assert (len(jobs), complete, total) == (5, True, 5)
+    assert [r.url.path for r in site.requests] == ["/v1/api/jobs/ca/search/1", "/v1/api/jobs/ca/search/2"]
+    first = site.requests[0]
+    assert first.url.host == "api.adzuna.com"
+    params = first.url.params
+    assert (params["app_id"], params["app_key"]) == ("test-app-id", "test-secret-key")
+    assert (params["what_or"], params["max_days_old"]) == ("intern graduate", "14")
+    assert (params["results_per_page"], params["sort_by"]) == ("3", "date")
+    assert params["content-type"] == "application/json" and first.headers["accept"] == "application/json"
+    assert first.headers["user-agent"] == http.USER_AGENT
+
+
+@pytest.mark.asyncio
+async def test_adzuna_reads_the_us_market_by_country(paced, adzuna_keys):
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        jobs, complete, total = await adzuna.list_jobs(
+            client, "us-entry", "Adzuna US", config={"country": "US", "params": {"what": "marketing"}})
+
+    assert [r.url.path for r in site.requests] == ["/v1/api/jobs/us/search/1"]
+    assert (len(jobs), complete, total) == (1, True, 1)
+    assert jobs[0].url == "https://www.adzuna.com/details/5012345678"
+
+
+@pytest.mark.asyncio
+async def test_adzuna_page_cap_leaves_the_listing_incomplete(paced, adzuna_keys):
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        jobs, complete, total = await adzuna.list_jobs(
+            client, "ca", "Adzuna Canada", config={"country": "ca", "max_pages": 1})
+
+    assert (len(jobs), complete, total) == (3, False, 5)
+    assert len(site.requests) == 1
+
+
+@pytest.mark.asyncio
+async def test_adzuna_refuses_a_board_that_would_list_the_whole_database(paced, adzuna_keys):
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        with pytest.raises(ValueError, match="country"):
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"params": {"what": "nurse"}})
+        with pytest.raises(ValueError, match="country"):
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "gb"})
+        # A typo'd filter would be ignored and match every ad; the app key and the page are ours.
+        for bad in ({"wat": "nurse"}, {"app_key": "x"}, {"page": "3"}):
+            with pytest.raises(ValueError, match="unknown search parameter"):
+                await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca", "params": bad})
+    assert site.requests == []
+
+
+@pytest.mark.asyncio
+async def test_adzuna_without_keys_it_refuses_to_run(paced, monkeypatch):
+    for name in ADZUNA_ENV:
+        monkeypatch.delenv(name, raising=False)
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        with pytest.raises(RuntimeError):
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"})
+    assert site.requests == []
+
+
+@pytest.mark.asyncio
+async def test_adzuna_errors_never_carry_the_request_url_or_the_app_key(paced, adzuna_keys):
+    # 410 is how Adzuna's description says "Authorisation failed".
+    denied = {"exception": "Adzuna::API::Exception::AuthorisationFailed", "display": "Authorisation failed"}
+    async with mock_client(FakeAdzuna(status=410, body=denied)) as client:
+        with pytest.raises(adzuna.AdzunaError) as rejected:
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"})
+    assert str(rejected.value) == "Adzuna answered HTTP 410: Authorisation failed"
+    assert rejected.value.__cause__ is None
+
+    # A server error that outlasts the retries is described the same way.
+    async with mock_client(FakeAdzuna(status=500)) as client:
+        with pytest.raises(adzuna.AdzunaError) as broken:
+            await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"})
+    assert str(broken.value) == "Adzuna answered HTTP 500"
+    for error in (rejected.value, broken.value):
+        assert "test-secret-key" not in str(error) and "app_key" not in str(error)
+
+
+@pytest.mark.asyncio
+async def test_adzuna_a_later_page_that_fails_keeps_the_first_as_incomplete(paced, adzuna_keys):
+    def handler(request):
+        if request.url.path.endswith("/1"):
+            return httpx.Response(200, json=adzuna_page("adzuna_search_ca_page1.json"))
+        return httpx.Response(200, text="<html>maintenance</html>")
+
+    async with mock_client(handler) as client:
+        jobs, complete, total = await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"})
+
+    assert (len(jobs), complete, total) == (3, False, 5)
+
+
+@pytest.mark.asyncio
+async def test_adzuna_an_empty_answer_is_never_complete(paced, adzuna_keys):
+    site = FakeAdzuna(pages={("ca", "1"): {"count": 0, "mean": 0, "results": []}})
+    async with mock_client(site) as client:
+        assert await adzuna.list_jobs(client, "x", "Adzuna", config={"country": "ca"}) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_an_adzuna_board_goes_through_the_scraper_once_the_keys_exist(paced, monkeypatch):
+    entries = [{"company_name": "Adzuna Canada: new grad", "ats_platform": "adzuna", "board_slug": "ca-new-grad",
+                "enabled": True, "country": "CA", "hq_country": "CA",
+                "config": {"country": "ca", "params": {"what_or": "intern graduate"}, "max_pages": 2}}]
+    monkeypatch.setattr(company_registry, "_load_raw", lambda: entries)
+    for name in ADZUNA_ENV:
+        monkeypatch.delenv(name, raising=False)
+    site = FakeAdzuna()
+    async with mock_client(site) as client:
+        skipped = await ATSScraper(filter_entry_level=False).scrape_board(
+            client, "adzuna", "ca-new-grad", "Adzuna Canada: new grad")
+        assert skipped.jobs == [] and skipped.complete is False and site.requests == []
+
+        for name, value in ADZUNA_ENV.items():
+            monkeypatch.setenv(name, value)
+        snapshot = await ATSScraper(filter_entry_level=False).scrape_board(
+            client, "adzuna", "ca-new-grad", "Adzuna Canada: new grad")
+
+    assert len(snapshot.jobs) == 5 and snapshot.complete and snapshot.total_listed == 5
+    assert site.requests[0].url.params["what_or"] == "intern graduate"
