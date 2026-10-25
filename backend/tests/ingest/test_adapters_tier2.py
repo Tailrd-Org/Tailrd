@@ -17,7 +17,7 @@ import httpx
 import pytest
 
 from backend.ingest import adapters
-from backend.ingest.adapters import icims, oracle_hcm
+from backend.ingest.adapters import icims, oracle_hcm, taleo
 from backend.ingest.core import http
 from backend.services.ats_scraper import ATSScraper, entry_tier
 from backend.services.platform_liveness import ALIVE, DEAD, UNKNOWN
@@ -935,3 +935,368 @@ async def test_icims_network_lists_a_real_portal_and_reads_one_posting(slug, com
         detail = await icims.fetch_job(client, slug, jobs[0].detail_ref, config=config)
         assert len(detail["description"]) > 100
         assert (await icims.check_alive(client, jobs[0].url)).verdict == ALIVE
+
+
+# =============================================================================
+# Taleo
+# =============================================================================
+
+BAYSHORE = {"host": "bayshore.taleo.net", "section": "bs_ex"}
+BAYSHORE_DETAIL = "/careersection/bs_ex/jobdetail.ftl"
+
+
+class TaleoServer:
+    """A Taleo career section: robots.txt (none, as on taleo.net), its search page,
+    the JSON search by ``pageNo`` and posting pages by job id. ``rows`` are the
+    requisitions in order; ``size`` is the page size and ``total`` the count the
+    search reports, which may differ from the rows (hidden requisitions).
+    ``totals`` scripts the count per search request (the last repeats)."""
+
+    def __init__(self, rows=None, *, page=None, size=25, total=None, totals=None, robots=None, details=None):
+        self.rows = list(rows or [])
+        self.page = fixture_text("taleo_jobsearch_bayshore.html") if page is None else page
+        self.size = size
+        self.total = len(self.rows) if total is None else total
+        self.totals = list(totals) if totals else None
+        self.robots = robots
+        self.details = details or {}
+        self.requests: list[httpx.Request] = []
+
+    def __call__(self, request: httpx.Request) -> httpx.Response:
+        self.requests.append(request)
+        path = request.url.path
+        if path == "/robots.txt":
+            return httpx.Response(404) if self.robots is None else httpx.Response(200, text=self.robots)
+        if path.endswith("/jobsearch.ftl"):
+            return httpx.Response(200, text=self.page)
+        if path == "/careersection/rest/jobboard/searchjobs":
+            number = json.loads(request.content)["pageNo"]
+            total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
+            start = (number - 1) * self.size
+            return httpx.Response(200, json={
+                "requisitionList": self.rows[start:start + self.size], "facetResults": [],
+                "pagingData": {"currentPageNo": number, "pageSize": self.size, "totalCount": total},
+                "queryString": "", "careerSectionUnAvailable": False, "supportedLanguages": ["en"]})
+        if path.endswith("/jobdetail.ftl"):
+            status, body = self.details.get(request.url.params.get("job"), (404, ""))
+            return httpx.Response(status, text=body)
+        return httpx.Response(404)
+
+    def searches(self) -> list[httpx.Request]:
+        return [r for r in self.requests if r.url.path.endswith("/searchjobs")]
+
+    def page_numbers(self) -> list[int]:
+        return [json.loads(r.content)["pageNo"] for r in self.searches()]
+
+
+def taleo_rows(count: int, first_id: int = 1000) -> list[dict]:
+    return [{"jobId": str(first_id + i), "contestNo": str(5000 + i), "linkedColumn": 0, "locationsColumns": [1],
+             "column": [f"Job {i}", '["ON-Toronto"]', "Remote"]} for i in range(count)]
+
+
+def fixture_rows(name: str) -> list[dict]:
+    return fixture(name)["requisitionList"]
+
+
+async def taleo_list(server, slug="bayshore", company="Bayshore HealthCare", config=BAYSHORE, **kwargs):
+    async with client_for(server) as client:
+        return await taleo.list_jobs(client, slug, company, config=config, **kwargs)
+
+
+def test_taleo_is_registered_and_owns_career_section_posting_urls():
+    assert adapters.get_adapter("taleo") is taleo
+    assert adapters.adapter_enabled("taleo")
+    assert (taleo.PLATFORM, taleo.TIER, taleo.RATE_LIMIT) == ("taleo", 2, 1.0)
+    assert adapters.adapter_for_url("https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en") is taleo
+    assert adapters.adapter_for_url("https://tre.tbe.taleo.net/tre01/ats/careers/v2/viewRequisition?org=CNLLTD&cws=37&rid=8915") is None
+    assert adapters.adapter_for_url("https://bayshore.taleo.net/careersection/bs_ex/jobsearch.ftl") is None
+
+
+@pytest.mark.asyncio
+async def test_taleo_maps_a_career_section_with_locations_and_a_work_arrangement(clock):
+    server = TaleoServer(fixture_rows("taleo_search_bayshore.json"))
+    jobs, complete, total = await taleo_list(server)
+    assert (len(jobs), complete, total) == (6, True, 6)
+    first = jobs[0]
+    assert first.title == "Administrative Assistant"
+    assert first.company == "Bayshore HealthCare"
+    assert first.location == "ON-Mississauga"
+    assert first.url == "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
+    assert first.external_id == "taleo:bayshore:525949"
+    assert first.detail_ref == "525949"
+    assert (first.work_type, first.employment_type, first.department) == ("Remote", "", "")
+    assert first.posted_date is None and first.description == ""
+    assert jobs[1].work_type == "On Site"  # "In-Office"
+    assert jobs[4].work_type == "On Site"  # "Home Care" says nothing about where
+    assert len({job.url for job in jobs}) == 6
+
+
+@pytest.mark.asyncio
+async def test_taleo_reads_commitments_and_never_takes_a_date_column_for_a_posting_date(clock):
+    """City of Edmonton: columns are the title, "Permanent" and a closing date; no place."""
+    jobs, _, _ = await taleo_list(TaleoServer(fixture_rows("taleo_search_edmonton.json")), "edmonton", "City of Edmonton",
+                                  {"host": "edmonton.taleo.net", "section": "1"})
+    assert [job.employment_type for job in jobs] == ["Permanent", "Temporary", "Temporary", "Temporary", "Permanent", "Temporary"]
+    assert all(job.location == "" and job.posted_date is None for job in jobs)
+    assert jobs[0].url == "https://edmonton.taleo.net/careersection/1/jobdetail.ftl?job=522795&lang=en"
+    assert jobs[1].title == "Day Shift Emergency Communications Specialist (Limited to EFFU Members Only)"  # padding trimmed
+
+
+@pytest.mark.asyncio
+async def test_taleo_reads_a_campus_as_the_place_and_ignores_a_posting_date_column(clock):
+    jobs, _, _ = await taleo_list(TaleoServer(fixture_rows("taleo_search_humber.json")), "humber", "Humber College",
+                                  {"host": "humber.taleo.net", "section": "hbr_ex"})
+    assert [job.location for job in jobs] == ["Lakeshore Campus", "North Campus", "Multiple Locations", "North Campus", "North Campus"]
+    assert all(job.posted_date is None and job.employment_type == "" for job in jobs)
+
+
+def test_taleo_a_column_is_a_commitment_only_when_every_word_is_one():
+    assert taleo._only_words("Permanent Full-Time", taleo._COMMITMENT_WORDS)
+    assert taleo._only_words("Fixed-Term", taleo._COMMITMENT_WORDS)
+    assert not taleo._only_words("Long Term Care", taleo._COMMITMENT_WORDS)
+    assert not taleo._only_words("Contract Management", taleo._COMMITMENT_WORDS)
+    assert not taleo._only_words("", taleo._COMMITMENT_WORDS)
+    assert taleo._only_words("Hybrid", taleo._WORKPLACE_WORDS) and taleo._only_words("In-Office", taleo._WORKPLACE_WORDS)
+    assert not taleo._only_words("Remote Nursing", taleo._WORKPLACE_WORDS)
+
+
+@pytest.mark.asyncio
+async def test_taleo_reads_several_places_from_the_locations_column(clock):
+    row = {"jobId": "7", "linkedColumn": 0, "locationsColumns": [1, 2],
+           "column": ["Float Nurse", '["ON-Toronto", "ON-Ottawa"]', '["ON-Toronto"]']}
+    jobs, _, _ = await taleo_list(TaleoServer([row]))
+    assert jobs[0].location == "ON-Toronto | ON-Ottawa"
+
+
+@pytest.mark.asyncio
+async def test_taleo_pages_through_the_whole_board_and_sends_what_its_own_page_sends(clock, monkeypatch):
+    server = TaleoServer(taleo_rows(5), size=2)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]
+    assert (len(jobs), complete, total) == (5, True, 5)
+    first = server.searches()[0]
+    assert str(first.url) == "https://bayshore.taleo.net/careersection/rest/jobboard/searchjobs?lang=en&portal=8100120144"
+    assert first.method == "POST"
+    assert {r.headers["user-agent"] for r in server.requests} == {UA}
+    assert first.headers["x-requested-with"] == "XMLHttpRequest"
+    assert (first.headers["tz"], first.headers["tzname"]) == ("GMT-05:00", "America/New_York")
+    assert first.headers["accept-encoding"] == "identity"  # albertahs.taleo.net mislabels compressed replies
+    body = json.loads(first.content)
+    assert body["fieldData"]["fields"] == {"KEYWORD": "", "LOCATION": ""} and body["multilineEnabled"] is False
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_count_above_the_listing_is_normal_and_still_complete(clock):
+    """City of Edmonton reports 56 and lists 44: the count includes requisitions a
+    visitor is not shown, and a page can come back short."""
+    rows = taleo_rows(44)
+    server = TaleoServer(rows, size=25, total=56)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]  # the count implies three pages, the last one empty
+    assert (len(jobs), complete, total) == (44, True, 56)
+
+
+@pytest.mark.asyncio
+async def test_taleo_stops_at_the_last_page_the_count_implies(clock):
+    """Asking past the last page returns the last page again; the count says when to stop."""
+    server = TaleoServer(taleo_rows(14), size=25, total=16)
+    jobs, complete, _ = await taleo_list(server)
+    assert server.page_numbers() == [1]
+    assert (len(jobs), complete) == (14, True)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_count_that_changes_mid_crawl_is_incomplete(clock):
+    server = TaleoServer(taleo_rows(6), size=2, totals=[6, 6, 5])
+    jobs, complete, total = await taleo_list(server)
+    assert (len(jobs), complete, total) == (6, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_row_it_cannot_read_makes_the_board_incomplete(clock):
+    rows = taleo_rows(3) + [{"column": ["No id"], "linkedColumn": 0}]
+    jobs, complete, _ = await taleo_list(TaleoServer(rows))
+    assert (len(jobs), complete) == (3, False)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_board_with_no_postings_is_complete_and_empty(clock):
+    assert await taleo_list(TaleoServer([])) == ([], True, 0)
+
+
+@pytest.mark.asyncio
+async def test_taleo_the_page_cap_and_the_deadline_leave_the_board_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(taleo, "MAX_PAGES", 2)
+    monkeypatch.setattr(taleo, "HEAD_PAGES", 2)
+    server = TaleoServer(taleo_rows(7), size=2)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2]
+    assert (len(jobs), complete, total) == (4, False, 7)
+    monkeypatch.setattr(taleo, "MAX_PAGES", 10)
+    monkeypatch.setattr(taleo, "HEAD_PAGES", 1)
+    server = TaleoServer(taleo_rows(7), size=2)
+    jobs, complete, _ = await taleo_list(server, deadline=time.monotonic() - 1)
+    assert server.page_numbers() == [1]  # the newest-first head is read whatever the clock says
+    assert (len(jobs), complete) == (2, False)
+
+
+@pytest.mark.asyncio
+async def test_taleo_reads_the_portal_from_the_page_or_the_config(clock):
+    server = TaleoServer(taleo_rows(2))
+    await taleo_list(server)
+    assert [r.url.path for r in server.requests] == [
+        "/robots.txt", "/careersection/bs_ex/jobsearch.ftl", "/careersection/rest/jobboard/searchjobs"]
+    named = TaleoServer(taleo_rows(2))
+    await taleo_list(named, config={**BAYSHORE, "portal": "555"})
+    assert "portal=555" in str(named.searches()[0].url)
+    assert not any(r.url.path.endswith("/jobsearch.ftl") for r in named.requests)  # nothing to look up
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_career_section_without_a_json_search_raises(clock):
+    legacy = '<html><form name="ftlform" id="ftlform" method="post" action="jobsearch.ftl"></form></html>'
+    with pytest.raises(RuntimeError, match="no JSON job search"):
+        await taleo_list(TaleoServer(taleo_rows(2), page=legacy))
+
+
+@pytest.mark.asyncio
+async def test_taleo_rejects_a_config_that_cannot_work(clock):
+    server = TaleoServer(taleo_rows(2))
+    for config in ({}, {"host": "bayshore.taleo.net"}, {"section": "bs_ex"},
+                   {"host": "tre.tbe.taleo.net", "section": "x"},  # Taleo Business Edition is another product
+                   {"host": "careers.example.com", "section": "x"},
+                   {"host": "bayshore.taleo.net", "section": "../etc"},
+                   {**BAYSHORE, "portal": "abc"}):
+        with pytest.raises(ValueError, match="taleo/bayshore"):
+            await taleo_list(server, config=config)
+    assert server.requests == []
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_reply_without_a_requisition_list_or_a_section_that_is_down_raises(clock):
+    def no_list(request):
+        if request.url.path.endswith("/searchjobs"):
+            return httpx.Response(200, json={"pagingData": {"totalCount": 3}})
+        return httpx.Response(200, text=fixture_text("taleo_jobsearch_bayshore.html")) if request.url.path.endswith(".ftl") else httpx.Response(404)
+
+    with pytest.raises(ValueError, match="without a requisition list"):
+        await taleo_list(no_list)
+
+    def down(request):
+        if request.url.path.endswith("/searchjobs"):
+            return httpx.Response(200, json={"requisitionList": [], "pagingData": {"totalCount": 0}, "careerSectionUnAvailable": True})
+        return httpx.Response(200, text=fixture_text("taleo_jobsearch_bayshore.html")) if request.url.path.endswith(".ftl") else httpx.Response(404)
+
+    with pytest.raises(RuntimeError, match="unavailable"):
+        await taleo_list(down)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_server_error_raises_instead_of_returning_a_snapshot(clock):
+    def broken(request):
+        if request.url.path.endswith("/searchjobs"):
+            return httpx.Response(500, text="Internal Server Error")
+        return httpx.Response(200, text=fixture_text("taleo_jobsearch_bayshore.html")) if request.url.path.endswith(".ftl") else httpx.Response(404)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        await taleo_list(broken)
+
+
+@pytest.mark.asyncio
+async def test_taleo_robots_txt_that_bars_the_career_section_stops_the_board(clock):
+    server = TaleoServer(taleo_rows(2), robots="User-agent: *\nDisallow: /careersection/\n")
+    with pytest.raises(PermissionError, match="robots.txt"):
+        await taleo_list(server)
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+
+
+@pytest.mark.asyncio
+async def test_taleo_fetch_job_reads_the_description_from_the_data_island(clock):
+    server = TaleoServer(details={"525949": (200, fixture_text("taleo_jobdetail_bayshore.html"))})
+    async with client_for(server) as client:
+        result = await taleo.fetch_job(client, "bayshore", "525949", config=BAYSHORE)
+    assert set(result) == {"description", "employment_type"}
+    assert result["description"].startswith("JOB SUMMARY")
+    assert "Administrative Assistant" in result["description"]
+    assert "<" not in result["description"]
+    assert 200 < len(result["description"]) <= 10_000
+    detail = [r for r in server.requests if r.url.path == BAYSHORE_DETAIL][0]
+    assert str(detail.url) == "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
+    assert detail.headers["user-agent"] == UA and detail.headers["accept-encoding"] == "identity"
+
+
+@pytest.mark.asyncio
+async def test_taleo_fetch_job_is_empty_when_there_is_nothing_to_read(clock):
+    server = TaleoServer(details={"1": (200, fixture_text("taleo_jobdetail_gone.html")), "2": (404, ""),
+                                  "3": (410, ""), "4": (403, "")})
+    async with client_for(server) as client:
+        for ref in ("1", "2", "3"):
+            assert await taleo.fetch_job(client, "bayshore", ref, config=BAYSHORE) == {}
+        with pytest.raises(httpx.HTTPStatusError):
+            await taleo.fetch_job(client, "bayshore", "4", config=BAYSHORE)
+        before = len(server.requests)
+        for ref in ("", "abc", "12; DROP"):
+            assert await taleo.fetch_job(client, "bayshore", ref, config=BAYSHORE) == {}
+        assert len(server.requests) == before  # a ref that is not a job id is not fetched
+
+
+POSTING = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=525949&lang=en"
+
+
+@pytest.mark.asyncio
+async def test_taleo_check_alive_reads_the_requisition_in_the_page(clock):
+    server = TaleoServer(details={"525949": (200, fixture_text("taleo_jobdetail_bayshore.html"))})
+    async with client_for(server) as client:
+        result = await taleo.check_alive(client, POSTING)
+    assert (result.verdict, result.reason, result.authoritative) == (ALIVE, "taleo_requisition", True)
+
+
+@pytest.mark.asyncio
+async def test_taleo_check_alive_calls_a_posting_gone_only_when_the_page_is_the_bare_career_section(clock):
+    server = TaleoServer(details={"1": (200, fixture_text("taleo_jobdetail_gone.html")), "2": (404, ""), "3": (410, ""),
+                                  "4": (200, "<html><body>Please verify you are human</body></html>"),
+                                  "5": (403, ""), "6": (503, "busy")})
+    base = "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job="
+    async with client_for(server) as client:
+        # A gone posting still answers 200 with the section's search page: a soft answer.
+        assert (await taleo.check_alive(client, base + "1&lang=en")) == (DEAD, "taleo_no_requisition", False)
+        assert (await taleo.check_alive(client, base + "2")) == (DEAD, "taleo_404", True)
+        assert (await taleo.check_alive(client, base + "3")) == (DEAD, "taleo_410", True)
+        assert (await taleo.check_alive(client, base + "4")) == (UNKNOWN, "taleo_unrecognised_page", False)
+        assert (await taleo.check_alive(client, base + "5")) == (UNKNOWN, "http_403", False)
+        assert (await taleo.check_alive(client, base + "6")) == (UNKNOWN, "http_503", False)
+
+
+@pytest.mark.asyncio
+async def test_taleo_check_alive_never_calls_a_host_that_is_not_taleo(clock):
+    server = TaleoServer()
+    async with client_for(server) as client:
+        for url in ("https://evil.example.com/careersection/x/jobdetail.ftl?job=1",
+                    "https://tre.tbe.taleo.net/careersection/x/jobdetail.ftl?job=1",
+                    "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=abc",
+                    "https://bayshore.taleo.net/careersection/bs_ex/jobsearch.ftl", ""):
+            assert (await taleo.check_alive(client, url)) == (UNKNOWN, "taleo_url_unreadable", False)
+    assert server.requests == []
+
+
+# --- network: three real career sections (RUN_NETWORK_TESTS=1) -----------------
+
+TALEO_NETWORK_BOARDS = [
+    ("bayshore", "Bayshore HealthCare", {"host": "bayshore.taleo.net", "section": "bs_ex"}),
+    ("edmonton", "City of Edmonton", {"host": "edmonton.taleo.net", "section": "1"}),
+    ("humber", "Humber College", {"host": "humber.taleo.net", "section": "hbr_ex"}),
+]
+
+
+@pytest.mark.network
+@pytest.mark.asyncio
+@pytest.mark.parametrize("slug,company,config", TALEO_NETWORK_BOARDS, ids=[b[0] for b in TALEO_NETWORK_BOARDS])
+async def test_taleo_network_lists_a_real_career_section_and_reads_one_posting(slug, company, config):
+    async with http.make_client() as client:
+        jobs, complete, total = await taleo.list_jobs(client, slug, company, config=config)
+        assert jobs and complete and total >= len(jobs)
+        assert all(job.external_id.startswith(f"taleo:{slug}:") for job in jobs)
+        assert all(job.url.startswith(f"https://{config['host']}/careersection/{config['section']}/jobdetail.ftl?job=") for job in jobs)
+        detail = await taleo.fetch_job(client, slug, jobs[0].detail_ref, config=config)
+        assert len(detail["description"]) > 100
+        assert (await taleo.check_alive(client, jobs[0].url)).verdict == ALIVE

@@ -1,0 +1,109 @@
+{
+ "requisitionList": [
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522795",
+   "contestNo": "56321",
+   "column": [
+    "Yard Worker - Roads",
+    "Permanent",
+    "Nov 7, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522794",
+   "contestNo": "56319",
+   "column": [
+    "Day Shift Emergency Communications Specialist (Limited to EFFU Members Only) ",
+    "Temporary",
+    "Nov 7, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522792",
+   "contestNo": "56316",
+   "column": [
+    "Word/Data Processing Clerk II",
+    "Temporary",
+    "Oct 31, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522793",
+   "contestNo": "56318",
+   "column": [
+    "Emergency Communications Specialist Training Captain  (Limited to EFFU Members Only)",
+    "Temporary",
+    "Nov 7, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522777",
+   "contestNo": "56317",
+   "column": [
+    "Manager - Technology Integration & Records Section",
+    "Permanent",
+    "Nov 7, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "522788",
+   "contestNo": "56309",
+   "column": [
+    "DATS Booking Agent",
+    "Temporary",
+    "Oct 31, 2026, 1:59:00 AM"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": []
+  }
+ ],
+ "facetResults": [],
+ "pagingData": {
+  "currentPageNo": 1,
+  "pageSize": 25,
+  "totalCount": 56
+ },
+ "queryString": "f=null&s=3|D&a=null&multiline=false",
+ "careerSectionUnAvailable": false,
+ "supportedLanguages": []
+}

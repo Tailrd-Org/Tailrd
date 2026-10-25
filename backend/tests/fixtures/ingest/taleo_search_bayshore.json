@@ -1,0 +1,126 @@
+{
+ "requisitionList": [
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525949",
+   "contestNo": "26006391",
+   "column": [
+    "Administrative Assistant",
+    "[\"ON-Mississauga\"]",
+    "Remote"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525889",
+   "contestNo": "26006390",
+   "column": [
+    "Pharmacy Labeler",
+    "[\"AB-Edmonton\"]",
+    "In-Office"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525928",
+   "contestNo": "26006389",
+   "column": [
+    "Program Manager",
+    "[\"ON-Mississauga\"]",
+    "Remote"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525948",
+   "contestNo": "26006388",
+   "column": [
+    "Program Manager",
+    "[\"ON-Mississauga\"]",
+    "Remote"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": true,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525910",
+   "contestNo": "26006387",
+   "column": [
+    "Personal Caregiver",
+    "[\"ON-Port Perry\"]",
+    "Home Care"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": true,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "525909",
+   "contestNo": "26006386",
+   "column": [
+    "Registered Nurse",
+    "[\"ON-Hamilton\"]",
+    "Home Care"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  }
+ ],
+ "facetResults": [],
+ "pagingData": {
+  "currentPageNo": 1,
+  "pageSize": 25,
+  "totalCount": 574
+ },
+ "queryString": "f=null&s=3|D&a=null&multiline=false",
+ "careerSectionUnAvailable": false,
+ "supportedLanguages": [
+  {
+   "displayName": "French",
+   "code": "fr"
+  }
+ ]
+}
