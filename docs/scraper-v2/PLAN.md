@@ -194,3 +194,11 @@ Files: `backend/services/aggregator.py`, `backend/routers/jobs.py` (`ingest_batc
 5. `workday_public_base` builds `https://{host}/recruiting/{tenant}/{site}` for `wdN.myworkdaysite.com` CxS bases. Verify that pattern live on one posting first. Then move the 23 `held_workday_url_template` values back to `workday_url_template`, enabled, and let the template test accept that host.
 6. `.gitignore`: `!backend/ingest/data/` and `!backend/ingest/data/**`, like the existing `backend/data` exception.
 7. `scripts/ats_detect.py <careers url>`: detects the ATS from URL patterns and known script tags (patterns reused from `chrome-extension/src/content/siteRegistry.ts`) and prints a registry entry. Tests use offline HTML fixtures.
+
+### Task 12: Liveness fixtures
+
+Spec section: "Dead-job detection and job lifecycle" (Required fixtures). Model: sonnet. After Task 4's fix.
+
+Files: `backend/tests/fixtures/ingest/liveness/` (new), `backend/tests/ingest/test_liveness_fixtures.py` (new).
+
+For each Tier 1 and 2 source with a liveness check (greenhouse, lever, ashby, smartrecruiters, workday, workable, recruitee, bamboohr, oracle_hcm, icims, jibe, jobbank_ca; teamtailor, taleo and successfactors fall back to the generic page check), save 3 alive and 3 dead real responses. Take the URLs from the dev branch: `active` rows on that platform for alive, `removed` rows for dead. Re-check each one live today, and keep only those whose state is unambiguous. Record each HTTP exchange the check makes (status, headers that matter, body trimmed to what the check reads, redirects) as a fixture. The test replays them through `platform_liveness.check_listing` with an httpx MockTransport and asserts every verdict: 100%, no network. Where a source cannot yield 3 dead examples today, say so in the report with the reason. Never weaken a check to make a fixture pass.
