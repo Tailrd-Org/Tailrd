@@ -1,6 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { MemoryRouter } from "react-router-dom";
-import { act, render, renderHook, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, renderHook, screen, waitFor } from "@testing-library/react";
 import type { ReactElement } from "react";
 import { ApplyTrackingProvider } from "../context/ApplyTracking";
 import { useAvailableExperienceLevels } from "../hooks/useAvailableExperienceLevels";
@@ -14,14 +14,24 @@ vi.mock("../auth/api", () => ({
   },
 }));
 
-// The bar reports what the page hands it, so the tests can read it.
+// The bar reports what the page hands it, so the tests can read it, and its two buttons
+// report a change the way the real bar does (everything it was given, one thing different).
 vi.mock("../components/JobFilterBar", () => ({
-  default: (props: { filters: { experience_level: string[] }; availableExperienceLevels?: string[] | null }) => (
+  default: (props: {
+    filters: { experience_level: string[] };
+    availableExperienceLevels?: string[] | null;
+    onChange: (filters: unknown) => void;
+  }) => (
     <div
       data-testid="job-filter-bar"
       data-levels={props.filters.experience_level.join(",")}
       data-available={props.availableExperienceLevels ? props.availableExperienceLevels.join(",") : "unknown"}
-    />
+    >
+      <button onClick={() => props.onChange({ ...props.filters, country: "CA" })}>change country</button>
+      <button onClick={() => props.onChange({ ...props.filters, experience_level: ["intern_new_grad", "mid"] })}>
+        change levels
+      </button>
+    </div>
   ),
 }));
 
@@ -65,7 +75,15 @@ async function renderJobs() {
   return renderWithProviders(<Jobs />);
 }
 
+/** waitFor with room for a busy machine: the page's requests follow its first render. */
+const settled = (check: () => void) => waitFor(check, { timeout: 5_000 });
+
 describe("Jobs page experience levels", () => {
+  beforeAll(async () => {
+    // The page pulls in most of the app. Load it once, outside any test's clock.
+    await import("../pages/Jobs");
+  }, 60_000);
+
   beforeEach(() => {
     apiGet.mockReset();
     localStorage.clear();
@@ -79,9 +97,9 @@ describe("Jobs page experience levels", () => {
       await renderJobs();
 
       // Nothing saved means Intern/New Grad plus Entry Level, and Entry Level has no jobs.
-      await waitFor(() => expect(feedLevels()).toBe("intern_new_grad"));
-      await waitFor(() => expect(lastParams("/jobs/stats")).toEqual({ experience_level: "intern_new_grad" }));
-      await waitFor(() => expect(lastParams("/jobs/sidebar")?.experience_level).toBe("intern_new_grad"));
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad"));
+      await settled(() => expect(lastParams("/jobs/stats")).toEqual({ experience_level: "intern_new_grad" }));
+      await settled(() => expect(lastParams("/jobs/sidebar")?.experience_level).toBe("intern_new_grad"));
 
       const bar = screen.getByTestId("job-filter-bar");
       expect(bar.dataset.levels).toBe("intern_new_grad");
@@ -98,7 +116,7 @@ describe("Jobs page experience levels", () => {
       mockApi({ levels: ["intern_new_grad"] });
       await renderJobs();
 
-      await waitFor(() => expect(feedLevels()).toBe("intern_new_grad"));
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad"));
       expect(lastParams("/jobs/stats")).toEqual({ experience_level: "intern_new_grad" });
     },
     20_000,
@@ -111,8 +129,39 @@ describe("Jobs page experience levels", () => {
       mockApi({ levels: ["intern_new_grad", "senior"] });
       await renderJobs();
 
-      await waitFor(() => expect(screen.getByTestId("job-filter-bar").dataset.available).toBe("intern_new_grad,senior"));
-      await waitFor(() => expect(feedLevels()).toBe("senior,intern_new_grad"));
+      await settled(() => expect(screen.getByTestId("job-filter-bar").dataset.available).toBe("intern_new_grad,senior"));
+      await settled(() => expect(feedLevels()).toBe("senior,intern_new_grad"));
+    },
+    20_000,
+  );
+
+  it(
+    "keeps the saved levels whose options are hidden when another filter changes",
+    async () => {
+      // Nothing chosen yet is saved as the default: Intern/New Grad plus Entry Level.
+      mockApi({ levels: ["intern_new_grad"] });
+      await renderJobs();
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad"));
+
+      fireEvent.click(screen.getByText("change country"));
+      await settled(() => expect(JSON.parse(localStorage.getItem(FILTER_KEY)!).country).toBe("CA"));
+      // Entry Level has no jobs yet, but it stays in the saved default for the day it does.
+      expect(JSON.parse(localStorage.getItem(FILTER_KEY)!).experience_level).toEqual(["intern_new_grad", "entry"]);
+      expect(feedLevels()).toBe("intern_new_grad");
+    },
+    20_000,
+  );
+
+  it(
+    "saves the levels when they are what changed",
+    async () => {
+      mockApi({ levels: ["intern_new_grad", "mid"] });
+      await renderJobs();
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad"));
+
+      fireEvent.click(screen.getByText("change levels"));
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad,mid"));
+      expect(JSON.parse(localStorage.getItem(FILTER_KEY)!).experience_level).toEqual(["intern_new_grad", "mid"]);
     },
     20_000,
   );
@@ -123,7 +172,7 @@ describe("Jobs page experience levels", () => {
       mockApi(new Error("Network Error"));
       await renderJobs();
 
-      await waitFor(() => expect(feedLevels()).toBe("intern_new_grad,entry"));
+      await settled(() => expect(feedLevels()).toBe("intern_new_grad,entry"));
       await act(async () => {});
       expect(apiGet).toHaveBeenCalledWith("/jobs/levels");
       expect(screen.getByTestId("job-filter-bar").dataset.available).toBe("unknown");
@@ -140,7 +189,7 @@ describe("Jobs page experience levels", () => {
       mockApi({ levels: ["intern_new_grad"] });
       await renderJobs();
 
-      await waitFor(() =>
+      await settled(() =>
         expect(lastParams("/jobs/sidebar")).toEqual({
           since: "2026-10-20T12:00:00.000Z",
           experience_level: "intern_new_grad",

@@ -181,7 +181,7 @@ export default function Jobs() {
   const availableLevels = useAvailableExperienceLevels();
   // The levels the feed, the stats and the rail use: the saved ones that still have an
   // option. A saved level whose option is hidden is dropped here, so it never works as
-  // an invisible filter; the saved list itself is only rewritten when a filter changes.
+  // an invisible filter; the saved list keeps it until the levels are changed.
   const experienceLevels = useMemo(
     () => experienceLevelsOnOffer(aggFilters.experience_level, availableLevels),
     [aggFilters.experience_level, availableLevels],
@@ -507,7 +507,16 @@ export default function Jobs() {
           <JobFilterBar
             filters={viewFilters}
             availableExperienceLevels={availableLevels}
-            onChange={(newFilters) => { setAggFilters(newFilters); setPage(1); }}
+            onChange={(newFilters) => {
+              // The bar only knows the levels on offer. Unless the levels were changed
+              // there, the saved ones stay, hidden options included: they come back
+              // into the default if jobs of that level are stored later.
+              const levelsChanged = newFilters.experience_level.join(",") !== experienceKey;
+              setAggFilters(
+                levelsChanged ? newFilters : { ...newFilters, experience_level: aggFilters.experience_level },
+              );
+              setPage(1);
+            }}
           />
         </div>
         {quickFilter && (
