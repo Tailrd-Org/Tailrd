@@ -241,9 +241,17 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
     """Every posting on one iCIMS portal, newest first, unfiltered.
 
     Returns (listings, complete, total). The portal gives no count, so ``total``
-    is the postings listed. ``complete`` needs the crawl to have run to the last
-    page (not the deadline or the page cap), the page count to have stayed the
-    same, and every card to have been readable."""
+    is the postings listed and the evidence that the whole list was read is the
+    pager the portal prints on every page, "Page X of Y". ``complete`` is True
+    only when all of these hold:
+    - every page carried that pager, X was the page asked for (a portal or CDN
+      that ignores ``pr`` serves page 1 again), and Y was the same on every page;
+    - the walk reached page Y, not the deadline or the page cap, and no page
+      repeated postings already seen;
+    - every card was readable, and at least one posting was listed.
+    A page without the pager, a page that is not the page asked for, a card-less
+    page before the last, and an empty first page (which nothing tells from a
+    search that hiccuped) all read as partial, never as a takedown."""
     host = _host(slug, config)
     if not await http.robots_allowed(client, _page_url(host, 0)):
         raise PermissionError(f"icims/{slug}: {host} robots.txt does not allow TailrdBot to read its job search")
@@ -251,7 +259,7 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
     seen: set[str] = set()
     page_counts: set[int] = set()
     unreadable = 0
-    ended = False
+    ended = broken = unmarked = False
     for page in range(MAX_PAGES):
         if page >= HEAD_PAGES and deadline is not None and time.monotonic() >= deadline:
             break
@@ -267,10 +275,11 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
                 raise RuntimeError(f"icims/{slug}: {host} lists postings in a layout this adapter does not read")
             if page == 0 and 'id="searchForm"' not in body:
                 raise RuntimeError(f"icims/{slug}: {host} did not answer with an iCIMS job search page")
-            # A portal with no postings, or the page after the last one. An
-            # empty page before the last one the portal promised is a failed read.
-            ended = not page_counts or page >= max(page_counts)
+            # Past the last page the pager promised, the walk is over. Anywhere else a
+            # card-less page is an empty first page or a failed read.
+            ended = page > 0 and bool(page_counts) and page >= max(page_counts)
             break
+        fresh = 0
         for card in cards:
             job = _to_job(card, f"https://{host}", slug, company_name)
             if job is None:
@@ -278,13 +287,23 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
             elif job.url not in seen:  # a posting added mid-crawl shifts one onto the next page
                 seen.add(job.url)
                 jobs.append(job)
-        of = _PAGE_OF_RE.search(body)
-        if of:
-            page_counts.add(int(of.group(2)))
-            if page + 1 >= int(of.group(2)):
-                ended = True
+                fresh += 1
+        pager = _PAGE_OF_RE.search(body)
+        if pager is None:
+            unmarked = True  # nothing says which page this is or how many there are
+        else:
+            page_counts.add(int(pager.group(2)))
+            if int(pager.group(1)) != page + 1:
+                broken = True  # the portal served another page than the one asked for
                 break
-    complete = ended and len(page_counts) <= 1 and not unreadable
+        if not fresh:
+            broken = True  # the same postings again: the portal is not honouring pr
+            break
+        if pager is not None and page + 1 >= int(pager.group(2)):
+            ended = True
+            break
+    complete = (ended and not broken and not unmarked and len(page_counts) == 1 and not unreadable
+                and bool(jobs))
     return jobs, complete, len(jobs)
 
 
@@ -355,10 +374,11 @@ async def check_alive(client: httpx.AsyncClient, url: str) -> LivenessResult:
         return LivenessResult(DEAD, f"icims_{response.status_code}", True)
     if response.status_code != 200:
         return LivenessResult(UNKNOWN, f"http_{response.status_code}")
-    if _job_posting(response.text) is not None:
-        return LivenessResult(ALIVE, "icims_job_posting", True)
-    # A portal that answers 200 with a "no longer available" notice instead of 410 is
-    # read the way the generic page check reads it.
+    # A portal that answers 200 with a "no longer available" notice instead of 410 is read
+    # the way the generic page check reads it, and before the JSON-LD: a closed page can
+    # still carry the block, and alive here would revive a row that is closed.
     if says_dead(response.text):
         return LivenessResult(DEAD, "icims_body_closed")
+    if _job_posting(response.text) is not None:
+        return LivenessResult(ALIVE, "icims_job_posting", True)
     return LivenessResult(UNKNOWN, "icims_no_posting_data")

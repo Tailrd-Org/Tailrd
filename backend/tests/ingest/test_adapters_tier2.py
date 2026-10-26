@@ -1,5 +1,5 @@
 """Tier 2 adapters (scraper v2 Task 4): Oracle Cloud Recruiting, iCIMS, Taleo,
-SuccessFactors.
+SuccessFactors and Jibe.
 
 Each adapter is tested offline against saved real responses (trimmed, in
 backend/tests/fixtures/ingest/) served through httpx.MockTransport, with a fake
@@ -75,15 +75,25 @@ VANDERBILT = {"host": "ecsr.fa.us2.oraclecloud.com", "site": "CX_1"}
 JPMORGAN = {"host": "jpmc.fa.oraclecloud.com", "site": "CX_1001"}
 
 
+_MATCHES_ROWS = object()  # a count equal to the number of rows
+
+
 class OracleServer:
     """The finder, answering like the live API: the requested slice of
-    ``requisitions`` under a count. ``totals`` scripts the count per request
-    (the last repeats), for a board that changes while it is read."""
+    ``requisitions`` under a count. ``total`` is the count as the reply carries
+    it (a number, None for null, a word) and ``omit_total`` drops the field;
+    ``totals`` scripts the count per request (the last repeats), for a board
+    that changes while it is read; ``ignore_offset`` serves the first window
+    whatever the offset; ``empty_offsets`` answers those offsets with no rows."""
 
-    def __init__(self, requisitions, *, total=None, totals=None, template="oracle_hcm_list_dtcc.json"):
+    def __init__(self, requisitions, *, total=_MATCHES_ROWS, totals=None, omit_total=False, ignore_offset=False,
+                 empty_offsets=(), template="oracle_hcm_list_dtcc.json"):
         self.requisitions = list(requisitions)
-        self.total = len(self.requisitions) if total is None else total
+        self.total = len(self.requisitions) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.ignore_offset = ignore_offset
+        self.empty_offsets = set(empty_offsets)
         self.template = template
         self.requests: list[httpx.Request] = []
 
@@ -96,9 +106,15 @@ class OracleServer:
             total = self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]
         else:
             total = self.total
+        start = 0 if self.ignore_offset else offset
+        rows = [] if offset in self.empty_offsets else self.requisitions[start:start + limit]
         body = fixture(self.template)
-        body["items"][0].update(TotalJobsCount=total, Offset=offset, Limit=limit,
-                                requisitionList=self.requisitions[offset:offset + limit])
+        item = body["items"][0]
+        item.update(Offset=offset, Limit=limit, requisitionList=rows)
+        if self.omit_total:
+            item.pop("TotalJobsCount", None)
+        else:
+            item["TotalJobsCount"] = total
         return httpx.Response(200, json=body)
 
     def offsets(self) -> list[int]:
@@ -107,6 +123,14 @@ class OracleServer:
 
 def dtcc_requisitions() -> list[dict]:
     return fixture("oracle_hcm_list_dtcc.json")["items"][0]["requisitionList"]
+
+
+def oracle_rows(count: int, *, repeat: int = 0) -> list[dict]:
+    """``count`` minimal requisitions in the finder's shape; the first ``repeat``
+    of them come round again at the end, as the index lists a posting open in two places."""
+    rows = [{"Id": str(1000 + i), "Title": f"Analyst {i}", "PrimaryLocation": "Toronto, ON, Canada",
+             "PostedDate": "2026-10-24", "secondaryLocations": []} for i in range(count)]
+    return rows + rows[:repeat]
 
 
 async def oracle_list(server, config=DTCC, **kwargs):
@@ -205,7 +229,7 @@ async def test_oracle_uses_the_job_family_as_department_and_every_commitment_wor
 
 
 @pytest.mark.asyncio
-async def test_oracle_pages_to_the_end_and_lists_a_duplicate_row_once(clock, monkeypatch):
+async def test_oracle_lists_a_row_the_index_repeats_once_and_a_small_board_is_then_not_complete(clock, monkeypatch):
     monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
     rows = dtcc_requisitions()
     rows = rows + [rows[1]]  # the index can carry an identical second row for one posting
@@ -213,17 +237,56 @@ async def test_oracle_pages_to_the_end_and_lists_a_duplicate_row_once(clock, mon
     jobs, complete, total = await oracle_list(server)
     assert server.offsets() == [0, 2, 4]
     assert all("limit=2," in str(r.url) for r in server.requests)
-    assert (len(jobs), complete, total) == (5, True, 6)
+    # Six counted, five distinct: a board under 400 must match its count exactly.
+    assert (len(jobs), complete, total) == (5, False, 6)
 
 
 @pytest.mark.asyncio
-async def test_oracle_a_count_a_little_over_the_listing_is_still_complete(clock, monkeypatch):
-    """DTCC counts 447 and lists 446, steady from the first page to the last."""
-    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
-    server = OracleServer(dtcc_requisitions(), total=6)
+async def test_oracle_a_large_board_may_miss_the_few_rows_the_index_counts_twice(clock):
+    """DTCC counts 447 and lists 446, steady from the first page to the last; Oracle
+    2,487 and 2,485; at most two on a board under 5,000, three above."""
+    server = OracleServer(oracle_rows(446, repeat=1))
     jobs, complete, total = await oracle_list(server)
-    assert server.offsets() == [0, 2, 4, 5]  # the empty page at 5 is what ends the list
-    assert (len(jobs), complete, total) == (5, True, 6)
+    assert server.offsets() == [0, 200, 400]
+    assert (len(jobs), complete, total) == (446, True, 447)
+    # 447 listed of 450: three missing is more than any measured board.
+    jobs, complete, total = await oracle_list(OracleServer(oracle_rows(447), total=450))
+    assert (len(jobs), complete, total) == (447, False, 450)
+    assert (await oracle_list(OracleServer(oracle_rows(5000), total=5003)))[1] is True
+    assert (await oracle_list(OracleServer(oracle_rows(5000), total=5004)))[1] is False
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_small_board_must_match_its_count_exactly(clock):
+    """"Reports 6, lists 1" and "reports 8, lists 3" were complete under the old floor of 5."""
+    assert (await oracle_list(OracleServer(oracle_rows(1), total=6)))[1:] == (False, 6)
+    assert (await oracle_list(OracleServer(oracle_rows(3), total=8)))[1:] == (False, 8)
+    assert (await oracle_list(OracleServer(oracle_rows(398), total=399)))[1:] == (False, 399)
+    assert (await oracle_list(OracleServer(oracle_rows(399), total=400)))[1:] == (True, 400)  # from 400 on, two may be missing
+    assert (await oracle_list(OracleServer(oracle_rows(3), total=3)))[1:] == (True, 3)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_oracle_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, monkeypatch, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(5), **count)
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2, 4, 5]  # without a trusted count only an empty page ends the walk
+    assert (len(jobs), complete, total) == (5, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_count_below_the_listing_is_a_contradiction(clock):
+    jobs, complete, total = await oracle_list(OracleServer(oracle_rows(5), total=1))
+    assert (len(jobs), complete, total) == (5, False, 1)
+
+
+def test_oracle_count_reads_only_whole_non_negative_numbers():
+    assert [oracle_hcm._count(v) for v in (7250, "7250", " 12 ", 3.0, 0, "0")] == [7250, 7250, 12, 3, 0, 0]
+    assert [oracle_hcm._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio
@@ -239,9 +302,36 @@ async def test_oracle_a_board_that_counts_postings_but_lists_none_is_incomplete(
 
 
 @pytest.mark.asyncio
-async def test_oracle_a_board_with_no_postings_is_complete_and_empty(clock):
-    jobs, complete, total = await oracle_list(OracleServer([], total=0))
-    assert (jobs, complete, total) == ([], True, 0)
+async def test_oracle_an_empty_board_is_never_called_complete(clock):
+    """An empty first page looks the same whether the board is empty or the search
+    backend hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (OracleServer([], total=0), OracleServer([], omit_total=True), OracleServer([], total=None)):
+        assert await oracle_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_oracle_an_empty_page_in_the_middle_of_the_walk_is_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(6), empty_offsets={2})
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2]
+    assert (len(jobs), complete, total) == (2, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_server_that_ignores_offset_is_stopped_and_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(6), ignore_offset=True)
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (2, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_row_it_cannot_read_makes_the_board_incomplete(clock):
+    rows = oracle_rows(4) + [{"Title": "No id"}]
+    jobs, complete, total = await oracle_list(OracleServer(rows, total=5))
+    assert (len(jobs), complete, total) == (4, False, 5)
 
 
 @pytest.mark.asyncio
@@ -670,9 +760,51 @@ async def test_icims_reads_a_relative_date_with_its_stamp_and_labels_with_colons
 
 
 @pytest.mark.asyncio
-async def test_icims_a_portal_with_no_postings_is_complete_and_empty(clock):
+async def test_icims_an_empty_first_page_is_never_called_complete(clock):
+    """A search page with the form and no cards looks the same whether the portal has
+    no postings or its search hiccuped; nothing is retired on it."""
     server = IcimsServer({0: fixture_text("icims_kinaxis_search_4.html")})
-    assert await icims_list(server) == ([], True, 0)
+    assert await icims_list(server) == ([], False, 0)
+
+
+def without_pager(pages: dict[int, str]) -> dict[int, str]:
+    """The same pages with "Page X of Y" taken out wherever it is printed."""
+    return {number: re.sub(r"Page\s+\d+\s+of\s+\d+", "", page) for number, page in pages.items()}
+
+
+@pytest.mark.asyncio
+async def test_icims_pages_without_the_pager_are_never_called_complete(clock):
+    """With no "Page X of Y" nothing says which page was served or where the list ends."""
+    jobs, complete, _ = await icims_list(IcimsServer(without_pager(kinaxis_pages())))
+    assert (len(jobs), complete) == (8, False)  # a full walk to a card-less page
+    soft = fixture_text("icims_kinaxis_search_4.html")  # a real search page with no cards
+    for hole in (1, 2):
+        pages = without_pager(kinaxis_pages())
+        pages[hole] = soft
+        jobs, complete, _ = await icims_list(IcimsServer(pages))
+        assert complete is False, hole
+
+
+def searches(server: "IcimsServer") -> list[str]:
+    """The job-search requests a server saw (robots.txt is fetched once per host per process)."""
+    return [path for path in server.paths() if path.startswith("/jobs/search")]
+
+
+@pytest.mark.asyncio
+async def test_icims_a_portal_that_ignores_pr_is_stopped_and_incomplete(clock):
+    pages = kinaxis_pages()
+    server = IcimsServer({0: pages[0], 1: pages[0], 2: pages[0]})  # "Page 1 of 3" every time
+    jobs, complete, total = await icims_list(server)
+    assert searches(server) == ["/jobs/search?pr=0&in_iframe=1", "/jobs/search?pr=1&in_iframe=1"]  # stopped at the repeat
+    assert (len(jobs), complete, total) == (3, False, 3)
+    # Page 2 served as page 1 again while page 3 would have been right.
+    jobs, complete, _ = await icims_list(IcimsServer({0: pages[0], 1: pages[0], 2: pages[2]}))
+    assert (len(jobs), complete) == (3, False)
+    # Without the pager the repeated postings give it away.
+    server = IcimsServer(without_pager({0: pages[0], 1: pages[0], 2: pages[0]}))
+    jobs, complete, _ = await icims_list(server)
+    assert searches(server) == ["/jobs/search?pr=0&in_iframe=1", "/jobs/search?pr=1&in_iframe=1"]
+    assert (len(jobs), complete) == (3, False)
 
 
 @pytest.mark.asyncio
@@ -872,6 +1004,18 @@ async def test_icims_check_alive_is_dead_on_410_the_portals_word_for_gone(clock)
 
 
 @pytest.mark.asyncio
+async def test_icims_check_alive_reads_a_closed_notice_before_trusting_the_json_ld(clock):
+    """A closed page can still carry the JobPosting block; alive here would revive a closed row."""
+    closed = fixture_text("icims_kinaxis_job.html").replace(
+        "<body></body>", "<body><h1>Sorry</h1><p>This job is no longer available.</p></body>")
+    assert "JobPosting" in closed
+    server = IcimsServer(postings={KINAXIS_JOB: (200, closed)})
+    async with client_for(server) as client:
+        result = await icims.check_alive(client, "https://careers-kinaxis.icims.com" + KINAXIS_JOB)
+    assert (result.verdict, result.reason, result.authoritative) == (DEAD, "icims_body_closed", False)
+
+
+@pytest.mark.asyncio
 async def test_icims_check_alive_does_not_guess(clock):
     base = "https://careers-kinaxis.icims.com"
     server = IcimsServer(postings={
@@ -966,14 +1110,24 @@ class TaleoServer:
     the JSON search by ``pageNo`` and posting pages by job id. ``rows`` are the
     requisitions in order; ``size`` is the page size and ``total`` the count the
     search reports, which may differ from the rows (hidden requisitions).
-    ``totals`` scripts the count per search request (the last repeats)."""
+    ``total`` may also be None (null) or a word, and ``omit_total`` drops the field;
+    ``totals`` scripts the count per search request (the last repeats);
+    ``reported_size`` is the page size the reply claims, ``ignore_page`` serves
+    window 1 whatever the page (echoing it, as the live server would), ``no_echo``
+    leaves ``currentPageNo`` out and ``empty_pages`` answers those pages empty."""
 
-    def __init__(self, rows=None, *, page=None, size=25, total=None, totals=None, robots=None, details=None):
+    def __init__(self, rows=None, *, page=None, size=25, total=_MATCHES_ROWS, totals=None, omit_total=False,
+                 reported_size=None, ignore_page=False, no_echo=False, empty_pages=(), robots=None, details=None):
         self.rows = list(rows or [])
         self.page = fixture_text("taleo_jobsearch_bayshore.html") if page is None else page
         self.size = size
-        self.total = len(self.rows) if total is None else total
+        self.total = len(self.rows) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.reported_size = reported_size
+        self.ignore_page = ignore_page
+        self.no_echo = no_echo
+        self.empty_pages = set(empty_pages)
         self.robots = robots
         self.details = details or {}
         self.requests: list[httpx.Request] = []
@@ -988,10 +1142,16 @@ class TaleoServer:
         if path == "/careersection/rest/jobboard/searchjobs":
             number = json.loads(request.content)["pageNo"]
             total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
-            start = (number - 1) * self.size
+            served = 1 if self.ignore_page else number
+            start = (served - 1) * self.size
+            paging = {"pageSize": self.reported_size or self.size}
+            if not self.no_echo:
+                paging["currentPageNo"] = served
+            if not self.omit_total:
+                paging["totalCount"] = total
             return httpx.Response(200, json={
-                "requisitionList": self.rows[start:start + self.size], "facetResults": [],
-                "pagingData": {"currentPageNo": number, "pageSize": self.size, "totalCount": total},
+                "requisitionList": [] if number in self.empty_pages else self.rows[start:start + self.size],
+                "facetResults": [], "pagingData": paging,
                 "queryString": "", "careerSectionUnAvailable": False, "supportedLanguages": ["en"]})
         if path.endswith("/jobdetail.ftl"):
             status, body = self.details.get(request.url.params.get("job"), (404, ""))
@@ -1137,8 +1297,91 @@ async def test_taleo_a_row_it_cannot_read_makes_the_board_incomplete(clock):
 
 
 @pytest.mark.asyncio
-async def test_taleo_a_board_with_no_postings_is_complete_and_empty(clock):
-    assert await taleo_list(TaleoServer([])) == ([], True, 0)
+async def test_taleo_an_empty_board_is_never_called_complete(clock):
+    """An empty first page looks the same whether the board is empty or the search
+    hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (TaleoServer([]), TaleoServer([], total=None), TaleoServer([], omit_total=True)):
+        assert await taleo_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_taleo_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    server = TaleoServer(taleo_rows(100), **count)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1]  # nothing says how far to read
+    assert (len(jobs), complete, total) == (25, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_claimed_page_size_of_1000_does_not_end_the_walk_after_one_page(clock):
+    """A page is 25 requisitions; believing the claim read one page of four as the whole."""
+    server = TaleoServer(taleo_rows(100), reported_size=1000)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3, 4]
+    assert (len(jobs), complete, total) == (100, True, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_server_that_ignores_pageno_is_stopped_and_incomplete(clock):
+    """It echoes page 1 each time (the reply says which page it is)."""
+    server = TaleoServer(taleo_rows(100), ignore_page=True)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2]
+    assert (len(jobs), complete, total) == (25, False, 100)
+    # And when the reply does not say, the repeated postings give it away.
+    server = TaleoServer(taleo_rows(100), ignore_page=True, no_echo=True)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2]
+    assert (len(jobs), complete, total) == (25, False, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_rows_after_an_empty_page_are_a_hole_and_incomplete(clock):
+    server = TaleoServer(taleo_rows(100), empty_pages={2})
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]  # one empty page is looked past, and page 3 has rows
+    assert (len(jobs), complete, total) == (50, False, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_two_empty_pages_in_a_row_are_a_tail_and_then_the_coverage_decides(clock):
+    server = TaleoServer(taleo_rows(100), empty_pages={2, 3})
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]
+    assert (len(jobs), complete, total) == (25, False, 100)  # 25 of 100 is not enough, tail or not
+
+
+@pytest.mark.asyncio
+async def test_taleo_the_requisitions_a_visitor_cannot_see_at_the_end_of_the_list_are_not_a_hole(clock):
+    """Bayshore's list: 438 visible of 567, pages 20 to 23 of 23 empty."""
+    server = TaleoServer(taleo_rows(438), total=567)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers()[-3:] == [18, 19, 20]  # two empty pages in a row end the walk
+    assert (len(jobs), complete, total) == (438, True, 567)
+
+
+@pytest.mark.asyncio
+async def test_taleo_every_page_empty_beside_a_count_is_stopped_at_once(clock):
+    server = TaleoServer([], total=574)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1]  # not 23 requests for nothing
+    assert (jobs, complete, total) == ([], False, 574)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_walk_that_lists_under_three_fifths_of_the_count_is_incomplete(clock):
+    """Live career sections list 77% to 100% of the count (Bayshore 445 of 574)."""
+    assert (await taleo_list(TaleoServer(taleo_rows(15), total=25)))[1:] == (True, 25)
+    assert (await taleo_list(TaleoServer(taleo_rows(14), total=25)))[1:] == (False, 25)
+    assert (await taleo_list(TaleoServer(taleo_rows(1), total=2)))[1:] == (False, 2)
+
+
+def test_taleo_count_reads_only_whole_non_negative_numbers():
+    assert [taleo._count(v) for v in (574, "574", " 25 ", 3.0, 0, "0")] == [574, 574, 25, 3, 0, 0]
+    assert [taleo._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio
@@ -1450,7 +1693,7 @@ async def test_successfactors_a_row_it_cannot_read_makes_the_board_incomplete(cl
 @pytest.mark.asyncio
 async def test_successfactors_a_site_without_a_count_cannot_be_called_complete(clock):
     jobs, complete, total = await sf_list(SfServer({0: sf_page(sf_rows()[:3], 0, 3, label=False)}))
-    assert (len(jobs), complete, total) == (3, False, 3)
+    assert (len(jobs), complete, total) == (3, False, 0)  # the site reported no count
 
 
 @pytest.mark.asyncio
@@ -1461,9 +1704,55 @@ async def test_successfactors_follows_next_page_links_when_the_site_shows_no_cou
     assert len(jobs) == 6 and not complete
 
 
+def sf_empty_site(label: str = "") -> str:
+    """The real no-results page of Recruiting Marketing with its result label
+    replaced by ``label`` ("" removes it): what a site with no postings answers."""
+    return re.sub(r'<div class="pagination-label-row">.*?</div>', f'<div class="pagination-label-row">{label}</div>',
+                  fixture_text("successfactors_search_empty.html"), flags=re.S)
+
+
 @pytest.mark.asyncio
-async def test_successfactors_a_site_with_no_postings_is_complete_and_empty(clock):
-    assert await sf_list(SfServer({})) == ([], True, 0)
+async def test_successfactors_an_empty_site_is_never_called_complete(clock):
+    """No postings and no count looks the same whether the site is empty or its
+    search hiccuped, so nothing is retired on it."""
+    zero = '<span class="paginationLabel">Results <b>1 – 0</b> of <b>0</b></span>'
+    for page in (sf_empty_site(), sf_empty_site(zero)):
+        assert await sf_list(SfServer({0: page})) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_first_page_that_counts_postings_but_shows_none_raises(clock):
+    """Read as an empty site it would retire every stored posting."""
+    renamed = sf_page(sf_rows()[:3], 0, 175).replace('class="data-row"', 'class="result-item"')
+    cards = ('<html><body><div class="pagination-label-row"><span class="paginationLabel">Results <b>1 – 25</b> '
+             'of <b>175</b></span></div><div class="cards"><div class="card">x</div></div></body></html>')
+    past_the_end = fixture_text("successfactors_search_empty.html")  # the real page after the last one: it still says "of 35"
+    for page in (renamed, cards, past_the_end):
+        with pytest.raises(RuntimeError, match=r"counts \d+ postings in a layout this adapter does not read"):
+            await sf_list(SfServer({0: page}))
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_zero_count_beside_rows_or_a_count_below_the_listing_is_incomplete(clock):
+    rows = sf_rows()[:3]
+    assert (await sf_list(SfServer({0: sf_page(rows, 0, 0)})))[1:] == (False, 0)
+    assert (await sf_list(SfServer({0: sf_page(rows, 0, 2)})))[1:] == (False, 2)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_server_that_ignores_startrow_is_stopped_and_incomplete(clock):
+    rows = sf_rows()
+    server = SfServer({0: sf_page(rows[:3], 0, 8), 3: sf_page(rows[:3], 3, 8)})
+    jobs, complete, total = await sf_list(server)
+    assert server.starts() == [0, 3]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (3, False, 8)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_maintenance_page_in_the_middle_of_the_walk_is_incomplete(clock):
+    pages = {0: sf_page(sf_rows()[:3], 0, 8), 3: "<html><body>Service temporarily unavailable</body></html>"}
+    jobs, complete, total = await sf_list(SfServer(pages))
+    assert (len(jobs), complete, total) == (3, False, 8)
 
 
 @pytest.mark.asyncio
@@ -1603,13 +1892,20 @@ JIBE_ROBOTS = fixture_text("jibe_robots.txt")  # the real file: "Allow: /" and "
 
 class JibeServer:
     """One Jibe career site: robots.txt and the jobs API, which answers the
-    requested ``page`` of ``limit`` postings under a ``totalCount``. ``totals``
-    scripts the count per request (the last repeats). Records every request."""
+    requested ``page`` of ``limit`` postings under a ``totalCount``. ``total`` is
+    the count as the reply carries it (a number, None for null, a word) and
+    ``omit_total`` drops the field; ``totals`` scripts the count per request (the
+    last repeats); ``ignore_page`` serves page 1 whatever the page; ``empty_pages``
+    answers those pages with no postings. Records every request."""
 
-    def __init__(self, items=None, *, total=None, totals=None, robots=JIBE_ROBOTS):
+    def __init__(self, items=None, *, total=_MATCHES_ROWS, totals=None, omit_total=False, ignore_page=False,
+                 empty_pages=(), robots=JIBE_ROBOTS):
         self.items = list(items or [])
-        self.total = len(self.items) if total is None else total
+        self.total = len(self.items) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.ignore_page = ignore_page
+        self.empty_pages = set(empty_pages)
         self.robots = robots
         self.requests: list[httpx.Request] = []
 
@@ -1620,9 +1916,12 @@ class JibeServer:
         if request.url.path == "/api/jobs":
             page, limit = int(request.url.params["page"]), int(request.url.params["limit"])
             total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
-            start = (page - 1) * limit
-            return httpx.Response(200, json={"jobs": self.items[start:start + limit], "totalCount": total, "count": total,
-                                             "locations": [], "filter": {}})
+            start = 0 if self.ignore_page else (page - 1) * limit
+            body = {"jobs": [] if page in self.empty_pages else self.items[start:start + limit],
+                    "locations": [], "filter": {}}
+            if not self.omit_total:
+                body.update(totalCount=total, count=total)
+            return httpx.Response(200, json=body)
         return httpx.Response(404)
 
     def pages(self) -> list[int]:
@@ -1725,8 +2024,63 @@ async def test_jibe_a_posting_it_cannot_read_makes_the_board_incomplete(clock):
 
 
 @pytest.mark.asyncio
-async def test_jibe_a_site_with_no_postings_is_complete_and_empty(clock):
-    assert await jibe_list(JibeServer([])) == ([], True, 0)
+async def test_jibe_an_empty_site_is_never_called_complete(clock):
+    """An empty first page looks the same whether the site is empty or its search
+    backend hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (JibeServer([], total=0), JibeServer([], omit_total=True), JibeServer([], total=None)):
+        assert await jibe_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_jibe_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, monkeypatch, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items(), **count)
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2, 3]  # without a trusted count only an empty page ends the walk
+    assert (len(jobs), complete, total) == (4, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_count_below_the_listing_is_a_contradiction(clock):
+    jobs, complete, total = await jibe_list(JibeServer(jibe_items(), total=1))
+    assert (len(jobs), complete, total) == (4, False, 1)
+
+
+@pytest.mark.asyncio
+async def test_jibe_an_empty_page_in_the_middle_of_the_walk_is_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 1)
+    server = JibeServer(jibe_items(), empty_pages={2})
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2]
+    assert (len(jobs), complete, total) == (1, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_server_that_ignores_page_is_stopped_and_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items(), ignore_page=True)
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (2, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_crawl_delay_no_crawl_can_wait_out_is_refused_before_any_request(clock):
+    server = JibeServer(jibe_items(), robots="User-agent: *\nAllow: /\nCrawl-delay: 3600\n")
+    with pytest.raises(RuntimeError, match="crawl delay of 3600"):
+        await jibe_list(server)
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+    http._robots.clear()  # robots.txt is read once per host per process
+    ok = JibeServer(jibe_items(), robots="User-agent: *\nCrawl-delay: 60\n")
+    assert (await jibe_list(ok))[1] is True  # a minute is the longest it will wait
+
+
+def test_jibe_count_reads_only_whole_non_negative_numbers():
+    assert [jibe._count(v) for v in (253, "253", " 7 ", 3.0, 0, "0")] == [253, 253, 7, 3, 0, 0]
+    assert [jibe._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio

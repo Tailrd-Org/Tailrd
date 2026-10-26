@@ -223,47 +223,108 @@ async def _search(client: httpx.AsyncClient, slug: str, host: str, portal: str, 
     return data
 
 
+def _count(value) -> int | None:
+    """A reported number as a non-negative integer, or None when the reply gives
+    none that can be trusted: absent, null, a boolean, a word, a negative or a
+    fraction. A missing count used to read as 0 and end the walk after one page
+    as complete, so a bad count must never pass for a small one."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, float):
+        value = int(value) if value.is_integer() else None
+    elif isinstance(value, str):
+        value = int(value) if value.strip().isdigit() else None
+    return value if isinstance(value, int) and value >= 0 else None
+
+
 async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
                     config: dict, deadline: float | None = None) -> tuple[list[ATSJob], bool, int]:
     """Every public posting on one career section, newest first, unfiltered.
 
     Returns (listings, complete, total_the_source_reported). The reported count
-    runs well above what is listed (City of Edmonton reports 56 and lists 44):
-    it includes requisitions a visitor is not shown, and each page is a fixed
-    window over all of them, so a page can come back short. A count is
-    therefore no test of completeness. ``complete`` means every page the count
-    implies was read, the count stayed the same throughout, and every row was
-    readable; a posting removed between two page requests is the one gap that
-    cannot be seen, and is put right by the next crawl."""
+    runs well above what is listed (City of Edmonton reports 56 and lists 44,
+    Bayshore 574 and 445): it includes requisitions a visitor is not shown, and
+    each page is a fixed window over all of them, so a page can come back short.
+    The count is therefore an upper bound, not a size to match, and the evidence
+    that the whole list was read is the walk itself. ``complete`` is True only
+    when all of these hold:
+    - every reply gave a count, a whole number above zero, the same on every page
+      (a posting removed between two page requests changes it, and shifts the
+      list up by one so a live posting is skipped);
+    - every page the count implies was read, each reply says it is the page asked
+      for (``currentPageNo``) and none repeated postings already seen, so the
+      server honoured ``pageNo``; no empty page was followed by rows (the
+      requisitions a visitor cannot see sit together at the end, so the walk may
+      end on the last page the count implies or on a second empty page in a row,
+      never on one empty page with rows behind it); and the crawl was not cut by
+      the deadline or the page cap;
+    - every row was readable;
+    - at least three fifths of the count are listed (measured: 77.5% to 100% on
+      the verified career sections), so a walk that read almost nothing cannot
+      pass on page arithmetic alone.
+    A missing, null or zero count, an empty board and an empty first page beside
+    a count all read as partial, never as a takedown."""
     host, section, portal = _board(slug, config)
     if not await http.robots_allowed(client, _page_url(host, section)):
         raise PermissionError(f"taleo/{slug}: {host} robots.txt does not allow TailrdBot to read its career section")
     portal = portal or await _discover_portal(client, slug, host, section)
     jobs: list[ATSJob] = []
     seen: set[str] = set()
-    totals: set[int] = set()
+    counts: list[int | None] = []
     unreadable = 0
-    ended = False
+    ended = broken = False
+    after_empty = False  # the previous page held no rows
     for number in range(1, MAX_PAGES + 1):
         if number > HEAD_PAGES and deadline is not None and time.monotonic() >= deadline:
             break
         data = await _search(client, slug, host, portal, number)
         paging = data["pagingData"]
-        total = int(paging.get("totalCount") or 0)
-        size = int(paging.get("pageSize") or PAGE_SIZE)
-        totals.add(total)
-        for row in data["requisitionList"]:
+        count = _count(paging.get("totalCount"))
+        counts.append(count)
+        current = _count(paging.get("currentPageNo"))
+        if current is not None and current != number:
+            broken = True  # the server answered a different page than the one asked for
+            break
+        rows = data["requisitionList"]
+        fresh = 0
+        for row in rows:
             job = _to_job(row, host, section, slug, company_name) if isinstance(row, dict) else None
             if job is None:
                 unreadable += 1
             elif job.url not in seen:
                 seen.add(job.url)
                 jobs.append(job)
-        if number * size >= total:
-            ended = True  # asking past the last page returns the last page again
+                fresh += 1
+        # A reply may claim any page size; believe no more than the 25 a page is,
+        # unless this page really held more.
+        size = min(_count(paging.get("pageSize")) or PAGE_SIZE, max(PAGE_SIZE, len(rows)))
+        pages = -(-count // size) if count else None  # how many pages the count implies
+        if pages is None:
+            break  # no usable count: nothing says how far to read, and it cannot be complete
+        if not rows:
+            if number >= pages or after_empty:
+                ended = True  # the last page the count implies, or a second empty page in a row
+                break
+            if number == 1:
+                broken = True  # nothing at all beside a count
+                break
+            # The requisitions a visitor cannot see sit together at the end of the
+            # list (Bayshore: pages 20 to 23 of 23 are empty), so one empty page
+            # is a tail only if the next is empty too; rows after it are a hole.
+            after_empty = True
+            continue
+        if after_empty or not fresh:
+            broken = True  # rows after an empty page, or the same postings again (pageNo ignored)
             break
-    complete = ended and len(totals) == 1 and not unreadable
-    return jobs, complete, max(totals, default=0)
+        if number >= pages:
+            ended = True
+            break
+    known = [count for count in counts if count is not None]
+    total = max(known, default=0)
+    steady = bool(counts) and len(known) == len(counts) and len(set(known)) == 1
+    complete = (ended and not broken and not unreadable and steady and total > 0
+                and len(seen) * 5 >= total * 3)
+    return jobs, complete, total
 
 
 def _has_job_data(page: str) -> bool:
