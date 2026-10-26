@@ -510,12 +510,21 @@ def _title_edited_before(change_log) -> bool:
 def refresh_known_listings(db: Session, board_key: str, jobs: list,
                            now: datetime.datetime | None = None,
                            board_country: str = "", *,
-                           description_max_chars: int | None = None) -> tuple[list, dict]:
+                           description_max_chars: int | None = None,
+                           listed_urls: set[str] | None = None) -> tuple[list, dict]:
     """Split a board's filtered jobs into (new, stats) and refresh the ones
     already stored: detect edits (title/location/salary/description) into
     ``change_log``, update the structured fields, adopt legacy rows into
     ``board_key``, and give a crawler row the registry's company name.
     ``jobs`` are ats_scraper.ATSJob. Commits.
+
+    A row is matched by its URL, and failing that by the source's own id
+    (external_id) on this board: Recruitee, Teamtailor, SmartRecruiters and
+    Workday URLs carry the title, so a retitle moves the URL, and the row
+    moves with it ("moved") instead of closing beside a new twin that saved
+    jobs and alerts never point at. Only an id one listing and one row carry,
+    and only a row whose own URL the board no longer lists (``listed_urls``,
+    the whole listing, filtered-out postings included).
 
     Change detection is explicit column compares plus a description hash,
     a re-crawl that didn't carry the description (SmartRecruiters/Workday
@@ -548,31 +557,45 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
 
     now = now or _utcnow()
     stats = {"refreshed": 0, "edited": 0, "salary_removed": 0,
-             "reparsed": 0, "recountried": 0, "retitled": 0, "relabeled": 0}
+             "reparsed": 0, "recountried": 0, "retitled": 0, "relabeled": 0, "moved": 0}
     if not jobs:
         return [], stats
 
     by_url = {job.url: job for job in jobs if job.url}
     existing: dict[str, tuple] = {}
     urls = list(by_url.keys())
+    columns = (
+        ScrapedJob.id, ScrapedJob.url, ScrapedJob.title,
+        ScrapedJob.location, ScrapedJob.salary_min, ScrapedJob.raw_hash,
+        ScrapedJob.edit_count, ScrapedJob.change_log,
+        ScrapedJob.board_key, ScrapedJob.external_id,
+        ScrapedJob.country, ScrapedJob.city, ScrapedJob.region,
+        ScrapedJob.location_search, ScrapedJob.title_norm,
+        ScrapedJob.experience_level, ScrapedJob.source_platform,
+        ScrapedJob.company, ScrapedJob.experience_years_required,
+        ScrapedJob.salary_max, ScrapedJob.salary_currency, ScrapedJob.salary_period,
+    )
     for chunk in _chunks(urls):
-        found = (
-            db.query(
-                ScrapedJob.id, ScrapedJob.url, ScrapedJob.title,
-                ScrapedJob.location, ScrapedJob.salary_min, ScrapedJob.raw_hash,
-                ScrapedJob.edit_count, ScrapedJob.change_log,
-                ScrapedJob.board_key, ScrapedJob.external_id,
-                ScrapedJob.country, ScrapedJob.city, ScrapedJob.region,
-                ScrapedJob.location_search, ScrapedJob.title_norm,
-                ScrapedJob.experience_level, ScrapedJob.source_platform,
-                ScrapedJob.company, ScrapedJob.experience_years_required,
-                ScrapedJob.salary_max, ScrapedJob.salary_currency, ScrapedJob.salary_period,
-            )
-            .filter(ScrapedJob.url.in_(chunk))
-            .all()
-        )
-        for row in found:
+        for row in db.query(*columns).filter(ScrapedJob.url.in_(chunk)).all():
             existing[row[1]] = row
+
+    # The listings no row has by URL, by the id their row would carry. An id
+    # two listings share names neither of them.
+    unmatched: dict[str, list[str]] = {}
+    for url, job in by_url.items():
+        if url not in existing and job.external_id:
+            unmatched.setdefault(stored_external_id(board_key, job.external_id), []).append(url)
+    by_external = {ext: found[0] for ext, found in unmatched.items() if len(found) == 1}
+    listed = set(listed_urls or ()) | set(by_url)
+    for chunk in _chunks(sorted(by_external)):
+        found = (db.query(*columns)
+                 .filter(ScrapedJob.board_key == board_key, ScrapedJob.external_id.in_(chunk))
+                 .all())
+        carriers = Counter(row[9] for row in found)
+        for row in found:
+            # A row its board still lists under its own URL is another posting.
+            if carriers[row[9]] == 1 and row[1] not in listed:
+                existing[by_external[row[9]]] = row
 
     new_jobs = [job for url, job in by_url.items() if url not in existing]
 
@@ -580,7 +603,7 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
 
     seen_only: list[int] = []
     for url, row in existing.items():
-        (row_id, _url, old_title, old_location, old_salary_min, old_hash,
+        (row_id, old_url, old_title, old_location, old_salary_min, old_hash,
          edit_count, change_log, old_board_key, old_external_id, old_country,
          old_city, old_region, old_search, old_title_norm, old_level,
          source_platform, old_company, old_years, old_salary_max, old_currency,
@@ -593,6 +616,10 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
         years = taxonomy.years_required(description) if description else old_years
 
         updates: dict = {"last_seen_at": now}
+        if old_url != url:
+            # Found by its external_id: the posting's URL changed shape.
+            updates["url"] = url
+            stats["moved"] += 1
         if not old_board_key:
             updates["board_key"] = board_key
         if job.external_id and not old_external_id:

@@ -929,14 +929,17 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     totals["urls_migrated"] += migrate_smartrecruiters_urls(db, snapshot)
 
     # Re-confirm known listings (and detect edits, re-deriving the fields an
-    # edit moves); get the new ones.
+    # edit moves); get the new ones. A known posting whose URL changed shape
+    # (a retitle) is found by its external_id and moves to the new URL.
     board_country = ctx.board_countries.get(board_key, "")
     new_jobs, refresh_stats = listing_freshness.refresh_known_listings(
         db, board_key, snapshot.jobs, board_country=board_country,
         description_max_chars=ctx.limits.description_max_chars,
+        listed_urls=snapshot.all_urls,
     )
     for key in ("refreshed", "edited", "reparsed", "recountried", "retitled", "relabeled"):
         totals[key] += refresh_stats[key]
+    totals["urls_migrated"] += refresh_stats["moved"]
     board["known"] = refresh_stats["refreshed"]
     board["new"] = len(new_jobs)
 

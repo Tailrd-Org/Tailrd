@@ -441,6 +441,80 @@ def test_a_capped_employer_costs_no_detail_requests(db_session, fake_adapter):
     assert ctx.caps["company_cap"] == 3
 
 
+# ─── A posting whose URL changed ─────────────────────────────────────────────
+
+def _offer(slug, title, offer_id=123, **kwargs):
+    """A Recruitee-style listing: the URL carries the title's slug."""
+    return ATSJob(title=title, company="Acme", location="Toronto, ON",
+                  url=f"https://acme.fakeats.test/o/{slug}", description="Ship things.",
+                  external_id=f"fakeats:acme:{offer_id}", **kwargs)
+
+
+def test_a_retitled_posting_keeps_its_row_and_moves_to_the_new_url(db_session, fake_adapter):
+    """Matched by URL only, a retitle closed the old row and inserted a new
+    one: saved jobs and alerts kept pointing at the closed row."""
+    _ingest(db_session, _snapshot([_offer("data-intern", "Data Intern")], platform="fakeats"),
+            _ctx(db_session))
+    row_id = _rows(db_session)[0].id
+    ctx = _ctx(db_session)
+
+    board = _ingest(db_session, _snapshot([_offer("data-science-intern", "Data Science Intern")],
+                                          platform="fakeats"), ctx)
+
+    rows = _rows(db_session)
+    assert (board["inserted"], board["removed"], board["known"]) == (0, 0, 1)
+    assert [(row.id, row.url, row.title) for row in rows] == [
+        (row_id, "https://acme.fakeats.test/o/data-science-intern", "Data Science Intern")]
+    assert rows[0].listing_status == listing_freshness.LISTING_ACTIVE
+    assert rows[0].change_log[-1]["changed"] == ["title"]
+    assert ctx.totals["urls_migrated"] == 1
+
+
+def test_a_closed_row_found_by_its_id_moves_and_comes_back(db_session, fake_adapter):
+    _ingest(db_session, _snapshot([_offer("analyst", "Analyst")], platform="fakeats"),
+            _ctx(db_session))
+    row = _rows(db_session)[0]
+    row.listing_status, row.closed_reason = "removed", "delisted"
+    db_session.commit()
+
+    board = _ingest(db_session, _snapshot([_offer("data-analyst", "Data Analyst")],
+                                          platform="fakeats"), _ctx(db_session))
+
+    row = _rows(db_session)[0]
+    assert (board["inserted"], board["revived"]) == (0, 1)
+    assert (row.url, row.listing_status, row.closed_reason) == (
+        "https://acme.fakeats.test/o/data-analyst", "active", None)
+
+
+def test_an_id_that_names_no_one_posting_moves_nothing(db_session, fake_adapter):
+    """Two listings, or two rows, carrying one id: it is no identity. Nor is a
+    row whose own URL the board still lists, filtered-out or not."""
+    _ingest(db_session, _snapshot([_offer("a", "Analyst A", offer_id=1),
+                                   _offer("b", "Analyst B", offer_id=2)], platform="fakeats"),
+            _ctx(db_session))
+    still_listed = _offer("c", "Analyst C", offer_id=2)  # B is listed too
+    shared = [_offer("d", "Analyst D", offer_id=1), _offer("e", "Analyst E", offer_id=1)]
+
+    board = _ingest(db_session, _snapshot([*shared, still_listed], platform="fakeats",
+                                          listed=[job.url for job in shared]
+                                          + [still_listed.url, "https://acme.fakeats.test/o/b"]),
+                    _ctx(db_session))
+
+    urls = {row.url.rsplit("/", 1)[1]: row.listing_status for row in _rows(db_session)}
+    assert board["inserted"] == 3
+    assert urls == {"a": "removed", "b": "active", "c": "active", "d": "active", "e": "active"}
+
+
+def test_an_id_on_another_board_is_another_posting(db_session, fake_adapter):
+    _ingest(db_session, _snapshot([_offer("old", "Analyst")], platform="fakeats", slug="other"),
+            _ctx(db_session))
+
+    board = _ingest(db_session, _snapshot([_offer("new", "Analyst")], platform="fakeats"),
+                    _ctx(db_session))
+
+    assert board["inserted"] == 1 and len(_rows(db_session)) == 2
+
+
 def test_source_trust_follows_the_sources_tier(db_session, fake_adapter):
     """An aggregator adapter (Tier 3: Adzuna, Jooble) re-lists other
     employers' postings: its rows are low trust, as LinkedIn's are. The
