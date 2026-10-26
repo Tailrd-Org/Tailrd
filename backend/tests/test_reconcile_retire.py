@@ -717,9 +717,9 @@ class TestOrphanEntryLevelOnly:
         assert _status(db_session, senior) == LISTING_ACTIVE
         assert _status(db_session, abroad) == LISTING_OFF_TARGET
 
-    def test_the_titles_level_is_still_given(self, db_session):
-        """The relabel of an orphan row does not depend on the mode, so a row
-        retired for its level carries the right label if it is ever restored."""
+    def test_no_level_is_relabeled_while_the_switch_is_off(self, db_session):
+        """Before scraper v2 the sweep never relabeled, and a relabel to senior
+        would put a level the switch keeps out into GET /jobs/levels."""
         intern = _row(db_session, "https://jobs.nokia.com/1", board_key="unknown",
                       title="Software Engineering Intern", location="Toronto, ON",
                       experience_level="new_grad")
@@ -729,11 +729,27 @@ class TestOrphanEntryLevelOnly:
 
         stats = retire_unreconcilable_off_target(db_session, now=NOW, entry_level_only=True)
 
+        assert stats["relabeled"] == 0
+        assert (_status(db_session, intern), self._level(db_session, intern)) == (
+            LISTING_ACTIVE, "new_grad")
+        assert (_status(db_session, senior), self._level(db_session, senior)) == (
+            LISTING_OFF_TARGET, "new_grad")
+
+    def test_every_level_mode_gives_each_row_its_titles_level(self, db_session):
+        intern = _row(db_session, "https://jobs.nokia.com/1", board_key="unknown",
+                      title="Software Engineering Intern", location="Toronto, ON",
+                      experience_level="new_grad")
+        senior = _row(db_session, "https://jobs.nokia.com/2", board_key="unknown",
+                      title="Senior Software Engineer", location="Toronto, ON",
+                      experience_level="new_grad")
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
         assert stats["relabeled"] == 2
         assert (_status(db_session, intern), self._level(db_session, intern)) == (
             LISTING_ACTIVE, "internship")
         assert (_status(db_session, senior), self._level(db_session, senior)) == (
-            LISTING_OFF_TARGET, "senior")
+            LISTING_ACTIVE, "senior")
 
     def test_the_kill_switch_rolls_the_level_retirements_back_too(self, db_session, monkeypatch):
         cleaner = _row(db_session, "https://jobs.nokia.com/1", board_key="unknown",

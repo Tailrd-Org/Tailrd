@@ -940,10 +940,12 @@ the switch the same way. `cron-freshness` passes `entry_level_only` while it is
 off: the sweep then retires an orphan row whose title is not entry level and
 never restores a row retired for its level, so merging v2 gives back nothing
 that production hid. With the switch on, and in the runner's own sweeps, only a
-location retires and the rows a level verdict hid come back. Either way each row
-the sweep checks or restores gets the level its title says (`relabeled`): no
-crawl ever relabels these rows, and a rogue-era "Senior ..." row labeled
-`new_grad` must not return to the student feed. The other level rule belongs to
+location retires and the rows a level verdict hid come back. With the switch on,
+each row the sweep checks or restores also gets the level its title says
+(`relabeled`): no crawl ever relabels these rows, and a rogue-era "Senior ..."
+row labeled `new_grad` must not return to the student feed. With the switch off
+the sweep relabels nothing, as before v2, so it cannot add a level (an
+"Associate Professor" read as senior) to the feed's options. The other level rule belongs to
 the grandfathered scrapers: `retire_senior_aggregator_rows` sets LinkedIn and
 Indeed rows with a plainly senior title (`ats_scraper.HARD_SENIOR`) off_target,
 because those searches are scoped to entry level and the spec leaves them as

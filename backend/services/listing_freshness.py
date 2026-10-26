@@ -1082,9 +1082,11 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     restore, hourly, every orphan row production retired for its level, in a
     catalogue the switch exists to keep as it was. The runner's sweeps never
     set it: the runner stores every level whatever the switch says. Only
-    "ats" rows, never a LinkedIn/Indeed page stored as one. Every row the
-    sweep checks or restores gets the level its title says in either mode
-    (_relabel_orphans, ``relabeled``).
+    "ats" rows, never a LinkedIn/Indeed page stored as one. With every level
+    in scope, every row the sweep checks or restores gets the level its title
+    says (_relabel_orphans, ``relabeled``); under ``entry_level_only`` no row
+    is relabeled, as before scraper v2, so a relabel cannot put a level the
+    switch keeps out (an "Associate Professor" read as senior) into the feed.
 
     No crawl ever brings these rows back (reconcile_board goes by board_key,
     and backfill_board_keys re-derives only a '' or NULL key), so with the
@@ -1109,7 +1111,7 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
             .all()
         )
         if held:
-            stats["relabeled"] = _relabel_orphans(db, held)
+            stats["relabeled"] = 0 if entry_level_only else _relabel_orphans(db, held)
             stats["restored"] = _restore_off_target(
                 db, now, limit, (ScrapedJob.id.in_([row[0] for row in held]),))["restored"]
         else:
@@ -1141,7 +1143,7 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     _update_ids(db, retire, {"listing_status": LISTING_OFF_TARGET,
                              "listing_status_changed_at": now})
     stats["off_target"] = len(retire)
-    stats["relabeled"] = _relabel_orphans(db, rows)
+    stats["relabeled"] = 0 if entry_level_only else _relabel_orphans(db, rows)
     if retire or stats["relabeled"]:
         db.commit()
 
@@ -1161,7 +1163,7 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
                                     location=location or "", url="", department=""))
         not in _RETIRABLE
     ]
-    relabeled = _relabel_orphans(db, held)
+    relabeled = 0 if entry_level_only else _relabel_orphans(db, held)
     stats["relabeled"] += relabeled
     if back:
         stats["restored"] = _restore_off_target(
