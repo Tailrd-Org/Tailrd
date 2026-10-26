@@ -1,0 +1,259 @@
+{
+ "source": "workable",
+ "recorded_on": "2026-10-26",
+ "check": "apply.workable.com/api/v2/accounts/<account>/jobs/<shortcode> through the Workable adapter's check_alive: 200 is open, 404 is gone",
+ "cases": [
+  {
+   "id": "workable-alive-1",
+   "truth": "alive",
+   "url": "https://apply.workable.com/mila-2/j/3696372157/",
+   "board_key": "workable:mila-2",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the Workable job API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workable_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/mila-2/jobs/3696372157",
+     "status": 200,
+     "body_json": {
+      "id": 6175523,
+      "shortcode": "3696372157",
+      "title": "Développeur.se senior, Développement d’applications IA",
+      "remote": false,
+      "location": {
+       "city": "Montreal",
+       "country": "Canada",
+       "countryCode": "CA",
+       "display": "Montréal, Québec, Canada",
+       "region": "Quebec"
+      },
+      "locations": [
+       {
+        "city": "Montreal",
+        "country": "Canada",
+        "countryCode": "CA",
+        "hidden": false,
+        "region": "Quebec"
+       }
+      ],
+      "state": "published",
+      "isInternal": false,
+      "code": "",
+      "published": "2026-10-05T00:00:00.000Z",
+      "type": "full",
+      "language": "fr",
+      "department": [
+       "Solution IA et Technologie"
+      ],
+      "accountUid": "67d4950c-133e-4c3d-a12b-6583e8de7e6d",
+      "approvalStatus": "approved",
+      "workplace": "hybrid",
+      "description": "<p><strong>À propos de Mila</strong></p><p>Fondé par le professeur Yoshua Bengio de l’Université de Montréal, Mila rassemble des chercheurs spécialisés en intelligence artificielle et plus précisément...",
+      "requirements": "<p><strong>Compétences essentielles:</strong></p><ul><li>Bac ou Maîtrise en informatique, génie logiciel, mathématique appliquée, IA, ou domaine connexe.</li><li>Minimum de 5 à 7 ans d’expérience en d...",
+      "benefits": "<p><strong>De bonnes raisons pour travailler à Mila</strong></p><ul><li>L’occasion de contribuer à une mission unique avec un impact important;</li><li>Un programme d’assurance collective complet (mal..."
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workable-alive-2",
+   "truth": "alive",
+   "url": "https://apply.workable.com/techop-solutions-international/j/E62E61493F",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-20",
+   "evidence": "the Workable job API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workable_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/techop-solutions-international/jobs/E62E61493F",
+     "status": 200,
+     "body_json": {
+      "id": 6210358,
+      "shortcode": "E62E61493F",
+      "title": "Junior Ai Prompt Engineer",
+      "remote": false,
+      "location": {
+       "city": "Washington",
+       "country": "United States",
+       "countryCode": "US",
+       "region": "District of Columbia"
+      },
+      "locations": [
+       {
+        "city": "Washington",
+        "country": "United States",
+        "countryCode": "US",
+        "hidden": false,
+        "region": "District of Columbia"
+       }
+      ],
+      "state": "published",
+      "isInternal": false,
+      "code": "",
+      "published": "2026-10-19T00:00:00.000Z",
+      "type": "full",
+      "language": "en",
+      "department": [
+       "Privacy & FOIA"
+      ],
+      "accountUid": "854ac375-e8b1-43f4-887d-b88c2df1e99b",
+      "approvalStatus": "approved",
+      "workplace": "hybrid",
+      "description": "<p>TechOp Solutions is seeking a <strong>Junior AI Prompt Engineer</strong> to support the Department of Homeland Security, In this role, you will work directly with stakeholders to&nbsp;utilize Gener...",
+      "requirements": "<ul><li>U.S. Citizenship.&nbsp;</li></ul><ul><li>Bachelor's degree or equivalent combination of education and experience.&nbsp;</li></ul><ul><li>Experience applying AI tools to solve business, operati...",
+      "benefits": ""
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workable-alive-3",
+   "truth": "alive",
+   "url": "https://apply.workable.com/export-development-canada/j/200B71DE2B/",
+   "board_key": "workable:export-development-canada",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the Workable job API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workable_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/export-development-canada/jobs/200B71DE2B",
+     "status": 200,
+     "body_json": {
+      "id": 6101417,
+      "shortcode": "200B71DE2B",
+      "title": "Poste étudiant ou nouveau diplômé - L'Équipe de la facilitation des ventes à EDC",
+      "remote": false,
+      "location": {
+       "city": "Ottawa",
+       "country": "Canada",
+       "countryCode": "CA",
+       "display": "Ottawa, Ontario, Canada",
+       "region": "Ontario"
+      },
+      "locations": [
+       {
+        "city": "Ottawa",
+        "country": "Canada",
+        "countryCode": "CA",
+        "hidden": false,
+        "region": "Ontario"
+       }
+      ],
+      "state": "published",
+      "isInternal": false,
+      "code": "6101336",
+      "published": "2026-09-17T00:00:00.000Z",
+      "type": "contract",
+      "language": "fr",
+      "department": [
+       "Exportation et développement Canada",
+       "Étudiant"
+      ],
+      "accountUid": "1298308b-3613-418e-b5e1-b3f8243944aa",
+      "approvalStatus": "approved",
+      "workplace": "hybrid",
+      "salary_from": 42900,
+      "salary_to": 56550,
+      "salary_currency_iso_code": "CAD",
+      "salary_frequency": "year",
+      "description": "<p><strong>Date limite pour postuler :&nbsp;12 octobre 2026</strong></p><p><strong>Poste d’étudiant(e) ou de nouveau diplômé(e) d’EDC – Équipe de soutien aux ventes (hiver 2027)</strong></p><p>À propo...",
+      "requirements": "",
+      "benefits": ""
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workable-dead-1",
+   "truth": "dead",
+   "url": "https://apply.workable.com/credence/j/BAD39E80E0",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-30",
+   "evidence": "the Workable job API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workable_job_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/credence/jobs/BAD39E80E0",
+     "status": 404,
+     "body_file": "workable/workable-dead-1-1.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workable-dead-2",
+   "truth": "dead",
+   "url": "https://apply.workable.com/gramian/j/D846B11BB6",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-20",
+   "evidence": "the Workable job API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workable_job_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/gramian/jobs/D846B11BB6",
+     "status": 404,
+     "body_file": "workable/workable-dead-2-1.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workable-dead-3",
+   "truth": "dead",
+   "url": "https://apply.workable.com/texas-sports-academy-main/j/A9A9F4A25A",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-04",
+   "evidence": "the Workable job API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workable_job_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://apply.workable.com/api/v2/accounts/texas-sports-academy-main/jobs/A9A9F4A25A",
+     "status": 404,
+     "body_file": "workable/workable-dead-3-1.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,199 @@
+{
+ "source": "icims",
+ "recorded_on": "2026-10-26",
+ "check": "the iCIMS adapter's check_alive: robots.txt, then the posting page: 410 is gone, 200 with a JobPosting JSON-LD block is open",
+ "cases": [
+  {
+   "id": "icims-alive-1",
+   "truth": "alive",
+   "url": "https://americas-cookmedical.icims.com/jobs/19427/intern%2c-artificial-intelligence-%26-innovation/job",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-14",
+   "evidence": "the posting page carries its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "alive",
+    "reason": "icims_job_posting",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://americas-cookmedical.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-americas-cookmedical.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://americas-cookmedical.icims.com/jobs/19427/intern%2c-artificial-intelligence-%26-innovation/job",
+     "status": 200,
+     "body_file": "icims/icims-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "icims-alive-2",
+   "truth": "alive",
+   "url": "https://careers-gdms.icims.com/jobs/75516/intern-engineer-%28electrical-or-firmware%29/job",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-21",
+   "evidence": "the posting page carries its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "alive",
+    "reason": "icims_job_posting",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers-gdms.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-careers-gdms.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://careers-gdms.icims.com/jobs/75516/intern-engineer-%28electrical-or-firmware%29/job",
+     "status": 200,
+     "body_file": "icims/icims-alive-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "icims-alive-3",
+   "truth": "alive",
+   "url": "https://careers-canada-secure.icims.com/jobs/2018/junior-software-developer/job",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-14",
+   "evidence": "the posting page carries its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "alive",
+    "reason": "icims_job_posting",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers-canada-secure.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-careers-canada-secure.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://careers-canada-secure.icims.com/jobs/2018/junior-software-developer/job",
+     "status": 200,
+     "body_file": "icims/icims-alive-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "icims-dead-1",
+   "truth": "dead",
+   "url": "https://fieldhourly-thefreshmarket.icims.com/jobs/145591/software-engineer-i/job",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-30",
+   "evidence": "the portal answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "icims_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://fieldhourly-thefreshmarket.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-fieldhourly-thefreshmarket.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://fieldhourly-thefreshmarket.icims.com/jobs/145591/software-engineer-i/job",
+     "status": 410,
+     "body_file": "icims/icims-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "icims-dead-2",
+   "truth": "dead",
+   "url": "https://careers-kinaxis.icims.com/jobs/35320/intern-developer%2c-clients%2c-front-end-technologies/job",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-08",
+   "evidence": "the portal answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "icims_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers-kinaxis.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-careers-kinaxis.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://careers-kinaxis.icims.com/jobs/35320/intern-developer%2c-clients%2c-front-end-technologies/job",
+     "status": 410,
+     "body_file": "icims/icims-dead-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "icims-dead-3",
+   "truth": "dead",
+   "url": "https://careers-barrios.icims.com/jobs/2904/data-analytics-developer-i/job",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-07",
+   "evidence": "the portal answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "icims_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers-barrios.icims.com/robots.txt",
+     "status": 200,
+     "body_file": "icims/robots-careers-barrios.icims.com.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://careers-barrios.icims.com/jobs/2904/data-analytics-developer-i/job",
+     "status": 410,
+     "body_file": "icims/icims-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}

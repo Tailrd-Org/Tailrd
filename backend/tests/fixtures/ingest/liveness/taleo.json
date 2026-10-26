@@ -1,0 +1,145 @@
+{
+ "source": "taleo",
+ "recorded_on": "2026-10-26",
+ "check": "no adapter check: the generic page check, which reads a 200 Taleo page as unknown whether the requisition is open or gone",
+ "shortfall": {
+  "dead": "a removed Taleo requisition answers 200 with the career section's shell, so the generic page check reads it as unknown exactly as it reads an open one; the three real removed requisitions are kept as known_gap cases"
+ },
+ "cases": [
+  {
+   "id": "taleo-alive-1",
+   "truth": "alive",
+   "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=148522&lang=en",
+   "origin": "listed by the agnicoeagle Taleo search on 2026-10-26",
+   "evidence": "the career section's own search lists this requisition today; the page form posts to jobdetail.ftl",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=148522&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "taleo-alive-2",
+   "truth": "alive",
+   "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=148504&lang=en",
+   "origin": "listed by the agnicoeagle Taleo search on 2026-10-26",
+   "evidence": "the career section's own search lists this requisition today; the page form posts to jobdetail.ftl",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=148504&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-alive-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "taleo-alive-3",
+   "truth": "alive",
+   "url": "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=526006&lang=en",
+   "origin": "listed by the bayshore Taleo search on 2026-10-26",
+   "evidence": "the career section's own search lists this requisition today; the page form posts to jobdetail.ftl",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://bayshore.taleo.net/careersection/bs_ex/jobdetail.ftl?job=526006&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-alive-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "taleo-gap-1",
+   "truth": "dead",
+   "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=143582&lang=en",
+   "origin": "dev branch row, listing_status=removed",
+   "evidence": "removed on the dev branch and no longer in the section's search; the page form posts to unavailablerequisition.ftl",
+   "known_gap": "a gone Taleo requisition answers 200 with the section's shell, which the generic page check reads as unknown, the same as an open one",
+   "expect": {
+    "verdict": "dead"
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=143582&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-gap-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "taleo-gap-2",
+   "truth": "dead",
+   "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=131738&lang=en",
+   "origin": "dev branch row, listing_status=removed",
+   "evidence": "removed on the dev branch and no longer in the section's search; the page form posts to unavailablerequisition.ftl",
+   "known_gap": "a gone Taleo requisition answers 200 with the section's shell, which the generic page check reads as unknown, the same as an open one",
+   "expect": {
+    "verdict": "dead"
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=131738&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-gap-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "taleo-gap-3",
+   "truth": "dead",
+   "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=142958&lang=en",
+   "origin": "dev branch row, listing_status=removed",
+   "evidence": "removed on the dev branch and no longer in the section's search; the page form posts to unavailablerequisition.ftl",
+   "known_gap": "a gone Taleo requisition answers 200 with the section's shell, which the generic page check reads as unknown, the same as an open one",
+   "expect": {
+    "verdict": "dead"
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://agnicoeagle.taleo.net/careersection/2/jobdetail.ftl?job=142958&lang=en",
+     "status": 200,
+     "body_file": "taleo/taleo-gap-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}

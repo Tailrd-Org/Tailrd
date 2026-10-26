@@ -1,0 +1,175 @@
+{
+ "source": "jibe",
+ "recorded_on": "2026-10-26",
+ "check": "no adapter check (Jibe claims no URLs): the generic page check, where a bare 200 is only unknown and a 404 is gone",
+ "cases": [
+  {
+   "id": "jibe-alive-1",
+   "truth": "alive",
+   "url": "https://jobs.aon.com/jobs/110099?icims=1",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-22",
+   "evidence": "the site's jobs API lists it by requisition id, and the page serves it with its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.aon.com/jobs/110099?icims=1",
+     "status": 200,
+     "body_file": "jibe/jibe-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jibe-alive-2",
+   "truth": "alive",
+   "url": "https://jobs.keysight.com/jobs/54673?icims=1",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-19",
+   "evidence": "the site's jobs API lists it by requisition id; the link redirects to the /external/ path, which serves the posting with its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.keysight.com/jobs/54673?icims=1",
+     "status": 302,
+     "body_file": "jibe/jibe-alive-2-step1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "location": "/external/jobs/54673?icims=1"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://jobs.keysight.com/external/jobs/54673?icims=1",
+     "status": 200,
+     "body_file": "jibe/jibe-alive-2-step2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jibe-alive-3",
+   "truth": "alive",
+   "url": "https://jobs.keysight.com/jobs/54804?icims=1",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-21",
+   "evidence": "the site's jobs API lists it by requisition id; the link redirects to the /external/ path, which serves the posting with its JobPosting JSON-LD",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.keysight.com/jobs/54804?icims=1",
+     "status": 302,
+     "body_file": "jibe/jibe-alive-3-step1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "location": "/external/jobs/54804?icims=1"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://jobs.keysight.com/external/jobs/54804?icims=1",
+     "status": 200,
+     "body_file": "jibe/jibe-alive-3-step2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jibe-dead-1",
+   "truth": "dead",
+   "url": "https://careers.amd.com/careers-home/jobs/68553",
+   "origin": "dev branch row, listing_status=removed, changed 2026-08-02",
+   "evidence": "the site's jobs API no longer lists it, and the site answers 404 with its 'job may be no longer available' page",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_404",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.amd.com/careers-home/jobs/68553",
+     "status": 404,
+     "body_file": "jibe/jibe-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jibe-dead-2",
+   "truth": "dead",
+   "url": "https://careers.amd.com/jobs/91308?icims=1",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-02",
+   "evidence": "the site's jobs API no longer lists it; the link redirects to /careers-home/ and the site answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_404",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.amd.com/jobs/91308?icims=1",
+     "status": 302,
+     "body_file": "jibe/jibe-dead-2-step1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8",
+      "location": "/careers-home/jobs/91308?icims=1"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://careers.amd.com/careers-home/jobs/91308?icims=1",
+     "status": 404,
+     "body_file": "jibe/jibe-dead-2-step2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jibe-dead-3",
+   "truth": "dead",
+   "url": "https://careers.garmin.com/jobs/16774",
+   "origin": "dev branch row, listing_status=removed, changed 2026-08-02",
+   "evidence": "the site's jobs API no longer lists it, and the site answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_404",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.garmin.com/jobs/16774",
+     "status": 404,
+     "body_file": "jibe/jibe-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}
