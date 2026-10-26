@@ -793,3 +793,62 @@ def test_a_released_copy_never_moves_under_a_twin_of_another_audience(db_session
     db_session.refresh(repost)
     assert moved == [(repost.id, old.id, None)]
     assert repost.duplicate_of is None
+
+
+# --- aggregator adapters (Tier 3): an inferior source ------------------------
+#
+# Adzuna and Jooble rows are stored as source_platform 'ats', like a board
+# crawl's, but they re-list other employers' postings (spec: keep the
+# employer-source row and point the aggregator row at it).
+
+_ADZUNA = "https://www.adzuna.ca/details/4471000001"
+
+
+def _adzuna(db_session, url=_ADZUNA, **kwargs):
+    row = _mk(db_session, url, source="ats", **kwargs)
+    row.board_key, row.source_trust = "adzuna:ca-intern", "low"
+    db_session.commit()
+    return row
+
+
+def test_an_aggregator_adapters_row_is_its_aggregators():
+    from backend.services.cross_source_dedup import effective_source, is_inferior_source
+
+    assert effective_source("ats", _ADZUNA) == "adzuna"
+    assert effective_source("ats", "https://jooble.org/desc/7203851104417") == "jooble"
+    assert effective_source("ats", "https://boards.greenhouse.io/kinaxis/jobs/1") == "ats"
+    assert effective_source("ats", "https://apply.workable.com/acme/j/ABC123/") == "ats"  # Tier 1
+    assert effective_source("github", _ADZUNA) == "github"  # a list's own label stands
+    assert is_inferior_source("adzuna") and is_inferior_source("jooble")
+    assert not is_inferior_source("ats") and not is_inferior_source("github")
+
+
+def test_the_employers_row_hides_an_aggregator_adapters_copy(db_session):
+    copy = _adzuna(db_session)
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/90", source="ats",
+                description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+
+
+def test_the_absorb_pass_hides_an_aggregator_adapters_copy_behind_the_employers_row(db_session):
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/91", source="ats",
+                description=_DESC)
+    copy = _adzuna(db_session)
+
+    assert absorb_new_aggregator_rows(db_session) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+
+
+def test_an_aggregator_adapters_row_hides_no_one_and_blocks_no_one(db_session):
+    linkedin = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000092")
+    copy = _adzuna(db_session, description=_DESC)
+
+    assert mark_inferior_twins(db_session, copy) == 0
+    assert not has_direct_twin(db_session, company="Kinaxis", company_domain="kinaxis.com",
+                               title="Software Engineer Intern", city="ottawa")
+    db_session.refresh(linkedin)
+    assert linkedin.duplicate_of is None

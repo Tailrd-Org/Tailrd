@@ -441,6 +441,26 @@ def test_a_capped_employer_costs_no_detail_requests(db_session, fake_adapter):
     assert ctx.caps["company_cap"] == 3
 
 
+def test_source_trust_follows_the_sources_tier(db_session, fake_adapter):
+    """An aggregator adapter (Tier 3: Adzuna, Jooble) re-lists other
+    employers' postings: its rows are low trust, as LinkedIn's are. The
+    employer's own board, built in or Tier 1 and 2, is high."""
+    _ingest(db_session, _snapshot([_job(1)]), _ctx(db_session))
+    fake_adapter.TIER = 2
+    _ingest(db_session, _snapshot([_adapter_job(2)], platform="fakeats"), _ctx(db_session))
+    fake_adapter.TIER = 3
+    _ingest(db_session, _snapshot([_adapter_job(2), _adapter_job(3)], platform="fakeats"),
+            _ctx(db_session))
+
+    assert [row.source_trust for row in _rows(db_session)] == ["high", "high", "low"]
+
+
+def test_source_trust_of_the_real_adapters():
+    assert pipeline.source_trust("greenhouse") == pipeline.source_trust("workday") == "high"
+    assert pipeline.source_trust("workable") == pipeline.source_trust("usajobs") == "high"
+    assert pipeline.source_trust("adzuna") == pipeline.source_trust("jooble") == "low"
+
+
 def test_external_ids_carry_the_board_key_once(db_session, fake_adapter):
     """The built-in fetchers give the source's bare id; an adapter's id is
     already "{platform}:{slug}:{id}" and is stored as it is."""

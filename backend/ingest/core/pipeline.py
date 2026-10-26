@@ -819,6 +819,23 @@ async def _fill_descriptions(client, snapshot, jobs: list, ctx: IngestContext) -
     return keep
 
 
+def source_trust(platform: str) -> str:
+    """scraped_jobs.source_trust of a crawled row, from its source's tier:
+    "high" for the employer's own board (the five built-ins, a Tier 1 or 2
+    adapter), "low" for an aggregator adapter (cross_source_dedup.
+    AGGREGATOR_TIER: Adzuna, Jooble), which re-lists other employers'
+    postings as LinkedIn and Indeed do."""
+    from backend.data.company_registry import SUPPORTED_PLATFORMS
+    from backend.ingest.adapters import get_adapter
+    from backend.services.cross_source_dedup import AGGREGATOR_TIER
+
+    if platform in SUPPORTED_PLATFORMS:
+        return "high"
+    tier = getattr(get_adapter(platform), "TIER", None)
+    aggregator = isinstance(tier, int) and not isinstance(tier, bool) and tier >= AGGREGATOR_TIER
+    return "low" if aggregator else "high"
+
+
 def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str):
     """The ScrapedJob for one new listing (its description already
     sanitized onto ``job``)."""
@@ -857,7 +874,8 @@ def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str)
 
     # Extraction, hashes and tags read the whole description; only the
     # stored copy is cut at description_max_chars.
-    extracted = listing_freshness.build_new_row_fields(job, board_key)
+    extracted = listing_freshness.build_new_row_fields(
+        job, board_key, source_trust=source_trust(snapshot.platform))
     stored = listing_freshness.cap_description(description, ctx.limits.description_max_chars)
     if len(stored) < len(description):
         ctx.caps["descriptions_cut"] += 1
@@ -980,7 +998,8 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
             ctx.live_counts[company] = ctx.live_counts.get(company, 0) + 1
 
         # This direct row supersedes any LinkedIn/Indeed copies of the same
-        # posting that arrived first.
+        # posting that arrived first (an aggregator adapter's row hides
+        # nothing: the hourly absorb pass hides it behind the employer's).
         try:
             totals["cross_source_twins_hidden"] += mark_inferior_twins(db, scraped_job)
         except Exception:
