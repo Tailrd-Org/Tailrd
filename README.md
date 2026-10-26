@@ -60,6 +60,13 @@ A job aggregation and smart-apply platform that scrapes job listings from 9 jobr
 
 Jobs come from employers' own boards (Greenhouse, Lever, Ashby, SmartRecruiters, Workday and the adapters in `backend/ingest/adapters/`), the curated GitHub lists, and the LinkedIn/Indeed scrapers. The v2 runner, `python -m backend.ingest.run`, crawls every enabled board in `backend/data/ats_companies.json` and keeps the catalogue fresh. [`docs/ingestion-pipeline.md`](docs/ingestion-pipeline.md) explains the whole pipeline; this section is the short version.
 
+Merging the v2 code changes no volumes. Two switches start the spending, and both belong after the Neon plan has room (the free plan's 5 GB transfer cap and 512 MB size cap are why; see "Storage and transfer" in the pipeline doc):
+
+- The `INGEST_DATABASE_URL` secret lets the daily workflow `ingest.yml` run the runner. Without it the workflow ends green and does nothing.
+- The Vercel variable `CRON_ATS_V2_CATALOGUE=1` makes `cron-ats` store every experience level and crawl the adapters' boards. Unset (the default), `cron-ats` keeps the student catalogue, internships and new grads on the five older platforms, as before v2, and the Jobs page offers only the experience levels that have jobs.
+
+Turn them on in this order: the secret, a green first run, `INGEST_V2_RUNNER=1`, then `CRON_ATS_V2_CATALOGUE=1`. A changed Vercel variable needs a redeploy.
+
 ### Run it locally
 
 Put a database in the repo's `.env` (it is git-ignored). Use a Neon dev branch, never production: the runner writes, and `--dry-run` still applies the schema.
@@ -137,7 +144,7 @@ async def check_alive(client, url):                     # optional: is one posti
 Rules that matter:
 
 - Send every request through `http.request`: it sets the `TailrdBot/2.0` user agent, paces each host and retries 429 and 5xx. Check `http.robots_allowed` before reading HTML. Never log in and never get past a bot wall.
-- `list_jobs` returns `ATSJob`s unfiltered. `external_id` is `"{PLATFORM}:{slug}:{source id}"` and `url` is the public posting URL without tracking parameters.
+- `list_jobs` returns `ATSJob`s unfiltered. `external_id` is `"{PLATFORM}:{slug}:{source id}"` and `url` is the public posting URL without tracking parameters. Keep `external_id` the same for the same posting: the refresh matches a listing by `url` and, when that is not stored, by `external_id` on the same board, so a posting whose URL changed (a retitle in the URL slug) keeps its row.
 - `complete` is `True` only when you are sure the list is the whole board, because a complete list removes every stored row it does not contain. No reported total, a page cap, a spent `deadline` or an unreadable entry means `False`.
 - A broken board (HTTP error, unexpected payload) raises. Never return an empty list for it.
 - A transport error in `check_alive` is `UNKNOWN`, never `DEAD`.
@@ -183,7 +190,7 @@ Add an entry to the `companies` array in `backend/data/ats_companies.json`. No c
 | `config` | An object the adapter reads, for example `{"host": "...", "site": "..."}` for Oracle. Omit it when the adapter needs none. Workday entries carry `workday_url_template` instead |
 | `enabled`, `disabled_reason` | `false` parks a board, and the reason says why |
 
-The Oracle, iCIMS and Jibe boards are currently held (`enabled: false`) until their adapters' completeness checks are fixed; leave them off.
+The Oracle, iCIMS and Jibe boards (221 of the 1,315 enabled boards) were held until their adapters' completeness checks were fixed, and are enabled now. Boards parked for the storage budget start their `disabled_reason` with `held:`; leave those off.
 
 To find the platform behind a careers page, run the detector. It prints a registry entry on stdout (JSON) and its evidence on stderr, and exits 0 when it found an ATS, 1 when the page shows none and 2 when the page could not be read:
 
