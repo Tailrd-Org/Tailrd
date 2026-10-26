@@ -180,7 +180,8 @@ def test_postings_already_old_when_first_seen_are_skipped(db_session):
 def test_an_employer_at_its_cap_of_live_rows_inserts_no_more(db_session):
     for n, status in ((90, "active"), (91, "stale"), (92, "removed")):
         db_session.add(ScrapedJob(title="Old", company="Acme", url=f"https://x/{n}",
-                                  listing_status=status, board_key="lever:acme"))
+                                  listing_status=status, board_key="lever:acme",
+                                  source_platform="ats"))
     db_session.commit()
     ctx = _ctx(db_session, max_live_per_company=3)
 
@@ -189,6 +190,64 @@ def test_an_employer_at_its_cap_of_live_rows_inserts_no_more(db_session):
     assert board["inserted"] == 1  # 2 live (the removed row holds no place) + 1
     assert ctx.caps["company_cap"] == 3
     assert ctx.live_counts["Acme"] == 3
+
+
+def _live_rows(db, count, *, source="ats", level="mid"):
+    """``count`` live rows of Acme on another of its boards (or another source)."""
+    for n in range(count):
+        db.add(ScrapedJob(title=f"Engineer {n}", company="Acme", url=f"https://x/{source}/{n}",
+                          listing_status="active", board_key="lever:acme",
+                          source_platform=source, experience_level=level))
+    db.commit()
+
+
+def test_a_student_posting_is_stored_at_an_employer_at_its_cap(db_session):
+    """Spec decision 1: the internship and new-grad feed must not shrink. The
+    cap holds back the employer's other postings, never a student one, and a
+    student row takes no place."""
+    _live_rows(db_session, 3)
+    ctx = _ctx(db_session, max_live_per_company=3)
+    senior = _job(1, title="Senior Software Engineer", posted=NOW)
+    intern = _job(2, title="Software Engineering Intern (Summer 2027)",
+                  posted=NOW - datetime.timedelta(days=30))
+
+    board = _ingest(db_session, _snapshot([senior, intern]), ctx)
+
+    stored = {row.url for row in _rows(db_session)}
+    assert board["inserted"] == 1 and ctx.caps["company_cap"] == 1
+    assert intern.url in stored and senior.url not in stored
+    assert ctx.live_counts["Acme"] == 3
+
+
+def test_student_rows_already_stored_take_no_place_either(db_session):
+    _live_rows(db_session, 3, level="internship")
+    ctx = _ctx(db_session, max_live_per_company=3)
+
+    board = _ingest(db_session, _snapshot([_job(1), _job(2)]), ctx)
+
+    assert board["inserted"] == 2 and ctx.caps["company_cap"] == 0
+
+
+def test_aggregator_rows_of_the_same_name_do_not_fill_a_boards_cap(db_session):
+    """LinkedIn, Indeed and GitHub-list rows are not the board's to count."""
+    _live_rows(db_session, 3, source="linkedin", level="")
+
+    board = _ingest(db_session, _snapshot([_job(n) for n in range(1, 4)]),
+                    _ctx(db_session, max_live_per_company=3))
+
+    assert board["inserted"] == 3
+
+
+def test_student_postings_go_in_first_under_the_run_cap(db_session):
+    newer = _job(1, title="Software Engineer", posted=NOW)
+    older_intern = _job(2, title="Software Engineering Intern",
+                        posted=NOW - datetime.timedelta(days=20))
+    ctx = _ctx(db_session, max_new_rows_per_run=1)
+
+    _ingest(db_session, _snapshot([newer, older_intern]), ctx)
+
+    assert [row.url for row in _rows(db_session)] == [older_intern.url]
+    assert ctx.caps["run_cap"] == 1
 
 
 def test_reconciliation_frees_places_before_the_cap_is_counted(db_session):
@@ -282,6 +341,28 @@ def test_detail_requests_stay_within_the_board_budget(db_session, monkeypatch):
     assert {row.description for row in _rows(db_session)} == {"Ship things."}
 
 
+def test_student_postings_get_the_detail_budget_first(db_session, monkeypatch):
+    fetched = []
+
+    async def fake_detail(client, slug, detail_ref):
+        fetched.append(detail_ref)
+        return {"description": "Ship things.", "employment_type": "Full time"}
+
+    monkeypatch.setattr(ats_scraper, "fetch_workday_detail", fake_detail)
+    base = "https://acme.wd3.myworkdayjobs.com/External/job/T"
+    newer = ATSJob(title="Software Engineer", company="Acme", location="Toronto, ON",
+                   url=f"{base}/new", detail_ref="/job/T/new", posted_date=NOW)
+    older_intern = ATSJob(title="Software Engineering Intern", company="Acme",
+                          location="Toronto, ON", url=f"{base}/intern", detail_ref="/job/T/intern",
+                          posted_date=NOW - datetime.timedelta(days=20))
+    ctx = pipeline.new_context(db_session, ["Acme"], limits=pipeline.Limits(), detail_per_board=1)
+
+    _ingest(db_session, _snapshot([newer, older_intern], platform="workday"), ctx)
+
+    assert fetched == ["/job/T/intern"]
+    assert [row.url for row in _rows(db_session)] == [older_intern.url]
+
+
 @pytest.fixture
 def fake_adapter(monkeypatch):
     """A v2 adapter whose listings carry no description: fetch_job answers."""
@@ -320,7 +401,8 @@ def test_an_adapter_without_descriptions_is_asked_through_fetch_job(db_session, 
 def test_a_capped_employer_costs_no_detail_requests(db_session, fake_adapter):
     # Its one live row sits on another of its boards.
     db_session.add(ScrapedJob(title="Old", company="Acme", url="https://x/1",
-                              listing_status="active", board_key="lever:acme"))
+                              listing_status="active", board_key="lever:acme",
+                              source_platform="ats"))
     db_session.commit()
     ctx = _ctx(db_session, max_live_per_company=1)
 

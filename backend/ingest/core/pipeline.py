@@ -171,6 +171,21 @@ LIMITS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 SIZE_CHECK_EVERY = 500
 # The statuses that hold a place against max_live_per_company.
 _LIVE = ("active", "stale")
+# The student feed's own levels. A run takes their new postings first and
+# never holds them behind max_live_per_company: the cap spreads the free
+# plan's room across employers, and spec decision 1 is that the internship and
+# new-grad feed must not shrink. Only crawled rows above them count.
+_STUDENT_LEVELS = ("internship", "new_grad")
+
+
+def _student(job) -> bool:
+    """Whether a listing is a student posting: the level its row will carry
+    (taxonomy.classify_experience, as title_fields gives it) is internship or
+    new_grad. A description's years never make a posting either."""
+    from backend.ingest import taxonomy
+
+    return taxonomy.classify_experience(job.title or "", job.department or "",
+                                        job.employment_type or "") in _STUDENT_LEVELS
 
 
 def load_limits(path: str = LIMITS_PATH) -> Limits:
@@ -255,9 +270,13 @@ def new_context(db: Session, company_names: list[str], *,
 
 
 def _load_live_counts(db: Session, ctx: IngestContext, companies) -> None:
-    """Live rows per employer name, for the names ctx has no count for yet:
-    one grouped, column-only query per chunk of names."""
-    from sqlalchemy import func
+    """Live rows per employer name that hold a place against
+    max_live_per_company, for the names ctx has no count for yet: the
+    crawled ('ats') rows above the student levels. LinkedIn, Indeed and
+    GitHub-list rows of the same name are not the board's to count, and
+    student rows are never held back. One grouped, column-only query per
+    chunk of names."""
+    from sqlalchemy import func, or_
 
     from backend.db.models import ScrapedJob
 
@@ -266,7 +285,10 @@ def _load_live_counts(db: Session, ctx: IngestContext, companies) -> None:
         chunk = names[i:i + _IN_CHUNK]
         counts = dict(
             db.query(ScrapedJob.company, func.count(ScrapedJob.id))
-            .filter(ScrapedJob.listing_status.in_(_LIVE), ScrapedJob.company.in_(chunk))
+            .filter(ScrapedJob.listing_status.in_(_LIVE), ScrapedJob.company.in_(chunk),
+                    ScrapedJob.source_platform == "ats",
+                    or_(ScrapedJob.experience_level.is_(None),
+                        ScrapedJob.experience_level.notin_(_STUDENT_LEVELS)))
             .group_by(ScrapedJob.company)
             .all()
         )
@@ -680,16 +702,20 @@ def _naive(stamp: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
 
 def _select_new(db: Session, jobs: list, ctx: IngestContext,
                 now: datetime.datetime) -> list:
-    """The new jobs this run may store, newest first, within the caps that
-    are known before any request: none the source already dated older than
-    skip_posted_older_than_days, none of an employer holding
-    max_live_per_company live rows, none past max_new_rows_per_run. The rest
-    are counted in ``ctx.caps``."""
+    """The new jobs this run may store, student postings (_student) first and
+    each group newest first, within the caps that are known before any
+    request: none the source already dated older than
+    skip_posted_older_than_days, none past max_new_rows_per_run, and none of
+    an employer holding max_live_per_company live rows unless it is a student
+    posting, which the cap never holds back. The rest are counted in
+    ``ctx.caps``. The detail requests follow this order, so student postings
+    get the budget first."""
     limits, caps = ctx.limits, ctx.caps
-    jobs = sorted(jobs, key=_newest_first)
     if ctx.stopped:
         caps[ctx.stopped] += len(jobs)
         return []
+    student = {id(job): _student(job) for job in jobs}
+    jobs = sorted(jobs, key=lambda job: (not student[id(job)], _newest_first(job)))
     if limits.skip_posted_older_than_days:
         cutoff = now - datetime.timedelta(days=limits.skip_posted_older_than_days)
         fresh = [job for job in jobs
@@ -708,7 +734,7 @@ def _select_new(db: Session, jobs: list, ctx: IngestContext,
             caps["run_cap"] += 1
             continue
         company = (job.company or "").strip()
-        if limits.max_live_per_company:
+        if limits.max_live_per_company and not student[id(job)]:
             if ctx.live_counts.get(company, 0) + taken[company] >= limits.max_live_per_company:
                 caps["company_cap"] += 1
                 continue
@@ -940,8 +966,9 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         totals["new_jobs"] += 1
         board["inserted"] += 1
         ctx.inserted += 1
-        company = (job.company or "").strip()
-        ctx.live_counts[company] = ctx.live_counts.get(company, 0) + 1
+        if scraped_job.experience_level not in _STUDENT_LEVELS:
+            company = (job.company or "").strip()
+            ctx.live_counts[company] = ctx.live_counts.get(company, 0) + 1
 
         # This direct row supersedes any LinkedIn/Indeed copies of the same
         # posting that arrived first.
