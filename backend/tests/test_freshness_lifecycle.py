@@ -121,7 +121,7 @@ class TestReconcileBoard:
         kept = db_session.get(ScrapedJob, apply_row.id)
         assert kept.listing_status == LISTING_ACTIVE and kept.last_seen_at == NOW
         assert db_session.get(ScrapedJob, gone.id).listing_status == LISTING_REMOVED
-        assert stats == {"confirmed": 1, "revived": 1, "removed": 1, "off_target": 0}
+        assert stats == {"confirmed": 1, "revived": 1, "removed": 1, "off_target": 0, "held": 0}
 
     def test_does_not_touch_other_boards(self, db_session):
         other = _row(db_session, url="https://jobs.lever.co/other/1", board_key="lever:other")

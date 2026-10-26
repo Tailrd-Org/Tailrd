@@ -16,7 +16,8 @@ the same rules whichever of them crawled it:
      fields, a logo and the structured extraction; each hides the
      LinkedIn/Indeed copies of itself that arrived first
   4. the board is reconciled: a complete listing removes what it no longer
-     lists, a partial one only confirms what it does list
+     lists (unless that is most of the board: a mass removal is held), a
+     partial one only confirms what it does list
   5. source_health records the board's success
 
 crawl_boards() is the crawl side both use: boards crawled concurrently, never
@@ -145,6 +146,9 @@ def new_totals() -> dict:
         "boards_partial": 0, "partial_confirmed": 0, "urls_migrated": 0,
         "boards_deferred": 0, "off_target": 0, "reparsed": 0, "recountried": 0,
         "retitled": 0, "relabeled": 0,
+        # Removals a complete listing would have made but the mass-removal
+        # guard held (listing_freshness.mass_removal).
+        "removals_held": 0,
     }
 
 
@@ -894,7 +898,7 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     now = datetime.datetime.utcnow()
     board = {"board": board_key, "listed": len(snapshot.all_urls), "found": len(snapshot.jobs),
              "complete": snapshot.complete, "known": 0, "new": 0, "inserted": 0,
-             "removed": 0, "revived": 0}
+             "removed": 0, "revived": 0, "held": 0}
 
     totals["total_found"] += len(snapshot.jobs)
 
@@ -922,7 +926,8 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     # Workday's ceiling, a spent crawl budget) still proves every URL it
     # listed is live. Either way a listed row whose listing fails the
     # filters goes off_target, unless the kill switch is set (then listed
-    # means active, as before).
+    # means active, as before). A complete listing that would close most of
+    # the board is held as partial (listing_freshness.mass_removal).
     rejected = snapshot.rejected if ctx.retire_off_target else None
     if snapshot.complete:
         rec = listing_freshness.reconcile_board(
@@ -930,7 +935,8 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         totals["removed"] += rec["removed"]
         totals["revived"] += rec["revived"]
         totals["off_target"] += rec["off_target"]
-        board.update(removed=rec["removed"], revived=rec["revived"])
+        totals["removals_held"] += rec["held"]
+        board.update(removed=rec["removed"], revived=rec["revived"], held=rec["held"])
     else:
         totals["boards_partial"] += 1
         seen = confirm_listed(db, board_key, snapshot.all_urls, rejected=rejected)

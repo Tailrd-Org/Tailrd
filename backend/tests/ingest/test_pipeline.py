@@ -250,6 +250,16 @@ def test_student_postings_go_in_first_under_the_run_cap(db_session):
     assert ctx.caps["run_cap"] == 1
 
 
+def test_a_held_mass_removal_is_counted_and_frees_no_places(db_session):
+    _ingest(db_session, _snapshot([_job(n) for n in range(30)]), _ctx(db_session))
+    ctx = _ctx(db_session, max_live_per_company=30)
+
+    board = _ingest(db_session, _snapshot([_job(n) for n in range(3)] + [_job(99)]), ctx)
+
+    assert (board["removed"], board["held"], board["inserted"]) == (0, 27, 0)
+    assert ctx.totals["removals_held"] == 27 and ctx.caps["company_cap"] == 1
+
+
 def test_reconciliation_frees_places_before_the_cap_is_counted(db_session):
     ctx = _ctx(db_session, max_live_per_company=2)
     _ingest(db_session, _snapshot([_job(1), _job(2)]), ctx)

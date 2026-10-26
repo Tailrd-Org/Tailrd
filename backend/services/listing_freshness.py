@@ -282,6 +282,22 @@ def listed_status_change(listing_status: str | None, source_platform: str,
     return LISTING_ACTIVE if status != LISTING_ACTIVE else None
 
 
+# A complete listing that would close more than MASS_REMOVAL_SHARE of a
+# board's open rows, and more than MASS_REMOVAL_MIN of them, is held: a source
+# that answers short looks exactly like that, and three adapters were caught
+# calling a partial listing complete. The rows it lists are confirmed as
+# usual; the rest are left to the stale sweep and the verifier, which close
+# the dead ones within days (stale rows are hidden since scraper v2).
+MASS_REMOVAL_MIN = 20
+MASS_REMOVAL_SHARE = 0.5
+
+
+def mass_removal(removals: int, open_rows: int) -> bool:
+    """Whether a complete listing that would close ``removals`` of a board's
+    ``open_rows`` is held instead (MASS_REMOVAL_MIN, MASS_REMOVAL_SHARE)."""
+    return removals > MASS_REMOVAL_MIN and removals > MASS_REMOVAL_SHARE * open_rows
+
+
 def reconcile_board(db: Session, board_key: str, live_urls: set[str],
                     now: datetime.datetime | None = None, *,
                     rejected: dict[str, str] | None = None) -> dict:
@@ -299,7 +315,10 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
       effective immediately. An ``off_target`` row too: hidden either way,
       but only a closed status tells a saved job, an application or a deep
       link that the posting is gone. If it is relisted and still fails,
-      listed_status_change sends it back to off_target.
+      listed_status_change sends it back to off_target. Unless the removals
+      are a mass removal (mass_removal: more than half of the board's open
+      rows, and more than 20): then none goes, a warning is logged, and
+      ``held`` counts them.
 
     A row leaving a closed status loses its closed_reason. Only call with a
     COMPLETE snapshot, a partial crawl's absence is not evidence of removal.
@@ -307,7 +326,7 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
     """
     now = now or _utcnow()
     rejected = rejected or {}
-    stats = {"confirmed": 0, "revived": 0, "removed": 0, "off_target": 0}
+    stats = {"confirmed": 0, "revived": 0, "removed": 0, "off_target": 0, "held": 0}
 
     # Every open row of the board, but of its closed history (which only
     # grows) just the rows the listing names: a closed row it does not list
@@ -365,6 +384,13 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
         logger.warning("reconcile %s: empty board with %d active rows, leaving to stale sweep",
                        board_key, len(gone_ids))
         return stats
+    open_rows = sum(1 for _id, _url, status, _source in rows
+                    if status is None or status not in CLOSED_LISTING_STATUSES)
+    if mass_removal(len(gone_ids), open_rows):
+        logger.warning("reconcile %s: a complete listing would close %d of %d open rows; "
+                       "held as partial", board_key, len(gone_ids), open_rows)
+        stats["held"] = len(gone_ids)
+        gone_ids = []
 
     for chunk in _chunks(live_ids):
         db.query(ScrapedJob).filter(ScrapedJob.id.in_(chunk)).update(

@@ -73,18 +73,18 @@ def _by_posting(db):
 
 def test_postings_dropped_from_a_complete_board_close_and_one_relisted_comes_back(
         db_session, crawl, monkeypatch):
-    board = crawl(range(1, 61))
-    assert board["inserted"] == 60
+    board = crawl(range(1, 121))
+    assert board["inserted"] == 120
 
     # The board drops 50 postings: the first reconcile closes them.
-    board = crawl(range(51, 61))
-    assert board["removed"] == 50
+    board = crawl(range(51, 121))
+    assert board["removed"] == 50 and board["held"] == 0
     rows = _by_posting(db_session)
     for n in range(1, 51):
         assert rows[n].listing_status == LISTING_REMOVED
         assert rows[n].listing_status in HIDDEN_LISTING_STATUSES
         assert rows[n].closed_reason == "delisted"
-    assert all(rows[n].listing_status == LISTING_ACTIVE for n in range(51, 61))
+    assert all(rows[n].listing_status == LISTING_ACTIVE for n in range(51, 121))
 
     # A liveness pass whose every check answers "open" leaves them closed:
     # the sweeps only re-check rows that are still visible.
@@ -107,11 +107,48 @@ def test_postings_dropped_from_a_complete_board_close_and_one_relisted_comes_bac
     assert all(rows[n].closed_reason == "delisted" for n in range(1, 51))
 
     # Posting 7 is listed again: revived, its closed reason gone.
-    board = crawl([7, *range(51, 61)])
+    board = crawl([7, *range(51, 121)])
     rows = _by_posting(db_session)
     assert board["revived"] == 1 and board["inserted"] == 0
     assert rows[7].listing_status == LISTING_ACTIVE and rows[7].closed_reason is None
     assert sum(row.listing_status == LISTING_REMOVED for row in rows.values()) == 49
+
+
+# ─── A listing that would close most of the board ────────────────────────────
+
+def test_a_complete_listing_that_would_close_most_of_the_board_is_held(
+        db_session, crawl, caplog):
+    """A source that answers short looks exactly like this, and three
+    adapters were caught calling a partial listing complete: the rows it
+    lists are confirmed, nothing is removed, and a warning says why."""
+    crawl(range(1, 61))
+
+    with caplog.at_level("WARNING", logger="backend.services.listing_freshness"):
+        board = crawl(range(51, 61))
+
+    assert (board["removed"], board["held"]) == (0, 50)
+    rows = _by_posting(db_session)
+    assert all(row.listing_status == LISTING_ACTIVE for row in rows.values())
+    assert rows[55].last_seen_at > rows[5].last_seen_at  # the listed rows are confirmed
+    assert any("would close 50 of 60 open rows" in r.getMessage() for r in caplog.records)
+
+
+def test_a_small_drop_closes_whatever_its_share(db_session, crawl):
+    """Under MASS_REMOVAL_MIN the share does not matter: a 15-posting board
+    that drops 12 closes them."""
+    crawl(range(1, 16))
+
+    board = crawl(range(13, 16))
+
+    assert (board["removed"], board["held"]) == (12, 0)
+
+
+def test_the_guard_is_more_than_half_and_more_than_twenty():
+    from backend.services.listing_freshness import mass_removal
+
+    assert mass_removal(21, 41) and not mass_removal(21, 42)  # more than half
+    assert not mass_removal(20, 20)  # and more than twenty
+    assert mass_removal(500, 501)
 
 
 def test_a_closed_row_the_board_does_not_list_is_not_read_back(db_session):
@@ -131,7 +168,7 @@ def test_a_closed_row_the_board_does_not_list_is_not_read_back(db_session):
     stats = listing_freshness.reconcile_board(
         db_session, "workday:acme", {f"{base}/1", f"{base}/3", f"{base}/5"}, now=NOW)
 
-    assert stats == {"confirmed": 3, "revived": 2, "removed": 0, "off_target": 0}
+    assert stats == {"confirmed": 3, "revived": 2, "removed": 0, "off_target": 0, "held": 0}
     db_session.expire_all()
     status = {row.url.split("/T/")[1]: row.listing_status
               for row in db_session.query(ScrapedJob).all()}

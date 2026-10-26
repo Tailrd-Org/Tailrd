@@ -426,25 +426,31 @@ def post_alert(warnings: list, run_id: int) -> bool:
 def preview_snapshot(db, snapshot) -> dict:
     """What ingesting ``snapshot`` would change, read-only and column-only:
     listings already stored, new ones, and (for a complete listing) the
-    board's open rows it no longer lists."""
+    board's open rows it no longer lists: ``would_remove``, or
+    ``would_hold`` when that many is a mass removal the real run holds
+    (listing_freshness.mass_removal)."""
     from backend.db.models import ScrapedJob
-    from backend.services.listing_freshness import CLOSED_LISTING_STATUSES
+    from backend.services.listing_freshness import CLOSED_LISTING_STATUSES, mass_removal
 
     urls = sorted({job.url for job in snapshot.jobs if job.url})
     known: set[str] = set()
     for i in range(0, len(urls), _IN_CHUNK):
         known.update(url for (url,) in db.query(ScrapedJob.url)
                      .filter(ScrapedJob.url.in_(urls[i:i + _IN_CHUNK])))
-    would_remove = None
+    would_remove = would_hold = None
     if snapshot.complete:
         open_urls = [url for (url,) in db.query(ScrapedJob.url).filter(
             ScrapedJob.board_key == snapshot.board_key,
             ScrapedJob.listing_status.notin_(CLOSED_LISTING_STATUSES))]
         would_remove = sum(1 for url in open_urls if url not in snapshot.all_urls)
+        would_hold = 0
+        if mass_removal(would_remove, len(open_urls)):
+            would_remove, would_hold = 0, would_remove
     db.rollback()
     return {"listed": len(snapshot.all_urls), "found": len(snapshot.jobs),
             "complete": snapshot.complete, "known": len(known),
-            "new": len(urls) - len(known), "would_remove": would_remove}
+            "new": len(urls) - len(known), "would_remove": would_remove,
+            "would_hold": would_hold}
 
 
 async def _dry_run(db, args, deadline: float, counter) -> dict:
@@ -455,7 +461,7 @@ async def _dry_run(db, args, deadline: float, counter) -> dict:
     log_event("dry_run_started", boards=len(boards), skipped_cooldown=cooldown)
     scraper = ATSScraper(filter_entry_level=False, filter_north_america=True, deadline=deadline)
     totals = {"boards": len(boards), "ok": 0, "failed": 0, "found": 0, "new": 0,
-              "would_remove": 0}
+              "would_remove": 0, "would_hold": 0}
     async with http.make_client(follow_redirects=False) as client, aclosing(
             pipeline.crawl_boards(scraper, client, boards, args.concurrency,
                                   per_host=args.per_host)) as crawl:
@@ -471,6 +477,7 @@ async def _dry_run(db, args, deadline: float, counter) -> dict:
                 totals["found"] += preview["found"]
                 totals["new"] += preview["new"]
                 totals["would_remove"] += preview["would_remove"] or 0
+                totals["would_hold"] += preview["would_hold"] or 0
                 line.update(status="ok", **preview)
             line["rows_read"] = counter.rows - rows_before
             log_event("dry_run_board", **line)
