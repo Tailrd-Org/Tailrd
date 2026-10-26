@@ -1,5 +1,5 @@
 """Tier 2 adapters (scraper v2 Task 4): Oracle Cloud Recruiting, iCIMS, Taleo,
-SuccessFactors.
+SuccessFactors and Jibe.
 
 Each adapter is tested offline against saved real responses (trimmed, in
 backend/tests/fixtures/ingest/) served through httpx.MockTransport, with a fake
@@ -760,9 +760,51 @@ async def test_icims_reads_a_relative_date_with_its_stamp_and_labels_with_colons
 
 
 @pytest.mark.asyncio
-async def test_icims_a_portal_with_no_postings_is_complete_and_empty(clock):
+async def test_icims_an_empty_first_page_is_never_called_complete(clock):
+    """A search page with the form and no cards looks the same whether the portal has
+    no postings or its search hiccuped; nothing is retired on it."""
     server = IcimsServer({0: fixture_text("icims_kinaxis_search_4.html")})
-    assert await icims_list(server) == ([], True, 0)
+    assert await icims_list(server) == ([], False, 0)
+
+
+def without_pager(pages: dict[int, str]) -> dict[int, str]:
+    """The same pages with "Page X of Y" taken out wherever it is printed."""
+    return {number: re.sub(r"Page\s+\d+\s+of\s+\d+", "", page) for number, page in pages.items()}
+
+
+@pytest.mark.asyncio
+async def test_icims_pages_without_the_pager_are_never_called_complete(clock):
+    """With no "Page X of Y" nothing says which page was served or where the list ends."""
+    jobs, complete, _ = await icims_list(IcimsServer(without_pager(kinaxis_pages())))
+    assert (len(jobs), complete) == (8, False)  # a full walk to a card-less page
+    soft = fixture_text("icims_kinaxis_search_4.html")  # a real search page with no cards
+    for hole in (1, 2):
+        pages = without_pager(kinaxis_pages())
+        pages[hole] = soft
+        jobs, complete, _ = await icims_list(IcimsServer(pages))
+        assert complete is False, hole
+
+
+def searches(server: "IcimsServer") -> list[str]:
+    """The job-search requests a server saw (robots.txt is fetched once per host per process)."""
+    return [path for path in server.paths() if path.startswith("/jobs/search")]
+
+
+@pytest.mark.asyncio
+async def test_icims_a_portal_that_ignores_pr_is_stopped_and_incomplete(clock):
+    pages = kinaxis_pages()
+    server = IcimsServer({0: pages[0], 1: pages[0], 2: pages[0]})  # "Page 1 of 3" every time
+    jobs, complete, total = await icims_list(server)
+    assert searches(server) == ["/jobs/search?pr=0&in_iframe=1", "/jobs/search?pr=1&in_iframe=1"]  # stopped at the repeat
+    assert (len(jobs), complete, total) == (3, False, 3)
+    # Page 2 served as page 1 again while page 3 would have been right.
+    jobs, complete, _ = await icims_list(IcimsServer({0: pages[0], 1: pages[0], 2: pages[2]}))
+    assert (len(jobs), complete) == (3, False)
+    # Without the pager the repeated postings give it away.
+    server = IcimsServer(without_pager({0: pages[0], 1: pages[0], 2: pages[0]}))
+    jobs, complete, _ = await icims_list(server)
+    assert searches(server) == ["/jobs/search?pr=0&in_iframe=1", "/jobs/search?pr=1&in_iframe=1"]
+    assert (len(jobs), complete) == (3, False)
 
 
 @pytest.mark.asyncio
@@ -959,6 +1001,18 @@ async def test_icims_check_alive_is_dead_on_410_the_portals_word_for_gone(clock)
         # The 410 page is a full job-search page full of other postings; the status decides.
         assert (await icims.check_alive(client, base + "/jobs/9/gone/job")) == (DEAD, "icims_410", True)
         assert (await icims.check_alive(client, base + "/jobs/8/missing/job")) == (DEAD, "icims_404", True)
+
+
+@pytest.mark.asyncio
+async def test_icims_check_alive_reads_a_closed_notice_before_trusting_the_json_ld(clock):
+    """A closed page can still carry the JobPosting block; alive here would revive a closed row."""
+    closed = fixture_text("icims_kinaxis_job.html").replace(
+        "<body></body>", "<body><h1>Sorry</h1><p>This job is no longer available.</p></body>")
+    assert "JobPosting" in closed
+    server = IcimsServer(postings={KINAXIS_JOB: (200, closed)})
+    async with client_for(server) as client:
+        result = await icims.check_alive(client, "https://careers-kinaxis.icims.com" + KINAXIS_JOB)
+    assert (result.verdict, result.reason, result.authoritative) == (DEAD, "icims_body_closed", False)
 
 
 @pytest.mark.asyncio
