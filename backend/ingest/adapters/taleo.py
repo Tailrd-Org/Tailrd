@@ -254,10 +254,10 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
     - every page the count implies was read, each reply says it is the page asked
       for (``currentPageNo``) and none repeated postings already seen, so the
       server honoured ``pageNo``; no empty page was followed by rows (the
-      requisitions a visitor cannot see sit together at the end, so the walk may
-      end on the last page the count implies or on a second empty page in a row,
-      never on one empty page with rows behind it); and the crawl was not cut by
-      the deadline or the page cap;
+      requisitions a visitor cannot see sit together at the end, so the pages
+      before the last one the count implies may be empty, but a row after an
+      empty page is a hole, and the walk ends only on that last page); and the
+      crawl was not cut by the deadline or the page cap;
     - every row was readable;
     - at least three fifths of the count are listed (measured: 77.5% to 100% on
       the verified career sections), so a walk that read almost nothing cannot
@@ -312,8 +312,9 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
                 broken = True  # nothing at all beside a count
                 break
             # The requisitions a visitor cannot see sit together at the end of the
-            # list (Bayshore: pages 20 to 23 of 23 are empty), so one empty page
-            # is a tail only if the next is empty too; rows after it are a hole.
+            # list (Bayshore: pages 20 to 23 of 23 are empty), so an empty page
+            # before the last one is a tail only if every page after it is empty
+            # too; a row after it is a hole.
             after_empty = True
             continue
         if after_empty or not fresh:

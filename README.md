@@ -63,7 +63,7 @@ Jobs come from employers' own boards (Greenhouse, Lever, Ashby, SmartRecruiters,
 Merging the v2 code changes no volumes. Two switches start the spending, and both belong after the Neon plan has room (the free plan's 5 GB transfer cap and 512 MB size cap are why; see "Storage and transfer" in the pipeline doc):
 
 - The `INGEST_DATABASE_URL` secret lets the daily workflow `ingest.yml` run the runner. Without it the workflow ends green and does nothing.
-- The Vercel variable `CRON_ATS_V2_CATALOGUE=1` makes `cron-ats` store every experience level and crawl the adapters' boards. Unset (the default), `cron-ats` keeps the student catalogue, internships and new grads on the five older platforms, as before v2, and the Jobs page offers only the experience levels that have jobs.
+- The Vercel variable `CRON_ATS_V2_CATALOGUE=1` makes `cron-ats` store every experience level and crawl every enabled board, the adapters' too. Unset (the default), `cron-ats` crawls only the 252 boards in `backend/data/student_catalogue_boards.json`, the ones it crawled before v2 (Greenhouse, Ashby, Workday, Lever and SmartRecruiters; the registry has 995 enabled boards on those platforms), and stores entry-level postings only. A stored row whose listing is no longer entry level retires as `off_target`, as before v2, and so does an orphan row (no board crawl reaches it) in the `cron-freshness` sweep. The Jobs page offers only the experience levels that have jobs.
 
 Turn them on in this order: the secret, a green first run, the Vercel variable `INGEST_V2_RUNNER=1` (it makes `cron-ats` leave the boards the runner crawled to it), then `CRON_ATS_V2_CATALOGUE=1`. A changed Vercel variable needs a redeploy.
 
@@ -98,7 +98,7 @@ python -m backend.ingest.run
 | `--concurrency N` | 20 | Boards crawled at once |
 | `--per-host N` | 2 | Boards crawled at once on one API host |
 | `--budget-minutes N` | 170 | No board starts and no row is inserted after this |
-| `--dry-run` | off | Log per board what is `known`, `new` and would be removed; write nothing |
+| `--dry-run` | off | Log per board what is `known`, `new` and would be removed (`would_hold` when the real run would hold a mass removal); write nothing |
 | `--no-schema` | off | Skip `create_all` and the boot migrations, for a database role with no DDL privilege (`ingest.yml` uses it) |
 | `--trigger T` | `manual` | Label stored in `scrape_runs.trigger` (the workflow passes `cron`) |
 
@@ -165,7 +165,7 @@ On PowerShell, set the two variables with `$env:DATABASE_URL = "sqlite:///./ci_t
 
 ### Add a company
 
-Add an entry to the `companies` array in `backend/data/ats_companies.json`. No code change: the next run picks it up and mirrors it into the `companies` table.
+Add an entry to the `companies` array in `backend/data/ats_companies.json`. No code change: the next runner run picks it up and mirrors it into the `companies` table. `cron-ats` crawls it only once `CRON_ATS_V2_CATALOGUE` is on: until then it crawls just the 252 boards in `backend/data/student_catalogue_boards.json`, a frozen list of the boards it crawled before v2. Disabling or re-pointing one of those boards fails `test_the_student_catalogue_is_the_registry_cron_ats_crawled_before_v2`, which pins all 252 as enabled, so change the file and that test together.
 
 ```json
 {

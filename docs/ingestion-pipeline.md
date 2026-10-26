@@ -18,8 +18,10 @@ incident to learn. What changed:
   runner does this from the start; `cron-ats` does it once
   `CRON_ATS_V2_CATALOGUE` is on, and keeps its pre-v2 student catalogue until
   then ("The every-level switch").
-- **`off_target` means outside the US and Canada** for crawled rows, nothing
-  else. **`stale` is hidden** from the feed.
+- **`off_target` means outside the US and Canada** for crawled rows, with one
+  exception: while `CRON_ATS_V2_CATALOGUE` is off, `cron-ats` and the
+  `cron-freshness` orphan sweep also retire a row whose title is not entry
+  level, as before v2. **`stale` is hidden** from the feed.
 - **One write path.** `backend/ingest/core/pipeline.py` ingests a board crawl
   for the `cron-ats` endpoint and for the new runner
   (`python -m backend.ingest.run`). The runner has a work queue
@@ -125,15 +127,21 @@ canonical copy:
 
 | `source_trust` | Sources | Notes |
 |---|---|---|
-| `high` | Employers' board APIs: the five older connectors and every adapter | The employer's own copy: canonical, direct apply URL |
+| `high` | Employers' board APIs: the five older connectors and the Tier 1 and 2 adapters | The employer's own copy: canonical, direct apply URL |
 | `medium` | Curated GitHub job lists (cron-poll) | Direct links, human-curated, but not the employer's feed |
-| `low` | LinkedIn guest API, JobSpy (Indeed/LinkedIn) | Gap-filler only; never becomes canonical when a direct twin exists |
+| `low` | LinkedIn guest API, JobSpy (Indeed/LinkedIn), and the Tier 3 aggregator adapters (Adzuna, Jooble) | Gap-filler only; never becomes canonical when a direct twin exists |
 
 Adapters also carry a `TIER` constant (1 to 4). It says what kind of source
-they read and has nothing to do with trust: **1** public JSON or RSS boards,
-**2** enterprise ATS and public-sector sources, **3** aggregator APIs, **4**
-LinkedIn, Indeed and Glassdoor (best effort; no adapter exists, because the
-existing LinkedIn and JobSpy steps are grandfathered and stay as they are).
+they read: **1** public JSON or RSS boards, **2** enterprise ATS and
+public-sector sources, **3** aggregator APIs, **4** LinkedIn, Indeed and
+Glassdoor (best effort; no adapter exists, because the existing LinkedIn and
+JobSpy steps are grandfathered and stay as they are). From Tier 3 up it also
+decides trust (`pipeline.source_trust`, the threshold is
+`cross_source_dedup.AGGREGATOR_TIER`): such an adapter's rows are stored as
+`source_platform = 'ats'` like a board's, but with `source_trust` `low`, and
+they are an inferior source like LinkedIn and Indeed: the employer's own row
+hides such a row when they are twins, and such a row never hides anything. A
+Tier 1 or 2 adapter stores `high`, as do the five older connectors.
 
 Board fetches use the public JSON (or RSS) feeds that platforms publish for job
 boards to consume. Where a platform has none, the adapter reads its public
@@ -254,6 +262,18 @@ of boards. Adding coverage is a JSON edit with no code change.
 enabled entries on one of the five older platforms (a Workday entry also needs
 its `workday_url_template`) or on a platform whose adapter is enabled.
 
+`cron-ats` crawls all of them only once `CRON_ATS_V2_CATALOGUE` is on. Until
+then it crawls the boards of `backend/data/student_catalogue_boards.json`
+(`load_companies(student_catalogue=True)`): a frozen list of the 252
+`platform:slug` keys it crawled before v2 (Greenhouse 129, Ashby 60, Workday 33,
+Lever 17, SmartRecruiters 13), where the registry holds 995 enabled boards on
+those platforms. A board added to the registry, or one of the 252 disabled or
+re-pointed, therefore changes what the runner crawls and not what `cron-ats`
+does. `test_the_student_catalogue_is_the_registry_cron_ats_crawled_before_v2`
+pins that all 252 stay enabled, so change the file and that test together. An
+unreadable or empty file raises: falling back to the whole registry would crawl
+the boards that the switch holds back. The file's own `_note` says the same.
+
 | Field | Meaning |
 |---|---|
 | `company_name`, `ats_platform`, `board_slug`, `enabled` | Required. The slug is the board's token, tenant or subdomain. `ats_platform` is one of the five older platforms or an adapter's `PLATFORM` |
@@ -320,9 +340,13 @@ hands every snapshot to the shared pipeline.
 - **Concurrency:** up to `CRON_ATS_CONCURRENCY` (default 6) boards crawl at
   once, never two on the same API host. The shared-host chains launch first
   (Greenhouse, Ashby and Lever, then SmartRecruiters), and Workday tenants,
-  each a host of its own, fill the slots the chains leave. All boards of one
-  adapter platform count as one host (`board_host()`), so they crawl one at a
-  time here.
+  each a host of its own, fill the slots the chains leave. An adapter board is
+  a lane of its own too (`board_host()`): the career-site host its config names
+  (Oracle pods, iCIMS portals, Jibe sites, SuccessFactors and Taleo sites, or a
+  Teamtailor site on its own domain), else its tenant subdomain (BambooHR,
+  Recruitee, Teamtailor), so boards on different hosts crawl side by side.
+  Workable, Job Bank and the keyed APIs (USAJOBS, Adzuna, Jooble) serve every
+  board from one host, so each of those platforms is one lane.
 - **List budget:** paging past a board's newest-first head stops once
   `CRON_ATS_LIST_BUDGET_SECONDS` (default 150 s, from the start of the run) is
   spent. Such a board finishes partial for this run. No board starts after it
@@ -335,9 +359,10 @@ hands every snapshot to the shared pipeline.
 - **Every level, behind a switch:** with `CRON_ATS_V2_CATALOGUE` on, the crawl
   keeps every experience level and only US and Canadian postings
   (`ATSScraper(filter_entry_level=False, filter_north_america=True)`), and it
-  crawls the adapters' boards too. Level is a tag, not a filter. With it off
-  (the default) `cron-ats` crawls only the five older platforms' boards and
-  stores only the student catalogue (`filter_entry_level=True`), as it did
+  crawls every enabled board, the adapters' too. Level is a tag, not a filter.
+  With it off (the default) `cron-ats` crawls only the 252 boards in
+  `backend/data/student_catalogue_boards.json`, the ones it crawled before v2,
+  and stores only the student catalogue (`filter_entry_level=True`), as it did
   before v2, through the same shared pipeline. See "The every-level switch".
 - **Cut-over:** with `INGEST_V2_RUNNER` on, boards the daily runner crawled in
   the last 20 hours are left to it (see "Schedules").
@@ -430,20 +455,23 @@ caps, the detail budgets and the counters. In order:
    on the same board when the URL is not stored (the row's URL then moves to
    the new one); bump `last_seen_at`, detect edits (title, location, salary,
    description hash), re-derive the fields an edit moves, and relabel a
-   crawler row whose `experience_level` no longer agrees with the taxonomy. The
-   listings that match neither way are the new ones.
+   crawler row whose `experience_level` no longer agrees with the taxonomy
+   (`relabeled` in the run totals). The listings that match neither way are the
+   new ones.
 3. **Reconcile or confirm,** before any insert, so the rows the listing dropped
    have closed (and freed their place under the per-employer cap) when the
    employer's live rows are counted. A complete listing goes through
-   `reconcile_board`; a partial one only through `confirm_listed` (see "Partial
-   snapshots confirm, complete ones reconcile").
-4. **Select the new rows,** newest first, within the caps that need no request
-   (below).
+   `reconcile_board`, unless it would remove most of the board (below); a
+   partial one only through `confirm_listed` (see "Partial snapshots confirm,
+   complete ones reconcile").
+4. **Select the new rows,** student postings (internship or new grad) first
+   and each group newest first, within the caps that need no request (below).
 5. **Fetch descriptions** the list payload lacks, one detail request each
    (SmartRecruiters, Workday, and adapters that define `fetch_job`), within the
-   detail budgets. A row the budget cannot cover is not inserted this run and
-   surfaces as new on the board's next crawl. A row whose request failed is
-   stored without a description.
+   detail budgets, in that order, so student postings get the budget first. A
+   row the budget cannot cover is not inserted this run and surfaces as new on
+   the board's next crawl. A row whose request failed is stored without a
+   description.
 6. **Insert** each row and commit it on its own. A new direct row hides the
    LinkedIn and Indeed copies of itself that arrived first
    (`mark_inferior_twins`).
@@ -457,9 +485,10 @@ engine reads); `experience_level`, `experience_years_required`,
 `locations_json`, `location_search` and `work_type`; a logo (the logo store,
 else the curated registry logo, else one derived from the company domain); the
 structured extraction (salary, employment type, visa, skills, `raw_hash`);
-`source_trust` `high`, `board_key` and `external_id`; a `fingerprint`;
-`company_id` when the `companies` table has the board; `apply_url` when the
-source gives one; and the description, cut at `description_max_chars`.
+`source_trust` (`high`, or `low` for a Tier 3 aggregator adapter: see "Sources
+and trust"), `board_key` and `external_id`; a `fingerprint`; `company_id` when
+the `companies` table has the board; `apply_url` when the source gives one; and
+the description, cut at `description_max_chars`.
 
 `external_id` is `{platform}:{slug}:{the source's own posting id}`. The refresh
 matches a listing by URL first; one whose URL is not stored falls back to the
@@ -475,7 +504,18 @@ A posting missing from a **complete** listing is removed at once:
 `listing_status` `removed` with `closed_reason` `delisted`, and revived if the
 board lists it again. The spec's two-step stale-then-closed exists to survive a
 flaky listing; revive-on-reappearance already does that, and it is tested
-(DECISIONS 5).
+(DECISIONS 5). One exception guards against a source that answers short and
+calls the answer complete (three adapters were caught doing it): a listing that
+would remove more than 20 of the board's open rows **and** more than half of
+them (`MASS_REMOVAL_MIN` and `MASS_REMOVAL_SHARE` in `listing_freshness`,
+`mass_removal`) is held instead. Nothing is removed and a warning is logged. The
+rows the listing does carry are confirmed as usual; the others stay as they
+were, no longer re-confirmed, so the stale sweep (hidden after 72 hours) and the
+verifier close the dead ones within days. A board with 20 or fewer open rows is
+never held, so a small board keeps its real removals. The held count is `held`
+on the board's line (the runner's `task` log line), `removals_held` in the run
+totals (the `cron-ats` response and `scrape_runs.stats`), and `would_hold` in a
+`--dry-run`, where `would_remove` then reads 0.
 
 ### Storage caps and detail budgets
 
@@ -486,7 +526,7 @@ exist is in "Storage and transfer".
 
 | Key | Now | Effect |
 |---|---|---|
-| `max_live_per_company` | 60 | Live rows (active or stale) one employer may hold, counted by the company name on the listing. A board whose employer is at the cap inserts no more until rows close |
+| `max_live_per_company` | 60 | Live rows (active or stale) one employer may hold, counted by the company name on the listing. Only crawled (`ats`) rows above the student levels count: internship and new grad rows, and LinkedIn, Indeed and GitHub-list rows of the same name, do not. A board whose employer is at the cap inserts no more until rows close, except student postings (a new posting whose level is internship or new grad), which the cap never holds back |
 | `skip_posted_older_than_days` | 90 | A new posting the source dates older than this at first sight is not stored |
 | `description_max_chars` | 12000 | The stored description is cut here; hashes and extraction read the whole text. 12,000 keeps every stored description whole (p99 10,073, max 11,817 on the dev branch) |
 | `max_new_rows_per_run` | 15000 | New rows one run may insert |
@@ -539,7 +579,9 @@ Ingestion section has the commands). One run, in order:
 6. **Sweeps.** The lifecycle sweeps `cron-freshness` runs, in its order
    (`run_sweeps`). That function is a copy of the sequence in
    `routers/jobs.py`, kept in step by hand because the web router is not
-   imported: change one, change the other.
+   imported: change one, change the other. One difference is on purpose: the
+   web copy retires orphan rows for their level while `CRON_ATS_V2_CATALOGUE`
+   is off, and the runner, which stores every level, never does.
 7. **Summary.** Counts and notes go to `scrape_runs` and the last log line.
    Yield warnings are also POSTed to `ALERT_WEBHOOK_URL` when it is set.
 
@@ -551,7 +593,7 @@ Ingestion section has the commands). One run, in order:
 | `--concurrency` | 20 | Boards crawled at once |
 | `--per-host` | 2 | Boards crawled at once on one API host |
 | `--budget-minutes` | 170 | No board starts and no row is inserted after this |
-| `--dry-run` | off | Crawl the planned boards and log per board what would change (`known`, `new`, `would_remove`); write nothing but the schema step |
+| `--dry-run` | off | Crawl the planned boards and log per board what would change (`known`, `new`, `would_remove`, and `would_hold` for a mass removal the real run would hold); write nothing but the schema step |
 | `--no-schema` | off | Skip `create_all` and the boot migrations (see step 2); for a database role with no DDL privilege |
 | `--trigger` | `manual` | Who started the run, stored in `scrape_runs.trigger` (the workflow passes `cron` for its schedule) |
 
@@ -667,16 +709,18 @@ onboarding both read. `GET /jobs` takes `experience_level` as a comma-separated
 list of the option values.
 
 The options offered are only the ones with live jobs behind them. Until the
-every-level switch is on, production stores just internship and new grad rows,
-and a Senior or Director option would be a silent dead end that returns an empty
-feed. `GET /jobs/levels` answers `{"levels": [...]}`: the option values, in the
-list's order, that have at least one live row (the visibility rules of
-`GET /jobs`). It is public and cached for five minutes, on the instance and in
-the CDN, so a new level shows within about ten minutes of its first row. The
-Jobs page and onboarding build their lists from it, in `EXPERIENCE_OPTIONS`'
-order and with its labels. A saved level whose option is hidden is dropped from
-the active filter (never an invisible filter), and an answer that cannot be read
-offers all six. `GET /jobs/stats` and `GET /jobs/sidebar` take the same
+every-level switch is on, production stores just the entry-level tiers
+(internship and new grad rows, and `entry` for the weak tier of junior and
+associate titles), and a Senior or Director option would be a silent dead end
+that returns an empty feed. `GET /jobs/levels` answers `{"levels": [...]}`: the
+option values, in the list's order, that have at least one live row (the
+visibility rules of `GET /jobs`). It is public and cached for five minutes, on
+the instance and in the CDN, so a new level shows within about ten minutes of
+its first row. The Jobs page and onboarding build their lists from it, in
+`EXPERIENCE_OPTIONS`' order and with its labels. A saved level whose option is
+hidden is dropped from the active filter (never an invisible filter), and an
+answer that cannot be read offers all six. `GET /jobs/stats` and
+`GET /jobs/sidebar` take the same
 `experience_level` and count only those levels, or Intern/New Grad plus Entry
 Level when none are given: `total`, `new`, `applied` and the breakdowns, and the
 rail's feed summary and "hiring the most" list. `saved_count` and
@@ -875,17 +919,30 @@ inactive), `ttl` (it aged out). `listing_freshness.closed_reason_for()` maps a
 liveness verdict's reason onto these, and an adapter's `check_alive` may answer
 in these terms directly. GitHub-list closures do not stamp it yet.
 
-`off_target` hides a row that is still open but outside the feed's scope. Since
-v2 every experience level is in scope, so for crawled (ATS) rows the one reason
-left is **location**: the listing is outside the US and Canada
-(`ATSScraper.rejection()` says `location`, and `RETIRABLE_REJECTIONS` is
-`{"location"}`). A listing with no location either way (`unplaced`) proves only
+`off_target` hides a row that is still open but outside the feed's scope. For
+crawled (ATS) rows there are two reasons, both in `RETIRABLE_REJECTIONS`
+(`{"level", "location"}`): **location**, the listing is outside the US and
+Canada (`ATSScraper.rejection()` says `location`), and **level**, the title is
+not entry level. Only a crawl that filters by level ever says `level`: `cron-ats`
+while `CRON_ATS_V2_CATALOGUE` is off, as before v2. The runner and `cron-ats`
+with the switch on keep every experience level, so there only a location
+retires a row. A listing with no location either way (`unplaced`) proves only
 that the posting is open; it never retires a row. Board crawls set `off_target`
-on the ATS rows they list whose own listing fails that test (a London, UK
+on the ATS rows they list whose own listing fails those tests (a London, UK
 posting stored before the filter knew better), and a listing that passes again
-brings the row back. A cron-freshness sweep,
-`retire_unreconcilable_off_target`, does the same for ATS rows on never-crawled
-`unknown` boards, which no crawl will judge. The one level rule left belongs to
+brings the row back. With the switch off that includes the rows of other levels
+the runner stored: `cron-ats` retires them and the runner's next crawl revives
+them, so while the runner runs and the switch is still off they flap. A
+cron-freshness sweep, `retire_unreconcilable_off_target`, does the same for ATS
+rows on never-crawled `unknown` boards, which no crawl will judge, and follows
+the switch the same way. `cron-freshness` passes `entry_level_only` while it is
+off: the sweep then retires an orphan row whose title is not entry level and
+never restores a row retired for its level, so merging v2 gives back nothing
+that production hid. With the switch on, and in the runner's own sweeps, only a
+location retires and the rows a level verdict hid come back. Either way each row
+the sweep checks or restores gets the level its title says (`relabeled`): no
+crawl ever relabels these rows, and a rogue-era "Senior ..." row labeled
+`new_grad` must not return to the student feed. The other level rule belongs to
 the grandfathered scrapers: `retire_senior_aggregator_rows` sets LinkedIn and
 Indeed rows with a plainly senior title (`ats_scraper.HARD_SENIOR`) off_target,
 because those searches are scoped to entry level and the spec leaves them as
@@ -1036,12 +1093,12 @@ included), so let a dev branch suspend when it is idle.
 How ingestion stays inside the limits:
 
 - **Caps.** `backend/ingest/data/limits.json` (see "The shared pipeline"): 60
-  live rows an employer, nothing already older than 90 days at first sight,
-  descriptions cut at 12,000 characters, inserts stopped at 400 MB. About 1,100
-  employers share the 512 MB, so 60 spreads the room instead of letting a few
-  giants (Walmart, HCA and Dollar General each list thousands of postings) fill
-  it. The values are sized for the free plan (DECISIONS 11); raise them after
-  upgrading it.
+  live rows an employer (student postings are exempt), nothing already older
+  than 90 days at first sight, descriptions cut at 12,000 characters, inserts
+  stopped at 400 MB. About 1,100 employers share the 512 MB, so 60 spreads the
+  room instead of letting a few giants (Walmart, HCA and Dollar General each
+  list thousands of postings) fill it. The values are sized for the free plan
+  (DECISIONS 11); raise them after upgrading it.
 - **Reclaim.** Descriptions of long-dead postings are the largest avoidable
   cost (below).
 - **Reads are columns, not rows.** The refresh selects the few columns it
@@ -1082,17 +1139,18 @@ DDL once everything exists, takes an advisory lock (key 7311027530201) and a
   `closed_reason`, `consecutive_failures`, `salary_is_estimated`, `apply_url`,
   `expires_at`;
 - on `source_health`: `disabled_until`, `jobs_7d_avg`;
-- six indexes on `scraped_jobs`: `ix_scraped_jobs_status_family`,
+- five indexes on `scraped_jobs`: `ix_scraped_jobs_status_family`,
   `ix_scraped_jobs_status_level`, `ix_scraped_jobs_status_geo`,
-  `ix_scraped_jobs_company_id`, `ix_scraped_jobs_status_probed`,
-  `ix_scraped_jobs_fingerprint` (not unique: uniqueness stays on `url` and
-  `external_id`);
+  `ix_scraped_jobs_company_id` and `ix_scraped_jobs_status_probed`. The
+  `fingerprint` column has none: it is a match key nothing reads yet (never
+  unique: uniqueness stays on `url` and `external_id`), and on a capped
+  database an index nothing reads is pure cost;
 - the tables `companies`, `scrape_runs` and `scrape_tasks`, which `create_all`
   builds.
 
 Nothing fills `remote_scope`, `salary_is_estimated`, `expires_at` or
 `scraped_jobs.consecutive_failures` yet: `ATSJob` has no field to carry them.
-The first run on a database builds the six indexes, each holding a SHARE lock
+The first run on a database builds the five indexes, each holding a SHARE lock
 (writes wait, reads continue) while it builds. A cold start that waits longer
 than the `lock_timeout` fails and the next one retries, so before the first
 production deploy run the migration once by hand, against that database, and
@@ -1546,14 +1604,24 @@ stores. Without it, merging v2 would have turned the every-level catalogue on in
 production with nothing able to stop it (DECISIONS 21):
 
 - **Off (the default):** `cron-ats` behaves as it did before v2. It crawls only
-  the boards on the five older platforms (Greenhouse, Lever, Ashby,
-  SmartRecruiters, Workday) and stores only the student catalogue
-  (`ATSScraper(filter_entry_level=True)`), through the shared pipeline: same
-  tags, caps, reconcile and confirm. A row of another level that the runner
-  stored is still listed by its board, so reconcile and confirm keep it active.
+  the 252 boards in `backend/data/student_catalogue_boards.json` (see "The
+  registry"), all on the five older platforms (Greenhouse, Lever, Ashby,
+  SmartRecruiters, Workday), and stores only the student catalogue
+  (`ATSScraper(filter_entry_level=True)`: internship and new grad postings, and
+  the weak entry tier, such as junior or associate titles, stored as `entry`),
+  through the shared pipeline: same tags, caps, reconcile and confirm. The
+  level retirement is as before v2 too. A stored row whose board still lists it
+  but whose listing is not entry level goes `off_target`, so a row of another
+  level that the runner stored is retired by `cron-ats`, and the runner's next
+  crawl, which keeps every level, revives it. While the runner runs and the
+  switch is still off, such rows flap. The orphan sweep of `cron-freshness`
+  follows the switch as well: off, it retires an orphan row for its level and
+  restores none (`entry_level_only`), so merging gives back no row production
+  had retired for its level.
 - **On** (`1`, `true`, `yes` or `on`): `cron-ats` stores every experience level
-  (US and Canadian postings only) and crawls the adapters' boards too, as the
-  runner does.
+  (US and Canadian postings only) and crawls every enabled board, the
+  adapters' too, as the runner does. The orphan sweep keeps every level then,
+  and restores the rows an earlier level verdict hid.
 
 Why it exists: on the free Neon plan the every-level catalogue's refresh reads
 pass the 5 GB transfer cap, and its rows reach the 400 MB insert stop within
@@ -1639,7 +1707,7 @@ On Vercel (the endpoints):
 | `ATS_PER_HOST_INTERVAL` | 0.35 | Seconds between requests to one API host (the five older connectors) |
 | `CRON_ATS_RETIRE_OFF_TARGET` | on | `0`/`false`/`no`/`off` stops retiring rows to `off_target` and restores them (see the lifecycle section); needs a redeploy |
 | `INGEST_V2_RUNNER` | off | The cut-over: `cron-ats` leaves boards the runner crawled in the last 20 hours to it |
-| `CRON_ATS_V2_CATALOGUE` | off | `1`, `true`, `yes` or `on`: `cron-ats` stores every experience level and crawls the adapters' boards. Off, it keeps the student catalogue on the five older platforms, as before v2. Turn it on only after the Neon plan has room, and after `INGEST_V2_RUNNER` (see "The every-level switch"); needs a redeploy |
+| `CRON_ATS_V2_CATALOGUE` | off | `1`, `true`, `yes` or `on`: `cron-ats` stores every experience level and crawls every enabled board, the adapters' too. Off, it crawls only the 252 boards in `backend/data/student_catalogue_boards.json` and keeps the student catalogue, as before v2; the `cron-freshness` orphan sweep follows it. Turn it on only after the Neon plan has room, and after `INGEST_V2_RUNNER` (see "The every-level switch"); needs a redeploy |
 | `USAJOBS_API_KEY`, `USAJOBS_USER_AGENT`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | unset | Switch the keyed adapters on; `.env.example` lists them |
 
 For the runner (a `.env` locally, secrets in `ingest.yml`):
@@ -1869,7 +1937,8 @@ The v2 tests live in `backend/tests/ingest/` and their fixtures in
 |---|---|
 | `test_adapters_tier1.py`, `test_adapters_tier2.py`, `test_adapters_public.py` | The adapters against saved payloads, plus the `network` tests |
 | `test_adapter_registry.py`, `test_adapter_routing.py`, `test_adapter_import_order.py` | Discovery, `REQUIRED_ENV`, `HOST_PATTERNS`, and the routing in `scrape_board` and the liveness hook |
-| `test_http.py` | The user agent, retries, `Retry-After`, per-host pacing, `robots.txt` |
+| `test_http.py` | The user agent, retries, `Retry-After`, per-host pacing, `robots.txt` and its `Crawl-delay` |
+| `test_liveness_fixtures.py` | Recorded liveness exchanges for 15 sources, replayed offline through `check_listing`; three Taleo cases are strict expected failures (a known gap) |
 | `test_pipeline.py`, `test_closure.py` | The shared write path: idempotency (a second ingest of the same snapshot adds 0 rows), caps, and the closure simulation (50 postings dropped from a complete fixture board are hidden and closed with `closed_reason` `delisted` by the first reconcile) |
 | `test_queue.py`, `test_run.py`, `test_report.py` | The queue (claim, lease expiry, attempts), a runner end to end on SQLite with a fake adapter, the report |
 | `test_taxonomy.py`, `test_taxonomy_api.py` | The accuracy gates over `labels.json`, per-rule tests, the guard on the older entry-level labels |
@@ -1945,8 +2014,10 @@ Unfinished or deliberately not done, as of 2026-10-26:
   (field types, page-size ceilings, error formats). Jooble's free key is 500
   requests in total and serves one country site, which one `JOOBLE_API_KEY`
   variable cannot express for both countries. The pipeline stores every adapter
-  row as `source_platform = 'ats'` with `source_trust = 'high'`, aggregators
-  included: decide their trust before switching them on.
+  row as `source_platform = 'ats'`, and its `source_trust` follows the adapter's
+  `TIER`: `high` for Tier 1 and 2, `low` for the Tier 3 aggregators (Adzuna,
+  Jooble), which are inferior sources like LinkedIn and Indeed (see "Sources and
+  trust").
 - **Coverage gaps.** Jobvite has no public feed. Taleo covers only career
   sections with a JSON search (not Business Edition or the older layout).
   SuccessFactors needs each employer's Recruiting Marketing host, and 121
@@ -1956,9 +2027,16 @@ Unfinished or deliberately not done, as of 2026-10-26:
   requests) is invisible to the paged adapters, unlike Oracle's changing count.
   The page after it shifts up, one live posting is skipped, and a complete
   listing could close it until the next crawl revives it (DECISIONS 5).
-- **`Crawl-delay`.** `core/http.py` does not read it. Jibe and Job Bank honour
-  theirs through `RATE_LIMIT`, and any other iCIMS portal or site might ask for
-  more than one request a second.
+- **`Crawl-delay`.** `core/http.py` honours it: a request is paced at the
+  adapter's `RATE_LIMIT` or, when longer, at the `Crawl-delay` for `TailrdBot` in
+  the site's `robots.txt`, up to `MAX_CRAWL_DELAY` (10 s). It reads the
+  `robots.txt` that `http.robots_allowed` has already fetched and kept, and
+  never fetches one itself, so it covers the adapters that ask first (iCIMS,
+  Jibe, Job Bank, SuccessFactors, Taleo, and Recruitee's page check). The JSON
+  and RSS adapters never read `robots.txt`, so a delay a site publishes only
+  there goes unseen. A site that asks for more than 10 s is paced at 10 s unless
+  its adapter passes the longer interval as `rate_limit`, as Jibe does for a
+  delay of up to a minute.
 - **Fields nothing fills:** `remote_scope`, `salary_is_estimated`, `expires_at`
   and `scraped_jobs.consecutive_failures`. `ATSJob` has no field for them, so
   Job Bank's "advertised until" and USAJOBS' close dates are lost.
@@ -1982,8 +2060,18 @@ Unfinished or deliberately not done, as of 2026-10-26:
   one board, which are separate requisitions (DECISIONS 9).
 - **Idempotency** was checked on 30 fully listed boards re-run about 23 hours
   after run #3: 704 known rows refreshed in place, 14 genuinely new rows
-  inserted, 21 removed, none re-inserted. A second full run and liveness
-  fixtures for the new adapters (3 alive and 3 dead pages per source) are not
-  done.
+  inserted, 21 removed, none re-inserted. A second full run is not done.
+- **Liveness fixtures** exist for the 15 sources with a liveness check: real
+  exchanges recorded on 2026-10-26, three open and three gone postings each (or
+  a stated reason for a shortfall), in
+  `backend/tests/fixtures/ingest/liveness/<source>.json`. They replay offline
+  through `check_listing` (`test_liveness_fixtures.py`) and must give the
+  recorded verdict. Three Taleo cases are known gaps: a removed requisition
+  answers 200 with the career section's shell, so the generic page check cannot
+  call it dead. They run as strict expected failures, so the gap stays visible
+  and the marker has to go the day the check learns it.
 - **Duplicated sweep sequence.** `run_sweeps` in `backend/ingest/run.py` copies
-  `cron_freshness`; they are kept in step by hand.
+  `cron_freshness`; they are kept in step by hand. They differ in one place on
+  purpose: `cron_freshness` passes `entry_level_only` to the orphan sweep while
+  `CRON_ATS_V2_CATALOGUE` is off, and the runner's copy always keeps every
+  level.

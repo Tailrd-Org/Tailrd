@@ -1076,8 +1076,9 @@ def job_levels(response: Response, db: Session = Depends(get_db)):
     filter lists them.
 
     The Jobs page and onboarding offer only these. Until CRON_ATS_V2_CATALOGUE is on,
-    production stores only internship and new grad rows, and an option with no rows
-    (Senior, Director) is a silent dead end: it returns an empty feed. "Live" is what
+    production stores only the entry-level tiers (internship and new grad rows, and
+    Entry Level for the weak tier of junior and associate titles), and an option with
+    no rows (Senior, Director) is a silent dead end: it returns an empty feed. "Live" is what
     the feed shows (the visibility rules of GET /jobs), and each option is reported
     once under its filter key: ``intern_new_grad`` stands for internship and new_grad,
     ``director`` for director and executive."""

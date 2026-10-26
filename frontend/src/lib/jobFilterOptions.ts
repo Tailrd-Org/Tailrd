@@ -171,8 +171,9 @@ export function parseAvailableLevels(data: unknown): string[] | null {
  * The options worth offering, given the ones that have live jobs (parseAvailableLevels).
  *
  * An option with no jobs behind it is a silent dead end: ticking it returns an empty
- * feed. Until every level is ingested, production stores only internships and new
- * grads, so the filter bar and onboarding offer just what the catalogue holds. The
+ * feed. Until every level is ingested, production stores only the entry-level tiers
+ * (internships and new grads, and Entry Level for junior and associate titles), so
+ * the filter bar and onboarding offer just what the catalogue holds. The
  * options keep EXPERIENCE_OPTIONS' order and labels. When the list is not known
  * (still loading, the request failed) every option stays on offer, so a failed lookup
  * never takes the filter away.
