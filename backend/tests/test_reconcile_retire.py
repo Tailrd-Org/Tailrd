@@ -566,6 +566,74 @@ class TestOrphanRetire:
         assert probed and all(status == LISTING_OFF_TARGET for status in probed)
 
 
+class TestOrphanRelabel:
+    """Orphan rows never passed this crawler's filter and no crawl relabels
+    them, so a row the sweep restores or checks gets the level its title says:
+    a rogue-era "Senior ..." row labeled new_grad must not come back into the
+    student feed."""
+
+    @staticmethod
+    def _level(db, row):
+        db.expire_all()
+        return db.get(ScrapedJob, row.id).experience_level
+
+    def test_a_restored_row_gets_its_titles_level(self, db_session):
+        senior = _row(db_session, "https://jobs.nokia.com/1", board_key="unknown",
+                      title="Senior Software Engineer", location="Toronto, ON",
+                      listing_status=LISTING_OFF_TARGET, experience_level="new_grad")
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert stats["restored"] == 1 and stats["relabeled"] == 1
+        assert _status(db_session, senior) == LISTING_ACTIVE
+        assert self._level(db_session, senior) == "senior"
+
+    def test_a_checked_row_gets_its_titles_level_and_a_true_label_is_kept(self, db_session):
+        director = _row(db_session, "https://jobs.nokia.com/2", board_key="",
+                        title="Director of Operations", location="Toronto, ON",
+                        experience_level="new_grad")
+        intern = _row(db_session, "https://jobs.nokia.com/3", board_key="unknown",
+                      title="Software Engineering Intern", location="Toronto, ON",
+                      experience_level="internship")
+        abroad = _row(db_session, "https://jobs.nokia.com/4", board_key="unknown",
+                      title="Principal Engineer", location="London, UK",
+                      experience_level="new_grad")
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert stats["relabeled"] == 2
+        assert self._level(db_session, director) == "director"
+        assert _status(db_session, director) == LISTING_ACTIVE
+        assert self._level(db_session, intern) == "internship"
+        assert _status(db_session, abroad) == LISTING_OFF_TARGET
+        assert self._level(db_session, abroad) == "lead"
+        assert retire_unreconcilable_off_target(db_session, now=NOW)["relabeled"] == 0
+
+    def test_a_title_naming_no_level_falls_back_on_the_stored_years(self, db_session):
+        analyst = _row(db_session, "https://jobs.nokia.com/5", board_key="unknown",
+                       title="Software Engineer", location="Toronto, ON",
+                       experience_level="new_grad", experience_years_required=1)
+
+        retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert self._level(db_session, analyst) == "entry"
+
+    def test_the_kill_switchs_rollback_relabels_what_it_restores(self, db_session, monkeypatch):
+        monkeypatch.setenv("CRON_ATS_RETIRE_OFF_TARGET", "0")
+        senior = _row(db_session, "https://jobs.nokia.com/6", board_key="unknown",
+                      title="Senior Software Engineer", location="London, UK",
+                      listing_status=LISTING_OFF_TARGET, experience_level="new_grad")
+        crawled = _row(db_session, "https://boards.greenhouse.io/acme/jobs/7",
+                       title="Senior Software Engineer", listing_status=LISTING_OFF_TARGET,
+                       experience_level="new_grad")  # its board crawl decides
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert (stats["restored"], stats["relabeled"]) == (1, 1)
+        assert self._level(db_session, senior) == "senior"
+        assert self._level(db_session, crawled) == "new_grad"
+
+
 # ─── LinkedIn/Indeed rows with a plainly senior title ────────────────────────
 
 def _aggregator(db, n, title, source="linkedin", **kwargs):

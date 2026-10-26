@@ -1011,6 +1011,29 @@ def _orphan_row() -> tuple:
             not_(_fast_aggregator_row()))
 
 
+def _relabel_orphans(db: Session, rows) -> int:
+    """Give orphan rows (id, title, ..., experience_level,
+    experience_years_required, the last two columns) the level
+    taxonomy.classify_experience reads in the title, falling back on the
+    stored years as a crawl's refresh does. Unlike a crawled row (the
+    backfill keeps a stored student label, DECISIONS 13) these rows never
+    passed this crawler's filter, and no crawl will ever relabel them: a
+    rogue-era "Senior ..." row labeled new_grad would come back into the
+    student feed. One UPDATE per chunk per level, uncommitted. Returns the
+    rows relabeled."""
+    from backend.ingest import taxonomy
+
+    moves: dict[str, list[int]] = {}
+    for row in rows:
+        row_id, title, level, years = row[0], row[1], row[-2], row[-1]
+        wanted = taxonomy.classify_experience(title or "", years_required=years)
+        if wanted != (level or ""):
+            moves.setdefault(wanted, []).append(row_id)
+    for wanted, ids in moves.items():
+        _update_ids(db, ids, {"experience_level": wanted})
+    return sum(len(ids) for ids in moves.values())
+
+
 def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None = None,
                                      limit: int = ORPHAN_RETIRE_LIMIT) -> dict:
     """Retire visible crawler rows no board crawl will ever judge, when their
@@ -1024,7 +1047,9 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     the same one a board crawl acts on: since scraper v2 every experience
     level is in scope, so only "location" retires, and only on positive
     foreign evidence. Rows an earlier sweep retired for their level come
-    back. Only "ats" rows, never a LinkedIn/Indeed page stored as one.
+    back. Only "ats" rows, never a LinkedIn/Indeed page stored as one. Every
+    row the sweep checks or restores gets the level its title says
+    (_relabel_orphans, ``relabeled``).
 
     No crawl ever brings these rows back (reconcile_board goes by board_key,
     and backfill_board_keys re-derives only a '' or NULL key), so with the
@@ -1036,16 +1061,30 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     from backend.services.ats_scraper import ATSJob, ATSScraper
 
     now = now or _utcnow()
-    stats = {"checked": 0, "off_target": 0, "level": 0, "location": 0}
+    stats = {"checked": 0, "off_target": 0, "level": 0, "location": 0, "relabeled": 0}
+    columns = (ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location,
+               ScrapedJob.experience_level, ScrapedJob.experience_years_required)
     if not retire_off_target_enabled():
         stats["disabled"] = True
-        stats["restored"] = _restore_off_target(db, now, limit, _orphan_row())["restored"]
+        held = (
+            db.query(*columns)
+            .filter(ScrapedJob.listing_status == LISTING_OFF_TARGET, *_orphan_row())
+            .order_by(ScrapedJob.id.asc())
+            .limit(limit)
+            .all()
+        )
+        if held:
+            stats["relabeled"] = _relabel_orphans(db, held)
+            stats["restored"] = _restore_off_target(
+                db, now, limit, (ScrapedJob.id.in_([row[0] for row in held]),))["restored"]
+        else:
+            stats["restored"] = 0
         if stats["restored"]:
             logger.info("retire_unreconcilable_off_target disabled, rolled back: %s", stats)
         return stats
 
     rows = (
-        db.query(ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location)
+        db.query(*columns)
         .filter(
             *_orphan_row(),
             ScrapedJob.listing_status.in_((LISTING_ACTIVE, LISTING_STALE)),
@@ -1057,7 +1096,7 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     )
     scraper = ATSScraper(filter_entry_level=False, filter_north_america=True)
     retire: list[int] = []
-    for row_id, title, company, location in rows:
+    for row_id, title, company, location, _level, _years in rows:
         stats["checked"] += 1
         reason = scraper.rejection(ATSJob(title=title or "", company=company or "",
                                           location=location or "", url="", department=""))
@@ -1067,29 +1106,34 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     _update_ids(db, retire, {"listing_status": LISTING_OFF_TARGET,
                              "listing_status_changed_at": now})
     stats["off_target"] = len(retire)
-    if retire:
+    stats["relabeled"] = _relabel_orphans(db, rows)
+    if retire or stats["relabeled"]:
         db.commit()
 
     # No crawl re-judges these rows, so this sweep re-reads the ones it hid
     # on every run: a row the current filters no longer reject (a classifier
     # or location fix since) comes back.
     held = (
-        db.query(ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location)
+        db.query(*columns)
         .filter(*_orphan_row(), ScrapedJob.listing_status == LISTING_OFF_TARGET)
         .order_by(ScrapedJob.id.asc())
         .limit(limit)
         .all()
     )
     back = [
-        row_id for row_id, title, company, location in held
+        row_id for row_id, title, company, location, _level, _years in held
         if scraper.rejection(ATSJob(title=title or "", company=company or "",
                                     location=location or "", url="", department=""))
         not in _RETIRABLE
     ]
+    relabeled = _relabel_orphans(db, held)
+    stats["relabeled"] += relabeled
     if back:
         stats["restored"] = _restore_off_target(
             db, now, limit, (ScrapedJob.id.in_(back),))["restored"]
-    if retire or back:
+    if relabeled:
+        db.commit()
+    if retire or back or stats["relabeled"]:
         logger.info("retire_unreconcilable_off_target: %s", stats)
     return stats
 
