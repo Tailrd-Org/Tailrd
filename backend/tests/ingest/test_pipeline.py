@@ -328,6 +328,46 @@ def test_nothing_is_inserted_past_the_insert_deadline(db_session):
     assert ctx.caps["deadline"] == 2
 
 
+def test_a_board_the_insert_stop_cut_keeps_its_last_crawl_time(db_session):
+    # So the next run, least recently crawled first, takes it early instead
+    # of leaving the same boards past the stop every day.
+    _ingest(db_session, _snapshot([_job(1)]), _ctx(db_session))
+    health = db_session.query(SourceHealth).filter_by(board_key="greenhouse:acme").one()
+    earlier = health.last_success_at - datetime.timedelta(days=1)
+    health.last_success_at = earlier
+    health.consecutive_failures = 2
+    db_session.commit()
+
+    late = _ctx(db_session)
+    late.insert_deadline = time.monotonic() - 1
+    board = _ingest(db_session, _snapshot([_job(1), _job(2)]), late)
+
+    db_session.refresh(health)
+    assert board["inserted"] == 0 and late.caps["deadline"] == 1
+    assert health.last_success_at == earlier
+    assert health.consecutive_failures == 0  # still a successful crawl
+
+    # Nothing new to insert: stamped as usual, past the stop or not.
+    _ingest(db_session, _snapshot([_job(1)], listed={_job(1).url, _job(2).url}), late)
+
+    db_session.refresh(health)
+    assert health.last_success_at > earlier
+
+
+def test_a_board_past_the_run_cap_keeps_its_last_crawl_time_too(db_session):
+    _ingest(db_session, _snapshot([_job(1)], slug="other"), _ctx(db_session))
+    _ingest(db_session, _snapshot([_job(2)]), _ctx(db_session))
+    health = db_session.query(SourceHealth).filter_by(board_key="greenhouse:acme").one()
+    earlier = health.last_success_at
+
+    ctx = _ctx(db_session, max_new_rows_per_run=1)
+    _ingest(db_session, _snapshot([_job(3)], slug="other"), ctx)
+    _ingest(db_session, _snapshot([_job(2), _job(4)]), ctx)
+
+    db_session.refresh(health)
+    assert ctx.caps["run_cap"] == 1 and health.last_success_at == earlier
+
+
 def test_the_stored_description_is_cut_but_hashed_whole(db_session):
     text = "Python. " * 40  # 320 characters
     ctx = _ctx(db_session, description_max_chars=50)

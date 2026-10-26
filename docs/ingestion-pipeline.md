@@ -577,6 +577,9 @@ Ingestion section has the commands). One run, in order:
    after the others, up to 3 attempts, then recorded once in `source_health` (a
    board that fails all 3 attempts counts as one failure for the breaker).
    Nothing starts, and nothing is inserted, after `--budget-minutes`.
+   A board that loses new postings to that stop (or to `max_new_rows_per_run`)
+   keeps its old `last_success_at`, so the next run takes it first instead of
+   leaving the same boards past the stop every day (DECISIONS 23).
 6. **Sweeps.** The lifecycle sweeps `cron-freshness` runs, in its order
    (`run_sweeps`). That function is a copy of the sequence in
    `routers/jobs.py`, kept in step by hand because the web router is not

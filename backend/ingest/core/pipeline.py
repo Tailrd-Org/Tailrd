@@ -488,14 +488,19 @@ def record_board_failure(db: Session, board_key: str, platform: str, slug: str,
 
 
 def record_board_success(db: Session, snapshot, ctx: Optional[IngestContext] = None,
-                         now: Optional[datetime.datetime] = None) -> Optional[str]:
+                         now: Optional[datetime.datetime] = None, *,
+                         stamp: bool = True) -> Optional[str]:
     """source_health.record_success, then the board's 7-day yield: a
     complete listing's count moves jobs_7d_avg (an average weighted by the
     time since the last crawl, so it spans about a week however often the
     board is crawled), and a count more than YIELD_DROP below the average
     is a warning, kept in last_error until the next success and in
     ``ctx.warnings``. A partial listing's count says nothing about the
-    board's yield. Returns the warning. Commits."""
+    board's yield. With ``stamp`` false (ingest_snapshot: the run's insert
+    stop cost the board new postings) last_success_at keeps its old value,
+    so the next run, least recently crawled first, takes the board early;
+    the yield waits for that crawl, whose weighting reads the time since
+    the last stamp. Returns the warning. Commits."""
     from backend.db.models import SourceHealth
     from backend.services import source_health
 
@@ -507,8 +512,9 @@ def record_board_success(db: Session, snapshot, ctx: Optional[IngestContext] = N
         .filter(SourceHealth.board_key == board_key)
         .first()
     )
-    source_health.record_success(db, board_key, snapshot.platform, snapshot.slug, count, now=now)
-    if not snapshot.complete:
+    source_health.record_success(db, board_key, snapshot.platform, snapshot.slug, count, now=now,
+                                 stamp=stamp)
+    if not snapshot.complete or not stamp:
         return None
     average, last_success = prior if prior else (None, None)
     warning = None
@@ -974,6 +980,7 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         for job in new_jobs:
             ctx.live_counts.pop((job.company or "").strip(), None)
 
+    held_before = ctx.caps["deadline"] + ctx.caps["run_cap"]
     selected = _select_new(db, new_jobs, ctx, now)
     if selected:
         selected = await _fill_descriptions(client, snapshot, selected, ctx)
@@ -1009,5 +1016,11 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         except Exception:
             db.rollback()
 
-    record_board_success(db, snapshot, ctx)
+    # A board the run's insert stop (its deadline or row cap) cost new
+    # postings keeps its last crawl time. Otherwise the boards crawled after
+    # the stop would be the newest stamps, last in the next run's order and
+    # past its stop again: on dev, a run that hit its deadline inserted
+    # nothing from its second half, and the next run queued that half last.
+    starved = ctx.caps["deadline"] + ctx.caps["run_cap"] > held_before
+    record_board_success(db, snapshot, ctx, stamp=not starved)
     return board

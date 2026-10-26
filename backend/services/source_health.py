@@ -57,8 +57,10 @@ def last_success_times(db: Session) -> dict[str, datetime.datetime]:
 
 
 def record_success(db: Session, board_key: str, platform: str, slug: str,
-                   job_count: int, now: datetime.datetime | None = None) -> None:
-    """Reset the failure streak. Commits."""
+                   job_count: int, now: datetime.datetime | None = None,
+                   *, stamp: bool = True) -> None:
+    """Reset the failure streak and, unless ``stamp`` is false, move
+    last_success_at to ``now``. Commits."""
     now = now or _utcnow()
     health = db.query(SourceHealth).filter(SourceHealth.board_key == board_key).first()
     if health is None:
@@ -66,7 +68,8 @@ def record_success(db: Session, board_key: str, platform: str, slug: str,
         db.add(health)
     health.consecutive_failures = 0
     health.last_error = ""
-    health.last_success_at = now
+    if stamp:
+        health.last_success_at = now
     health.last_job_count = job_count
     db.commit()
 
