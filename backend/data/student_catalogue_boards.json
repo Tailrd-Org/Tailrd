@@ -1,5 +1,5 @@
 {
-  "_note": "The boards cron-ats crawled before scraper v2: every board origin/main's registry enabled at f9d4738a (2026-10-26), as \"ats_platform:board_slug\". While CRON_ATS_V2_CATALOGUE is off, cron-ats crawls only these, for entry-level postings, as it did then (company_registry.load_companies(student_catalogue=True)). The boards scraper v2 added, and every level, wait for the switch: on Neon's free plan their volume passes the transfer cap and the 400 MB insert stop.",
+  "_note": "The boards cron-ats crawled before scraper v2: every board origin/main's registry enabled at f9d4738a (2026-10-26), as \"ats_platform:board_slug\". While CRON_ATS_V2_CATALOGUE is off, cron-ats crawls only these, for entry-level postings, as it did then (company_registry.load_companies(student_catalogue=True)). The boards scraper v2 added, and every level, wait for the switch: on Neon's free plan their volume passes the transfer cap and the 400 MB insert stop. One key follows a move: HubSpot's Greenhouse board is greenhouse:hubspotjobs, because the old slug hubspot answers 404 (checked 2026-10-26).",
   "boards": [
     "ashby:1password",
     "ashby:amplitude",
@@ -122,7 +122,7 @@
     "greenhouse:groupon",
     "greenhouse:gusto",
     "greenhouse:hootsuite",
-    "greenhouse:hubspot",
+    "greenhouse:hubspotjobs",
     "greenhouse:indeed",
     "greenhouse:instacart",
     "greenhouse:intercom",

@@ -976,11 +976,12 @@
     {
       "company_name": "HubSpot",
       "ats_platform": "greenhouse",
-      "board_slug": "hubspot",
+      "board_slug": "hubspotjobs",
       "company_logo_url": "https://www.google.com/s2/favicons?domain=hubspot.com&sz=128",
       "enabled": true,
       "sector": "technology",
-      "hq_country": "US"
+      "hq_country": "US",
+      "notes": "The Greenhouse board moved from the slug hubspot, which answers 404, to hubspotjobs (board name HubSpot, 66 postings on hubspot.com URLs; checked 2026-10-26)."
     },
     {
       "company_name": "Indeed",
@@ -11396,7 +11397,8 @@
       "country": "US",
       "sector": "education",
       "careers_url": "https://careersearch.stanford.edu/hcmUI/CandidateExperience/en/sites/stanford",
-      "enabled": true,
+      "enabled": false,
+      "disabled_reason": "Its Oracle site is on the employer's own domain, and the oracle_hcm adapter accepts only *.oraclecloud.com pods, so every crawl stops with a ValueError (dev run #5, 2026-10-26). Enable it once the adapter can take a vetted custom host.",
       "notes": "Employer-domain Oracle Candidate Experience host (careersearch.stanford.edu); the REST finder answers on it.",
       "open_postings_at_verify": 446
     },
@@ -13303,7 +13305,8 @@
       "country": "US",
       "sector": "healthcare",
       "careers_url": "https://careers2-carle.icims.com/jobs/search",
-      "enabled": true,
+      "enabled": false,
+      "disabled_reason": "careers2-carle.icims.com/robots.txt disallows every crawler (User-agent: *, Disallow: /), so the adapter refuses the board (checked 2026-10-26).",
       "open_postings_at_verify": 18
     },
     {
@@ -17079,12 +17082,13 @@
       "board_slug": "jobs.thecheesecakefactory.com",
       "hq_country": "US",
       "sector": "hospitality_food",
-      "careers_url": "https://jobs.thecheesecakefactory.com",
+      "careers_url": "https://www.cakecareers.com",
       "enabled": true,
       "open_postings_at_verify": 2944,
       "config": {
-        "host": "jobs.thecheesecakefactory.com"
-      }
+        "host": "www.cakecareers.com"
+      },
+      "notes": "The career site moved: jobs.thecheesecakefactory.com redirects its jobs API to www.cakecareers.com, the same Jibe API (2,943 postings; robots allows, Crawl-delay 5; checked 2026-10-26). The slug keeps the old host so stored rows keep their board key."
     },
     {
       "company_name": "Foot Locker",
