@@ -11,7 +11,11 @@ from pathlib import Path
 import pytest
 
 from backend.ingest.taxonomy import FAMILIES, LEGACY_CATEGORY_TO_FAMILIES
-from backend.services.job_filters import DEFAULT_EXPERIENCE_FILTER, EXPERIENCE_FILTER_MAP
+from backend.services.job_filters import (
+    DEFAULT_EXPERIENCE_FILTER,
+    EXPERIENCE_FILTER_MAP,
+    EXPERIENCE_OPTION_KEYS,
+)
 
 OPTIONS_TS = Path(__file__).resolve().parents[2] / "frontend" / "src" / "lib" / "jobFilterOptions.ts"
 
@@ -56,4 +60,6 @@ def test_experience_options_are_keys_of_the_backend_filter_map(source):
         "intern_new_grad", "entry", "mid", "senior", "lead", "director",
     ]
     assert all(value in EXPERIENCE_FILTER_MAP for value, _ in options)
+    # GET /jobs/levels answers in these keys, in this order.
+    assert [value for value, _ in options] == list(EXPERIENCE_OPTION_KEYS)
     assert _string_list(source, "DEFAULT_EXPERIENCE_LEVELS") == list(DEFAULT_EXPERIENCE_FILTER)

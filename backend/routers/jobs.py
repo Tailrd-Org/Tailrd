@@ -3,7 +3,8 @@ Job listing endpoints (data only, no bot automation).
 
 GET  /jobs, list scraped jobs with filters
 GET  /jobs/{id}, get a single job (a hidden duplicate answers with its visible twin)
-GET  /jobs/stats, aggregate stats
+GET  /jobs/stats, aggregate stats (for the viewer's experience levels)
+GET  /jobs/levels, the Experience Level options that have live jobs
 GET  /jobs/sidebar, the Jobs page right rail (progress, match snapshot, ...)
 GET  /jobs/logo/{sha}.png, a self-hosted company logo (public, immutable)
 POST /jobs/{id}/check-live, re-verify a listing when a user opens it
@@ -18,10 +19,11 @@ import ipaddress
 import logging
 import re
 import socket
+import time
 from typing import Optional
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Request
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, func, or_
 
@@ -57,6 +59,7 @@ from backend.services.cross_source_dedup import (
     stands_in_for_twins,
 )
 from backend.services import jobs_sidebar, legacy_urls, platform_liveness
+from backend.services.job_filters import experience_options_with_jobs, user_experience_levels
 from backend.services.listing_freshness import (
     CLOSED_LISTING_STATUSES,
     HIDDEN_LISTING_STATUSES,
@@ -1054,14 +1057,63 @@ def ingest_metrics(
     }
 
 
+# GET /jobs/levels answers the same for everyone, and its answer moves only when a crawl
+# first stores, or last closes, a level's rows. So a warm instance keeps it for a few
+# minutes and the CDN may keep it too (s-maxage), and every page that mounts a filter
+# costs the database next to nothing. Held as (when it expires, the options), on the
+# monotonic clock.
+LEVELS_TTL_SECONDS = 300
+_levels_cache: Optional[tuple[float, list[str]]] = None
+
+
+@router.get("/levels")
+def job_levels(response: Response, db: Session = Depends(get_db)):
+    """The Experience Level options that have live jobs behind them, in the order the
+    filter lists them.
+
+    The Jobs page and onboarding offer only these. Until CRON_ATS_V2_CATALOGUE is on,
+    production stores only internship and new grad rows, and an option with no rows
+    (Senior, Director) is a silent dead end: it returns an empty feed. "Live" is what
+    the feed shows (the visibility rules of GET /jobs), and each option is reported
+    once under its filter key: ``intern_new_grad`` stands for internship and new_grad,
+    ``director`` for director and executive."""
+    global _levels_cache
+    now = time.monotonic()
+    if _levels_cache is None or now >= _levels_cache[0]:
+        stored = (
+            db.query(ScrapedJob.experience_level)
+            .filter(jobs_sidebar.visible_job_filter(), ScrapedJob.experience_level.isnot(None))
+            .distinct()
+            .all()
+        )
+        _levels_cache = (
+            now + LEVELS_TTL_SECONDS,
+            experience_options_with_jobs(level for (level,) in stored),
+        )
+    response.headers["Cache-Control"] = (
+        f"public, max-age={LEVELS_TTL_SECONDS}, s-maxage={LEVELS_TTL_SECONDS}"
+    )
+    return {"levels": list(_levels_cache[1])}
+
+
 @router.get("/stats")
 def job_stats(
+    experience_level: Optional[str] = None,
     user_id: Optional[int] = Depends(get_optional_user_id),
     db: Session = Depends(get_db),
 ):
     """Return aggregate job stats with breakdowns by country, work_type, role_category,
-    career_family and experience_level. The breakdowns count the same visible rows as
-    ``total``, so each one says how many live jobs a filter value has behind it."""
+    career_family and experience_level.
+
+    ``experience_level`` is the viewer's levels, the option keys GET /jobs takes. The
+    catalogue counts (``total``, ``applied``, ``new``) and the breakdowns count only
+    those levels; with none given that is the feed's default, Intern/New Grad plus
+    Entry Level, so a count never includes roles the feed hides from that person. The
+    breakdowns count the same rows as ``total``, so each one says how many live jobs a
+    filter value has behind it. Two figures stay whole: ``saved_count`` (everything
+    the user bookmarked) and ``by_experience_level``, which describes the level
+    filter's own options and so spans every live level."""
+    levels = user_experience_levels(experience_level)
     # Exclude blank-company jobs, hidden duplicates, and dead listings to
     # match the listing query.
     _has_company = (
@@ -1074,9 +1126,10 @@ def job_stats(
             ScrapedJob.listing_status.notin_(HIDDEN_LISTING_STATUSES),
         )
     )
-    total = db.query(ScrapedJob).filter(_has_company).count()
-    applied = db.query(ScrapedJob).filter(_has_company, ScrapedJob.status == JobStatus.APPLIED).count()
-    new = db.query(ScrapedJob).filter(_has_company, ScrapedJob.status == JobStatus.NEW).count()
+    _in_levels = _has_company & ScrapedJob.experience_level.in_(levels)
+    total = db.query(ScrapedJob).filter(_in_levels).count()
+    applied = db.query(ScrapedJob).filter(_in_levels, ScrapedJob.status == JobStatus.APPLIED).count()
+    new = db.query(ScrapedJob).filter(_in_levels, ScrapedJob.status == JobStatus.NEW).count()
     saved_count = 0
     if user_id is not None:
         saved_count = (
@@ -1110,11 +1163,11 @@ def job_stats(
             )
             avg_match_score = round(avg_score) if avg_score is not None else None
 
-    def breakdown(column) -> dict:
-        """Visible rows per non-blank value of one column."""
+    def breakdown(column, scope=_in_levels) -> dict:
+        """Visible rows per non-blank value of one column, within ``scope``."""
         rows = (
             db.query(column, func.count(ScrapedJob.id))
-            .filter(_has_company, column.isnot(None), column != "")
+            .filter(scope, column.isnot(None), column != "")
             .group_by(column)
             .all()
         )
@@ -1130,22 +1183,30 @@ def job_stats(
         "by_work_type": breakdown(ScrapedJob.work_type),
         "by_role_category": breakdown(ScrapedJob.role_category),
         "by_career_family": breakdown(ScrapedJob.career_family),
-        "by_experience_level": breakdown(ScrapedJob.experience_level),
+        "by_experience_level": breakdown(ScrapedJob.experience_level, _has_company),
     }
 
 
 @router.get("/sidebar")
 def jobs_sidebar_data(
     since: Optional[datetime.datetime] = None,
+    experience_level: Optional[str] = None,
     user_id: Optional[int] = Depends(get_optional_user_id),
     db: Session = Depends(get_db),
 ):
     """Everything the Jobs page's right rail shows: resume match snapshot,
     weekly progress, saved jobs closing soon, feed summary, top companies,
-    autofill totals and the match-alert setting. Read-only, no LLM calls."""
+    autofill totals and the match-alert setting. Read-only, no LLM calls.
+
+    ``experience_level`` is the viewer's levels, as on GET /jobs. The feed summary
+    and the "hiring the most" list count only those levels (the feed's default,
+    Intern/New Grad plus Entry Level, when none are given), so the rail never
+    shows totals and employers driven by roles the feed hides from that person."""
     if since is not None and since.tzinfo is not None:
         since = since.astimezone(datetime.timezone.utc).replace(tzinfo=None)
-    return jobs_sidebar.build_sidebar(db, user_id, since=since)
+    return jobs_sidebar.build_sidebar(
+        db, user_id, since=since, levels=user_experience_levels(experience_level)
+    )
 
 
 @router.get("/applications", response_model=list[ApplicationOut])

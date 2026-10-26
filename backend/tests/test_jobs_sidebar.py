@@ -98,6 +98,8 @@ def job(db, **kw):
         url=f"https://example.com/{_n}",
         scraped_at=kw.pop("scraped_at", NOW - datetime.timedelta(days=2)),
         listing_status=kw.pop("listing_status", "active"),
+        # A level the feed's default covers, since the rail counts the viewer's levels.
+        experience_level=kw.pop("experience_level", "new_grad"),
         **kw,
     )
     db.add(row)
@@ -328,3 +330,72 @@ def test_display_skill_casing_moved_with_the_skill_tags():
     assert display_skill("postgresql") == "PostgreSQL"
     assert display_skill("machine learning") == "Machine Learning"
     assert display_skill("") == ""
+
+
+# ─── The rail counts the viewer's levels (scraper v2 final review, S4) ───────────────────────
+
+
+def _mixed_levels(db):
+    """Two student-level jobs at Small, and a senior and a director crowd at Big."""
+    job(db, company="Small", experience_level="internship", work_type="remote",
+        scraped_at=NOW - datetime.timedelta(hours=1))
+    job(db, company="Small", experience_level="entry")
+    for _ in range(3):
+        job(db, company="Big", experience_level="senior", work_type="remote",
+            scraped_at=NOW - datetime.timedelta(hours=1))
+    job(db, company="Big", experience_level="director")
+    job(db, company="Big", experience_level="")  # untagged rows belong to no level
+
+
+def test_the_feed_summary_and_employers_default_to_the_students_levels(db):
+    _mixed_levels(db)
+    data = build_sidebar(db, None, now=NOW)
+    # Four senior or director roles and an untagged one are in the catalogue, not in this feed.
+    assert data["feed"]["total"] == 2
+    assert data["feed"]["remote"] == 1
+    assert data["feed"]["new_since"] == 1
+    assert [(c["company"], c["count"]) for c in data["top_companies"]] == [("Small", 2)]
+
+
+def test_the_feed_summary_and_employers_follow_the_levels_passed(db):
+    _mixed_levels(db)
+    senior = build_sidebar(db, None, now=NOW, levels=["senior"])
+    assert senior["feed"]["total"] == 3
+    assert senior["feed"]["remote"] == 3
+    assert [(c["company"], c["count"]) for c in senior["top_companies"]] == [("Big", 3)]
+    # Several levels add up (these are stored levels; the endpoint expands filter keys).
+    wide = build_sidebar(db, None, now=NOW, levels=["senior", "director", "executive", "internship"])
+    assert wide["feed"]["total"] == 5
+    assert [(c["company"], c["count"]) for c in wide["top_companies"]] == [("Big", 4), ("Small", 1)]
+
+
+def test_strong_matches_count_only_the_levels(db):
+    resume(db)
+    student = job(db, company="Small", experience_level="new_grad")
+    senior = job(db, company="Big", experience_level="senior")
+    score(db, student, 90)
+    score(db, senior, 95)
+    data = build_sidebar(db, USER, now=NOW)
+    assert data["feed"]["strong_matches"] == 1
+    # The same list the "strong matches" tile opens: the viewer's levels only.
+    senior_view = build_sidebar(db, USER, now=NOW, levels=["senior"])
+    assert senior_view["feed"]["strong_matches"] == 1
+    assert build_sidebar(db, USER, now=NOW, levels=["lead"])["feed"]["strong_matches"] == 0
+
+
+def test_the_sidebar_endpoint_takes_the_levels_as_filter_keys(client, db):
+    _mixed_levels(db)
+    default = client.get("/jobs/sidebar").json()
+    assert default["feed"]["total"] == 2
+    assert [c["company"] for c in default["top_companies"]] == ["Small"]
+
+    # The same option keys GET /jobs takes: intern_new_grad is internship plus new grad.
+    keys = client.get("/jobs/sidebar", params={"experience_level": "intern_new_grad"}).json()
+    assert keys["feed"]["total"] == 1
+    senior = client.get("/jobs/sidebar", params={"experience_level": "senior,director"}).json()
+    assert senior["feed"]["total"] == 4
+    assert [c["company"] for c in senior["top_companies"]] == ["Big"]
+
+    # Nothing recognized is no choice at all: the default, not an empty rail.
+    junk = client.get("/jobs/sidebar", params={"experience_level": "astronaut"}).json()
+    assert junk["feed"]["total"] == 2

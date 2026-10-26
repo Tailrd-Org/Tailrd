@@ -6,8 +6,10 @@ from backend.ingest.taxonomy import FAMILIES, LEGACY_CATEGORY_TO_FAMILIES, LEVEL
 from backend.services.job_filters import (
     DEFAULT_EXPERIENCE_FILTER,
     EXPERIENCE_FILTER_MAP,
+    EXPERIENCE_OPTION_KEYS,
     date_posted_cutoff,
     expand_experience_filter_values,
+    experience_options_with_jobs,
     legacy_categories_for_families,
     parse_career_families,
     user_experience_levels,
@@ -33,6 +35,39 @@ def test_experience_filter_map_is_exactly_the_plan():
 def test_every_expansion_is_a_stored_level_and_every_level_is_reachable():
     stored = {level for levels in EXPERIENCE_FILTER_MAP.values() for level in levels}
     assert stored == set(LEVELS)
+
+
+def test_the_six_option_keys_are_filter_keys_in_the_listing_order():
+    assert EXPERIENCE_OPTION_KEYS == (
+        "intern_new_grad", "entry", "mid", "senior", "lead", "director",
+    )
+    assert all(key in EXPERIENCE_FILTER_MAP for key in EXPERIENCE_OPTION_KEYS)
+
+
+def test_every_stored_level_backs_exactly_one_option():
+    for level in LEVELS:
+        assert len(experience_options_with_jobs([level])) == 1, level
+
+
+def test_options_with_jobs_are_the_ones_the_stored_levels_back():
+    # While production stores only the student levels, one option is left.
+    assert experience_options_with_jobs(["internship", "new_grad"]) == ["intern_new_grad"]
+    assert experience_options_with_jobs(["new_grad"]) == ["intern_new_grad"]
+    # An option that covers two stored levels needs only one of them.
+    assert experience_options_with_jobs(["executive"]) == ["director"]
+    assert experience_options_with_jobs(["internship"]) == ["intern_new_grad"]
+    # The listing order, whatever the order and repetition of the input.
+    assert experience_options_with_jobs(["senior", "entry", "senior", "internship"]) == [
+        "intern_new_grad", "entry", "senior",
+    ]
+    assert experience_options_with_jobs(LEVELS) == list(EXPERIENCE_OPTION_KEYS)
+    assert experience_options_with_jobs(iter(["mid"])) == ["mid"]
+    assert experience_options_with_jobs([" Mid "]) == ["mid"]
+
+
+def test_blank_missing_and_unknown_levels_back_no_option():
+    assert experience_options_with_jobs([]) == []
+    assert experience_options_with_jobs(["", None, "bogus"]) == []
 
 
 def test_expand_experience_intern_new_grad():
