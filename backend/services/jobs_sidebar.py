@@ -11,6 +11,11 @@ sides, the job's stored tags against tags extracted from the résumé text.
 
 Scores are only trusted while the résumé they were computed from is unchanged (the fit
 fingerprint), so an edited résumé never shows a stale number.
+
+The feed summary and the "hiring the most" list count the viewer's experience levels
+only, the feed's default (Intern/New Grad plus Entry Level) when none are given. The
+catalogue holds every level, and totals driven by roles the feed hides would mislead.
+The résumé card is not scoped: it reports what the engine scored.
 """
 
 import datetime
@@ -32,6 +37,7 @@ from backend.db.models import (
     UserSettings,
 )
 from backend.services import fit_reads
+from backend.services.job_filters import user_experience_levels
 from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES, LISTING_STALE
 from backend.services.structured_extraction import _SKILL_SYNONYMS, extract_skills
 
@@ -382,9 +388,15 @@ def _closing_section(db: Session, user_id: int, now: datetime.datetime) -> list[
 
 
 def _feed_section(
-    db: Session, user_id: Optional[int], since: datetime.datetime, fingerprints: Optional[list[str]]
+    db: Session,
+    user_id: Optional[int],
+    since: datetime.datetime,
+    fingerprints: Optional[list[str]],
+    levels: list[str],
 ) -> dict:
-    visible = visible_job_filter()
+    # The viewer's own feed: visible rows at their levels, so each count agrees with
+    # the list it opens and never includes roles the feed hides from them.
+    visible = visible_job_filter() & ScrapedJob.experience_level.in_(levels)
     first_seen = func.coalesce(ScrapedJob.first_seen_at, ScrapedJob.scraped_at)
     total = db.query(ScrapedJob).filter(visible).count()
     new_since = db.query(ScrapedJob).filter(visible, first_seen >= since).count()
@@ -407,15 +419,17 @@ def _feed_section(
 
 
 def _companies_section(
-    db: Session, user_id: Optional[int], fingerprints: Optional[list[str]]
+    db: Session, user_id: Optional[int], fingerprints: Optional[list[str]], levels: list[str]
 ) -> tuple[list[dict], str]:
-    """Companies with the most open roles for this user.
+    """Companies with the most open roles for this user, at the user's levels.
 
     With scores: count Good or Strong matches (SCORED). Without: count all open roles,
     which is still "who is hiring the most right now".
     """
     visible = visible_job_filter()
-    q = db.query(ScrapedJob.company, func.count(ScrapedJob.id).label("n")).filter(visible)
+    q = db.query(ScrapedJob.company, func.count(ScrapedJob.id).label("n")).filter(
+        visible, ScrapedJob.experience_level.in_(levels)
+    )
     if user_id is not None and fingerprints:
         scored = (
             q.join(JobMatchScore, JobMatchScore.job_id == ScrapedJob.id)
@@ -483,7 +497,11 @@ def build_sidebar(
     user_id: Optional[int],
     since: Optional[datetime.datetime] = None,
     now: Optional[datetime.datetime] = None,
+    levels: Optional[list[str]] = None,
 ) -> dict:
+    # ``levels`` are the stored experience levels the viewer's feed covers (the
+    # router expands their filter keys). Without them, the feed's default.
+    levels = list(levels) if levels else user_experience_levels(None)
     now = now or datetime.datetime.utcnow()
     if since is None or since > now:
         since = now - datetime.timedelta(days=1)
@@ -505,14 +523,14 @@ def build_sidebar(
         autofill = _autofill_section(db, user_id)
         alerts = _alerts_enabled(db, user_id)
 
-    companies, basis = _companies_section(db, user_id, fingerprints)
+    companies, basis = _companies_section(db, user_id, fingerprints, levels)
     return {
         "resume": resume,
         "resume_skills": skills,
         "skill_gaps": gaps or [],
         "progress": progress,
         "closing_soon": closing or [],
-        "feed": _feed_section(db, user_id, since, fingerprints),
+        "feed": _feed_section(db, user_id, since, fingerprints, levels),
         "top_companies": companies,
         "top_companies_basis": basis,
         "autofill": autofill,

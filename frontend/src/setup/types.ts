@@ -20,6 +20,9 @@ export interface SetupAnswers {
 export interface StepProps {
   answers: SetupAnswers;
   update: (patch: Partial<SetupAnswers>) => void;
+  // The Experience Level options that have live jobs (GET /jobs/levels); null until
+  // known. Only the experience step reads it.
+  experienceLevels?: readonly string[] | null;
 }
 
 export interface SetupStep {

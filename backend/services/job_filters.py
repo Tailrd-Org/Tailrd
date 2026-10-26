@@ -37,6 +37,28 @@ EXPERIENCE_FILTER_MAP: dict[str, list[str]] = {
 # Intern/New Grad and Entry Level, the student catalogue Tailrd has always shown.
 DEFAULT_EXPERIENCE_FILTER: tuple[str, ...] = ("intern_new_grad", "entry")
 
+# The six options the Jobs page and onboarding offer, in the order they list them
+# (the frontend's EXPERIENCE_OPTIONS; test_taxonomy_frontend_agreement.py pins the
+# two lists to each other). Each one is a key of EXPERIENCE_FILTER_MAP.
+EXPERIENCE_OPTION_KEYS: tuple[str, ...] = (
+    "intern_new_grad", "entry", "mid", "senior", "lead", "director",
+)
+
+
+def experience_options_with_jobs(stored_levels: Iterable[Optional[str]]) -> list[str]:
+    """The options, in listing order, that have jobs behind them.
+
+    ``stored_levels`` are the scraped_jobs.experience_level values that have at
+    least one live row. An option qualifies when any of the stored levels it
+    expands to is among them: while production stores only internship and new
+    grad rows (CRON_ATS_V2_CATALOGUE off) that is just Intern/New Grad, and an
+    option with no rows would be a filter that empties the feed."""
+    present = {(level or "").strip().lower() for level in stored_levels}
+    return [
+        key for key in EXPERIENCE_OPTION_KEYS
+        if present.intersection(EXPERIENCE_FILTER_MAP[key])
+    ]
+
 
 def expand_experience_filter_values(levels: list[str]) -> list[str]:
     """Expand UI experience filters to DB values (OR within the filter).

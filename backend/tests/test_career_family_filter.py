@@ -176,9 +176,21 @@ def test_stats_breakdowns_count_visible_rows_by_family_and_level(make_client):
              level="director", status="removed"),
         _job("Stale Lead", family="legal", level="lead", status="stale"),
     ])
-    stats = client.get("/jobs/stats").json()
+    # Every level asked for: the six filter options.
+    stats = client.get(
+        "/jobs/stats",
+        params={"experience_level": "intern_new_grad,entry,mid,senior,lead,director"},
+    ).json()
     assert stats["total"] == 4
     assert stats["by_career_family"] == {"software_engineering": 2, "healthcare_clinical": 1}
     assert stats["by_experience_level"] == {"new_grad": 2, "internship": 1, "mid": 1}
     assert stats["by_role_category"] == {"Software Engineering": 2, "Other": 1, "Data Analysis": 1}
     assert stats["by_country"] == {"CA": 4}
+
+    # No levels given: the feed's default, so the mid-level nurse is not counted, but
+    # the level breakdown still describes every live level (it is the filter's options).
+    default = client.get("/jobs/stats").json()
+    assert default["total"] == 3
+    assert default["by_career_family"] == {"software_engineering": 2}
+    assert default["by_role_category"] == {"Software Engineering": 2, "Data Analysis": 1}
+    assert default["by_experience_level"] == {"new_grad": 2, "internship": 1, "mid": 1}

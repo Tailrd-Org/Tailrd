@@ -3,9 +3,8 @@ import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import api from "../auth/api";
 import {
   CAREER_FAMILY_OPTIONS,
-  DEFAULT_EXPERIENCE_LEVELS,
-  EXPERIENCE_OPTIONS,
-  experienceLevelsOrDefault,
+  availableExperienceOptions,
+  experienceLevelsOnOffer,
   type JobFilters,
 } from "../lib/jobFilterOptions";
 
@@ -17,6 +16,12 @@ export * from "../lib/jobFilterOptions";
 interface JobFilterBarProps {
   filters: JobFilters;
   onChange: (filters: JobFilters) => void;
+  /**
+   * The Experience Level options that have live jobs (GET /jobs/levels). Only those are
+   * offered, and a ticked level without one is dropped on Confirm. Not known (null or
+   * left out) offers all six.
+   */
+  availableExperienceLevels?: readonly string[] | null;
 }
 
 // --- Constants ---
@@ -193,8 +198,9 @@ const styles = {
 
 // --- Component ---
 
-export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
+export default function JobFilterBar({ filters, onChange, availableExperienceLevels }: JobFilterBarProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const experienceOptions = availableExperienceOptions(availableExperienceLevels);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Temp state for pending selections (before Confirm)
@@ -306,9 +312,12 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   }
 
   function confirmExperience() {
-    // Nothing ticked means the default levels, never "every level" (see
-    // experienceLevelsOrDefault); the boxes show that when the panel reopens.
-    onChange({ ...filters, experience_level: experienceLevelsOrDefault(tempExperience) });
+    // Nothing ticked means the default levels on offer, never "every level" (see
+    // experienceLevelsOnOffer); the boxes show that when the panel reopens.
+    onChange({
+      ...filters,
+      experience_level: experienceLevelsOnOffer(tempExperience, availableExperienceLevels),
+    });
     setOpenDropdown(null);
   }
 
@@ -335,7 +344,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   }
 
   function resetExperience() {
-    setTempExperience([...DEFAULT_EXPERIENCE_LEVELS]);
+    setTempExperience(experienceLevelsOnOffer([], availableExperienceLevels));
   }
 
   function resetWorkModel() {
@@ -539,7 +548,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
         {openDropdown === "experience" && (
           <DropdownPanel style={{}}>
             <div style={styles.dropdownTitle}>Experience Level</div>
-            {EXPERIENCE_OPTIONS.map((opt) => (
+            {experienceOptions.map((opt) => (
               <label key={opt.value} style={styles.checkboxRow}>
                 <input
                   type="checkbox"
@@ -665,7 +674,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
             ))}
 
             <div style={styles.sectionLabel}>Experience Level</div>
-            {EXPERIENCE_OPTIONS.map((opt) => (
+            {experienceOptions.map((opt) => (
               <label key={opt.value} style={styles.checkboxRow}>
                 <input
                   type="checkbox"
@@ -710,7 +719,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
                   location: commitPendingCityInput(),
                   work_type: tempWorkType,
                   career_family: tempCareerFamily,
-                  experience_level: experienceLevelsOrDefault(tempExperience),
+                  experience_level: experienceLevelsOnOffer(tempExperience, availableExperienceLevels),
                   date_posted: tempDatePosted,
                 });
                 setOpenDropdown(null);

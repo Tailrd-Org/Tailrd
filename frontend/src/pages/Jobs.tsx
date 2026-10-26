@@ -4,8 +4,10 @@ import {
   type JobFilters,
   defaultFilters,
   experienceLevelLabel,
+  experienceLevelsOnOffer,
   restoreFilters,
 } from "../lib/jobFilterOptions";
+import { useAvailableExperienceLevels } from "../hooks/useAvailableExperienceLevels";
 import JobDetailView, { type FitChange } from "../components/JobDetailView";
 import CustomResumeModal, { type AIJob } from "../components/CustomResumeModal";
 import CoverLetterModal from "../components/CoverLetterModal";
@@ -174,6 +176,22 @@ export default function Jobs() {
     }
   }, [aggFilters]);
 
+  // The levels the catalogue holds. Until every level is ingested that is just
+  // Intern/New Grad, and an option with no jobs behind it is a dead end.
+  const availableLevels = useAvailableExperienceLevels();
+  // The levels the feed, the stats and the rail use: the saved ones that still have an
+  // option. A saved level whose option is hidden is dropped here, so it never works as
+  // an invisible filter; the saved list keeps it until the levels are changed.
+  const experienceLevels = useMemo(
+    () => experienceLevelsOnOffer(aggFilters.experience_level, availableLevels),
+    [aggFilters.experience_level, availableLevels],
+  );
+  const experienceKey = experienceLevels.join(",");
+  const viewFilters = useMemo(
+    () => ({ ...aggFilters, experience_level: experienceLevels }),
+    [aggFilters, experienceLevels],
+  );
+
   // Close detail panel on Escape key press
   useEffect(() => {
     function handleKeyDown(event: KeyboardEvent) {
@@ -232,7 +250,7 @@ export default function Jobs() {
   useEffect(() => {
     fetchJobs();
     fetchStats();
-  }, [page, activeTab, filters, aggFilters, search, quickFilter]);
+  }, [page, activeTab, filters, aggFilters, experienceKey, search, quickFilter]);
 
   // Read the previous visit before stamping this one, so "new since your last
   // visit" counts from then, not from a moment ago.
@@ -242,13 +260,17 @@ export default function Jobs() {
     } catch {
       // Blocked storage: the rail falls back to "the last 24 hours".
     }
-    fetchSidebar();
   }, []);
+
+  // The rail counts the viewer's levels, so it follows them.
+  useEffect(() => {
+    fetchSidebar();
+  }, [experienceKey]);
 
   async function fetchSidebar() {
     try {
       const res = await api.get("/jobs/sidebar", {
-        params: lastVisit ? { since: lastVisit } : undefined,
+        params: { ...(lastVisit ? { since: lastVisit } : {}), experience_level: experienceKey },
       });
       // Guard the shape: a proxy error page or an old backend must not
       // reach the rail as data.
@@ -282,7 +304,7 @@ export default function Jobs() {
     }
     if (aggFilters.work_type.length > 0) params.set("work_type", aggFilters.work_type.join(","));
     if (aggFilters.career_family.length > 0) params.set("career_family", aggFilters.career_family.join(","));
-    if (aggFilters.experience_level.length > 0) params.set("experience_level", aggFilters.experience_level.join(","));
+    if (experienceKey) params.set("experience_level", experienceKey);
     if (aggFilters.date_posted) params.set("date_posted", aggFilters.date_posted);
 
     try {
@@ -298,7 +320,7 @@ export default function Jobs() {
 
   async function fetchStats() {
     try {
-      const res = await api.get("/jobs/stats");
+      const res = await api.get("/jobs/stats", { params: { experience_level: experienceKey } });
       setStats(res.data);
     } catch {
       // Silently fail
@@ -483,8 +505,18 @@ export default function Jobs() {
       <div className="jobs-toolbar">
         <div data-tour="job-filters">
           <JobFilterBar
-            filters={aggFilters}
-            onChange={(newFilters) => { setAggFilters(newFilters); setPage(1); }}
+            filters={viewFilters}
+            availableExperienceLevels={availableLevels}
+            onChange={(newFilters) => {
+              // The bar only knows the levels on offer. Unless the levels were changed
+              // there, the saved ones stay, hidden options included: they come back
+              // into the default if jobs of that level are stored later.
+              const levelsChanged = newFilters.experience_level.join(",") !== experienceKey;
+              setAggFilters(
+                levelsChanged ? newFilters : { ...newFilters, experience_level: aggFilters.experience_level },
+              );
+              setPage(1);
+            }}
           />
         </div>
         {quickFilter && (

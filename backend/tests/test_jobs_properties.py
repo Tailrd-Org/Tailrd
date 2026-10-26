@@ -71,6 +71,10 @@ job_status_strategy = st.sampled_from([JobStatus.NEW, JobStatus.APPLIED, JobStat
 source_platform_strategy = st.sampled_from(["linkedin", "github", "other"])
 location_strategy = st.sampled_from(["New York", "San Francisco", "Remote", "London", "Ottawa"])
 match_score_strategy = st.integers(min_value=0, max_value=100)
+# The levels GET /jobs/stats counts when none are passed: the feed's default, Intern/New Grad
+# (internship, new_grad) plus Entry Level. The rest are in the catalogue but not in that feed.
+FEED_LEVELS = {"internship", "new_grad", "entry"}
+level_strategy = st.sampled_from(["internship", "new_grad", "entry", "mid", "senior", "director"])
 
 
 def job_strategy():
@@ -82,6 +86,7 @@ def job_strategy():
         "source_platform": source_platform_strategy,
         "location": location_strategy,
         "match_score": match_score_strategy,
+        "experience_level": level_strategy,
     })
 
 
@@ -93,8 +98,9 @@ def test_aggregate_stats_computation(jobs_data, db_session, client):
     """
     Property 13: Aggregate Stats Computation
 
-    For any list of jobs, the aggregate stats shall satisfy:
-    - total == len(jobs)
+    For any list of jobs, the aggregate stats shall satisfy, over the jobs at the feed's
+    default levels (the viewer's levels; the rest are not in their feed):
+    - total == len(those jobs)
     - applied == count(status=="applied")
     - new == count(status=="new")
     - avg_match_score is the requesting user's own SCORED fit-engine average; with no
@@ -113,6 +119,7 @@ def test_aggregate_stats_computation(jobs_data, db_session, client):
             source_platform=jd["source_platform"],
             location=jd["location"],
             match_score=jd["match_score"],
+            experience_level=jd["experience_level"],
         )
         db_session.add(job)
     db_session.commit()
@@ -123,9 +130,10 @@ def test_aggregate_stats_computation(jobs_data, db_session, client):
     stats = response.json()
 
     # Compute expected values
-    expected_total = len(jobs_data)
-    expected_applied = sum(1 for j in jobs_data if j["status"] == JobStatus.APPLIED)
-    expected_new = sum(1 for j in jobs_data if j["status"] == JobStatus.NEW)
+    in_feed = [j for j in jobs_data if j["experience_level"] in FEED_LEVELS]
+    expected_total = len(in_feed)
+    expected_applied = sum(1 for j in in_feed if j["status"] == JobStatus.APPLIED)
+    expected_new = sum(1 for j in in_feed if j["status"] == JobStatus.NEW)
 
     # The test user has no resume, so no engine score: the AI-era column is never averaged.
     expected_avg = None

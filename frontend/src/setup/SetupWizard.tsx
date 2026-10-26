@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../auth/useAuth";
 import api from "../auth/api";
+import { useAvailableExperienceLevels } from "../hooks/useAvailableExperienceLevels";
 import { SetupLayout } from "./SetupLayout";
 import { SETUP_STEPS } from "./setupConfig";
 import { ResumeStep } from "./steps/ResumeStep";
@@ -21,6 +22,9 @@ export default function SetupWizard() {
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadedResumeId, setUploadedResumeId] = useState<number | null>(null);
+  // Asked here, from the first step, so the answer is in long before the experience
+  // step shows its options.
+  const experienceLevels = useAvailableExperienceLevels();
   const [answers, setAnswers] = useState<SetupAnswers>(() => ({
     ...emptyAnswers,
     first_name: user?.first_name ?? "",
@@ -110,7 +114,7 @@ export default function SetupWizard() {
     <SetupLayout headline={step.headline} stepIndex={index} total={steps.length}>
       {step.id === "resume"
         ? <ResumeStep uploadedResumeId={uploadedResumeId} onUploaded={setUploadedResumeId} />
-        : step.Component && <step.Component answers={answers} update={update} />}
+        : step.Component && <step.Component answers={answers} update={update} experienceLevels={experienceLevels} />}
       {error && <div className="setup-error" role="alert">{error}</div>}
       <div className="setup-footer">
         {index > 0

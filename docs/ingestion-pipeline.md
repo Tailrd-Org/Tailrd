@@ -14,7 +14,10 @@ incident to learn. What changed:
 - **Every experience level is stored and tagged**, not filtered out at crawl
   time: 8 stored values, offered as Jobright's 6 filter options. Every job also
   gets one of 20 career families. Both come from rules (no model calls) in
-  `backend/ingest/taxonomy.py` and `backend/ingest/data/taxonomy.json`.
+  `backend/ingest/taxonomy.py` and `backend/ingest/data/taxonomy.json`. The
+  runner does this from the start; `cron-ats` does it once
+  `CRON_ATS_V2_CATALOGUE` is on, and keeps its pre-v2 student catalogue until
+  then ("The every-level switch").
 - **`off_target` means outside the US and Canada** for crawled rows, nothing
   else. **`stale` is hidden** from the feed.
 - **One write path.** `backend/ingest/core/pipeline.py` ingests a board crawl
@@ -25,7 +28,7 @@ incident to learn. What changed:
 - **New platforms are adapters**: one module each under
   `backend/ingest/adapters/`, 13 so far. The five older connectors stay in
   `ats_scraper.py`.
-- **The registry grew** from 278 entries to 2,364 (1,094 enabled), every one
+- **The registry grew** from 278 entries to 2,364 (1,315 enabled), every one
   with `hq_country` and `sector`.
 - **Storage caps** in `backend/ingest/data/limits.json` keep ingestion inside
   Neon's free 512 MB plan, and two scripts reclaim and backfill rows.
@@ -47,6 +50,7 @@ with its spec and plan beside it.
 | Change what counts as Entry or Mid, or a career family | "Experience levels and career families" |
 | Know the Neon limits and how ingestion stays inside them | "Storage and transfer" |
 | Know what runs when | "Schedules" |
+| Turn the every-level catalogue on | "The every-level switch" |
 | See what is unfinished | "Known limits" |
 
 ## Architecture at a glance
@@ -281,11 +285,12 @@ A verified board that is not crawled has `enabled: false` and a
 `disabled_reason`; one parked on purpose starts it with `held:`. Hundreds of
 verified US boards are held for the storage budget (DECISIONS 12; 492 on
 2026-10-26; the free plan cannot hold ~1,200 employers' postings, see "Storage
-and transfer"). The Oracle, iCIMS and Jibe boards are held until their
-adapters' completeness checks are fixed. The rest stay disabled with their
-reason: platforms with no connector (NEOGOV, Dayforce, ADP, Avature and
-others), and Taleo, SuccessFactors and some iCIMS boards the adapters cannot
-read yet. Count what is enabled with:
+and transfer"). The Oracle, iCIMS and Jibe boards were held until their
+adapters' completeness checks were fixed (DECISIONS 14) and are enabled now:
+108, 46 and 67 boards, of the 1,315 enabled in all. The rest stay disabled
+with their reason: platforms with no connector (NEOGOV, Dayforce, ADP, Avature
+and others), and Taleo, SuccessFactors and some iCIMS boards the adapters
+cannot read yet. Count what is enabled with:
 
 ```bash
 python - <<'EOF'
@@ -327,10 +332,13 @@ hands every snapshot to the shared pipeline.
   `CRON_ATS_INSERT_BUDGET_SECONDS` (default 220 s) and goes on refreshing and
   reconciling, so it ends inside Vercel's 300 s. The rows it left surface as
   new on the next pass.
-- **Every level:** the crawl keeps every experience level and only US and
-  Canadian postings
-  (`ATSScraper(filter_entry_level=False, filter_north_america=True)`). Level is
-  a tag, not a filter.
+- **Every level, behind a switch:** with `CRON_ATS_V2_CATALOGUE` on, the crawl
+  keeps every experience level and only US and Canadian postings
+  (`ATSScraper(filter_entry_level=False, filter_north_america=True)`), and it
+  crawls the adapters' boards too. Level is a tag, not a filter. With it off
+  (the default) `cron-ats` crawls only the five older platforms' boards and
+  stores only the student catalogue (`filter_entry_level=True`), as it did
+  before v2, through the same shared pipeline. See "The every-level switch".
 - **Cut-over:** with `INGEST_V2_RUNNER` on, boards the daily runner crawled in
   the last 20 hours are left to it (see "Schedules").
 
@@ -418,10 +426,12 @@ caps, the detail budgets and the counters. In order:
    and URL this crawl uses (`adopt_site_rows` for shared Workday tenants,
    `migrate_smartrecruiters_urls`), so they are matched, not duplicated.
 2. **Refresh known listings** (`refresh_known_listings`, column-only reads):
-   bump `last_seen_at`, detect edits (title, location, salary, description
-   hash), re-derive the fields an edit moves, and relabel a crawler row whose
-   `experience_level` no longer agrees with the taxonomy. The listings not
-   stored yet are the new ones.
+   match each listing to its stored row by URL, falling back to `external_id`
+   on the same board when the URL is not stored (the row's URL then moves to
+   the new one); bump `last_seen_at`, detect edits (title, location, salary,
+   description hash), re-derive the fields an edit moves, and relabel a
+   crawler row whose `experience_level` no longer agrees with the taxonomy. The
+   listings that match neither way are the new ones.
 3. **Reconcile or confirm,** before any insert, so the rows the listing dropped
    have closed (and freed their place under the per-employer cap) when the
    employer's live rows are counted. A complete listing goes through
@@ -451,11 +461,15 @@ structured extraction (salary, employment type, visa, skills, `raw_hash`);
 `company_id` when the `companies` table has the board; `apply_url` when the
 source gives one; and the description, cut at `description_max_chars`.
 
-`external_id` is `{platform}:{slug}:{the source's own posting id}`, so a
-re-crawl updates in place even if the apply URL changes shape. An adapter
-builds the whole string itself. The five older connectors give the bare id and
-`stored_external_id` adds the board key, so no row ever carries
-`workable:financeit:workable:financeit:ABC123`.
+`external_id` is `{platform}:{slug}:{the source's own posting id}`. The refresh
+matches a listing by URL first; one whose URL is not stored falls back to the
+`external_id` on the same `board_key`, and that row's URL moves to the new one.
+So a posting whose apply URL changes shape (Recruitee and Teamtailor put the
+title slug in the URL, so a retitle changes it) stays one row, and the jobs
+users saved and the alerts they got keep pointing at it. A listing that matches
+neither way is new. An adapter builds the whole string itself. The five older
+connectors give the bare id and `stored_external_id` adds the board key, so no
+row ever carries `workable:financeit:workable:financeit:ABC123`.
 
 A posting missing from a **complete** listing is removed at once:
 `listing_status` `removed` with `closed_reason` `delisted`, and revived if the
@@ -616,12 +630,13 @@ them from crawling one board twice in a cycle (see "Schedules").
 ## Experience levels and career families
 
 Both are **tags computed from the posting after it is fetched**, never filters
-on what gets fetched: the crawl keeps every level and the feed's filters
-choose. They are rules, not a model (spec decision 2, and ingestion has been
-model-free since the July cost incident). `backend/ingest/taxonomy.py` applies
-the keyword and boundary rules in `backend/ingest/data/taxonomy.json` in a
-fixed order, at about 450 microseconds a posting. Importing the module loads
-nothing heavy; the rules file is compiled on first use.
+on what gets fetched: the runner, and `cron-ats` once `CRON_ATS_V2_CATALOGUE` is
+on, keep every level and the feed's filters choose. They are rules, not a model
+(spec decision 2, and ingestion has been model-free since the July cost
+incident). `backend/ingest/taxonomy.py` applies the keyword and boundary rules
+in `backend/ingest/data/taxonomy.json` in a fixed order, at about 450
+microseconds a posting. Importing the module loads nothing heavy; the rules file
+is compiled on first use.
 
 ### Experience levels
 
@@ -650,6 +665,22 @@ never empty. `frontend/src/lib/jobFilterOptions.ts` holds the frontend side
 (`EXPERIENCE_OPTIONS`, `normalizeExperienceLevels`), which the filter bar and
 onboarding both read. `GET /jobs` takes `experience_level` as a comma-separated
 list of the option values.
+
+The options offered are only the ones with live jobs behind them. Until the
+every-level switch is on, production stores just internship and new grad rows,
+and a Senior or Director option would be a silent dead end that returns an empty
+feed. `GET /jobs/levels` answers `{"levels": [...]}`: the option values, in the
+list's order, that have at least one live row (the visibility rules of
+`GET /jobs`). It is public and cached for five minutes, on the instance and in
+the CDN, so a new level shows within about ten minutes of its first row. The
+Jobs page and onboarding build their lists from it, in `EXPERIENCE_OPTIONS`'
+order and with its labels. A saved level whose option is hidden is dropped from
+the active filter (never an invisible filter), and an answer that cannot be read
+offers all six. `GET /jobs/stats` and `GET /jobs/sidebar` take the same
+`experience_level` and count only those levels, or Intern/New Grad plus Entry
+Level when none are given: `total`, `new`, `applied` and the breakdowns, and the
+rail's feed summary and "hiring the most" list. `saved_count` and
+`by_experience_level` stay whole (the Liked badge, and the options' own counts).
 
 Match alerts follow the same levels. The sweep scores only jobs whose
 `experience_level` is in the user's saved levels
@@ -1028,12 +1059,16 @@ How ingestion stays inside the limits:
   not leave.
 
 The sums are the owner's call (measured 2026-10-25): production's own transfer
-plus a daily v2 run reaches or passes the 5 GB cap. `ingest.yml` does nothing
-until the `INGEST_DATABASE_URL` secret exists, so adding the secret is the
-moment that spending starts. The choices are the Neon Launch plan (about $5 a
-month at today's size) or a slower schedule (change the cron expression in
-`ingest.yml` to every second or third day). Check the current numbers before
-adding the secret.
+plus a daily v2 run reaches or passes the 5 GB cap, and `cron-ats` storing every
+level adds about 1.7 GB a month of refresh reads on top, while its rows reach
+the 400 MB insert stop within weeks. Merging spends nothing: `cron-ats` keeps
+the student catalogue until `CRON_ATS_V2_CATALOGUE` is on, and `ingest.yml` does
+nothing until the `INGEST_DATABASE_URL` secret exists. The spending starts with
+whichever comes first, the secret or the switch, so both belong after the plan
+has room (see "The every-level switch"). The choices are the Neon Launch plan
+(about $5 a month at today's size) or a slower schedule (change the cron
+expression in `ingest.yml` to every second or third day). Check the current
+numbers before adding the secret or turning the switch on.
 
 ### The v2 schema
 
@@ -1175,8 +1210,9 @@ Workday "N Locations" count never overwrites a stored place name.
    copies) are collapsed onto the clean URL by `scripts/cleanup_feed.py` phase
    a.
 2. **Stable external id:** board rows carry
-   `external_id = {platform}:{slug}:{source's own id}`, so re-crawls update in
-   place even if the apply URL changes shape.
+   `external_id = {platform}:{slug}:{source's own id}`. A re-crawl matches by
+   URL, then by `external_id` on the same board, so a posting whose apply URL
+   changes shape keeps its row (see "The shared pipeline").
 3. **Cross-source twins:** exact match on normalized employer + normalized
    title + city containment; the highest-trust copy wins, losers get
    `duplicate_of` (soft-hidden, never deleted). Direct rows never merge with
@@ -1503,6 +1539,37 @@ in which `cron-ats` may crawl a board the runner is about to crawl again; a
 longer `V2_RUNNER_FRESH_HOURS` would shrink it at the cost of a slower fallback
 when the runner is down.
 
+### The every-level switch (`CRON_ATS_V2_CATALOGUE`)
+
+The Vercel environment variable `CRON_ATS_V2_CATALOGUE` decides what `cron-ats`
+stores. Without it, merging v2 would have turned the every-level catalogue on in
+production with nothing able to stop it (DECISIONS 21):
+
+- **Off (the default):** `cron-ats` behaves as it did before v2. It crawls only
+  the boards on the five older platforms (Greenhouse, Lever, Ashby,
+  SmartRecruiters, Workday) and stores only the student catalogue
+  (`ATSScraper(filter_entry_level=True)`), through the shared pipeline: same
+  tags, caps, reconcile and confirm. A row of another level that the runner
+  stored is still listed by its board, so reconcile and confirm keep it active.
+- **On** (`1`, `true`, `yes` or `on`): `cron-ats` stores every experience level
+  (US and Canadian postings only) and crawls the adapters' boards too, as the
+  runner does.
+
+Why it exists: on the free Neon plan the every-level catalogue's refresh reads
+pass the 5 GB transfer cap, and its rows reach the 400 MB insert stop within
+weeks, after which no board, internships included, inserts anything. Turn it on
+only after the plan has room (and `limits.json` is raised, DECISIONS 11). The
+order is: the `INGEST_DATABASE_URL` secret, one run of `ingest.yml` by hand
+while watching size and transfer, then `INGEST_V2_RUNNER=1`, then
+`CRON_ATS_V2_CATALOGUE=1`. A changed Vercel variable reaches the functions with
+the next deployment, and no workflow sets it.
+
+The Jobs page and onboarding follow the data, not the switch: they offer the
+experience levels that have live jobs (`GET /jobs/levels`, see "Experience
+levels"). While it is off that is Intern/New Grad alone, plus Entry Level once
+a row of that tier exists, and the other options appear within about ten
+minutes of the first row of their level.
+
 ### The 60-day inactivity rule
 
 GitHub disables scheduled workflows in a public repository after 60 days
@@ -1572,6 +1639,7 @@ On Vercel (the endpoints):
 | `ATS_PER_HOST_INTERVAL` | 0.35 | Seconds between requests to one API host (the five older connectors) |
 | `CRON_ATS_RETIRE_OFF_TARGET` | on | `0`/`false`/`no`/`off` stops retiring rows to `off_target` and restores them (see the lifecycle section); needs a redeploy |
 | `INGEST_V2_RUNNER` | off | The cut-over: `cron-ats` leaves boards the runner crawled in the last 20 hours to it |
+| `CRON_ATS_V2_CATALOGUE` | off | `1`, `true`, `yes` or `on`: `cron-ats` stores every experience level and crawls the adapters' boards. Off, it keeps the student catalogue on the five older platforms, as before v2. Turn it on only after the Neon plan has room, and after `INGEST_V2_RUNNER` (see "The every-level switch"); needs a redeploy |
 | `USAJOBS_API_KEY`, `USAJOBS_USER_AGENT`, `ADZUNA_APP_ID`, `ADZUNA_APP_KEY`, `JOOBLE_API_KEY` | unset | Switch the keyed adapters on; `.env.example` lists them |
 
 For the runner (a `.env` locally, secrets in `ingest.yml`):
@@ -1861,15 +1929,17 @@ How to run them:
 
 Unfinished or deliberately not done, as of 2026-10-26:
 
-- **Held boards.** The Oracle, iCIMS and Jibe boards are `enabled: false` until
-  their adapters' completeness checks are fixed (DECISIONS 14). Taleo and
-  SuccessFactors share the review item and have no enabled boards.
+- **Held boards.** The Oracle, iCIMS and Jibe boards were held until their
+  adapters' completeness checks were fixed (DECISIONS 14) and are enabled now.
+  Taleo and SuccessFactors share the review item and have no enabled boards.
 - **Neon budget.** Production plus a daily run reaches the 5 GB transfer cap of
   the free plan (see "Storage and transfer"). Production has not been touched
   by v2: no merge, no migration on `main`, no ingest role or secret. The ingest
   role was only tried on a local Postgres (see "ingest.yml: daily, heavy").
   Bound the first production run by lowering `max_new_rows_per_run` in
-  `limits.json`.
+  `limits.json`. Merging changes no volumes: the every-level catalogue starts
+  with `CRON_ATS_V2_CATALOGUE` or the secret, whichever comes first (see "The
+  every-level switch"), and both belong after the plan has room.
 - **The keyed adapters** (USAJOBS, Adzuna, Jooble) have never run against a
   live server, so their first real call may differ from the documentation
   (field types, page-size ceilings, error formats). Jooble's free key is 500

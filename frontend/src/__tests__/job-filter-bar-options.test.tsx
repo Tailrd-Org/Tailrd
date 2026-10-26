@@ -6,9 +6,9 @@ vi.mock("../auth/api", () => ({
   default: { get: vi.fn().mockResolvedValue({ data: [] }) },
 }));
 
-function renderBar(filters: JobFilters = defaultFilters()) {
+function renderBar(filters: JobFilters = defaultFilters(), available?: readonly string[] | null) {
   const onChange = vi.fn();
-  render(<JobFilterBar filters={filters} onChange={onChange} />);
+  render(<JobFilterBar filters={filters} onChange={onChange} availableExperienceLevels={available} />);
   return onChange;
 }
 
@@ -71,6 +71,76 @@ describe("JobFilterBar experience levels", () => {
     expect(onChange).toHaveBeenCalledWith(
       expect.objectContaining({ experience_level: ["intern_new_grad", "entry"] }),
     );
+  });
+});
+
+/**
+ * Until every level is ingested, production stores only internships and new grads. The
+ * page hands the bar the options that have jobs (GET /jobs/levels), and the bar offers
+ * those and nothing else: an empty option is a silent dead end.
+ */
+describe("JobFilterBar experience levels the catalogue holds", () => {
+  const STUDENT_ONLY = ["intern_new_grad"];
+
+  it("offers only the options that have jobs, ticked as filtered", () => {
+    renderBar({ ...defaultFilters(), experience_level: ["intern_new_grad"] }, STUDENT_ONLY);
+    const panel = openPanel(/experience level/i);
+    expect(boxes(panel)).toEqual([{ label: "Intern/New Grad", checked: true }]);
+  });
+
+  it("keeps the options' order and labels when several have jobs", () => {
+    renderBar(
+      { ...defaultFilters(), experience_level: ["intern_new_grad"] },
+      ["director", "entry", "intern_new_grad"],
+    );
+    const panel = openPanel(/experience level/i);
+    expect(boxes(panel).map((b) => b.label)).toEqual(["Intern/New Grad", "Entry Level", "Director/Executive"]);
+  });
+
+  it("offers all six while the options are not known", () => {
+    renderBar(defaultFilters(), null);
+    const panel = openPanel(/experience level/i);
+    expect(boxes(panel)).toHaveLength(6);
+  });
+
+  it("drops a ticked level whose option is hidden when confirmed", () => {
+    // The saved default includes Entry Level, which has no jobs and so no checkbox.
+    const onChange = renderBar(defaultFilters(), STUDENT_ONLY);
+    const panel = openPanel(/experience level/i);
+    expect(within(panel).queryByLabelText("Entry Level")).toBeNull();
+    fireEvent.click(within(panel).getByRole("button", { name: /confirm/i }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ experience_level: ["intern_new_grad"] }));
+  });
+
+  it("confirming with nothing ticked applies the default levels that exist", () => {
+    const onChange = renderBar({ ...defaultFilters(), experience_level: ["intern_new_grad"] }, STUDENT_ONLY);
+    const panel = openPanel(/experience level/i);
+    fireEvent.click(within(panel).getByLabelText("Intern/New Grad"));
+    fireEvent.click(within(panel).getByRole("button", { name: /confirm/i }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ experience_level: ["intern_new_grad"] }));
+  });
+
+  it("Reset goes back to the default levels that exist", () => {
+    const onChange = renderBar(
+      { ...defaultFilters(), experience_level: ["intern_new_grad", "mid"] },
+      ["intern_new_grad", "mid"],
+    );
+    const panel = openPanel(/experience level/i);
+    fireEvent.click(within(panel).getByRole("button", { name: /reset/i }));
+    expect(boxes(panel).filter((b) => b.checked).map((b) => b.label)).toEqual(["Intern/New Grad"]);
+    fireEvent.click(within(panel).getByRole("button", { name: /confirm/i }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ experience_level: ["intern_new_grad"] }));
+  });
+
+  it("the All Filters panel offers the same options and confirms the same levels", () => {
+    const onChange = renderBar(defaultFilters(), STUDENT_ONLY);
+    const panel = openPanel(/all filters/i);
+    expect(within(panel).getByLabelText("Intern/New Grad")).toBeInTheDocument();
+    for (const hidden of ["Entry Level", "Mid Level", "Senior Level", "Lead/Staff", "Director/Executive"]) {
+      expect(within(panel).queryByLabelText(hidden)).toBeNull();
+    }
+    fireEvent.click(within(panel).getByRole("button", { name: /confirm/i }));
+    expect(onChange).toHaveBeenCalledWith(expect.objectContaining({ experience_level: ["intern_new_grad"] }));
   });
 });
 
