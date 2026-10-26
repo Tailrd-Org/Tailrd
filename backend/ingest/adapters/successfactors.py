@@ -74,6 +74,7 @@ _PHONE_DATE_RE = re.compile(r"<span\b[^>]*class=\"[^\"]*\bjobDate\b[^\"]*\"[^>]*
 _COUNT_RE = re.compile(
     r"class=\"paginationLabel\"[^>]*>[^<]*<b>\s*(\d[\d,]*)\s*[-–]\s*(\d[\d,]*)\s*</b>[^<]*<b>\s*(\d[\d,]*)\s*</b>", re.I)
 _MORE_LOCATIONS_RE = re.compile(r"\s*\+\s*\d+\s+more\W*$", re.I)
+_EMPTY_RE = re.compile(r"no open positions|aucun poste", re.I)
 _JOB_PATH_RE = re.compile(r"^/job/[^/]+/(\d+)/?$")
 _TAGS_RE = re.compile(r"<[^>]+>")
 _SPAN_TAG_RE = re.compile(r"<(/?)span\b[^>]*>", re.I)
@@ -186,22 +187,28 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
                     config: dict, deadline: float | None = None) -> tuple[list[ATSJob], bool, int]:
     """Every posting on one Recruiting Marketing site, newest first, unfiltered.
 
-    Returns (listings, complete, total_the_site_reports). ``complete`` needs the
-    crawl to have reached the last row (not the deadline or the page cap), the
-    reported count to have stayed the same, every row to have been readable, and
-    as many distinct postings listed as the site counts: a posting removed
-    between two page requests shifts the list up by one and skips a live
-    posting, and that must read as partial, never as a takedown."""
+    Returns (listings, complete, total_the_site_reports). ``complete`` is True
+    only with positive evidence that the whole list was read, all of:
+    - every page with rows carried the result count, a whole number above zero,
+      the same on every page (a posting removed between two page requests
+      changes it, and shifts the list up by one so a live posting is skipped);
+    - the crawl ran to the last row the count promises, or to an empty page, and
+      not to the deadline or the page cap, and no page repeated postings already
+      seen (a server that ignores ``startrow``);
+    - every row was readable;
+    - exactly as many distinct postings were listed as the site counts.
+    A site whose first page counts postings but shows none in a layout this
+    adapter reads raises, and an empty site, a missing or zero count all read as
+    partial, never as a takedown."""
     host = _host(slug, config)
     if not await http.robots_allowed(client, _page_url(host, 0)):
         raise PermissionError(f"successfactors/{slug}: {host} robots.txt does not allow TailrdBot to read its job search")
     jobs: list[ATSJob] = []
     seen: set[str] = set()
-    totals: set[int] = set()
+    counts: list[int | None] = []
     unreadable = 0
-    uncounted = False
     start = 0
-    ended = False
+    ended = repeated = False
     for page in range(MAX_PAGES):
         if page >= HEAD_PAGES and deadline is not None and time.monotonic() >= deadline:
             break
@@ -211,11 +218,24 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
             raise RuntimeError(f"successfactors/{slug}: {host} sends its job search to {response.url.host}")
         body = response.text
         rows = _ROW_RE.findall(body)
+        counted = _COUNT_RE.search(body)
+        count = int(counted.group(3).replace(",", "")) if counted else None
         if not rows:
-            if page == 0 and not re.search(r"no open positions|aucun poste", _text(body), re.I) and not _COUNT_RE.search(body):
-                raise RuntimeError(f"successfactors/{slug}: {host} did not answer with a Recruiting Marketing job search page")
-            ended = True  # a site with no postings, or the page after the last one
+            if page == 0:
+                if count:
+                    # A real search page that counts postings and shows none: the row
+                    # markup changed. Reading it as an empty site would retire every
+                    # stored posting.
+                    raise RuntimeError(f"successfactors/{slug}: {host} counts {count} postings in a layout "
+                                       f"this adapter does not read")
+                if count is None and not _EMPTY_RE.search(_text(body)):
+                    raise RuntimeError(f"successfactors/{slug}: {host} did not answer with a Recruiting "
+                                       f"Marketing job search page")
+                counts.append(count)  # an empty site: not complete, but nothing is wrong
+            ended = True  # the page after the last one, or an empty site
             break
+        counts.append(count)  # the label on a page past the end counts nothing
+        fresh = 0
         for row in rows:
             job = _to_job(row, host, slug, company_name)
             if job is None:
@@ -223,22 +243,25 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
             elif job.url not in seen:
                 seen.add(job.url)
                 jobs.append(job)
+                fresh += 1
         start += len(rows)
-        counted = _COUNT_RE.search(body)
-        if counted:
-            totals.add(int(counted.group(3).replace(",", "")))
-            if start >= max(totals):
+        if not fresh:
+            repeated = True  # the same postings again: the server is not honouring startrow
+            break
+        if count:
+            if start >= count:
                 ended = True
                 break
-        else:
-            # A custom template with no count: the next-page links say whether there is more.
-            uncounted = True
-            if not any(int(number) >= start for number in re.findall(r"startrow=(\d+)", body)):
-                ended = True
-                break
-    total = max(totals, default=len(jobs))
-    complete = (ended and len(totals) <= 1 and not unreadable and not uncounted
-                and len(seen) >= total)
+        elif not any(int(number) >= start for number in re.findall(r"startrow=(\d+)", body)):
+            # No usable count (a custom template, or a zero): the next-page links
+            # say whether there is more.
+            ended = True
+            break
+    known = [count for count in counts if count is not None]
+    total = max(known, default=0)
+    steady = bool(counts) and len(known) == len(counts) and len(set(known)) == 1
+    complete = (ended and not repeated and not unreadable and steady and total > 0
+                and len(seen) == total)
     return jobs, complete, total
 
 

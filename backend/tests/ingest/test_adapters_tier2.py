@@ -1639,7 +1639,7 @@ async def test_successfactors_a_row_it_cannot_read_makes_the_board_incomplete(cl
 @pytest.mark.asyncio
 async def test_successfactors_a_site_without_a_count_cannot_be_called_complete(clock):
     jobs, complete, total = await sf_list(SfServer({0: sf_page(sf_rows()[:3], 0, 3, label=False)}))
-    assert (len(jobs), complete, total) == (3, False, 3)
+    assert (len(jobs), complete, total) == (3, False, 0)  # the site reported no count
 
 
 @pytest.mark.asyncio
@@ -1650,9 +1650,55 @@ async def test_successfactors_follows_next_page_links_when_the_site_shows_no_cou
     assert len(jobs) == 6 and not complete
 
 
+def sf_empty_site(label: str = "") -> str:
+    """The real no-results page of Recruiting Marketing with its result label
+    replaced by ``label`` ("" removes it): what a site with no postings answers."""
+    return re.sub(r'<div class="pagination-label-row">.*?</div>', f'<div class="pagination-label-row">{label}</div>',
+                  fixture_text("successfactors_search_empty.html"), flags=re.S)
+
+
 @pytest.mark.asyncio
-async def test_successfactors_a_site_with_no_postings_is_complete_and_empty(clock):
-    assert await sf_list(SfServer({})) == ([], True, 0)
+async def test_successfactors_an_empty_site_is_never_called_complete(clock):
+    """No postings and no count looks the same whether the site is empty or its
+    search hiccuped, so nothing is retired on it."""
+    zero = '<span class="paginationLabel">Results <b>1 – 0</b> of <b>0</b></span>'
+    for page in (sf_empty_site(), sf_empty_site(zero)):
+        assert await sf_list(SfServer({0: page})) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_first_page_that_counts_postings_but_shows_none_raises(clock):
+    """Read as an empty site it would retire every stored posting."""
+    renamed = sf_page(sf_rows()[:3], 0, 175).replace('class="data-row"', 'class="result-item"')
+    cards = ('<html><body><div class="pagination-label-row"><span class="paginationLabel">Results <b>1 – 25</b> '
+             'of <b>175</b></span></div><div class="cards"><div class="card">x</div></div></body></html>')
+    past_the_end = fixture_text("successfactors_search_empty.html")  # the real page after the last one: it still says "of 35"
+    for page in (renamed, cards, past_the_end):
+        with pytest.raises(RuntimeError, match=r"counts \d+ postings in a layout this adapter does not read"):
+            await sf_list(SfServer({0: page}))
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_zero_count_beside_rows_or_a_count_below_the_listing_is_incomplete(clock):
+    rows = sf_rows()[:3]
+    assert (await sf_list(SfServer({0: sf_page(rows, 0, 0)})))[1:] == (False, 0)
+    assert (await sf_list(SfServer({0: sf_page(rows, 0, 2)})))[1:] == (False, 2)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_server_that_ignores_startrow_is_stopped_and_incomplete(clock):
+    rows = sf_rows()
+    server = SfServer({0: sf_page(rows[:3], 0, 8), 3: sf_page(rows[:3], 3, 8)})
+    jobs, complete, total = await sf_list(server)
+    assert server.starts() == [0, 3]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (3, False, 8)
+
+
+@pytest.mark.asyncio
+async def test_successfactors_a_maintenance_page_in_the_middle_of_the_walk_is_incomplete(clock):
+    pages = {0: sf_page(sf_rows()[:3], 0, 8), 3: "<html><body>Service temporarily unavailable</body></html>"}
+    jobs, complete, total = await sf_list(SfServer(pages))
+    assert (len(jobs), complete, total) == (3, False, 8)
 
 
 @pytest.mark.asyncio
