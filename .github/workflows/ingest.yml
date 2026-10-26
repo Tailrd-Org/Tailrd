@@ -21,12 +21,11 @@ name: Ingest
 # Until the secret INGEST_DATABASE_URL exists the workflow ends green with a
 # notice, so it never runs red for want of setup.
 #
-# Known gap: the runner also creates and migrates the schema when it starts
-# (ensure_schema), and several boot migrations send CREATE INDEX IF NOT EXISTS
-# on every start, which Postgres refuses to a role that does not own the table
-# even when the index exists ("must be owner of table cover_letters"). A role
-# with no DDL stops there until the runner can skip that step; one that owns
-# the tables does not.
+# The runner is started with --no-schema: it would otherwise create and migrate
+# the schema at start (ensure_schema), and several boot migrations send CREATE
+# INDEX IF NOT EXISTS on every start, which Postgres refuses to a role that does
+# not own the table even when the index exists ("must be owner of table
+# cover_letters"). The app applies the schema when it deploys.
 
 on:
   schedule:
@@ -180,7 +179,7 @@ jobs:
           export DATABASE_URL_DIRECT
           # Who started the run, for the scrape_runs row and the report.
           if [ "$EVENT_NAME" = schedule ]; then trigger=cron; else trigger=manual; fi
-          python -m backend.ingest.run --trigger "$trigger" --budget-minutes 170
+          python -m backend.ingest.run --no-schema --trigger "$trigger" --budget-minutes 170
 
       # continue-on-error keeps a failed step from stopping the run but also
       # leaves the job green; this step makes the inactivity alarm visible.
