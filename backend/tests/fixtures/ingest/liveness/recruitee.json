@@ -1,0 +1,659 @@
+{
+ "source": "recruitee",
+ "recorded_on": "2026-10-26",
+ "check": "<tenant>.recruitee.com/api/offers/<slug>: 200 is open; a 404 there is gone only when the offer page answers 404 as well",
+ "cases": [
+  {
+   "id": "recruitee-alive-1",
+   "truth": "alive",
+   "url": "https://huaweicanada.recruitee.com/o/research-engineer-agentic-software-systems-engineering",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the offers API returns the published offer",
+   "expect": {
+    "verdict": "alive",
+    "reason": "recruitee_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/api/offers/research-engineer-agentic-software-systems-engineering",
+     "status": 200,
+     "body_json": {
+      "offer": {
+       "dynamic_fields": [],
+       "postal_code": " L3R 5B4",
+       "options_title": "off",
+       "guid": "cvlvh",
+       "sharing_description": "Huawei Canada is looking for a Research Engineer- Agentic Software Systems Engineering",
+       "position": 1749,
+       "employment_type_code": "fulltime_permanent",
+       "location": "Markham, Ontario, Canada",
+       "created_at": "2026-05-14 14:07:46 UTC",
+       "locations": [
+        {
+         "id": 99954,
+         "name": "Markham, 19 Allstate Parkway",
+         "state": "Ontario",
+         "country": "Canada",
+         "city": "Markham",
+         "translations": {
+          "en": {
+           "name": "Markham, 19 Allstate Parkway",
+           "city": "Markham",
+           "postal_code": " L3R 5B4",
+           "street": "19 Allstate Parkway",
+           "note": null
+          }
+         },
+         "country_code": "CA",
+         "state_code": "ON",
+         "postal_code": " L3R 5B4",
+         "street": "19 Allstate Parkway",
+         "note": null
+        }
+       ],
+       "careers_url": "https://huaweicanada.recruitee.com/o/research-engineer-agentic-software-systems-engineering",
+       "experience_code": "mid_level",
+       "department": "Intelligent Complex Systems Lab",
+       "options_cv": "required",
+       "mailbox_email": "person@example.com",
+       "city": "Markham",
+       "education_code": "doctorate",
+       "open_questions": [
+        {
+         "id": 4129329,
+         "position": 1,
+         "options": {},
+         "required": false,
+         "body": "Are you currently legally entitled to work for Huawei in Canada?",
+         "kind": "boolean",
+         "translations": {
+          "en": {
+           "body": "Are you currently legally entitled to work for Huawei in Canada?"
+          }
+         },
+         "open_question_options": []
+        },
+        {
+         "id": 4129330,
+         "position": 2,
+         "options": {},
+         "required": false,
+         "body": "Are you willing to work onsite in Markham or Waterloo? Please note that travel or relocation support will not be available.",
+         "kind": "boolean",
+         "translations": {
+          "en": {
+           "body": "Are you willing to work onsite in Markham or Waterloo? Please note that travel or relocation support will not be available."
+          }
+         },
+         "open_question_options": []
+        },
+        {
+         "id": 4129331,
+         "position": 3,
+         "options": {},
+         "required": false,
+         "body": "When would you be available to start if selected for this position?",
+         "kind": "string",
+         "translations": {
+          "en": {
+           "body": "When would you be available to start if selected for this position?"
+          }
+         },
+         "open_question_options": []
+        }
+       ],
+       "slug": "research-engineer-agentic-software-systems-engineering",
+       "locations_question_type": "multiple_choice",
+       "location_question_visible": false,
+       "company_name": "Huawei Technologies Canada Co., Ltd.",
+       "published_at": "2026-06-03 12:45:21 UTC",
+       "requirements": "<p><strong><span style=\"font-size:1.2em\"><span style=\"color:#121317\">About the ideal candidate:</span></span></strong></p><ul><li><p class=\"MsoNormal\"><span style=\"color:#121317\">A PhD degree in Compu...",
+       "min_hours": null,
+       "options_photo": "off",
+       "state_code": "ON",
+       "tags": [
+        "L17",
+        "RC-Waterloo"
+       ],
+       "country": "Canada",
+       "close_at": null,
+       "salary": {
+        "max": null,
+        "min": null,
+        "period": null,
+        "currency": null
+       },
+       "updated_at": "2026-10-21 13:43:33 UTC",
+       "sharing_image": "https://recruitee-main.s3.eu-central-1.amazonaws.com/offers/2604025/normal_sharing_l3nvl3g1rogh.png",
+       "min_hours_per_week": null,
+       "description": "<p><strong><span style=\"font-size:1.2em\"><span style=\"color:#121317\">Huawei Canada has an immediate permanent opening for a Research Engineer.</span></span></strong></p><p style=\"min-height: 1.7em;\"><...",
+       "category_code": "information_technology",
+       "highlight": null,
+       "country_code": "CA",
+       "remote": false,
+       "hybrid": false,
+       "options_cover_letter": "off",
+       "state_name": "Ontario",
+       "locations_question_required": true,
+       "translations": {
+        "en": {
+         "description": "<p><strong><span style=\"font-size:1.2em\"><span style=\"color:#121317\">Huawei Canada has an immediate permanent opening for a Research Engineer.</span></span></strong></p><p style=\"min-height: 1.7em;\"><...",
+         "title": "Research Engineer - Agentic Software Systems Engineering",
+         "highlight": null,
+         "requirements": "<p><strong><span style=\"font-size:1.2em\"><span style=\"color:#121317\">About the ideal candidate:</span></span></strong></p><ul><li><p class=\"MsoNormal\"><span style=\"color:#121317\">A PhD degree in Compu...",
+         "sharing_image": "https://recruitee-main.s3.eu-central-1.amazonaws.com/offers/2604025/normal_sharing_l3nvl3g1rogh.png",
+         "locations_question": "What is your preferred work location?",
+         "sharing_description": "Huawei Canada is looking for a Research Engineer- Agentic Software Systems Engineering",
+         "sharing_title": "Research Engineer- Agentic Software Systems Engineering"
+        }
+       },
+       "options_phone": "optional",
+       "options_salutation": "off",
+       "title": "Research Engineer - Agentic Software Systems Engineering",
+       "id": 2604025,
+       "locations_question": "What is your preferred work location?",
+       "careers_apply_url": "https://huaweicanada.recruitee.com/o/research-engineer-agentic-software-systems-engineering/c/new",
+       "sharing_title": "Research Engineer- Agentic Software Systems Engineering",
+       "on_site": true,
+       "cover_image": null,
+       "max_hours_per_week": null,
+       "status": "published",
+       "max_hours": null
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "recruitee-alive-2",
+   "truth": "alive",
+   "url": "https://johnhowardsocietyofokanagankootenay.recruitee.com/o/custodial-worker-1",
+   "board_key": "recruitee:johnhowardsocietyofokanagankootenay",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the offers API returns the published offer",
+   "expect": {
+    "verdict": "alive",
+    "reason": "recruitee_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://johnhowardsocietyofokanagankootenay.recruitee.com/api/offers/custodial-worker-1",
+     "status": 200,
+     "body_json": {
+      "offer": {
+       "dynamic_fields": [],
+       "sharing_image": null,
+       "options_phone": "required",
+       "position": 32,
+       "created_at": "2026-09-14 19:57:09 UTC",
+       "salary": {
+        "max": "24.81",
+        "min": "21.63",
+        "period": "hour",
+        "currency": "CAD"
+       },
+       "requirements": "<ul><li><p>High school diploma.</p></li><li><p>Basic knowledge of and ability to use computers including Word, Excel, and Outlook.</p></li><li><p>Ability to prioritize and manage time efficiently with...",
+       "max_hours_per_week": "40",
+       "experience_code": "entry_level",
+       "department": "Building Operations",
+       "location_question_visible": false,
+       "mailbox_email": "person@example.com",
+       "state_name": "British Columbia",
+       "locations": [
+        {
+         "id": 258288,
+         "name": "Kelowna",
+         "state": "British Columbia",
+         "country": "Canada",
+         "city": "Kelowna",
+         "translations": {
+          "en": {
+           "name": "Kelowna",
+           "city": "Kelowna",
+           "postal_code": null,
+           "street": null,
+           "note": null
+          }
+         },
+         "country_code": "CA",
+         "postal_code": null,
+         "state_code": "BC",
+         "street": null,
+         "note": null
+        }
+       ],
+       "max_hours": 40,
+       "close_at": null,
+       "highlight": "<p>Creating clean, safe spaces where people can thrive.</p><p style=\"min-height: 1.7em;\"></p>",
+       "locations_question": "What is your preferred work location?",
+       "city": "Kelowna",
+       "options_photo": "off",
+       "min_hours": 40,
+       "hybrid": false,
+       "education_code": "high_school",
+       "postal_code": null,
+       "locations_question_required": true,
+       "tags": [],
+       "updated_at": "2026-09-14 20:46:19 UTC",
+       "category_code": "cleaning",
+       "country": "Canada",
+       "open_questions": [
+        {
+         "id": 4370278,
+         "position": 1,
+         "options": {},
+         "required": true,
+         "body": "Are you legally authorized to work in Canada?",
+         "kind": "boolean",
+         "translations": {
+          "en": {
+           "body": "Are you legally authorized to work in Canada?"
+          }
+         },
+         "open_question_options": []
+        },
+        {
+         "id": 4370279,
+         "position": 2,
+         "options": {},
+         "required": true,
+         "body": "Do you currently reside in the Kelowna area?",
+         "kind": "boolean",
+         "translations": {
+          "en": {
+           "body": "Do you currently reside in the Kelowna area?"
+          }
+         },
+         "open_question_options": []
+        },
+        {
+         "id": 4370282,
+         "position": 3,
+         "options": {},
+         "required": true,
+         "body": "Are you available to work regular hours Mon-Fri 8am-4pm?",
+         "kind": "boolean",
+         "translations": {
+          "en": {
+           "body": "Are you available to work regular hours Mon-Fri 8am-4pm?"
+          }
+         },
+         "open_question_options": []
+        }
+       ],
+       "employment_type_code": "fulltime_permanent",
+       "on_site": true,
+       "sharing_title": "Custodial Worker",
+       "location": "Kelowna, British Columbia, Canada",
+       "description": "<p>Under the direction of the Building Operations Director, the Custodial Worker is responsible for ensuring the proper care and cleaning of the program buildings, grounds &amp; property. They provide...",
+       "slug": "custodial-worker-1",
+       "title": "Custodial Worker",
+       "published_at": "2026-09-14 20:29:03 UTC",
+       "remote": false,
+       "country_code": "CA",
+       "state_code": "BC",
+       "options_cv": "required",
+       "translations": {
+        "en": {
+         "description": "<p>Under the direction of the Building Operations Director, the Custodial Worker is responsible for ensuring the proper care and cleaning of the program buildings, grounds &amp; property. They provide...",
+         "title": "Custodial Worker",
+         "highlight": "<p>Creating clean, safe spaces where people can thrive.</p><p style=\"min-height: 1.7em;\"></p>",
+         "sharing_image": null,
+         "requirements": "<ul><li><p>High school diploma.</p></li><li><p>Basic knowledge of and ability to use computers including Word, Excel, and Outlook.</p></li><li><p>Ability to prioritize and manage time efficiently with...",
+         "locations_question": "What is your preferred work location?",
+         "sharing_description": "Under the direction of the Building Operations Director, the Custodial Worker is responsible for ensuring the proper care and cleaning of the program buildings, grounds &amp; property. They provide a ",
+         "sharing_title": "Custodial Worker"
+        }
+       },
+       "id": 2745713,
+       "options_cover_letter": "optional",
+       "options_salutation": "off",
+       "company_name": "John Howard Society of Okanagan & Kootenay",
+       "guid": "ou2o4",
+       "options_title": "off",
+       "careers_apply_url": "https://johnhowardsocietyofokanagankootenay.recruitee.com/o/custodial-worker-1/c/new",
+       "locations_question_type": "multiple_choice",
+       "status": "published",
+       "sharing_description": "Under the direction of the Building Operations Director, the Custodial Worker is responsible for ensuring the proper care and cleaning of the program buildings, grounds &amp; property. They provide a ",
+       "cover_image": null,
+       "careers_url": "https://johnhowardsocietyofokanagankootenay.recruitee.com/o/custodial-worker-1",
+       "min_hours_per_week": "40"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "recruitee-alive-3",
+   "truth": "alive",
+   "url": "https://ottawasafetycouncil.recruitee.com/o/on-call-school-crossing-guard-ott-2",
+   "board_key": "recruitee:ottawasafetycouncil",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the offers API returns the published offer",
+   "expect": {
+    "verdict": "alive",
+    "reason": "recruitee_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://ottawasafetycouncil.recruitee.com/api/offers/on-call-school-crossing-guard-ott-2",
+     "status": 200,
+     "body_json": {
+      "offer": {
+       "dynamic_fields": [],
+       "postal_code": null,
+       "options_title": "off",
+       "guid": "ovr4v",
+       "sharing_description": "Are you looking for a part-time job that makes a difference in your community? If so, join our team! Enjoy a work-life balance, meet new people, and be a part of a team of On-Call Crossing Guards who ",
+       "position": 1,
+       "employment_type_code": "contract",
+       "location": "Toronto, Ontario, Canada",
+       "created_at": "2023-08-29 17:26:03 UTC",
+       "locations": [
+        {
+         "id": 76952,
+         "name": "Toronto",
+         "state": "Ontario",
+         "country": "Canada",
+         "city": "Toronto",
+         "translations": {
+          "en": {
+           "name": "Toronto",
+           "city": "Toronto",
+           "postal_code": null,
+           "street": null,
+           "note": null
+          }
+         },
+         "country_code": "CA",
+         "state_code": "ON",
+         "postal_code": null,
+         "street": null,
+         "note": null
+        }
+       ],
+       "careers_url": "https://ottawasafetycouncil.recruitee.com/o/on-call-school-crossing-guard-ott-2",
+       "experience_code": "entry_level",
+       "department": "Toronto - Crossing Guard",
+       "options_cv": "optional",
+       "mailbox_email": "person@example.com",
+       "city": "Toronto",
+       "education_code": "high_school",
+       "open_questions": [
+        {
+         "id": 2101504,
+         "position": 1,
+         "options": null,
+         "required": true,
+         "body": "Briefly tell us why you are interested in becoming a Crossing Guard. ",
+         "kind": "text",
+         "translations": {
+          "en": {
+           "body": "Briefly tell us why you are interested in becoming a Crossing Guard. "
+          }
+         },
+         "open_question_options": []
+        },
+        {
+         "id": 2101505,
+         "position": 2,
+         "options": null,
+         "required": true,
+         "body": "Are you legally entitled to work in Canada?",
+         "kind": "single_choice",
+         "translations": {
+          "en": {
+           "body": "Are you legally entitled to work in Canada?"
+          }
+         },
+         "open_question_options": [
+          {
+           "id": 2951012,
+           "position": null,
+           "body": "No",
+           "translations": {
+            "en": {
+             "body": "No"
+            }
+           }
+          },
+          {
+           "id": 2951011,
+           "position": null,
+           "body": "Yes",
+           "translations": {
+            "en": {
+             "body": "Yes"
+            }
+           }
+          }
+         ]
+        },
+        {
+         "id": 2101502,
+         "position": 3,
+         "options": {},
+         "required": true,
+         "body": "Please select the age bracket you belong to:",
+         "kind": "single_choice",
+         "translations": {
+          "en": {
+           "body": "Please select the age bracket you belong to:"
+          }
+         },
+         "open_question_options": [
+          {
+           "id": 2951005,
+           "position": 0,
+           "body": "16-18",
+           "translations": {
+            "en": {
+             "body": "16-18"
+            }
+           }
+          },
+          {
+           "id": 2951006,
+           "position": 1,
+           "body": "19-25",
+           "translations": {
+            "en": {
+             "body": "19-25"
+            }
+           }
+          },
+          {
+           "id": 2951007,
+           "position": 2,
+           "body": "26-39",
+           "translations": {
+            "en": {
+             "body": "26-39"
+            }
+           }
+          }
+         ]
+        }
+       ],
+       "slug": "on-call-school-crossing-guard-ott-2",
+       "locations_question_type": "multiple_choice",
+       "location_question_visible": false,
+       "company_name": "Ottawa Safety Council",
+       "published_at": "2026-10-21 16:14:40 UTC",
+       "requirements": "<h2><strong>Core Competencies</strong><br></h2><ul><li><p>Customer Focus</p></li><li><p>Communication</p></li><li><p>Physical Stamina, Mental Alertness</p></li><li><p>Ability to Cope with Stress</p></...",
+       "min_hours": 5,
+       "options_photo": "off",
+       "state_code": "ON",
+       "tags": [],
+       "country": "Canada",
+       "close_at": null,
+       "salary": {
+        "max": "35",
+        "min": "19.09",
+        "period": null,
+        "currency": "CAD"
+       },
+       "updated_at": "2026-10-21 16:20:56 UTC",
+       "sharing_image": null,
+       "min_hours_per_week": "5",
+       "description": "<h2><strong><span style=\"font-size:1.2em\">Are you looking for a part-time job that makes a difference in your community?</span></strong><br></h2><p>If so, join our team! Enjoy a work-life balance, mee...",
+       "category_code": "security",
+       "highlight": null,
+       "country_code": "CA",
+       "remote": false,
+       "hybrid": false,
+       "options_cover_letter": "off",
+       "state_name": "Ontario",
+       "locations_question_required": true,
+       "translations": {
+        "en": {
+         "description": "<h2><strong><span style=\"font-size:1.2em\">Are you looking for a part-time job that makes a difference in your community?</span></strong><br></h2><p>If so, join our team! Enjoy a work-life balance, mee...",
+         "title": "On-Call School Crossing Guard - TORONTO",
+         "highlight": null,
+         "requirements": "<h2><strong>Core Competencies</strong><br></h2><ul><li><p>Customer Focus</p></li><li><p>Communication</p></li><li><p>Physical Stamina, Mental Alertness</p></li><li><p>Ability to Cope with Stress</p></...",
+         "sharing_image": null,
+         "locations_question": "What is your preferred work location?",
+         "sharing_description": "Are you looking for a part-time job that makes a difference in your community? If so, join our team! Enjoy a work-life balance, meet new people, and be a part of a team of On-Call Crossing Guards who ",
+         "sharing_title": "On-Call School Crossing Guard - TORONTO"
+        }
+       },
+       "options_phone": "required",
+       "options_salutation": "off",
+       "title": "On-Call School Crossing Guard - TORONTO",
+       "id": 1432865,
+       "locations_question": "What is your preferred work location?",
+       "careers_apply_url": "https://ottawasafetycouncil.recruitee.com/o/on-call-school-crossing-guard-ott-2/c/new",
+       "sharing_title": "On-Call School Crossing Guard - TORONTO",
+       "on_site": true,
+       "cover_image": null,
+       "max_hours_per_week": "15",
+       "status": "published",
+       "max_hours": 15
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "recruitee-dead-1",
+   "truth": "dead",
+   "url": "https://huaweicanada.recruitee.com/o/intern-researcher-robotics-system-and-interaction",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-07-18",
+   "evidence": "the offers API and the offer page both answer 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "recruitee_offer_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/api/offers/intern-researcher-robotics-system-and-interaction",
+     "status": 404,
+     "body_json": {
+      "error": "Not Found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/o/intern-researcher-robotics-system-and-interaction",
+     "status": 404,
+     "body_file": "recruitee/recruitee-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "recruitee-dead-2",
+   "truth": "dead",
+   "url": "https://huaweicanada.recruitee.com/o/hr-assistant-5",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-07-18",
+   "evidence": "the offers API and the offer page both answer 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "recruitee_offer_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/api/offers/hr-assistant-5",
+     "status": 404,
+     "body_json": {
+      "error": "Not Found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/o/hr-assistant-5",
+     "status": 404,
+     "body_file": "recruitee/recruitee-dead-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "recruitee-dead-3",
+   "truth": "dead",
+   "url": "https://huaweicanada.recruitee.com/o/intern-engineer-ai-agent-for-data",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-08-15",
+   "evidence": "the offers API and the offer page both answer 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "recruitee_offer_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/api/offers/intern-engineer-ai-agent-for-data",
+     "status": 404,
+     "body_json": {
+      "error": "Not Found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://huaweicanada.recruitee.com/o/intern-engineer-ai-agent-for-data",
+     "status": 404,
+     "body_file": "recruitee/recruitee-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}

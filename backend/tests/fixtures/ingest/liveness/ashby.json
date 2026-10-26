@@ -1,0 +1,231 @@
+{
+ "source": "ashby",
+ "recorded_on": "2026-10-26",
+ "check": "jobs.ashbyhq.com/api/non-user-graphql (ApiJobPosting): the posting object is open, null is gone",
+ "cases": [
+  {
+   "id": "ashby-alive-1",
+   "truth": "alive",
+   "url": "https://jobs.ashbyhq.com/twenty/ddf07ddc-41d3-4f6c-ba24-2687544798c4",
+   "board_key": "ashby:twenty",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the posting lookup returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "ashby_posting_open",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "twenty",
+       "jobPostingId": "ddf07ddc-41d3-4f6c-ba24-2687544798c4"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": {
+        "id": "ddf07ddc-41d3-4f6c-ba24-2687544798c4",
+        "isListed": true
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ashby-alive-2",
+   "truth": "alive",
+   "url": "https://jobs.ashbyhq.com/rewind/182ea3c9-5a23-44b4-a82d-14a53fe36e77",
+   "board_key": "ashby:rewind",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the posting lookup returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "ashby_posting_open",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "rewind",
+       "jobPostingId": "182ea3c9-5a23-44b4-a82d-14a53fe36e77"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": {
+        "id": "182ea3c9-5a23-44b4-a82d-14a53fe36e77",
+        "isListed": true
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ashby-alive-3",
+   "truth": "alive",
+   "url": "https://jobs.ashbyhq.com/elevenlabs/e062d169-7294-4125-bc7b-e3a821dcd620",
+   "board_key": "ashby:elevenlabs",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the posting lookup returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "ashby_posting_open",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "elevenlabs",
+       "jobPostingId": "e062d169-7294-4125-bc7b-e3a821dcd620"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": {
+        "id": "e062d169-7294-4125-bc7b-e3a821dcd620",
+        "isListed": true
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ashby-dead-1",
+   "truth": "dead",
+   "url": "https://jobs.ashbyhq.com/abridge/3f07a457-dc14-4238-bf4e-5c33b5c1f883",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-29",
+   "evidence": "the posting lookup answers jobPosting null",
+   "expect": {
+    "verdict": "dead",
+    "reason": "ashby_posting_null",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "abridge",
+       "jobPostingId": "3f07a457-dc14-4238-bf4e-5c33b5c1f883"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": null
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ashby-dead-2",
+   "truth": "dead",
+   "url": "https://jobs.ashbyhq.com/ramp/971abc99-f20b-43f0-91d6-90bcbfa2c8d9/application",
+   "board_key": "ashby:ramp",
+   "origin": "dev branch row, listing_status=removed, changed 2026-07-18",
+   "evidence": "an application-page link; the posting lookup answers jobPosting null",
+   "expect": {
+    "verdict": "dead",
+    "reason": "ashby_posting_null",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "ramp",
+       "jobPostingId": "971abc99-f20b-43f0-91d6-90bcbfa2c8d9"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": null
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "ashby-dead-3",
+   "truth": "dead",
+   "url": "https://jobs.ashbyhq.com/replit/7e0dafe8-3eec-442e-aa76-a4d84d779fb1",
+   "board_key": "ashby:replit",
+   "origin": "dev branch row, listing_status=removed, changed 2026-08-24",
+   "evidence": "the posting lookup answers jobPosting null",
+   "expect": {
+    "verdict": "dead",
+    "reason": "ashby_posting_null",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "POST",
+     "url": "https://jobs.ashbyhq.com/api/non-user-graphql?op=ApiJobPosting",
+     "status": 200,
+     "request_json": {
+      "operationName": "ApiJobPosting",
+      "variables": {
+       "organizationHostedJobsPageName": "replit",
+       "jobPostingId": "7e0dafe8-3eec-442e-aa76-a4d84d779fb1"
+      },
+      "query": "query ApiJobPosting($organizationHostedJobsPageName: String!, $jobPostingId: String!) { jobPosting(organizationHostedJobsPageName: $organizationHostedJobsPageName, jobPostingId: $jobPostingId) { id isListed } }"
+     },
+     "body_json": {
+      "data": {
+       "jobPosting": null
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

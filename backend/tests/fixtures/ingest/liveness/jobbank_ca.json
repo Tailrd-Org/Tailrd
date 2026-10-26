@@ -1,0 +1,226 @@
+{
+ "source": "jobbank_ca",
+ "recorded_on": "2026-10-26",
+ "check": "the Job Bank adapter's check_alive: robots.txt, then the posting page: 410 is gone, a readable page inside its dates is open",
+ "cases": [
+  {
+   "id": "jobbank_ca-alive-1",
+   "truth": "alive",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50575638",
+   "origin": "a posting seen on Job Bank on 2026-10-25 (the adapter's saved restaurant manager page), open today",
+   "evidence": "the posting page is served with its title and dates, open until 2026-11-08",
+   "expect": {
+    "verdict": "alive",
+    "reason": "jobbank_posting_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50575638",
+     "status": 200,
+     "body_file": "jobbank_ca/jobbank_ca-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jobbank_ca-alive-2",
+   "truth": "alive",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50575264",
+   "origin": "a posting seen on Job Bank on 2026-10-25 (the adapter's saved retail sales consultant page), open today",
+   "evidence": "the posting page is served with its title and dates, open until 2026-11-23",
+   "expect": {
+    "verdict": "alive",
+    "reason": "jobbank_posting_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/50575264",
+     "status": 200,
+     "body_file": "jobbank_ca/jobbank_ca-alive-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jobbank_ca-alive-3",
+   "truth": "alive",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/49881300",
+   "origin": "a posting seen in the adapter's saved Job Bank search page of 2026-10-25, open today",
+   "evidence": "the posting page is served with its title and dates, open until 2026-11-06",
+   "expect": {
+    "verdict": "alive",
+    "reason": "jobbank_posting_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/49881300",
+     "status": 200,
+     "body_file": "jobbank_ca/jobbank_ca-alive-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jobbank_ca-dead-1",
+   "truth": "dead",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/12822685",
+   "origin": "archived by the Wayback Machine in 2023",
+   "evidence": "the posting redirects to jobpostingexpired and answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "jobbank_http_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/12822685",
+     "status": 302,
+     "body": "",
+     "headers": {
+      "location": "/jobsearch/jobpostingexpired;jsessionid=SESSION"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobpostingexpired;jsessionid=SESSION",
+     "status": 410,
+     "body_file": "jobbank_ca/jobbank_ca-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jobbank_ca-dead-2",
+   "truth": "dead",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/12844817",
+   "origin": "archived by the Wayback Machine in 2023",
+   "evidence": "the posting redirects to jobpostingexpired and answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "jobbank_http_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/12844817",
+     "status": 302,
+     "body": "",
+     "headers": {
+      "location": "/jobsearch/jobpostingexpired;jsessionid=SESSION"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobpostingexpired;jsessionid=SESSION",
+     "status": 410,
+     "body_file": "jobbank_ca/jobbank_ca-dead-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "jobbank_ca-dead-3",
+   "truth": "dead",
+   "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/13074942",
+   "origin": "archived by the Wayback Machine in 2023",
+   "evidence": "the posting redirects to jobpostingexpired and answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "jobbank_http_410",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/robots.txt",
+     "status": 200,
+     "body_file": "jobbank_ca/robots-www.jobbank.gc.ca.txt",
+     "headers": {
+      "content-type": "text/plain; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobposting/13074942",
+     "status": 302,
+     "body": "",
+     "headers": {
+      "location": "/jobsearch/jobpostingexpired;jsessionid=SESSION"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://www.jobbank.gc.ca/jobsearch/jobpostingexpired;jsessionid=SESSION",
+     "status": 410,
+     "body_file": "jobbank_ca/jobbank_ca-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}
