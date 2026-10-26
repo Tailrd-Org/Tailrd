@@ -1062,20 +1062,28 @@ def _relabel_orphans(db: Session, rows) -> int:
 
 
 def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None = None,
-                                     limit: int = ORPHAN_RETIRE_LIMIT) -> dict:
+                                     limit: int = ORPHAN_RETIRE_LIMIT, *,
+                                     entry_level_only: bool = False) -> dict:
     """Retire visible crawler rows no board crawl will ever judge, when their
-    own stored location fails the crawler's filter.
+    own stored title or location fails the crawler's filters.
 
     Rows on board_key '' / 'unknown' (BGIS on Oracle, Nokia, Huawei's
     Recruitee: 144 visible, 2026-09, all rogue-era inserts) are never
     reconciled, and every authoritative "alive" from the verify sweeps bumps
     their last_seen_at, so the terminal expiry never ends them either.
     The verdict is ATSScraper.rejection on the stored title and location,
-    the same one a board crawl acts on: since scraper v2 every experience
-    level is in scope, so only "location" retires, and only on positive
-    foreign evidence. Rows an earlier sweep retired for their level come
-    back. Only "ats" rows, never a LinkedIn/Indeed page stored as one. Every
-    row the sweep checks or restores gets the level its title says
+    the same one a board crawl acts on. By default every experience level is
+    in scope (scraper v2), so only "location" retires, and only on positive
+    foreign evidence, and rows an earlier sweep retired for their level come
+    back. ``entry_level_only`` is the rule from before scraper v2, for
+    cron-freshness while CRON_ATS_V2_CATALOGUE is off: the scraper filters by
+    level too, so a title that is not entry level retires as "level", and a
+    row retired for its level stays retired. Without it the sweep would
+    restore, hourly, every orphan row production retired for its level, in a
+    catalogue the switch exists to keep as it was. The runner's sweeps never
+    set it: the runner stores every level whatever the switch says. Only
+    "ats" rows, never a LinkedIn/Indeed page stored as one. Every row the
+    sweep checks or restores gets the level its title says in either mode
     (_relabel_orphans, ``relabeled``).
 
     No crawl ever brings these rows back (reconcile_board goes by board_key,
@@ -1121,7 +1129,7 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
         .limit(limit)
         .all()
     )
-    scraper = ATSScraper(filter_entry_level=False, filter_north_america=True)
+    scraper = ATSScraper(filter_entry_level=entry_level_only, filter_north_america=True)
     retire: list[int] = []
     for row_id, title, company, location, _level, _years in rows:
         stats["checked"] += 1

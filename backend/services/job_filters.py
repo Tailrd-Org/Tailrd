@@ -50,9 +50,10 @@ def experience_options_with_jobs(stored_levels: Iterable[Optional[str]]) -> list
 
     ``stored_levels`` are the scraped_jobs.experience_level values that have at
     least one live row. An option qualifies when any of the stored levels it
-    expands to is among them: while production stores only internship and new
-    grad rows (CRON_ATS_V2_CATALOGUE off) that is just Intern/New Grad, and an
-    option with no rows would be a filter that empties the feed."""
+    expands to is among them: while production stores only the entry-level
+    tiers (CRON_ATS_V2_CATALOGUE off) that is Intern/New Grad, plus Entry Level
+    once a weak-tier row (junior, associate) exists, and an option with no rows
+    would be a filter that empties the feed."""
     present = {(level or "").strip().lower() for level in stored_levels}
     return [
         key for key in EXPERIENCE_OPTION_KEYS

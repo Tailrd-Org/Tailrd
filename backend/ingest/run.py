@@ -353,7 +353,10 @@ async def run_sweeps(db) -> dict:
     order: board-key adoption, stale, aggregator expiry, the two retire
     sweeps, the platform checks in one shared time box, terminal expiry and
     ghost scoring. Kept in step with cron_freshness by hand; the web router
-    is not imported here."""
+    is not imported here. The orphan sweep keeps every level here: the runner
+    stores every level whatever CRON_ATS_V2_CATALOGUE says (the switch holds
+    only the web crons to the student catalogue), where cron_freshness passes
+    ``entry_level_only`` while the switch is off."""
     from backend.services import listing_freshness as lf
     from backend.services.platform_liveness import make_client
 

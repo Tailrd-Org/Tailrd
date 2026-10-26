@@ -5,9 +5,11 @@ boards it crawled then (company_registry.load_student_catalogue), entry-level
 postings only, and a stored row whose listing is not entry level retires as
 off_target. So merging scraper v2 changes nothing about what production
 stores. On, it crawls every registry board, the v2 adapters' too, and stores
-every experience level.
+every experience level. The orphan sweep of cron-freshness follows the same
+switch: off, it retires an orphan row for its level and never restores one.
 """
 
+import datetime
 import types
 
 import pytest
@@ -157,6 +159,72 @@ def test_the_switch_is_read_on_every_call(monkeypatch):
     assert github_sources.v2_catalogue_enabled() is False
     monkeypatch.setenv("CRON_ATS_V2_CATALOGUE", "on")
     assert github_sources.v2_catalogue_enabled() is True
+
+
+# --- the orphan sweep of cron-freshness -------------------------------------
+
+
+@pytest.fixture
+def freshness(client, db_session, monkeypatch):
+    """POST cron-freshness over two orphan rows no board crawl reaches (board
+    key 'unknown'): a Senior Software Engineer that is active, and a Cleaner
+    that production's sweep retired for its level before scraper v2. Returns
+    (the orphan sweep's stats, the two rows' statuses)."""
+    import backend.auth.dependencies as auth_deps
+    from backend.services import listing_freshness
+
+    monkeypatch.setattr(auth_deps, "CRON_SECRET", SECRET)
+
+    async def no_probe(db, client_, limit=0, now=None, *, deadline=None, cache=None, **kw):
+        return {"checked": 0}
+
+    for name in ("verify_stale_listings", "verify_unconfirmed_active_listings",
+                 "verify_recent_aggregator_listings"):
+        monkeypatch.setattr(listing_freshness, name, no_probe)
+
+    def make(n, title, status):
+        db_session.add(ScrapedJob(
+            title=title, company="Acme", url=f"https://jobs.nokia.com/{n}",
+            location="Toronto, ON", source_platform="ats", board_key="unknown",
+            listing_status=status, experience_level="new_grad",
+            first_seen_at=datetime.datetime.utcnow(), last_seen_at=datetime.datetime.utcnow(),
+            scraped_at=datetime.datetime.utcnow()))
+        db_session.commit()
+
+    make(1, "Senior Software Engineer", LISTING_ACTIVE)
+    make(2, "Cleaner", LISTING_OFF_TARGET)
+
+    def call(flag=None):
+        if flag is None:
+            monkeypatch.delenv("CRON_ATS_V2_CATALOGUE", raising=False)
+        else:
+            monkeypatch.setenv("CRON_ATS_V2_CATALOGUE", flag)
+        res = client.post("/jobs/cron-freshness", headers={"x-cron-secret": SECRET})
+        assert res.status_code == 200, res.text
+        db_session.expire_all()
+        statuses = {row.title: row.listing_status for row in db_session.query(ScrapedJob).all()}
+        return res.json()["orphans_off_target"], statuses
+
+    return call
+
+
+def test_off_the_orphan_sweep_retires_for_the_level_and_restores_nothing(freshness):
+    """Production retired orphan rows for their level before scraper v2. Left
+    on the every-level rule, the sweep brought them back hourly after the
+    merge: the Cleaner into the default feed, the rest into the level list."""
+    stats, statuses = freshness()
+
+    assert statuses == {"Senior Software Engineer": LISTING_OFF_TARGET,
+                        "Cleaner": LISTING_OFF_TARGET}
+    assert (stats["level"], stats["off_target"], stats.get("restored", 0)) == (1, 1, 0)
+
+
+@pytest.mark.parametrize("flag", ["1", "true", "yes", "on"])
+def test_on_the_orphan_sweep_keeps_every_level_and_restores_what_the_level_hid(freshness, flag):
+    stats, statuses = freshness(flag)
+
+    assert statuses == {"Senior Software Engineer": LISTING_ACTIVE, "Cleaner": LISTING_ACTIVE}
+    assert (stats["level"], stats["off_target"], stats["restored"]) == (0, 0, 1)
 
 
 # --- the boards crawled before scraper v2 -----------------------------------

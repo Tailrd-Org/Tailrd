@@ -859,6 +859,7 @@ async def cron_freshness(
     into board reconciliation."""
     import time
 
+    from backend.routers.github_sources import v2_catalogue_enabled
     from backend.services import listing_freshness
     from backend.services.platform_liveness import make_client
 
@@ -867,9 +868,12 @@ async def cron_freshness(
     expired = listing_freshness.sweep_aggregator_expiry(db)
     # Before the checks: crawler rows no board reconciles ('' / 'unknown')
     # whose own title or location fails the filters leave the feed here,
-    # and spend no probe. Bounded, column-only, no network.
+    # and spend no probe. Bounded, column-only, no network. Off the
+    # every-level switch the level filter is one of them, as in cron-ats, so
+    # merging scraper v2 restores no row production retired for its level.
     try:
-        orphans_retired = listing_freshness.retire_unreconcilable_off_target(db)
+        orphans_retired = listing_freshness.retire_unreconcilable_off_target(
+            db, entry_level_only=not v2_catalogue_enabled())
     except Exception:
         db.rollback()
         logger.exception("cron-freshness orphan retire failed")
@@ -1072,8 +1076,9 @@ def job_levels(response: Response, db: Session = Depends(get_db)):
     filter lists them.
 
     The Jobs page and onboarding offer only these. Until CRON_ATS_V2_CATALOGUE is on,
-    production stores only internship and new grad rows, and an option with no rows
-    (Senior, Director) is a silent dead end: it returns an empty feed. "Live" is what
+    production stores only the entry-level tiers (internship and new grad rows, and
+    Entry Level for the weak tier of junior and associate titles), and an option with
+    no rows (Senior, Director) is a silent dead end: it returns an empty feed. "Live" is what
     the feed shows (the visibility rules of GET /jobs), and each option is reported
     once under its filter key: ``intern_new_grad`` stands for internship and new_grad,
     ``director`` for director and executive."""
