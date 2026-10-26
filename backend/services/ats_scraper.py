@@ -631,10 +631,12 @@ def experience_level_for(title: str, department: str = "", employment_type: str 
 # posting is off target, so a stored row at its URL is retired (listing_status
 # off_target) instead of confirmed. "unplaced" (no North American location,
 # and no evidence against one either: Workday's "2 Locations", "Hybrid") never
-# retires a row. Scraper v2 keeps every experience level (a tag, not a
-# filter), so "level" retires nothing either: only a posting outside the US
-# and Canada is off target.
-RETIRABLE_REJECTIONS = frozenset({"location"})
+# retires a row. Only a crawl that filters by level gives a "level" verdict:
+# cron-ats while CRON_ATS_V2_CATALOGUE is off, which keeps the student
+# catalogue as before scraper v2. An every-level crawl (the switch on, the v2
+# runner) never does, so there only a posting outside the US and Canada is
+# off target.
+RETIRABLE_REJECTIONS = frozenset({"level", "location"})
 
 # Workday names one location and counts the rest ("PRAGUE DC (2 Locations)",
 # "3 Locations"): the unnamed ones may be North American, so a foreign name

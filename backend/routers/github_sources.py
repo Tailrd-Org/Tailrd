@@ -212,6 +212,24 @@ def v2_runner_enabled() -> bool:
     return os.getenv("INGEST_V2_RUNNER", "").strip().lower() in ("1", "true", "yes", "on")
 
 
+def v2_catalogue_enabled() -> bool:
+    """CRON_ATS_V2_CATALOGUE (default off), read at the start of each run like
+    CRON_ATS_RETIRE_OFF_TARGET; on Vercel a changed variable reaches the
+    functions only with the next deployment.
+
+    On ("1"/"true"/"yes"/"on"), cron-ats crawls every registry board, the v2
+    adapters' too, and stores every experience level. Off, it crawls what it
+    crawled before scraper v2, through the shared pipeline: the boards of
+    company_registry.load_student_catalogue(), entry-level postings only, and a
+    stored row whose listing is no longer entry level retires as off_target.
+    On the free Neon plan the every-level catalogue's reads pass the 5 GB
+    transfer cap and its rows reach the 400 MB insert stop within weeks, so it
+    waits for the plan upgrade, together with the runner (INGEST_V2_RUNNER=1).
+    The v2 runner needs no switch: it runs only once its secret exists, and
+    always crawls the whole catalogue."""
+    return os.getenv("CRON_ATS_V2_CATALOGUE", "").strip().lower() in ("1", "true", "yes", "on")
+
+
 # The crawl scheduler and the per-board write path live in
 # backend/ingest/core/pipeline.py, shared with the v2 runner. The old names
 # stay here for the callers and tests that import them from this module.
@@ -241,13 +259,15 @@ async def cron_ats(
     Each snapshot goes through ingest/core/pipeline.ingest_snapshot, the
     write path the v2 runner shares. Per-board failures are isolated and
     recorded in source_health; a board failing repeatedly is skipped for a
-    cooldown (circuit breaker) instead of burning the run's budget. Every
-    experience level is kept (a tag, not a filter); only US/Canada postings
-    are, and a stored row whose own listing is outside them (a London, UK row
-    from before the NA filter knew better) is retired as off_target instead
-    of confirmed; CRON_ATS_RETIRE_OFF_TARGET=0 switches that off. The storage
-    caps in ingest/data/limits.json bound what a run inserts ("caps" in the
-    response says what they held back).
+    cooldown (circuit breaker) instead of burning the run's budget. Only
+    US/Canada postings are kept, and only entry-level ones from the boards
+    crawled before scraper v2 unless CRON_ATS_V2_CATALOGUE is on
+    (v2_catalogue_enabled: then every board and every experience level, a
+    tag rather than a filter). A stored row whose own listing fails those
+    filters (a London, UK row from before the NA filter knew better) is
+    retired as off_target instead of confirmed; CRON_ATS_RETIRE_OFF_TARGET=0
+    switches that off. The storage caps in ingest/data/limits.json bound what
+    a run inserts ("caps" in the response says what they held back).
 
     With INGEST_V2_RUNNER=1 (V2_RUNNER_FRESH_HOURS above) a board crawled in
     the last 20 hours is left to the v2 runner and counted in
@@ -259,8 +279,9 @@ async def cron_ats(
         from backend.data import company_registry
 
         started = time.monotonic()
+        every_level = v2_catalogue_enabled()
         scraper = ATSScraper(
-            filter_entry_level=False, filter_north_america=True,
+            filter_entry_level=not every_level, filter_north_america=True,
             deadline=started + CRON_ATS_LIST_BUDGET_SECONDS,
         )
 
@@ -268,7 +289,8 @@ async def cron_ats(
         # gaps, so hour % shard_count can hand the same shard several runs in
         # a row. Crawl whichever shard has waited longest instead.
         shard_index, shard_count, companies = company_registry.pick_shard(
-            company_registry.load_companies(), source_health.last_success_times(db)
+            company_registry.load_companies(student_catalogue=not every_level),
+            source_health.last_success_times(db),
         )
 
         import httpx

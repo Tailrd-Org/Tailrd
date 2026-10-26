@@ -7,9 +7,11 @@ url. These tests pin the fix: a listed row whose listing is off target goes
 ``off_target`` (hidden), stays there while the listing still fails, and comes
 back when the posting's title or location changes so it passes. Rows no crawl
 reaches (board_key '' / 'unknown') are judged on their stored fields by the
-cron-freshness orphan sweep. Since scraper v2 every experience level is in
-scope, so only a location verdict retires (RETIRABLE_REJECTIONS), and rows an
-entry-level verdict hid come back.
+cron-freshness orphan sweep. Since scraper v2 an every-level crawl gives no
+level verdict, so there only a location verdict retires, and orphan rows an
+entry-level verdict hid come back; cron-ats keeps the student catalogue while
+CRON_ATS_V2_CATALOGUE is off, and its level verdicts retire as before
+(RETIRABLE_REJECTIONS).
 """
 
 import asyncio
@@ -172,9 +174,10 @@ def test_the_crawler_and_the_lifecycle_agree_on_what_retires():
     (LISTING_ACTIVE, "ats", "location", LISTING_OFF_TARGET),
     (LISTING_REMOVED, "ats", "location", LISTING_OFF_TARGET),
     (LISTING_OFF_TARGET, "ats", "location", None),     # no second transition
-    # Every level is in scope (scraper v2): a level verdict retires nothing.
-    (LISTING_ACTIVE, "ats", "level", None),
-    (LISTING_REMOVED, "ats", "level", LISTING_ACTIVE),
+    # Only a crawl that filters by level gives a level verdict (cron-ats with
+    # CRON_ATS_V2_CATALOGUE off), and it retires as it did before scraper v2.
+    (LISTING_ACTIVE, "ats", "level", LISTING_OFF_TARGET),
+    (LISTING_REMOVED, "ats", "level", LISTING_OFF_TARGET),
     (LISTING_OFF_TARGET, "ats", None, LISTING_ACTIVE),  # passes again
     (LISTING_OFF_TARGET, "ats", "unplaced", None),      # unknown never revives
     (LISTING_REMOVED, "ats", "unplaced", LISTING_ACTIVE),  # listed = open, as before
@@ -373,11 +376,12 @@ class TestCronAts:
     def test_the_classifier_verdict_reaches_stored_rows(self, client, db_session, monkeypatch):
         """No re-filter of its own: the crawl's verdict reaches stored rows
         through scrape_board and reconciliation. With every level in scope
-        (scraper v2) a non-entry title stays listed, a row the old
-        entry-level filter hid comes back, and every kept row's
+        (CRON_ATS_V2_CATALOGUE on) a non-entry title stays listed, a row the
+        old entry-level filter hid comes back, and every kept row's
         experience_level heals to the taxonomy's label."""
         from backend.ingest import taxonomy
 
+        monkeypatch.setenv("CRON_ATS_V2_CATALOGUE", "1")
         hourly = _row(db_session, "https://boards.greenhouse.io/acme/jobs/1",
                       title="Operations Associate, Dallas, #118", location="Dallas, TX")
         pm_intern = _row(db_session, "https://boards.greenhouse.io/acme/jobs/2",

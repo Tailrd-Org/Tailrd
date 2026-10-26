@@ -70,8 +70,9 @@ LISTING_STALE = "stale"
 LISTING_REMOVED = "removed"
 LISTING_EXPIRED = "expired"
 # Open on its board, but the board's own listing fails the crawler's filters
-# (outside the US and Canada; before scraper v2 kept every level, also not
-# entry level): a London, UK posting stored before the NA filter knew better.
+# (outside the US and Canada; for a crawl that keeps the student catalogue,
+# cron-ats while CRON_ATS_V2_CATALOGUE is off, also not entry level): a
+# London, UK posting stored before the NA filter knew better.
 # Set only from a listing's verdict (a board crawl, or the
 # orphan sweep for rows no crawl reaches), and a crawl brings it back to
 # active the moment the listing passes again. Never a death verdict: a
@@ -87,8 +88,9 @@ CLOSED_LISTING_STATUSES = (LISTING_REMOVED, LISTING_EXPIRED)
 # listing or failed a check) is hidden too, until a crawl or check vouches again.
 HIDDEN_LISTING_STATUSES = CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET, LISTING_STALE)
 # ats_scraper.RETIRABLE_REJECTIONS: the listing verdicts that retire a row.
-# Only "location" since scraper v2: every experience level is in scope.
-_RETIRABLE = frozenset({"location"})
+# Only a crawl that filters by level gives "level" (cron-ats while
+# CRON_ATS_V2_CATALOGUE is off); an every-level crawl never does.
+_RETIRABLE = frozenset({"level", "location"})
 
 # scraped_jobs.closed_reason, stamped whenever a row is removed or expires and
 # cleared when it comes back: the board's complete listing no longer has it,
@@ -265,9 +267,9 @@ def listed_status_change(listing_status: str | None, source_platform: str,
 
     ``rejection`` is the crawler's verdict on the listing (ats_scraper.
     ATSScraper.rejection, None when it passes). A crawler row ('ats') whose
-    listing is off target (_RETIRABLE: "location") goes off_target, whatever
-    it was; one that passes comes back to active from any hidden or stale
-    state. An "unplaced" listing (no location either way) proves only that
+    listing is off target (_RETIRABLE: "location", and "level" from a crawl
+    that filters by level) goes off_target, whatever it was; one that passes
+    comes back to active from any hidden or stale state. An "unplaced" listing (no location either way) proves only that
     the posting is open: it revives a closed row as before, never an
     off_target one. Other sources' rows (a GitHub-list row adopted into the
     board, LinkedIn/Indeed copies) keep the old rule, listed means active:
