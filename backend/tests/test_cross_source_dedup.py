@@ -14,11 +14,11 @@ from backend.services.location_parser import location_fields
 
 def _mk(db_session, url, *, source="linkedin", title="Software Engineer Intern",
         company="Kinaxis", domain="kinaxis.com", location="Ottawa, ON, CA",
-        description="", applicant_count=None, salary_range=""):
+        description="", applicant_count=None, salary_range="", level="internship"):
     row = ScrapedJob(
         title=title, company=company, url=url, location=location,
         description=description, country="CA", work_type="onsite",
-        source_platform=source, experience_level="internship", easy_apply=0,
+        source_platform=source, experience_level=level, easy_apply=0,
         match_score=0, company_domain=domain, salary_range=salary_range,
         applicant_count=applicant_count, title_norm=normalize_title(title),
         **location_fields(location),
@@ -712,3 +712,84 @@ def test_sweep_never_hides_a_live_copy_behind_a_closed_one(db_session):
     assert repost.duplicate_of is None
     assert copy.duplicate_of is None
     assert old.duplicate_of is None and expired_direct.duplicate_of is None
+
+
+# --- the audience: a student-feed copy is never the twin of a row above entry level
+
+# normalize_title drops a parenthetical, so a board's mid-level "Software
+# Engineer" and LinkedIn's "Software Engineer (New Grad)" share a title_norm.
+_NEW_GRAD = "Software Engineer (New Grad)"
+_GUARD = dict(company="Kinaxis", company_domain="kinaxis.com", title=_NEW_GRAD, city="ottawa")
+
+
+def test_same_audience():
+    from backend.services.cross_source_dedup import same_audience
+
+    for student in ("internship", "new_grad", "entry", "", None):
+        assert same_audience(student, "new_grad") and not same_audience(student, "mid")
+    assert same_audience("mid", "director")
+
+
+def test_a_mid_level_board_row_neither_hides_nor_blocks_a_new_grad_copy(db_session):
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000080", title=_NEW_GRAD,
+               level="new_grad")
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/80", source="ats",
+                title="Software Engineer", level="mid", description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 0
+    assert absorb_new_aggregator_rows(db_session) == 0
+    db_session.refresh(copy)
+    assert copy.duplicate_of is None
+    assert not has_direct_twin(db_session, **_GUARD, experience_level="new_grad")
+    # The ingest guard's default, no level, is the student feed's: its
+    # LinkedIn and Indeed searches are scoped to entry level.
+    assert not has_direct_twin(db_session, **_GUARD)
+
+
+def test_a_student_feed_board_row_still_hides_and_blocks_its_copies(db_session):
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000081", title=_NEW_GRAD,
+               level="new_grad")
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/81", source="ats",
+                title="Software Engineer", level="entry", description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+    assert has_direct_twin(db_session, **_GUARD, experience_level="new_grad")
+    assert has_direct_twin(db_session, **_GUARD)
+
+
+def test_absorb_takes_only_a_twin_of_the_same_audience(db_session):
+    mid = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/82", source="ats",
+              title="Software Engineer", level="mid", description=_DESC)
+    new_grad = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/83", source="ats",
+                   title="Software Engineer, New Grad", level="new_grad", description=_DESC)
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000082", title=_NEW_GRAD,
+               level="new_grad")
+    senior_copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000083",
+                      title="Software Engineer", level="mid")
+
+    assert absorb_new_aggregator_rows(db_session) == 1
+    db_session.refresh(copy)
+    db_session.refresh(senior_copy)
+    assert copy.duplicate_of is None  # its only exact-title twin is mid level
+    assert senior_copy.duplicate_of == mid.id
+    assert new_grad.duplicate_of is None
+
+
+def test_a_released_copy_never_moves_under_a_twin_of_another_audience(db_session):
+    from backend.services.cross_source_dedup import release_from_closed_winners
+
+    old = _closed(db_session, _mk(db_session, _LI_OLD, title=_NEW_GRAD, level="new_grad",
+                                  description=_DESC), "expired")
+    repost = _mk(db_session, _LI_NEW, title=_NEW_GRAD, level="new_grad")
+    _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/84", source="ats",
+        title="Software Engineer", level="mid", description=_DESC)
+    repost.duplicate_of = old.id
+    db_session.commit()
+
+    moved = release_from_closed_winners(db_session)
+
+    db_session.refresh(repost)
+    assert moved == [(repost.id, old.id, None)]
+    assert repost.duplicate_of is None
