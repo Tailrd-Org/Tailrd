@@ -302,8 +302,11 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
         if pages is None:
             break  # no usable count: nothing says how far to read, and it cannot be complete
         if not rows:
-            if number >= pages or after_empty:
-                ended = True  # the last page the count implies, or a second empty page in a row
+            if number >= pages:
+                # Only the last page the count implies ends the walk. Two empty
+                # pages in a row mid-list may be a transient gap, and treating
+                # them as the end would let the walk read as complete.
+                ended = True
                 break
             if number == 1:
                 broken = True  # nothing at all beside a count

@@ -1347,11 +1347,13 @@ async def test_taleo_rows_after_an_empty_page_are_a_hole_and_incomplete(clock):
 
 
 @pytest.mark.asyncio
-async def test_taleo_two_empty_pages_in_a_row_are_a_tail_and_then_the_coverage_decides(clock):
+async def test_taleo_two_empty_pages_mid_list_do_not_end_the_walk(clock):
+    """A transient gap of two empty pages is not the end: the walk reads on to
+    the last page the count implies, and rows after the gap make it a hole."""
     server = TaleoServer(taleo_rows(100), empty_pages={2, 3})
     jobs, complete, total = await taleo_list(server)
-    assert server.page_numbers() == [1, 2, 3]
-    assert (len(jobs), complete, total) == (25, False, 100)  # 25 of 100 is not enough, tail or not
+    assert server.page_numbers() == [1, 2, 3, 4]
+    assert (len(jobs), complete, total) == (50, False, 100)
 
 
 @pytest.mark.asyncio
@@ -1359,7 +1361,7 @@ async def test_taleo_the_requisitions_a_visitor_cannot_see_at_the_end_of_the_lis
     """Bayshore's list: 438 visible of 567, pages 20 to 23 of 23 empty."""
     server = TaleoServer(taleo_rows(438), total=567)
     jobs, complete, total = await taleo_list(server)
-    assert server.page_numbers()[-3:] == [18, 19, 20]  # two empty pages in a row end the walk
+    assert server.page_numbers()[-3:] == [21, 22, 23]  # read to the last page the count implies
     assert (len(jobs), complete, total) == (438, True, 567)
 
 
