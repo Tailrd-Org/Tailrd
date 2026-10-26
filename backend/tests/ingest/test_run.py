@@ -282,3 +282,21 @@ def test_two_runs_never_overlap_on_postgres(db_session, board, capsys):
         assert json.loads(capsys.readouterr().out.splitlines()[-1])["event"] == "skipped"
     with runner.run_lock(url) as again:
         assert again
+
+
+def test_main_skips_the_schema_step_only_when_asked(monkeypatch):
+    """--no-schema is how a database role with no DDL privilege runs the
+    runner: several boot migrations send CREATE INDEX IF NOT EXISTS on every
+    start, and Postgres wants table ownership for that even when the index
+    exists."""
+    seen = []
+
+    async def fake_run(args, **kwargs):
+        seen.append(kwargs["ensure"])
+        return {"status": "completed"}
+
+    monkeypatch.setattr(runner, "run", fake_run)
+
+    assert runner.main(["--no-schema"]) == 0
+    assert runner.main([]) == 0
+    assert seen == [False, True]

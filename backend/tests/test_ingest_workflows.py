@@ -450,8 +450,8 @@ def test_a_scheduled_run_is_labelled_cron_and_a_manual_one_manual(bash, tmp_path
     scheduled = _run_ingest_step(bash, tmp_path, DIRECT, event="schedule")
     manual = _run_ingest_step(bash, tmp_path, DIRECT, event="workflow_dispatch")
 
-    assert scheduled["argv"] == "-m backend.ingest.run --trigger cron --budget-minutes 170"
-    assert manual["argv"] == "-m backend.ingest.run --trigger manual --budget-minutes 170"
+    assert scheduled["argv"] == "-m backend.ingest.run --no-schema --trigger cron --budget-minutes 170"
+    assert manual["argv"] == "-m backend.ingest.run --no-schema --trigger manual --budget-minutes 170"
 
 
 def test_the_advisory_lock_gets_a_direct_connection_from_a_pooled_secret(bash, tmp_path):
