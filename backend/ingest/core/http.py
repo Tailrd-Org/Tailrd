@@ -14,7 +14,9 @@ The spec's scraping conduct, in one place so no adapter can forget a part:
   host's own Retry-After when it sends one. The pause holds back every
   request to that host, not only the retry, and holds even when the request
   gives up: a host that says it is overloaded is overloaded for all of them.
-- robots.txt is read once per host per process.
+- robots.txt is read once per host per process, and once read, its
+  Crawl-delay for us paces every request to that site (up to
+  MAX_CRAWL_DELAY) whatever rate the caller asked for.
 
 Nothing here logs in, solves or dodges a bot check, or drives a browser: a
 source that blocks us is disabled and recorded, never worked around.
@@ -52,6 +54,10 @@ BACKOFF_CAP = 30.0
 # request fails at once, so a crawl moves on instead of stalling and the
 # board's health record says why.
 MAX_RETRY_AFTER = 60.0
+# The longest robots.txt Crawl-delay every request honours on its own: a
+# site asking for more is paced at this. An adapter that must wait longer
+# passes it as its rate_limit (Jibe takes up to a minute).
+MAX_CRAWL_DELAY = 10.0
 
 # host -> time.monotonic() before which no request to it may start.
 _next_slot: dict[str, float] = {}
@@ -88,7 +94,9 @@ async def request(client: httpx.AsyncClient, method: str, url, *, rate_limit: fl
     """Send one request the polite way and return the response.
 
     ``rate_limit`` is the seconds between requests to the URL's host (an
-    adapter passes its RATE_LIMIT). A 429, a 5xx or a timeout is retried up to
+    adapter passes its RATE_LIMIT), or the site's robots.txt Crawl-delay when
+    that is longer and robots_allowed has read it (_crawl_delay, at most
+    MAX_CRAWL_DELAY). A 429, a 5xx or a timeout is retried up to
     ``retries`` more times; any other status (2xx, 3xx, a 404) comes back as it
     is, since only the caller knows what it means. When the last try still
     fails, or the host asks for a Retry-After longer than MAX_RETRY_AFTER, this
@@ -100,9 +108,10 @@ async def request(client: httpx.AsyncClient, method: str, url, *, rate_limit: fl
     host = _host(url)
     headers = httpx.Headers(kwargs.pop("headers", None))
     headers["User-Agent"] = USER_AGENT
+    interval = max(rate_limit, _crawl_delay(url))
     attempt = 0
     while True:
-        await _pace(host, rate_limit)
+        await _pace(host, interval)
         failure: httpx.Response | httpx.TimeoutException
         try:
             response = await client.request(method, url, headers=headers, **kwargs)
@@ -156,6 +165,24 @@ async def _read_robots(client: httpx.AsyncClient,
     rules = urllib.robotparser.RobotFileParser()
     rules.parse(response.text.splitlines())
     return rules
+
+
+def _crawl_delay(url) -> float:
+    """The Crawl-delay the URL's site asks of USER_AGENT, in seconds, from the
+    robots.txt robots_allowed already read and kept (never fetched here): 0
+    when none was read or it names none, at most MAX_CRAWL_DELAY."""
+    try:
+        parsed = urlparse(str(url))
+    except ValueError:
+        return 0.0
+    rules = _robots.get(f"{parsed.scheme}://{parsed.netloc.lower()}")
+    if rules is None:
+        return 0.0
+    try:
+        delay = float(rules.crawl_delay(USER_AGENT) or 0)
+    except (TypeError, ValueError):
+        return 0.0
+    return min(max(delay, 0.0), MAX_CRAWL_DELAY)
 
 
 def _host(url) -> str:

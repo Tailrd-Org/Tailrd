@@ -29,6 +29,10 @@ single-country boards such as hospitals, universities and governments),
 ``sector``, ``careers_url``, and ``config``, an object the platform's v2
 adapter reads (load_board_config). Platforms beyond the five built-ins are
 crawled by adapters in backend/ingest/adapters.
+
+``student_catalogue_boards.json`` names the boards cron-ats crawled before
+scraper v2; while CRON_ATS_V2_CATALOGUE is off it crawls only those
+(load_companies(student_catalogue=True)).
 """
 
 from __future__ import annotations
@@ -55,6 +59,8 @@ SUPPORTED_PLATFORMS = {"greenhouse", "lever", "ashby", "smartrecruiters", "workd
 CRON_ATS_SHARD_TARGET = 150
 
 _REGISTRY_PATH = os.path.join(os.path.dirname(__file__), "ats_companies.json")
+# The boards cron-ats crawled before scraper v2 (load_student_catalogue).
+_STUDENT_CATALOGUE_PATH = os.path.join(os.path.dirname(__file__), "student_catalogue_boards.json")
 
 
 @lru_cache(maxsize=1)
@@ -76,9 +82,24 @@ def _load_raw() -> list[dict]:
         return []
 
 
+@lru_cache(maxsize=1)
+def load_student_catalogue() -> frozenset[str]:
+    """The "platform:slug" keys of the boards cron-ats crawled before scraper
+    v2 (student_catalogue_boards.json): what it keeps to while
+    CRON_ATS_V2_CATALOGUE is off. An unreadable or malformed file raises:
+    falling back to the whole registry would crawl the boards scraper v2
+    added, whose volume the switch holds back."""
+    with open(_STUDENT_CATALOGUE_PATH, encoding="utf-8") as f:
+        boards = json.load(f).get("boards")
+    if not isinstance(boards, list) or not boards or not all(isinstance(b, str) for b in boards):
+        raise ValueError(f"{_STUDENT_CATALOGUE_PATH}: 'boards' is not a list of board keys")
+    return frozenset(boards)
+
+
 def load_companies(
     include_disabled: bool = False,
     supported_only: bool = True,
+    student_catalogue: bool = False,
 ) -> list[tuple[str, str, str]]:
     """Return registry entries as (platform, slug, company_name) tuples.
 
@@ -87,12 +108,15 @@ def load_companies(
         supported_only: only return platforms the scraper can fetch: the
             built-ins, plus any platform whose v2 adapter is enabled (one
             that lacks its API keys is not).
+        student_catalogue: only the boards cron-ats crawled before scraper
+            v2 (load_student_catalogue).
 
     Deduplicates on (platform, slug). Skips malformed rows.
     """
     out: list[tuple[str, str, str]] = []
     seen: set[tuple[str, str]] = set()
     crawlable: dict[str, bool] = {}
+    catalogue = load_student_catalogue() if student_catalogue else None
 
     for entry in _load_raw():
         try:
@@ -106,6 +130,8 @@ def load_companies(
         if not platform or not slug or not name:
             continue
         if not include_disabled and not enabled:
+            continue
+        if catalogue is not None and f"{platform}:{slug}" not in catalogue:
             continue
         if supported_only and platform not in SUPPORTED_PLATFORMS:
             if platform not in crawlable:

@@ -274,3 +274,40 @@ async def test_a_robots_txt_that_cannot_be_fetched_allows(clock):
     async with _client(server) as client:
         for host in ("missing.test", "broken.test", "down.test"):
             assert await http.robots_allowed(client, f"https://{host}/jobs/1") is True
+
+
+# --- request: robots.txt Crawl-delay ---------------------------------------------------
+
+async def _paced(clock, robots: str, rate_limit: float) -> list[float]:
+    """The waits of two requests to a site, after robots_allowed read its
+    robots.txt (whose own fetch books the first second)."""
+    server = Server({"https://a.test/robots.txt": [(200, robots)],
+                     "https://a.test/jobs/1": [(200, "")], "https://a.test/jobs/2": [(200, "")]})
+    async with _client(server) as client:
+        assert await http.robots_allowed(client, "https://a.test/jobs/1") is True
+        await http.request(client, "GET", "https://a.test/jobs/1", rate_limit=rate_limit)
+        await http.request(client, "GET", "https://a.test/jobs/2", rate_limit=rate_limit)
+    return clock.sleeps
+
+
+@pytest.mark.asyncio
+async def test_the_crawl_delay_robots_txt_asks_for_paces_every_request(clock):
+    """iCIMS, SuccessFactors and Taleo pages went at 1 s whatever robots.txt
+    asked; only Jibe read its Crawl-delay."""
+    assert await _paced(clock, "User-agent: *\nCrawl-delay: 4\n", rate_limit=1.0) == [1.0, 4.0]
+
+
+@pytest.mark.asyncio
+async def test_a_crawl_delay_is_honoured_up_to_ten_seconds(clock):
+    assert http.MAX_CRAWL_DELAY == 10.0
+    assert await _paced(clock, "User-agent: *\nCrawl-delay: 120\n", rate_limit=1.0) == [1.0, 10.0]
+
+
+@pytest.mark.asyncio
+async def test_our_own_crawl_delay_wins_and_a_shorter_one_never_speeds_us_up(clock):
+    robots = "User-agent: TailrdBot\nCrawl-delay: 3\n\nUser-agent: *\nCrawl-delay: 9\n"
+    assert await _paced(clock, robots, rate_limit=1.0) == [1.0, 3.0]
+    clock.sleeps.clear()
+    http._robots.clear()
+    http._next_slot.clear()
+    assert await _paced(clock, "User-agent: *\nCrawl-delay: 1\n", rate_limit=5.0) == [1.0, 5.0]

@@ -213,8 +213,9 @@ class ScrapedJob(Base):
     enrichment_version = Column(Integer, nullable=True)
     # sha256 of (company domain | normalized title | sorted locations |
     # employment type). A match key for cross-source twins, never unique: one
-    # employer posts the same title as separate requisitions.
-    fingerprint = Column(String(64), nullable=True, index=True)
+    # employer posts the same title as separate requisitions. Not indexed:
+    # nothing reads it yet, and on a capped database an unread index is cost.
+    fingerprint = Column(String(64), nullable=True)
     # companies.id of the employer, when the companies table has it.
     company_id = Column(Integer, nullable=True, index=True)
     # Why the listing closed: delisted | 404 | redirect_home | closed_text | ttl.

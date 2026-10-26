@@ -100,6 +100,23 @@ def test_new_rows_carry_the_v2_fields(db_session, monkeypatch):
     assert len(row.fingerprint) == 64
 
 
+def test_an_apply_url_is_stored_only_as_an_http_page(db_session, fake_adapter):
+    """Jibe keeps whatever its JSON says. The employer's apply link may live
+    on another host (a Jibe site's is its iCIMS portal), never another scheme."""
+    jobs = [_job(1, apply_url="javascript:alert(document.cookie)"),
+            _job(2, apply_url="https://careers-acme.icims.com/jobs/2/login"),
+            _job(3, apply_url="data:text/html,<script>alert(1)</script>")]
+
+    _ingest(db_session, _snapshot(jobs), _ctx(db_session))
+    detail = _adapter_job(4)
+    fake_adapter.fetch_job_apply_url = "javascript:alert(2)"
+    _ingest(db_session, _snapshot([detail], platform="fakeats"), _ctx(db_session))
+
+    assert {row.url: row.apply_url for row in _rows(db_session)} == {
+        jobs[0].url: None, jobs[1].url: "https://careers-acme.icims.com/jobs/2/login",
+        jobs[2].url: None, detail.url: None}
+
+
 def test_every_level_is_stored(db_session):
     jobs = [_job(1, title="Software Engineering Intern"), _job(2, title="Senior Staff Engineer"),
             _job(3, title="Director of Engineering")]
@@ -180,7 +197,8 @@ def test_postings_already_old_when_first_seen_are_skipped(db_session):
 def test_an_employer_at_its_cap_of_live_rows_inserts_no_more(db_session):
     for n, status in ((90, "active"), (91, "stale"), (92, "removed")):
         db_session.add(ScrapedJob(title="Old", company="Acme", url=f"https://x/{n}",
-                                  listing_status=status, board_key="lever:acme"))
+                                  listing_status=status, board_key="lever:acme",
+                                  source_platform="ats"))
     db_session.commit()
     ctx = _ctx(db_session, max_live_per_company=3)
 
@@ -189,6 +207,74 @@ def test_an_employer_at_its_cap_of_live_rows_inserts_no_more(db_session):
     assert board["inserted"] == 1  # 2 live (the removed row holds no place) + 1
     assert ctx.caps["company_cap"] == 3
     assert ctx.live_counts["Acme"] == 3
+
+
+def _live_rows(db, count, *, source="ats", level="mid"):
+    """``count`` live rows of Acme on another of its boards (or another source)."""
+    for n in range(count):
+        db.add(ScrapedJob(title=f"Engineer {n}", company="Acme", url=f"https://x/{source}/{n}",
+                          listing_status="active", board_key="lever:acme",
+                          source_platform=source, experience_level=level))
+    db.commit()
+
+
+def test_a_student_posting_is_stored_at_an_employer_at_its_cap(db_session):
+    """Spec decision 1: the internship and new-grad feed must not shrink. The
+    cap holds back the employer's other postings, never a student one, and a
+    student row takes no place."""
+    _live_rows(db_session, 3)
+    ctx = _ctx(db_session, max_live_per_company=3)
+    senior = _job(1, title="Senior Software Engineer", posted=NOW)
+    intern = _job(2, title="Software Engineering Intern (Summer 2027)",
+                  posted=NOW - datetime.timedelta(days=30))
+
+    board = _ingest(db_session, _snapshot([senior, intern]), ctx)
+
+    stored = {row.url for row in _rows(db_session)}
+    assert board["inserted"] == 1 and ctx.caps["company_cap"] == 1
+    assert intern.url in stored and senior.url not in stored
+    assert ctx.live_counts["Acme"] == 3
+
+
+def test_student_rows_already_stored_take_no_place_either(db_session):
+    _live_rows(db_session, 3, level="internship")
+    ctx = _ctx(db_session, max_live_per_company=3)
+
+    board = _ingest(db_session, _snapshot([_job(1), _job(2)]), ctx)
+
+    assert board["inserted"] == 2 and ctx.caps["company_cap"] == 0
+
+
+def test_aggregator_rows_of_the_same_name_do_not_fill_a_boards_cap(db_session):
+    """LinkedIn, Indeed and GitHub-list rows are not the board's to count."""
+    _live_rows(db_session, 3, source="linkedin", level="")
+
+    board = _ingest(db_session, _snapshot([_job(n) for n in range(1, 4)]),
+                    _ctx(db_session, max_live_per_company=3))
+
+    assert board["inserted"] == 3
+
+
+def test_student_postings_go_in_first_under_the_run_cap(db_session):
+    newer = _job(1, title="Software Engineer", posted=NOW)
+    older_intern = _job(2, title="Software Engineering Intern",
+                        posted=NOW - datetime.timedelta(days=20))
+    ctx = _ctx(db_session, max_new_rows_per_run=1)
+
+    _ingest(db_session, _snapshot([newer, older_intern]), ctx)
+
+    assert [row.url for row in _rows(db_session)] == [older_intern.url]
+    assert ctx.caps["run_cap"] == 1
+
+
+def test_a_held_mass_removal_is_counted_and_frees_no_places(db_session):
+    _ingest(db_session, _snapshot([_job(n) for n in range(30)]), _ctx(db_session))
+    ctx = _ctx(db_session, max_live_per_company=30)
+
+    board = _ingest(db_session, _snapshot([_job(n) for n in range(3)] + [_job(99)]), ctx)
+
+    assert (board["removed"], board["held"], board["inserted"]) == (0, 27, 0)
+    assert ctx.totals["removals_held"] == 27 and ctx.caps["company_cap"] == 1
 
 
 def test_reconciliation_frees_places_before_the_cap_is_counted(db_session):
@@ -282,12 +368,35 @@ def test_detail_requests_stay_within_the_board_budget(db_session, monkeypatch):
     assert {row.description for row in _rows(db_session)} == {"Ship things."}
 
 
+def test_student_postings_get_the_detail_budget_first(db_session, monkeypatch):
+    fetched = []
+
+    async def fake_detail(client, slug, detail_ref):
+        fetched.append(detail_ref)
+        return {"description": "Ship things.", "employment_type": "Full time"}
+
+    monkeypatch.setattr(ats_scraper, "fetch_workday_detail", fake_detail)
+    base = "https://acme.wd3.myworkdayjobs.com/External/job/T"
+    newer = ATSJob(title="Software Engineer", company="Acme", location="Toronto, ON",
+                   url=f"{base}/new", detail_ref="/job/T/new", posted_date=NOW)
+    older_intern = ATSJob(title="Software Engineering Intern", company="Acme",
+                          location="Toronto, ON", url=f"{base}/intern", detail_ref="/job/T/intern",
+                          posted_date=NOW - datetime.timedelta(days=20))
+    ctx = pipeline.new_context(db_session, ["Acme"], limits=pipeline.Limits(), detail_per_board=1)
+
+    _ingest(db_session, _snapshot([newer, older_intern], platform="workday"), ctx)
+
+    assert fetched == ["/job/T/intern"]
+    assert [row.url for row in _rows(db_session)] == [older_intern.url]
+
+
 @pytest.fixture
 def fake_adapter(monkeypatch):
     """A v2 adapter whose listings carry no description: fetch_job answers."""
     module = types.ModuleType("fake_adapter")
     module.PLATFORM, module.REQUIRED_ENV = "fakeats", ()
     module.asked = []
+    module.fetch_job_apply_url = None  # a test sets what the detail page says
 
     async def list_jobs(client, slug, company_name, *, config, deadline=None):
         return [], True, 0
@@ -295,7 +404,7 @@ def fake_adapter(monkeypatch):
     async def fetch_job(client, slug, ref, *, config):
         module.asked.append((slug, ref))
         return {"description": "From the detail page.", "employment_type": "Contract",
-                "apply_url": f"https://acme.example/apply/{ref}"}
+                "apply_url": module.fetch_job_apply_url or f"https://acme.example/apply/{ref}"}
 
     module.list_jobs, module.fetch_job = list_jobs, fetch_job
     monkeypatch.setattr(adapters, "_registry", {"fakeats": module})
@@ -320,7 +429,8 @@ def test_an_adapter_without_descriptions_is_asked_through_fetch_job(db_session, 
 def test_a_capped_employer_costs_no_detail_requests(db_session, fake_adapter):
     # Its one live row sits on another of its boards.
     db_session.add(ScrapedJob(title="Old", company="Acme", url="https://x/1",
-                              listing_status="active", board_key="lever:acme"))
+                              listing_status="active", board_key="lever:acme",
+                              source_platform="ats"))
     db_session.commit()
     ctx = _ctx(db_session, max_live_per_company=1)
 
@@ -329,6 +439,100 @@ def test_a_capped_employer_costs_no_detail_requests(db_session, fake_adapter):
 
     assert board["inserted"] == 0 and fake_adapter.asked == []
     assert ctx.caps["company_cap"] == 3
+
+
+# ─── A posting whose URL changed ─────────────────────────────────────────────
+
+def _offer(slug, title, offer_id=123, **kwargs):
+    """A Recruitee-style listing: the URL carries the title's slug."""
+    return ATSJob(title=title, company="Acme", location="Toronto, ON",
+                  url=f"https://acme.fakeats.test/o/{slug}", description="Ship things.",
+                  external_id=f"fakeats:acme:{offer_id}", **kwargs)
+
+
+def test_a_retitled_posting_keeps_its_row_and_moves_to_the_new_url(db_session, fake_adapter):
+    """Matched by URL only, a retitle closed the old row and inserted a new
+    one: saved jobs and alerts kept pointing at the closed row."""
+    _ingest(db_session, _snapshot([_offer("data-intern", "Data Intern")], platform="fakeats"),
+            _ctx(db_session))
+    row_id = _rows(db_session)[0].id
+    ctx = _ctx(db_session)
+
+    board = _ingest(db_session, _snapshot([_offer("data-science-intern", "Data Science Intern")],
+                                          platform="fakeats"), ctx)
+
+    rows = _rows(db_session)
+    assert (board["inserted"], board["removed"], board["known"]) == (0, 0, 1)
+    assert [(row.id, row.url, row.title) for row in rows] == [
+        (row_id, "https://acme.fakeats.test/o/data-science-intern", "Data Science Intern")]
+    assert rows[0].listing_status == listing_freshness.LISTING_ACTIVE
+    assert rows[0].change_log[-1]["changed"] == ["title"]
+    assert ctx.totals["urls_migrated"] == 1
+
+
+def test_a_closed_row_found_by_its_id_moves_and_comes_back(db_session, fake_adapter):
+    _ingest(db_session, _snapshot([_offer("analyst", "Analyst")], platform="fakeats"),
+            _ctx(db_session))
+    row = _rows(db_session)[0]
+    row.listing_status, row.closed_reason = "removed", "delisted"
+    db_session.commit()
+
+    board = _ingest(db_session, _snapshot([_offer("data-analyst", "Data Analyst")],
+                                          platform="fakeats"), _ctx(db_session))
+
+    row = _rows(db_session)[0]
+    assert (board["inserted"], board["revived"]) == (0, 1)
+    assert (row.url, row.listing_status, row.closed_reason) == (
+        "https://acme.fakeats.test/o/data-analyst", "active", None)
+
+
+def test_an_id_that_names_no_one_posting_moves_nothing(db_session, fake_adapter):
+    """Two listings, or two rows, carrying one id: it is no identity. Nor is a
+    row whose own URL the board still lists, filtered-out or not."""
+    _ingest(db_session, _snapshot([_offer("a", "Analyst A", offer_id=1),
+                                   _offer("b", "Analyst B", offer_id=2)], platform="fakeats"),
+            _ctx(db_session))
+    still_listed = _offer("c", "Analyst C", offer_id=2)  # B is listed too
+    shared = [_offer("d", "Analyst D", offer_id=1), _offer("e", "Analyst E", offer_id=1)]
+
+    board = _ingest(db_session, _snapshot([*shared, still_listed], platform="fakeats",
+                                          listed=[job.url for job in shared]
+                                          + [still_listed.url, "https://acme.fakeats.test/o/b"]),
+                    _ctx(db_session))
+
+    urls = {row.url.rsplit("/", 1)[1]: row.listing_status for row in _rows(db_session)}
+    assert board["inserted"] == 3
+    assert urls == {"a": "removed", "b": "active", "c": "active", "d": "active", "e": "active"}
+
+
+def test_an_id_on_another_board_is_another_posting(db_session, fake_adapter):
+    _ingest(db_session, _snapshot([_offer("old", "Analyst")], platform="fakeats", slug="other"),
+            _ctx(db_session))
+
+    board = _ingest(db_session, _snapshot([_offer("new", "Analyst")], platform="fakeats"),
+                    _ctx(db_session))
+
+    assert board["inserted"] == 1 and len(_rows(db_session)) == 2
+
+
+def test_source_trust_follows_the_sources_tier(db_session, fake_adapter):
+    """An aggregator adapter (Tier 3: Adzuna, Jooble) re-lists other
+    employers' postings: its rows are low trust, as LinkedIn's are. The
+    employer's own board, built in or Tier 1 and 2, is high."""
+    _ingest(db_session, _snapshot([_job(1)]), _ctx(db_session))
+    fake_adapter.TIER = 2
+    _ingest(db_session, _snapshot([_adapter_job(2)], platform="fakeats"), _ctx(db_session))
+    fake_adapter.TIER = 3
+    _ingest(db_session, _snapshot([_adapter_job(2), _adapter_job(3)], platform="fakeats"),
+            _ctx(db_session))
+
+    assert [row.source_trust for row in _rows(db_session)] == ["high", "high", "low"]
+
+
+def test_source_trust_of_the_real_adapters():
+    assert pipeline.source_trust("greenhouse") == pipeline.source_trust("workday") == "high"
+    assert pipeline.source_trust("workable") == pipeline.source_trust("usajobs") == "high"
+    assert pipeline.source_trust("adzuna") == pipeline.source_trust("jooble") == "low"
 
 
 def test_external_ids_carry_the_board_key_once(db_session, fake_adapter):

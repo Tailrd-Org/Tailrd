@@ -222,7 +222,23 @@ def test_a_dry_run_writes_nothing(db_session, board, capsys):
     assert db_session.query(ScrapedJob).count() == 1
     assert db_session.query(Company).count() == 0
     acme = next(line for line in lines if line.get("board") == "fakeats:acme")
-    assert (acme["new"], acme["known"], acme["would_remove"]) == (3, 0, 1)
+    assert (acme["new"], acme["known"], acme["would_remove"], acme["would_hold"]) == (3, 0, 1, 0)
+
+
+def test_a_dry_run_reports_a_mass_removal_as_held(db_session, board, capsys):
+    """The dry run mirrors the real run's guard: a complete listing that
+    would close most of the board removes nothing."""
+    for n in range(30):
+        db_session.add(ScrapedJob(title=f"Gone {n}", company="Acme",
+                                  url=f"https://jobs.fakeats.test/acme/old-{n}",
+                                  board_key="fakeats:acme", listing_status="active"))
+    db_session.commit()
+
+    summary, lines = _run(db_session, capsys, dry_run=True)
+
+    acme = next(line for line in lines if line.get("board") == "fakeats:acme")
+    assert (acme["would_remove"], acme["would_hold"]) == (0, 30)
+    assert (summary["would_remove"], summary["would_hold"]) == (0, 30)
 
 
 def test_the_registry_mirror_writes_only_changes(db_session, board):

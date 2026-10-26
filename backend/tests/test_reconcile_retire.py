@@ -7,9 +7,11 @@ url. These tests pin the fix: a listed row whose listing is off target goes
 ``off_target`` (hidden), stays there while the listing still fails, and comes
 back when the posting's title or location changes so it passes. Rows no crawl
 reaches (board_key '' / 'unknown') are judged on their stored fields by the
-cron-freshness orphan sweep. Since scraper v2 every experience level is in
-scope, so only a location verdict retires (RETIRABLE_REJECTIONS), and rows an
-entry-level verdict hid come back.
+cron-freshness orphan sweep. Since scraper v2 an every-level crawl gives no
+level verdict, so there only a location verdict retires, and orphan rows an
+entry-level verdict hid come back; cron-ats keeps the student catalogue while
+CRON_ATS_V2_CATALOGUE is off, and its level verdicts retire as before
+(RETIRABLE_REJECTIONS).
 """
 
 import asyncio
@@ -172,9 +174,10 @@ def test_the_crawler_and_the_lifecycle_agree_on_what_retires():
     (LISTING_ACTIVE, "ats", "location", LISTING_OFF_TARGET),
     (LISTING_REMOVED, "ats", "location", LISTING_OFF_TARGET),
     (LISTING_OFF_TARGET, "ats", "location", None),     # no second transition
-    # Every level is in scope (scraper v2): a level verdict retires nothing.
-    (LISTING_ACTIVE, "ats", "level", None),
-    (LISTING_REMOVED, "ats", "level", LISTING_ACTIVE),
+    # Only a crawl that filters by level gives a level verdict (cron-ats with
+    # CRON_ATS_V2_CATALOGUE off), and it retires as it did before scraper v2.
+    (LISTING_ACTIVE, "ats", "level", LISTING_OFF_TARGET),
+    (LISTING_REMOVED, "ats", "level", LISTING_OFF_TARGET),
     (LISTING_OFF_TARGET, "ats", None, LISTING_ACTIVE),  # passes again
     (LISTING_OFF_TARGET, "ats", "unplaced", None),      # unknown never revives
     (LISTING_REMOVED, "ats", "unplaced", LISTING_ACTIVE),  # listed = open, as before
@@ -373,11 +376,12 @@ class TestCronAts:
     def test_the_classifier_verdict_reaches_stored_rows(self, client, db_session, monkeypatch):
         """No re-filter of its own: the crawl's verdict reaches stored rows
         through scrape_board and reconciliation. With every level in scope
-        (scraper v2) a non-entry title stays listed, a row the old
-        entry-level filter hid comes back, and every kept row's
+        (CRON_ATS_V2_CATALOGUE on) a non-entry title stays listed, a row the
+        old entry-level filter hid comes back, and every kept row's
         experience_level heals to the taxonomy's label."""
         from backend.ingest import taxonomy
 
+        monkeypatch.setenv("CRON_ATS_V2_CATALOGUE", "1")
         hourly = _row(db_session, "https://boards.greenhouse.io/acme/jobs/1",
                       title="Operations Associate, Dallas, #118", location="Dallas, TX")
         pm_intern = _row(db_session, "https://boards.greenhouse.io/acme/jobs/2",
@@ -560,6 +564,74 @@ class TestOrphanRetire:
 
         assert body["orphans_off_target"]["off_target"] == 1
         assert probed and all(status == LISTING_OFF_TARGET for status in probed)
+
+
+class TestOrphanRelabel:
+    """Orphan rows never passed this crawler's filter and no crawl relabels
+    them, so a row the sweep restores or checks gets the level its title says:
+    a rogue-era "Senior ..." row labeled new_grad must not come back into the
+    student feed."""
+
+    @staticmethod
+    def _level(db, row):
+        db.expire_all()
+        return db.get(ScrapedJob, row.id).experience_level
+
+    def test_a_restored_row_gets_its_titles_level(self, db_session):
+        senior = _row(db_session, "https://jobs.nokia.com/1", board_key="unknown",
+                      title="Senior Software Engineer", location="Toronto, ON",
+                      listing_status=LISTING_OFF_TARGET, experience_level="new_grad")
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert stats["restored"] == 1 and stats["relabeled"] == 1
+        assert _status(db_session, senior) == LISTING_ACTIVE
+        assert self._level(db_session, senior) == "senior"
+
+    def test_a_checked_row_gets_its_titles_level_and_a_true_label_is_kept(self, db_session):
+        director = _row(db_session, "https://jobs.nokia.com/2", board_key="",
+                        title="Director of Operations", location="Toronto, ON",
+                        experience_level="new_grad")
+        intern = _row(db_session, "https://jobs.nokia.com/3", board_key="unknown",
+                      title="Software Engineering Intern", location="Toronto, ON",
+                      experience_level="internship")
+        abroad = _row(db_session, "https://jobs.nokia.com/4", board_key="unknown",
+                      title="Principal Engineer", location="London, UK",
+                      experience_level="new_grad")
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert stats["relabeled"] == 2
+        assert self._level(db_session, director) == "director"
+        assert _status(db_session, director) == LISTING_ACTIVE
+        assert self._level(db_session, intern) == "internship"
+        assert _status(db_session, abroad) == LISTING_OFF_TARGET
+        assert self._level(db_session, abroad) == "lead"
+        assert retire_unreconcilable_off_target(db_session, now=NOW)["relabeled"] == 0
+
+    def test_a_title_naming_no_level_falls_back_on_the_stored_years(self, db_session):
+        analyst = _row(db_session, "https://jobs.nokia.com/5", board_key="unknown",
+                       title="Software Engineer", location="Toronto, ON",
+                       experience_level="new_grad", experience_years_required=1)
+
+        retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert self._level(db_session, analyst) == "entry"
+
+    def test_the_kill_switchs_rollback_relabels_what_it_restores(self, db_session, monkeypatch):
+        monkeypatch.setenv("CRON_ATS_RETIRE_OFF_TARGET", "0")
+        senior = _row(db_session, "https://jobs.nokia.com/6", board_key="unknown",
+                      title="Senior Software Engineer", location="London, UK",
+                      listing_status=LISTING_OFF_TARGET, experience_level="new_grad")
+        crawled = _row(db_session, "https://boards.greenhouse.io/acme/jobs/7",
+                       title="Senior Software Engineer", listing_status=LISTING_OFF_TARGET,
+                       experience_level="new_grad")  # its board crawl decides
+
+        stats = retire_unreconcilable_off_target(db_session, now=NOW)
+
+        assert (stats["restored"], stats["relabeled"]) == (1, 1)
+        assert self._level(db_session, senior) == "senior"
+        assert self._level(db_session, crawled) == "new_grad"
 
 
 # ─── LinkedIn/Indeed rows with a plainly senior title ────────────────────────

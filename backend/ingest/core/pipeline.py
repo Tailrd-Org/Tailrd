@@ -16,7 +16,8 @@ the same rules whichever of them crawled it:
      fields, a logo and the structured extraction; each hides the
      LinkedIn/Indeed copies of itself that arrived first
   4. the board is reconciled: a complete listing removes what it no longer
-     lists, a partial one only confirms what it does list
+     lists (unless that is most of the board: a mass removal is held), a
+     partial one only confirms what it does list
   5. source_health records the board's success
 
 crawl_boards() is the crawl side both use: boards crawled concurrently, never
@@ -145,6 +146,9 @@ def new_totals() -> dict:
         "boards_partial": 0, "partial_confirmed": 0, "urls_migrated": 0,
         "boards_deferred": 0, "off_target": 0, "reparsed": 0, "recountried": 0,
         "retitled": 0, "relabeled": 0,
+        # Removals a complete listing would have made but the mass-removal
+        # guard held (listing_freshness.mass_removal).
+        "removals_held": 0,
     }
 
 
@@ -171,6 +175,22 @@ LIMITS_PATH = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__fil
 SIZE_CHECK_EVERY = 500
 # The statuses that hold a place against max_live_per_company.
 _LIVE = ("active", "stale")
+# The student feed's own levels. A run takes their new postings first and
+# never holds them behind max_live_per_company: the cap spreads the free
+# plan's room across employers, and spec decision 1 is that the internship and
+# new-grad feed must not shrink. Only crawled rows above them count.
+_STUDENT_LEVELS = ("internship", "new_grad")
+
+
+def _student(job) -> bool:
+    """Whether a listing is a student posting: the level its row will carry
+    (taxonomy.classify_experience, as title_fields gives it) is internship or
+    new_grad. The description is not needed: the years it asks for only ever
+    give entry or above."""
+    from backend.ingest import taxonomy
+
+    return taxonomy.classify_experience(job.title or "", job.department or "",
+                                        job.employment_type or "") in _STUDENT_LEVELS
 
 
 def load_limits(path: str = LIMITS_PATH) -> Limits:
@@ -255,9 +275,13 @@ def new_context(db: Session, company_names: list[str], *,
 
 
 def _load_live_counts(db: Session, ctx: IngestContext, companies) -> None:
-    """Live rows per employer name, for the names ctx has no count for yet:
-    one grouped, column-only query per chunk of names."""
-    from sqlalchemy import func
+    """Live rows per employer name that hold a place against
+    max_live_per_company, for the names ctx has no count for yet: the
+    crawled ('ats') rows above the student levels. LinkedIn, Indeed and
+    GitHub-list rows of the same name are not the board's to count, and
+    student rows are never held back. One grouped, column-only query per
+    chunk of names."""
+    from sqlalchemy import func, or_
 
     from backend.db.models import ScrapedJob
 
@@ -266,7 +290,10 @@ def _load_live_counts(db: Session, ctx: IngestContext, companies) -> None:
         chunk = names[i:i + _IN_CHUNK]
         counts = dict(
             db.query(ScrapedJob.company, func.count(ScrapedJob.id))
-            .filter(ScrapedJob.listing_status.in_(_LIVE), ScrapedJob.company.in_(chunk))
+            .filter(ScrapedJob.listing_status.in_(_LIVE), ScrapedJob.company.in_(chunk),
+                    ScrapedJob.source_platform == "ats",
+                    or_(ScrapedJob.experience_level.is_(None),
+                        ScrapedJob.experience_level.notin_(_STUDENT_LEVELS)))
             .group_by(ScrapedJob.company)
             .all()
         )
@@ -680,16 +707,20 @@ def _naive(stamp: Optional[datetime.datetime]) -> Optional[datetime.datetime]:
 
 def _select_new(db: Session, jobs: list, ctx: IngestContext,
                 now: datetime.datetime) -> list:
-    """The new jobs this run may store, newest first, within the caps that
-    are known before any request: none the source already dated older than
-    skip_posted_older_than_days, none of an employer holding
-    max_live_per_company live rows, none past max_new_rows_per_run. The rest
-    are counted in ``ctx.caps``."""
+    """The new jobs this run may store, student postings (_student) first and
+    each group newest first, within the caps that are known before any
+    request: none the source already dated older than
+    skip_posted_older_than_days, none past max_new_rows_per_run, and none of
+    an employer holding max_live_per_company live rows unless it is a student
+    posting, which the cap never holds back. The rest are counted in
+    ``ctx.caps``. The detail requests follow this order, so student postings
+    get the budget first."""
     limits, caps = ctx.limits, ctx.caps
-    jobs = sorted(jobs, key=_newest_first)
     if ctx.stopped:
         caps[ctx.stopped] += len(jobs)
         return []
+    student = {id(job): _student(job) for job in jobs}
+    jobs = sorted(jobs, key=lambda job: (not student[id(job)], _newest_first(job)))
     if limits.skip_posted_older_than_days:
         cutoff = now - datetime.timedelta(days=limits.skip_posted_older_than_days)
         fresh = [job for job in jobs
@@ -708,7 +739,7 @@ def _select_new(db: Session, jobs: list, ctx: IngestContext,
             caps["run_cap"] += 1
             continue
         company = (job.company or "").strip()
-        if limits.max_live_per_company:
+        if limits.max_live_per_company and not student[id(job)]:
             if ctx.live_counts.get(company, 0) + taken[company] >= limits.max_live_per_company:
                 caps["company_cap"] += 1
                 continue
@@ -789,11 +820,29 @@ async def _fill_descriptions(client, snapshot, jobs: list, ctx: IngestContext) -
     return keep
 
 
+def source_trust(platform: str) -> str:
+    """scraped_jobs.source_trust of a crawled row, from its source's tier:
+    "high" for the employer's own board (the five built-ins, a Tier 1 or 2
+    adapter), "low" for an aggregator adapter (cross_source_dedup.
+    AGGREGATOR_TIER: Adzuna, Jooble), which re-lists other employers'
+    postings as LinkedIn and Indeed do."""
+    from backend.data.company_registry import SUPPORTED_PLATFORMS
+    from backend.ingest.adapters import get_adapter
+    from backend.services.cross_source_dedup import AGGREGATOR_TIER
+
+    if platform in SUPPORTED_PLATFORMS:
+        return "high"
+    tier = getattr(get_adapter(platform), "TIER", None)
+    aggregator = isinstance(tier, int) and not isinstance(tier, bool) and tier >= AGGREGATOR_TIER
+    return "low" if aggregator else "high"
+
+
 def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str):
     """The ScrapedJob for one new listing (its description already
     sanitized onto ``job``)."""
     from backend.db.models import ScrapedJob
     from backend.services import listing_freshness, logo_cache
+    from backend.services.ats_scraper import web_url
     from backend.services.logo_resolver import domain_from_logo_url, resolve_logo
 
     board_key = snapshot.board_key
@@ -826,7 +875,8 @@ def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str)
 
     # Extraction, hashes and tags read the whole description; only the
     # stored copy is cut at description_max_chars.
-    extracted = listing_freshness.build_new_row_fields(job, board_key)
+    extracted = listing_freshness.build_new_row_fields(
+        job, board_key, source_trust=source_trust(snapshot.platform))
     stored = listing_freshness.cap_description(description, ctx.limits.description_max_chars)
     if len(stored) < len(description):
         ctx.caps["descriptions_cut"] += 1
@@ -850,7 +900,9 @@ def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str)
                                 derived.get("locations_json"), job.location,
                                 extracted.get("employment_type", "")),
         company_id=_company_id(db, ctx, snapshot.platform, snapshot.slug),
-        apply_url=job.apply_url or None,
+        # The employer's apply link may live on any host (a Jibe site's is
+        # its iCIMS portal), but only ever as an http(s) page.
+        apply_url=job.apply_url if web_url(job.apply_url) else None,
     )
 
 
@@ -868,7 +920,7 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     now = datetime.datetime.utcnow()
     board = {"board": board_key, "listed": len(snapshot.all_urls), "found": len(snapshot.jobs),
              "complete": snapshot.complete, "known": 0, "new": 0, "inserted": 0,
-             "removed": 0, "revived": 0}
+             "removed": 0, "revived": 0, "held": 0}
 
     totals["total_found"] += len(snapshot.jobs)
 
@@ -878,14 +930,17 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     totals["urls_migrated"] += migrate_smartrecruiters_urls(db, snapshot)
 
     # Re-confirm known listings (and detect edits, re-deriving the fields an
-    # edit moves); get the new ones.
+    # edit moves); get the new ones. A known posting whose URL changed shape
+    # (a retitle) is found by its external_id and moves to the new URL.
     board_country = ctx.board_countries.get(board_key, "")
     new_jobs, refresh_stats = listing_freshness.refresh_known_listings(
         db, board_key, snapshot.jobs, board_country=board_country,
         description_max_chars=ctx.limits.description_max_chars,
+        listed_urls=snapshot.all_urls,
     )
     for key in ("refreshed", "edited", "reparsed", "recountried", "retitled", "relabeled"):
         totals[key] += refresh_stats[key]
+    totals["urls_migrated"] += refresh_stats["moved"]
     board["known"] = refresh_stats["refreshed"]
     board["new"] = len(new_jobs)
 
@@ -896,7 +951,8 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
     # Workday's ceiling, a spent crawl budget) still proves every URL it
     # listed is live. Either way a listed row whose listing fails the
     # filters goes off_target, unless the kill switch is set (then listed
-    # means active, as before).
+    # means active, as before). A complete listing that would close most of
+    # the board is held as partial (listing_freshness.mass_removal).
     rejected = snapshot.rejected if ctx.retire_off_target else None
     if snapshot.complete:
         rec = listing_freshness.reconcile_board(
@@ -904,7 +960,8 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         totals["removed"] += rec["removed"]
         totals["revived"] += rec["revived"]
         totals["off_target"] += rec["off_target"]
-        board.update(removed=rec["removed"], revived=rec["revived"])
+        totals["removals_held"] += rec["held"]
+        board.update(removed=rec["removed"], revived=rec["revived"], held=rec["held"])
     else:
         totals["boards_partial"] += 1
         seen = confirm_listed(db, board_key, snapshot.all_urls, rejected=rejected)
@@ -940,11 +997,13 @@ async def ingest_snapshot(db: Session, client, snapshot, ctx: IngestContext) -> 
         totals["new_jobs"] += 1
         board["inserted"] += 1
         ctx.inserted += 1
-        company = (job.company or "").strip()
-        ctx.live_counts[company] = ctx.live_counts.get(company, 0) + 1
+        if scraped_job.experience_level not in _STUDENT_LEVELS:
+            company = (job.company or "").strip()
+            ctx.live_counts[company] = ctx.live_counts.get(company, 0) + 1
 
         # This direct row supersedes any LinkedIn/Indeed copies of the same
-        # posting that arrived first.
+        # posting that arrived first (an aggregator adapter's row hides
+        # nothing: the hourly absorb pass hides it behind the employer's).
         try:
             totals["cross_source_twins_hidden"] += mark_inferior_twins(db, scraped_job)
         except Exception:

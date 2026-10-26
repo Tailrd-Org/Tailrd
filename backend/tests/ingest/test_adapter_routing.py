@@ -117,6 +117,75 @@ async def test_a_disabled_or_unknown_platform_keeps_the_empty_incomplete_snapsho
     assert len(adapter.calls) == 1 and snapshot.complete is True
 
 
+# --- posting URLs fit to store ----------------------------------------------------------
+
+def _intern(url):
+    return ATSJob(title="Software Engineering Intern", company="Acme", location="Toronto, ON",
+                  url=url)
+
+
+@pytest.mark.asyncio
+async def test_a_listing_whose_url_is_not_an_http_page_is_dropped(use_adapters, registry):
+    """A board's own HTML can carry any scheme: an iCIMS anchor
+    href="javascript:/jobs/1/%0aalert(document.cookie)" passes the job path
+    check, urljoin keeps it, and the feed renders the stored URL as a link."""
+    unsafe = [_intern(url) for url in (
+        "javascript:///jobs/1/%0aalert(document.cookie)", "JavaScript:alert(1)",
+        "data:text/html,<script>alert(1)</script>", "ftp://jobs.fakeats.test/acme/9",
+        "//jobs.fakeats.test/acme/8", "/jobs/7", "https:///jobs/6")]
+    use_adapters(make_adapter("fakeats", jobs=[ACME[0], *unsafe]))
+    registry([])
+
+    async with httpx.AsyncClient() as client:
+        snapshot = await ATSScraper().scrape_board(client, "fakeats", "acme", "Acme")
+
+    assert snapshot.all_urls == {ACME[0].url}
+    assert [job.url for job in snapshot.jobs] == [ACME[0].url]
+    assert snapshot.complete is False  # what it could not use never votes on removals
+
+
+@pytest.mark.asyncio
+async def test_a_host_configured_board_keeps_only_listings_on_its_host(use_adapters, registry):
+    on_host = _intern("https://careers-acme.icims.com/jobs/1/intern/job")
+    elsewhere = _intern("https://evil.example/jobs/2/intern/job")
+    look_alike = _intern("https://careers-acme.icims.com.evil.example/jobs/3/intern/job")
+    use_adapters(make_adapter("icims", jobs=[on_host, elsewhere, look_alike]))
+    registry([{"company_name": "Acme", "ats_platform": "icims", "board_slug": "acme",
+               "enabled": True, "config": {"host": "HTTPS://Careers-Acme.icims.com/"}}])
+
+    async with httpx.AsyncClient() as client:
+        snapshot = await ATSScraper().scrape_board(client, "icims", "acme", "Acme")
+
+    assert snapshot.all_urls == {on_host.url}
+    assert snapshot.complete is False
+
+
+@pytest.mark.asyncio
+async def test_other_boards_keep_http_listings_on_any_host(use_adapters, registry):
+    """A Recruitee offer's careers_url may be the employer's own domain."""
+    offer = _intern("https://careers.acme.example/o/software-engineering-intern")
+    use_adapters(make_adapter("recruitee", jobs=[offer]))
+    registry([{"company_name": "Acme", "ats_platform": "recruitee", "board_slug": "acme",
+               "enabled": True, "config": {"host": "acme.recruitee.com"}}])
+
+    async with httpx.AsyncClient() as client:
+        snapshot = await ATSScraper().scrape_board(client, "recruitee", "acme", "Acme")
+
+    assert snapshot.all_urls == {offer.url} and snapshot.complete is True
+
+
+def test_web_url_and_config_host():
+    from backend.services.ats_scraper import CONFIG_HOST_PLATFORMS, config_host, web_url
+
+    assert web_url("https://careers-acme.icims.com/jobs/1") and web_url("http://a.example")
+    for bad in ("javascript:alert(1)", " javascript:alert(1)", "data:,x", "ftp://a.example/1",
+                "//a.example/1", "/jobs/1", "https://", "", None, 7):
+        assert not web_url(bad), bad
+    assert config_host({"host": "HTTPS://Careers-Acme.icims.com/jobs"}) == "careers-acme.icims.com"
+    assert config_host({}) == config_host(None) == ""
+    assert CONFIG_HOST_PLATFORMS == {"icims", "jibe", "oracle_hcm", "successfactors", "taleo"}
+
+
 # --- company_registry ------------------------------------------------------------------
 
 def test_load_companies_also_accepts_platforms_whose_adapter_is_enabled(
