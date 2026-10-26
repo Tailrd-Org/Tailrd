@@ -8,12 +8,14 @@ apply_url, expires_at. On Postgres a nullable ADD COLUMN without a default
 only touches the catalog, so scraped_jobs (most of the database) is never
 rewritten. source_health gains disabled_until and jobs_7d_avg.
 
-Six indexes on scraped_jobs serve the v2 feed filters (listing_status with
+Five indexes on scraped_jobs serve the v2 feed filters (listing_status with
 career_family, with experience_level, and with country and region), the
-companies join, the liveness worker's least-recently-probed rotation, and twin
-lookups by fingerprint. The fingerprint index is not unique: one employer
-posts the same title as separate requisitions. The new tables (companies,
-scrape_runs, scrape_tasks) come from create_all at boot like every other model.
+companies join and the liveness worker's least-recently-probed rotation. The
+fingerprint column has no index: nothing reads it yet, and on a capped
+database an index nothing reads is pure cost (an index added later must not
+be unique: one employer posts the same title as separate requisitions). The
+new tables (companies, scrape_runs, scrape_tasks) come from create_all at
+boot like every other model.
 
 DDL only, no backfill: NULL means "not computed yet". The same first-deploy
 guard as add_listing_probe_columns: inspect first and send no DDL at all once
@@ -63,7 +65,6 @@ INDEXES: dict[str, tuple[str, ...]] = {
     "ix_scraped_jobs_status_geo": ("listing_status", "country", "region"),
     "ix_scraped_jobs_company_id": ("company_id",),
     "ix_scraped_jobs_status_probed": ("listing_status", "last_probed_at"),
-    "ix_scraped_jobs_fingerprint": ("fingerprint",),
 }
 
 LOCK_TIMEOUT = "5s"

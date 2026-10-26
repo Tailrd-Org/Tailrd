@@ -36,7 +36,6 @@ NEW_INDEXES = [
     "CREATE INDEX IF NOT EXISTS ix_scraped_jobs_status_geo ON scraped_jobs (listing_status, country, region)",
     "CREATE INDEX IF NOT EXISTS ix_scraped_jobs_company_id ON scraped_jobs (company_id)",
     "CREATE INDEX IF NOT EXISTS ix_scraped_jobs_status_probed ON scraped_jobs (listing_status, last_probed_at)",
-    "CREATE INDEX IF NOT EXISTS ix_scraped_jobs_fingerprint ON scraped_jobs (fingerprint)",
 ]
 # What scraped_jobs and source_health held before this migration, as far as
 # the new indexes care.
@@ -152,7 +151,7 @@ def test_postgres_repairs_a_missing_index_alone(monkeypatch):
         "scraped_jobs": {
             "columns": OLD_JOB_COLUMNS + [name for name, _ in NEW_JOB_COLUMNS],
             "indexes": [name for name in add_scraper_v2.INDEXES
-                        if name != "ix_scraped_jobs_fingerprint"],
+                        if name != "ix_scraped_jobs_status_probed"],
         },
         "source_health": {
             "columns": OLD_HEALTH_COLUMNS + [name for name, _ in NEW_HEALTH_COLUMNS],
@@ -164,6 +163,29 @@ def test_postgres_repairs_a_missing_index_alone(monkeypatch):
 
     _guard(engine.sql, 0)
     assert engine.sql[3:] == [NEW_INDEXES[-1]]
+
+
+def test_the_fingerprint_column_comes_without_an_index(monkeypatch, tmp_path):
+    """Nothing reads scraped_jobs.fingerprint yet, and on a capped database an
+    unread index is pure cost: neither the migration nor create_all builds
+    one, whatever else the database lacks."""
+    from backend.db.models import ScrapedJob
+
+    engine = _fake_postgres(monkeypatch, {
+        "scraped_jobs": {"columns": OLD_JOB_COLUMNS, "indexes": []},
+        "source_health": {"columns": OLD_HEALTH_COLUMNS, "indexes": []},
+    })
+    add_scraper_v2.run_migration(engine)
+    assert "ALTER TABLE scraped_jobs ADD COLUMN IF NOT EXISTS fingerprint VARCHAR(64)" in engine.sql
+    assert not any("fingerprint" in sql for sql in engine.sql if sql.startswith("CREATE"))
+    assert "ix_scraped_jobs_fingerprint" not in add_scraper_v2.INDEXES
+
+    built = create_engine(f"sqlite:///{tmp_path / 'built.db'}")
+    Base.metadata.create_all(bind=built, tables=[ScrapedJob.__table__])
+    indexed = {col for index in inspect(built).get_indexes("scraped_jobs")
+               for col in index["column_names"]}
+    assert "fingerprint" in {c["name"] for c in inspect(built).get_columns("scraped_jobs")}
+    assert "fingerprint" not in indexed
 
 
 def test_a_missing_table_is_left_to_create_all(monkeypatch):
