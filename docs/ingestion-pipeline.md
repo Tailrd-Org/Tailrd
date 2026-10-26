@@ -267,9 +267,10 @@ then it crawls the boards of `backend/data/student_catalogue_boards.json`
 (`load_companies(student_catalogue=True)`): a frozen list of the 252
 `platform:slug` keys it crawled before v2 (Greenhouse 129, Ashby 60, Workday 33,
 Lever 17, SmartRecruiters 13), where the registry holds 995 enabled boards on
-those platforms. A board added to the registry, or one of the 252 disabled or
-re-pointed, therefore changes what the runner crawls and not what `cron-ats`
-does. `test_the_student_catalogue_is_the_registry_cron_ats_crawled_before_v2`
+those platforms. A board added to the registry, or re-pointed to a new slug, is
+therefore crawled by the runner and not by `cron-ats` until the switch is on,
+and one of the 252 that is disabled or re-pointed drops out of `cron-ats`'s
+crawl. `test_the_student_catalogue_is_the_registry_cron_ats_crawled_before_v2`
 pins that all 252 stay enabled, so change the file and that test together. An
 unreadable or empty file raises: falling back to the whole registry would crawl
 the boards that the switch holds back. The file's own `_note` says the same.
