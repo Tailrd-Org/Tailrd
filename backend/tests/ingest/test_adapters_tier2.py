@@ -75,15 +75,25 @@ VANDERBILT = {"host": "ecsr.fa.us2.oraclecloud.com", "site": "CX_1"}
 JPMORGAN = {"host": "jpmc.fa.oraclecloud.com", "site": "CX_1001"}
 
 
+_MATCHES_ROWS = object()  # a count equal to the number of rows
+
+
 class OracleServer:
     """The finder, answering like the live API: the requested slice of
-    ``requisitions`` under a count. ``totals`` scripts the count per request
-    (the last repeats), for a board that changes while it is read."""
+    ``requisitions`` under a count. ``total`` is the count as the reply carries
+    it (a number, None for null, a word) and ``omit_total`` drops the field;
+    ``totals`` scripts the count per request (the last repeats), for a board
+    that changes while it is read; ``ignore_offset`` serves the first window
+    whatever the offset; ``empty_offsets`` answers those offsets with no rows."""
 
-    def __init__(self, requisitions, *, total=None, totals=None, template="oracle_hcm_list_dtcc.json"):
+    def __init__(self, requisitions, *, total=_MATCHES_ROWS, totals=None, omit_total=False, ignore_offset=False,
+                 empty_offsets=(), template="oracle_hcm_list_dtcc.json"):
         self.requisitions = list(requisitions)
-        self.total = len(self.requisitions) if total is None else total
+        self.total = len(self.requisitions) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.ignore_offset = ignore_offset
+        self.empty_offsets = set(empty_offsets)
         self.template = template
         self.requests: list[httpx.Request] = []
 
@@ -96,9 +106,15 @@ class OracleServer:
             total = self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]
         else:
             total = self.total
+        start = 0 if self.ignore_offset else offset
+        rows = [] if offset in self.empty_offsets else self.requisitions[start:start + limit]
         body = fixture(self.template)
-        body["items"][0].update(TotalJobsCount=total, Offset=offset, Limit=limit,
-                                requisitionList=self.requisitions[offset:offset + limit])
+        item = body["items"][0]
+        item.update(Offset=offset, Limit=limit, requisitionList=rows)
+        if self.omit_total:
+            item.pop("TotalJobsCount", None)
+        else:
+            item["TotalJobsCount"] = total
         return httpx.Response(200, json=body)
 
     def offsets(self) -> list[int]:
@@ -107,6 +123,14 @@ class OracleServer:
 
 def dtcc_requisitions() -> list[dict]:
     return fixture("oracle_hcm_list_dtcc.json")["items"][0]["requisitionList"]
+
+
+def oracle_rows(count: int, *, repeat: int = 0) -> list[dict]:
+    """``count`` minimal requisitions in the finder's shape; the first ``repeat``
+    of them come round again at the end, as the index lists a posting open in two places."""
+    rows = [{"Id": str(1000 + i), "Title": f"Analyst {i}", "PrimaryLocation": "Toronto, ON, Canada",
+             "PostedDate": "2026-10-24", "secondaryLocations": []} for i in range(count)]
+    return rows + rows[:repeat]
 
 
 async def oracle_list(server, config=DTCC, **kwargs):
@@ -205,7 +229,7 @@ async def test_oracle_uses_the_job_family_as_department_and_every_commitment_wor
 
 
 @pytest.mark.asyncio
-async def test_oracle_pages_to_the_end_and_lists_a_duplicate_row_once(clock, monkeypatch):
+async def test_oracle_lists_a_row_the_index_repeats_once_and_a_small_board_is_then_not_complete(clock, monkeypatch):
     monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
     rows = dtcc_requisitions()
     rows = rows + [rows[1]]  # the index can carry an identical second row for one posting
@@ -213,17 +237,56 @@ async def test_oracle_pages_to_the_end_and_lists_a_duplicate_row_once(clock, mon
     jobs, complete, total = await oracle_list(server)
     assert server.offsets() == [0, 2, 4]
     assert all("limit=2," in str(r.url) for r in server.requests)
-    assert (len(jobs), complete, total) == (5, True, 6)
+    # Six counted, five distinct: a board under 400 must match its count exactly.
+    assert (len(jobs), complete, total) == (5, False, 6)
 
 
 @pytest.mark.asyncio
-async def test_oracle_a_count_a_little_over_the_listing_is_still_complete(clock, monkeypatch):
-    """DTCC counts 447 and lists 446, steady from the first page to the last."""
-    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
-    server = OracleServer(dtcc_requisitions(), total=6)
+async def test_oracle_a_large_board_may_miss_the_few_rows_the_index_counts_twice(clock):
+    """DTCC counts 447 and lists 446, steady from the first page to the last; Oracle
+    2,487 and 2,485; at most two on a board under 5,000, three above."""
+    server = OracleServer(oracle_rows(446, repeat=1))
     jobs, complete, total = await oracle_list(server)
-    assert server.offsets() == [0, 2, 4, 5]  # the empty page at 5 is what ends the list
-    assert (len(jobs), complete, total) == (5, True, 6)
+    assert server.offsets() == [0, 200, 400]
+    assert (len(jobs), complete, total) == (446, True, 447)
+    # 447 listed of 450: three missing is more than any measured board.
+    jobs, complete, total = await oracle_list(OracleServer(oracle_rows(447), total=450))
+    assert (len(jobs), complete, total) == (447, False, 450)
+    assert (await oracle_list(OracleServer(oracle_rows(5000), total=5003)))[1] is True
+    assert (await oracle_list(OracleServer(oracle_rows(5000), total=5004)))[1] is False
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_small_board_must_match_its_count_exactly(clock):
+    """"Reports 6, lists 1" and "reports 8, lists 3" were complete under the old floor of 5."""
+    assert (await oracle_list(OracleServer(oracle_rows(1), total=6)))[1:] == (False, 6)
+    assert (await oracle_list(OracleServer(oracle_rows(3), total=8)))[1:] == (False, 8)
+    assert (await oracle_list(OracleServer(oracle_rows(398), total=399)))[1:] == (False, 399)
+    assert (await oracle_list(OracleServer(oracle_rows(399), total=400)))[1:] == (True, 400)  # from 400 on, two may be missing
+    assert (await oracle_list(OracleServer(oracle_rows(3), total=3)))[1:] == (True, 3)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_oracle_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, monkeypatch, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(5), **count)
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2, 4, 5]  # without a trusted count only an empty page ends the walk
+    assert (len(jobs), complete, total) == (5, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_count_below_the_listing_is_a_contradiction(clock):
+    jobs, complete, total = await oracle_list(OracleServer(oracle_rows(5), total=1))
+    assert (len(jobs), complete, total) == (5, False, 1)
+
+
+def test_oracle_count_reads_only_whole_non_negative_numbers():
+    assert [oracle_hcm._count(v) for v in (7250, "7250", " 12 ", 3.0, 0, "0")] == [7250, 7250, 12, 3, 0, 0]
+    assert [oracle_hcm._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio
@@ -239,9 +302,36 @@ async def test_oracle_a_board_that_counts_postings_but_lists_none_is_incomplete(
 
 
 @pytest.mark.asyncio
-async def test_oracle_a_board_with_no_postings_is_complete_and_empty(clock):
-    jobs, complete, total = await oracle_list(OracleServer([], total=0))
-    assert (jobs, complete, total) == ([], True, 0)
+async def test_oracle_an_empty_board_is_never_called_complete(clock):
+    """An empty first page looks the same whether the board is empty or the search
+    backend hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (OracleServer([], total=0), OracleServer([], omit_total=True), OracleServer([], total=None)):
+        assert await oracle_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+async def test_oracle_an_empty_page_in_the_middle_of_the_walk_is_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(6), empty_offsets={2})
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2]
+    assert (len(jobs), complete, total) == (2, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_server_that_ignores_offset_is_stopped_and_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(oracle_hcm, "PAGE_SIZE", 2)
+    server = OracleServer(oracle_rows(6), ignore_offset=True)
+    jobs, complete, total = await oracle_list(server)
+    assert server.offsets() == [0, 2]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (2, False, 6)
+
+
+@pytest.mark.asyncio
+async def test_oracle_a_row_it_cannot_read_makes_the_board_incomplete(clock):
+    rows = oracle_rows(4) + [{"Title": "No id"}]
+    jobs, complete, total = await oracle_list(OracleServer(rows, total=5))
+    assert (len(jobs), complete, total) == (4, False, 5)
 
 
 @pytest.mark.asyncio

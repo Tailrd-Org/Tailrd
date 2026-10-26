@@ -202,60 +202,92 @@ async def _get_json(client: httpx.AsyncClient, url: str):
     return response.json()
 
 
+def _count(value) -> int | None:
+    """A reported count as a non-negative integer, or None when the reply gives
+    none that can be trusted: absent, null, a boolean, a word, a negative or a
+    fraction. A missing count used to read as 0 beside hundreds of listed
+    postings, so a bad count must never pass for a small one."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, float):
+        value = int(value) if value.is_integer() else None
+    elif isinstance(value, str):
+        value = int(value) if value.strip().isdigit() else None
+    return value if isinstance(value, int) and value >= 0 else None
+
+
 def _shortfall_allowed(total: int) -> int:
     """How many fewer postings than ``TotalJobsCount`` a finished crawl may list.
 
     The count includes rows the finder lists once or never: a posting open in
     two places can sit in the index twice, and the listing shows it once.
     Measured on 29 tenants, 24 listed exactly the count and the rest fell short
-    by 1 or 2 (DTCC lists 446 of 447, Oracle 2,485 of 2,487, JPMorgan Chase
-    7,249 of 7,250), always with the count steady from the first page to the
-    last. A few per thousand covers that and still catches a truncated crawl."""
-    return max(5, total // 500)
+    by 1 or 2 (DTCC 446 of 447, Oracle 2,485 of 2,487, JPMorgan Chase 7,249 of
+    7,250), always with the count steady from the first page to the last. The
+    smallest board that fell short had 447, so a board under 400 must match
+    exactly and a large one may miss two or three."""
+    if total < 400:
+        return 0
+    return 2 if total < 5000 else 3
 
 
 async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
                     config: dict, deadline: float | None = None) -> tuple[list[ATSJob], bool, int]:
     """Every posting on one career site, newest first, unfiltered.
 
-    Returns (listings, complete, total_on_board). ``complete`` needs all of:
-    the crawl ran to the end of the list (an empty page, not the deadline or
-    the page cap); the board's count was the same on every page, because a
-    posting removed between two page requests shifts the list up by one and
-    skips a live posting, and that must read as partial, never as a takedown;
-    and the distinct postings listed are within ``_shortfall_allowed`` of the
-    count."""
+    Returns (listings, complete, total_on_board). ``complete`` is True only with
+    positive evidence that the whole list was read, all of:
+    - every page reported a count, a whole number, the same one on every page
+      (a posting removed between two page requests changes it, and shifts the
+      list up by one so a live posting is skipped), and it is above zero;
+    - the crawl ran to the end (the count reached, or an empty page), not to the
+      deadline or the page cap, and no page repeated postings already seen (a
+      server that ignores ``offset``);
+    - every row was readable;
+    - the distinct postings listed are within ``_shortfall_allowed`` of the count
+      and not above it.
+    A missing, null, zero or non-numeric count, an empty first page beside a
+    count, and an empty board all read as partial, never as a takedown."""
     host, site = _tenant(slug, config)
     jobs: list[ATSJob] = []
     seen: set[str] = set()
-    totals: set[int] = set()
+    counts: list[int | None] = []
+    unreadable = 0
     offset = 0
-    ended = False
+    ended = repeated = False
     for page in range(MAX_PAGES):
         if page >= HEAD_PAGES and deadline is not None and time.monotonic() >= deadline:
             break
         search = _search(await _get_json(client, _list_url(host, site, offset)), host, site)
         requisitions = search["requisitionList"]
-        try:
-            totals.add(int(search.get("TotalJobsCount") or 0))
-        except (TypeError, ValueError):
-            totals.add(0)
+        count = _count(search.get("TotalJobsCount"))
+        counts.append(count)
+        fresh = 0
         for req in requisitions:
             job = _to_job(req, host, site, slug, company_name) if isinstance(req, dict) else None
-            if job is None or job.url in seen:
-                continue  # unreadable, or listed twice (identical rows, or the list shifted)
-            seen.add(job.url)
-            jobs.append(job)
+            if job is None:
+                unreadable += 1
+            elif job.url not in seen:  # listed twice: identical rows, or the list shifted
+                seen.add(job.url)
+                jobs.append(job)
+                fresh += 1
         offset += len(requisitions)
-        if not requisitions or offset >= max(totals):
+        if not requisitions:
             ended = True
             break
-    total = max(totals, default=0)
-    short = total - len(seen)
-    # A board that counts postings but lists none is a failed read, however
-    # small the count.
-    complete = (ended and len(totals) == 1
-                and (short <= 0 or (bool(seen) and short <= _shortfall_allowed(total))))
+        if not fresh:
+            repeated = True  # the same postings again: the server is not honouring offset
+            break
+        if count and offset >= count:  # a count of 0 beside rows is a contradiction, not the end
+            ended = True
+            break
+    known = [count for count in counts if count is not None]
+    total = max(known, default=0)
+    steady = bool(counts) and len(known) == len(counts) and len(set(known)) == 1
+    # More listed than counted is as much a contradiction as fewer: the count
+    # cannot be taken as the size of the board.
+    complete = (ended and not repeated and not unreadable and steady and total > 0
+                and 0 <= total - len(seen) <= _shortfall_allowed(total))
     return jobs, complete, total
 
 
