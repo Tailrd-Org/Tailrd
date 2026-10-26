@@ -30,7 +30,7 @@ incident to learn. What changed:
 - **New platforms are adapters**: one module each under
   `backend/ingest/adapters/`, 13 so far. The five older connectors stay in
   `ats_scraper.py`.
-- **The registry grew** from 278 entries to 2,364 (1,315 enabled), every one
+- **The registry grew** from 278 entries to 2,364 (1,313 enabled), every one
   with `hq_country` and `sector`.
 - **Storage caps** in `backend/ingest/data/limits.json` keep ingestion inside
   Neon's free 512 MB plan, and two scripts reclaim and backfill rows.
@@ -308,7 +308,7 @@ verified US boards are held for the storage budget (DECISIONS 12; 492 on
 2026-10-26; the free plan cannot hold ~1,200 employers' postings, see "Storage
 and transfer"). The Oracle, iCIMS and Jibe boards were held until their
 adapters' completeness checks were fixed (DECISIONS 14) and are enabled now:
-108, 46 and 67 boards, of the 1,315 enabled in all. The rest stay disabled
+107, 45 and 67 boards, of the 1,313 enabled in all (2026-10-26). The rest stay disabled
 with their reason: platforms with no connector (NEOGOV, Dayforce, ADP, Avature
 and others), and Taleo, SuccessFactors and some iCIMS boards the adapters
 cannot read yet. Count what is enabled with:

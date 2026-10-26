@@ -190,7 +190,7 @@ Add an entry to the `companies` array in `backend/data/ats_companies.json`. No c
 | `config` | An object the adapter reads, for example `{"host": "...", "site": "..."}` for Oracle. Omit it when the adapter needs none. Workday entries carry `workday_url_template` instead |
 | `enabled`, `disabled_reason` | `false` parks a board, and the reason says why |
 
-The Oracle, iCIMS and Jibe boards (221 of the 1,315 enabled boards) were held until their adapters' completeness checks were fixed, and are enabled now. Boards parked for the storage budget start their `disabled_reason` with `held:`; leave those off until the Neon plan has room.
+The Oracle, iCIMS and Jibe boards (219 of the 1,313 enabled boards) were held until their adapters' completeness checks were fixed, and are enabled now. Boards parked for the storage budget start their `disabled_reason` with `held:`; leave those off until the Neon plan has room.
 
 To find the platform behind a careers page, run the detector. It prints a registry entry on stdout (JSON) and its evidence on stderr, and exits 0 when it found an ATS, 1 when the page shows none and 2 when the page could not be read:
 
