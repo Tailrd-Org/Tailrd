@@ -15,6 +15,7 @@ import shlex
 import sys
 from pathlib import Path
 
+import pytest
 import yaml
 
 # The bash fixture (a stub `gh` first on PATH, scripts run as the runner runs
@@ -27,6 +28,7 @@ REPO = Path(__file__).resolve().parents[2]
 REQUIREMENTS = REPO / "requirements-ingest.txt"
 WORKFLOWS = REPO / ".github" / "workflows"
 INGEST = WORKFLOWS / "ingest.yml"
+NETWORK = WORKFLOWS / "ingest-network-tests.yml"
 SCRAPE = WORKFLOWS / "scrape-jobs.yml"
 
 # --- requirements-ingest.txt ---------------------------------------------
@@ -216,6 +218,24 @@ def test_the_runner_imports_nothing_that_is_not_installed_with_it():
     )
 
 
+def test_the_header_states_the_two_week_cooldown_the_pins_were_resolved_with():
+    # No pin may be a release younger than two weeks on the day the file is
+    # generated, so a bad release has time to be noticed before it can reach the
+    # job that holds the credential. Whether the pins keep to it can only be
+    # checked against PyPI; this keeps the rule stated in the header and the
+    # regeneration recipe, with a date at least 14 days before the generation day.
+    import datetime
+
+    comment = " ".join(line.lstrip("# ").strip() for line in
+                       REQUIREMENTS.read_text(encoding="utf-8").splitlines() if line.startswith("#"))
+    stated = re.search(r"generated on (\d{4}-\d\d-\d\d) with --exclude-newer (\d{4}-\d\d-\d\d)T", comment)
+
+    assert stated, "the header must say when the file was generated and with which --exclude-newer"
+    generated, cutoff = (datetime.date.fromisoformat(day) for day in stated.groups())
+    assert (generated - cutoff).days >= 14
+    assert re.search(r"uv pip compile .*--generate-hashes .*--exclude-newer \d{4}-\d\d-\d\dT[\d:]+Z", comment)
+
+
 # --- ingest.yml -----------------------------------------------------------
 
 
@@ -262,6 +282,16 @@ def test_ingest_runs_daily_at_an_off_peak_minute_and_can_be_started_by_hand():
     scrape_minutes = {entry["cron"].split()[0] for entry in _triggers(_workflow(SCRAPE))["schedule"]}
     assert minute not in scrape_minutes
     assert "workflow_dispatch" in triggers
+
+
+@pytest.mark.parametrize("path", [INGEST, NETWORK], ids=["ingest", "ingest-network-tests"])
+def test_only_the_schedule_and_a_manual_dispatch_can_start_the_workflow(path):
+    # The repository is public and holds secrets. A pull_request run from a
+    # branch of this repository receives them, so do push and workflow_run
+    # runs, and a pull_request_target run even for a fork. These two triggers
+    # start only from the default branch's schedule or from someone with write
+    # access, which is the only way the database credential may be used.
+    assert set(_triggers(_workflow(path))) == {"schedule", "workflow_dispatch"}
 
 
 def test_ingest_token_is_read_only_and_no_job_widens_it():
@@ -366,7 +396,11 @@ def test_every_step_after_the_secret_check_waits_for_it():
     ids = [step.get("id") for step in steps]
     gated = steps[ids.index("secret") + 1:-1]
 
-    assert len(gated) == 4, "checkout, setup-python, install and the run"
+    assert ids[0] == "secret", "nothing may run before the check"
+    # The inactivity check is one of them: while the secret is missing the run
+    # must stay green, and scrape-jobs.yml raises the same repository-wide alarm.
+    assert len(gated) == 5, "the inactivity check, checkout, setup-python, install and the run"
+    assert "inactivity" in ids[1:-1]
     for step in gated:
         assert step.get("if") == "steps.secret.outputs.configured == 'true'", step
     # The closing check is the one step that still runs without the secret.
@@ -382,11 +416,17 @@ def test_the_inactivity_check_is_the_one_scrape_jobs_uses():
 
 
 def test_the_run_prints_the_connection_string_only_to_mask_it():
+    # Every echo or printf whose output reaches the log and mentions the
+    # string, or a piece cut from it, is an ::add-mask:: command.
     run = _ingest_step("ingest")["run"]
+    holds_a_piece = re.compile(
+        r"\$\{?(?:DATABASE_URL|DATABASE_URL_DIRECT|password|rest|bare|userinfo|piece)\b")
 
     for line in run.splitlines():
-        if "DATABASE_URL" in line and re.match(r"\s*(echo|printf)\b", line):
-            assert 'echo "::add-mask::$DATABASE_URL_DIRECT"' in line, line
+        for command in re.finditer(r"\b(?:echo|printf)\b([^;|&]*)([;|&]|$)", line):
+            if command.group(2) == "|" or not holds_a_piece.search(command.group(1)):
+                continue  # piped on to sed, or nothing of the string in it
+            assert command.group(1).strip().startswith('"::add-mask::$'), line
 
 
 # --- the shell steps, run for real ----------------------------------------
@@ -416,27 +456,64 @@ def test_with_the_secret_set_the_run_goes_on_without_comment(bash, tmp_path):
     assert "::notice" not in result.stdout
 
 
-# A stand-in for `python`: it reports how the runner would have been started.
+# A stand-in for `python`: it records that it was called, reports how the
+# runner would have been started, and prints what SQLAlchemy 2.0.32 prints when
+# it cannot parse a connection string: the string without its query string
+# (backend/db/database.py strips that first), which is a prefix of the secret.
 STUB_PYTHON = """#!/usr/bin/env bash
+echo called >> "$STUB_CALLED"
 echo "argv: $*"
 echo "DATABASE_URL=$DATABASE_URL"
 echo "DATABASE_URL_DIRECT=$DATABASE_URL_DIRECT"
+echo "Could not parse SQLAlchemy URL from string '${DATABASE_URL%%\\?*}'"
 """
 POOLED = "postgresql://ingest:s3cret@ep-cool-name-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
 DIRECT = "postgresql://ingest:s3cret@ep-cool-name-123456.us-east-2.aws.neon.tech/neondb?sslmode=require"
+PASSWORD = "s3cr3tPWxyz9"
+SECRET = f"postgresql://ingest:{PASSWORD}@ep-cool-name-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
 
 
-def _run_ingest_step(bash, tmp_path, database_url, event="schedule"):
+def _ingest_run(bash, tmp_path, database_url, event="schedule"):
+    """The ingest step's script, run for real with a stub `python` first on
+    PATH. Returns the finished process; tmp_path/python_called exists when the
+    stub was started."""
     stub_dir = tmp_path / "pybin"
     stub_dir.mkdir(exist_ok=True)
     stub = stub_dir / "python"
     stub.write_bytes(STUB_PYTHON.encode())
     stub.chmod(0o755)
-    result = bash(_ingest_step("ingest")["run"], {
+    return bash(_ingest_step("ingest")["run"], {
         "DATABASE_URL": database_url,
         "EVENT_NAME": event,
+        "STUB_CALLED": (tmp_path / "python_called").as_posix(),
         "PATH": str(stub_dir) + os.pathsep + os.environ.get("PATH", ""),
     })
+
+
+def _mask_command_value(line):
+    """The value an ::add-mask:: line registers: the runner unescapes the data
+    of a workflow command (%25 is a percent sign, %0D and %0A line breaks)."""
+    return (line[len("::add-mask::"):].replace("%0D", "\r").replace("%0A", "\n").replace("%25", "%"))
+
+
+def _as_logged(result, secret):
+    """The text GitHub would keep in the public log for a step's output. The
+    runner takes every ::add-mask:: command out of the stream and masks that
+    value in everything after it; the secret itself is masked as a whole from
+    the start, and the masker matches nothing but exact values."""
+    masks, kept = [secret], []
+    for line in (result.stdout + result.stderr).splitlines():
+        if line.startswith("::add-mask::"):
+            masks.append(_mask_command_value(line))
+            continue
+        for mask in sorted(masks, key=len, reverse=True):
+            line = line.replace(mask, "***")
+        kept.append(line)
+    return "\n".join(kept)
+
+
+def _run_ingest_step(bash, tmp_path, database_url, event="schedule"):
+    result = _ingest_run(bash, tmp_path, database_url, event)
     assert result.returncode == 0, result.stdout + result.stderr
     seen = {}
     for line in result.stdout.splitlines():
@@ -476,6 +553,102 @@ def test_only_the_host_of_the_connection_string_is_rewritten(bash, tmp_path):
         "postgresql://ing-pooler.x:pw-pooler.y@ep-a.eu.neon.tech:5432/db-pooler.v?options=-c%20x-pooler.z")
 
 
+# What an owner can paste into the secret by mistake. Neon's connection dialog
+# offers a psql command with the URL inside single quotes; a copy picks up a
+# space or a line break at either end; a quote or two come with a shell snippet.
+NOT_A_BARE_URL = {
+    "neon's psql command": f"psql '{SECRET}'",
+    "a leading space": f" {SECRET}",
+    "a trailing space": f"{SECRET} ",
+    "a trailing line break": f"{SECRET}\n",
+    "double quotes": f'"{SECRET}"',
+    "single quotes": f"'{SECRET}'",
+    "a closing quote only": f'{SECRET}"',
+    "a backtick": f"`{SECRET}`",
+    "two urls": f"{SECRET} {SECRET}",
+    "no scheme": SECRET.split("://", 1)[1],
+    "another scheme": SECRET.replace("postgresql://", "mysql://", 1),
+    "a driver suffix": SECRET.replace("postgresql://", "postgresql+psycopg2://", 1),
+    "nothing after the scheme": "postgresql://",
+    "nothing at all": "",
+}
+
+
+@pytest.mark.parametrize("value", NOT_A_BARE_URL.values(), ids=NOT_A_BARE_URL.keys())
+def test_a_secret_that_is_not_one_bare_url_stops_the_run_before_python_and_prints_none_of_it(
+        bash, tmp_path, value):
+    # SQLAlchemy 2.0.32 answers a connection string it cannot parse with the
+    # string itself, and GitHub's masker only knows the exact secret: the
+    # password would reach the public log. So the step fails first, and what it
+    # prints names no part of the value.
+    result = _ingest_run(bash, tmp_path, value)
+    output = result.stdout + result.stderr
+
+    assert result.returncode == 1, output
+    assert not (tmp_path / "python_called").exists(), "python must not start on a bad secret"
+    assert output.count("::error") == 1
+    for piece in (PASSWORD, "s3cr3t", "ep-cool-name", "neondb", "neon.tech", "sslmode", "postgresql+"):
+        assert piece not in output, piece
+    assert "::add-mask::" not in output, "no piece of a malformed value is echoed, not even to mask it"
+
+
+@pytest.mark.parametrize("scheme", ["postgresql", "postgres"])
+def test_a_bare_url_with_either_scheme_goes_through(bash, tmp_path, scheme):
+    result = _ingest_run(bash, tmp_path, SECRET.replace("postgresql://", scheme + "://", 1))
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert (tmp_path / "python_called").exists()
+    assert "::error" not in result.stdout
+
+
+def test_the_password_and_the_url_without_its_scheme_are_masked_before_python_starts(bash, tmp_path):
+    result = _ingest_run(bash, tmp_path, SECRET)
+    lines = result.stdout.splitlines()
+    masked = [_mask_command_value(line) for line in lines if line.startswith("::add-mask::")]
+    without_scheme = SECRET.split("://", 1)[1]
+    without_query = SECRET.split("?", 1)[0]
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert PASSWORD in masked
+    assert without_scheme in masked
+    assert without_query in masked and without_query.split("://", 1)[1] in masked
+    last_mask = max(i for i, line in enumerate(lines) if line.startswith("::add-mask::"))
+    assert last_mask < next(i for i, line in enumerate(lines) if line.startswith("argv: "))
+
+
+def test_what_python_could_print_of_the_url_reaches_the_log_masked(bash, tmp_path):
+    result = _ingest_run(bash, tmp_path, SECRET)
+    echo = next(line for line in result.stdout.splitlines()
+                if line.startswith("Could not parse SQLAlchemy URL"))
+    logged = _as_logged(result, SECRET)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    # Control: the echo is a prefix of the secret, not the secret, so masking
+    # the secret as a whole, which is all GitHub does by itself, leaves the
+    # password in it. The pieces the step registers are what close that.
+    assert SECRET not in echo and PASSWORD in echo
+    assert PASSWORD not in logged
+    assert "***" in next(line for line in logged.splitlines()
+                         if line.startswith("Could not parse SQLAlchemy URL"))
+
+
+def test_a_percent_encoded_password_is_masked_as_the_string_the_log_would_show(bash, tmp_path):
+    # A password with a percent sign or an @ in it is written %25 or %40 in the
+    # URL. The step escapes the % of every mask command (%25), the runner
+    # unescapes it, and the string it registers is the one in the URL.
+    password = "pa%25ss%40word77"
+    secret = SECRET.replace(PASSWORD, password)
+
+    result = _ingest_run(bash, tmp_path, secret)
+    logged = _as_logged(result, secret)
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert password in [_mask_command_value(line) for line in result.stdout.splitlines()
+                        if line.startswith("::add-mask::")]
+    assert "::add-mask::pa%2525ss%2540word77" in result.stdout.splitlines()
+    assert password not in logged and "word77" not in logged
+
+
 def _run_final(bash, inactivity):
     final = _ingest_steps()[-1]
     env = {"OUTCOMES": scrape_tests._render(final["env"]["OUTCOMES"],
@@ -503,9 +676,15 @@ def test_the_closing_step_turns_the_run_red_when_the_inactivity_check_failed(bas
     assert "inactivity=failure" in result.stdout
 
 
-# --- ingest-network-tests.yml ----------------------------------------------
+def test_the_closing_step_stays_green_when_the_inactivity_check_did_not_run(bash):
+    # No secret yet: the check is skipped, and an unconfigured workflow never runs red.
+    result = _run_final(bash, "skipped")
 
-NETWORK = WORKFLOWS / "ingest-network-tests.yml"
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "::error" not in result.stdout
+
+
+# --- ingest-network-tests.yml ----------------------------------------------
 
 
 def _network_steps():

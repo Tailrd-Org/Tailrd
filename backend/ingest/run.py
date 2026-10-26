@@ -632,10 +632,15 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
-    from backend.db.database import SessionLocal
 
     lock_url = os.environ.get("DATABASE_URL_DIRECT") or os.environ.get("DATABASE_URL", "")
     try:
+        # Inside the try on purpose: importing the database module builds the
+        # app's engine, and SQLAlchemy answers a connection string it cannot
+        # parse with that string in the message. That belongs in the log only
+        # the way safe_error leaves it, never as a traceback.
+        from backend.db.database import SessionLocal
+
         summary = asyncio.run(run(args, session_factory=SessionLocal, lock_url=lock_url,
                                   ensure=not args.no_schema))
     except Exception as e:
