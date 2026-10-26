@@ -185,7 +185,8 @@ _STUDENT_LEVELS = ("internship", "new_grad")
 def _student(job) -> bool:
     """Whether a listing is a student posting: the level its row will carry
     (taxonomy.classify_experience, as title_fields gives it) is internship or
-    new_grad. A description's years never make a posting either."""
+    new_grad. The description is not needed: the years it asks for only ever
+    give entry or above."""
     from backend.ingest import taxonomy
 
     return taxonomy.classify_experience(job.title or "", job.department or "",

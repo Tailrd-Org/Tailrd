@@ -269,9 +269,9 @@ def listed_status_change(listing_status: str | None, source_platform: str,
     ATSScraper.rejection, None when it passes). A crawler row ('ats') whose
     listing is off target (_RETIRABLE: "location", and "level" from a crawl
     that filters by level) goes off_target, whatever it was; one that passes
-    comes back to active from any hidden or stale state. An "unplaced" listing (no location either way) proves only that
-    the posting is open: it revives a closed row as before, never an
-    off_target one. Other sources' rows (a GitHub-list row adopted into the
+    comes back to active from any hidden or stale state. An "unplaced"
+    listing (no location either way) proves only that the posting is open:
+    it revives a closed row as before, never an off_target one. Other sources' rows (a GitHub-list row adopted into the
     board, LinkedIn/Indeed copies) keep the old rule, listed means active:
     they passed their own source's filters, which are not the crawler's."""
     status = listing_status or LISTING_ACTIVE
@@ -586,7 +586,7 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
         if url not in existing and job.external_id:
             unmatched.setdefault(stored_external_id(board_key, job.external_id), []).append(url)
     by_external = {ext: found[0] for ext, found in unmatched.items() if len(found) == 1}
-    listed = set(listed_urls or ()) | set(by_url)
+    listed = (set(listed_urls or ()) | set(by_url)) if by_external else set()
     for chunk in _chunks(sorted(by_external)):
         found = (db.query(*columns)
                  .filter(ScrapedJob.board_key == board_key, ScrapedJob.external_id.in_(chunk))

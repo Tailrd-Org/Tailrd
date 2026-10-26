@@ -103,6 +103,7 @@ def _inferior_row_filter():
           for platform in aggregator_platforms()),
     )
 
+
 # Only aggregator copies may ever be hidden. Two direct-board rows with the
 # same title are distinct requisitions (per-country variants, multiple
 # openings), their dedup key is the URL, nothing else.
