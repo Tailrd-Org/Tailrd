@@ -149,6 +149,14 @@ jobs:
       # A curl timeout at 300 s therefore means the function itself hit
       # Vercel's ceiling, which is worth a red run. Never raise it past 300:
       # Vercel kills the function there anyway.
+      #
+      # cron-ats and the daily v2 runner (ingest.yml) crawl the same registry.
+      # Until INGEST_V2_RUNNER=1 is set on Vercel (a changed env var needs a
+      # redeploy; it is never set in this workflow) cron-ats crawls its shard
+      # as it always has. With the flag on it leaves every board crawled in
+      # the last 20 hours to the runner and counts them in "boards_skipped_v2",
+      # so a response that skipped its whole shard is the cut-over working, not
+      # a fault, and a board the runner missed is picked up here after 20 hours.
       - name: Trigger ATS scraper
         id: cron_ats
         if: ${{ !cancelled() }}

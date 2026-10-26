@@ -6,7 +6,10 @@ One run, start to end:
   1. a session advisory lock, on DATABASE_URL_DIRECT when set (the pooled
      host's PgBouncer does not keep session locks), so two runs never overlap
   2. the schema: create_all and the boot migrations backend/main.py runs
-     (both idempotent, and silent once applied)
+     (both idempotent, and silent once applied; --no-schema skips both, for a
+     database role with no DDL privilege, since several boot migrations send
+     CREATE INDEX IF NOT EXISTS on every start and Postgres wants table
+     ownership for that)
   3. housekeeping: finished tasks older than a week deleted, and a run a crash
      left ``running`` marked abandoned
   4. one scrape_runs row, and the registry (ats_companies.json) mirrored into
@@ -616,6 +619,9 @@ def parse_args(argv=None):
     parser.add_argument("--dry-run", action="store_true",
                         help="crawl and report what would change, writing nothing")
     parser.add_argument("--trigger", default="manual", help="who started the run (cron, manual)")
+    parser.add_argument("--no-schema", action="store_true",
+                        help="skip create_all and the boot migrations: for a database role with "
+                             "no DDL privilege (the app applies the schema when it deploys)")
     args = parser.parse_args(argv)
     args.concurrency = max(1, args.concurrency)
     args.per_host = max(1, args.per_host)
@@ -626,11 +632,17 @@ def main(argv=None) -> int:
     args = parse_args(argv)
     logging.basicConfig(level=logging.WARNING, stream=sys.stderr,
                         format="%(levelname)s %(name)s: %(message)s")
-    from backend.db.database import SessionLocal
 
     lock_url = os.environ.get("DATABASE_URL_DIRECT") or os.environ.get("DATABASE_URL", "")
     try:
-        summary = asyncio.run(run(args, session_factory=SessionLocal, lock_url=lock_url))
+        # Inside the try on purpose: importing the database module builds the
+        # app's engine, and SQLAlchemy answers a connection string it cannot
+        # parse with that string in the message. That belongs in the log only
+        # the way safe_error leaves it, never as a traceback.
+        from backend.db.database import SessionLocal
+
+        summary = asyncio.run(run(args, session_factory=SessionLocal, lock_url=lock_url,
+                                  ensure=not args.no_schema))
     except Exception as e:
         from backend.ingest.core.pipeline import safe_error
 

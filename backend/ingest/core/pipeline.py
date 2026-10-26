@@ -33,6 +33,7 @@ import logging
 import math
 import os
 import re
+import sys
 import time
 from collections import Counter
 from dataclasses import dataclass, field
@@ -352,20 +353,39 @@ def fingerprint(company_domain: str, company: str, title: str,
 # ─── Errors fit to publish ───────────────────────────────────────────────────
 
 _QUERY_STRING = re.compile(r"(https?://[^\s?#'\"<>]+)\?[^\s#'\"<>]*")
+# user:password@ inside any URL-shaped text. SQLAlchemy 2.0.32 answers a
+# connection string it cannot parse (a pasted `psql '...'` command, quotes or a
+# space around it) with the text it was given, minus the query string, and no
+# environment value matches that whole: DATABASE_URL is the pasted text itself.
+_CREDENTIALS = re.compile(r"(://[^/\s:@'\"<>]*:)([^@\s'\"<>]+)(@)")
 _URL_SECRETS = ("DATABASE_URL", "DATABASE_URL_DIRECT", "ALERT_WEBHOOK_URL")
+
+
+def _adapter_modules():
+    """The adapter modules already imported. Never the registry's discovery:
+    its first use imports every adapter, and through them the database module,
+    so when the connection string is what failed it would fail again in every
+    adapter, and the registry logs each failure with a traceback that carries
+    the message. An adapter that has not been imported has run no request, so
+    its key cannot be in an error message yet."""
+    from backend.ingest import adapters
+
+    loaded = getattr(adapters, "_registry", None)
+    if loaded is not None:
+        return list(loaded.values())
+    return [module for name, module in list(sys.modules.items())
+            if name.startswith("backend.ingest.adapters.") and module is not None]
 
 
 def _secret_values() -> list[str]:
     """Values that must never reach a log line or source_health: every
-    adapter's REQUIRED_ENV value (Jooble's key sits in its URL path), the
-    connection strings and their passwords, and the alert webhook."""
+    loaded adapter's REQUIRED_ENV value (Jooble's key sits in its URL path),
+    the connection strings and their passwords, and the alert webhook."""
     from urllib.parse import urlsplit
 
-    from backend.ingest import adapters
-
     names = set(_URL_SECRETS)
-    for platform in adapters.adapter_platforms():
-        required = getattr(adapters.get_adapter(platform), "REQUIRED_ENV", ()) or ()
+    for module in _adapter_modules():
+        required = getattr(module, "REQUIRED_ENV", ()) or ()
         names.update([required] if isinstance(required, str) else required)
     values = set()
     for name in names:
@@ -377,6 +397,10 @@ def _secret_values() -> list[str]:
                 password = urlsplit(value).password
             except ValueError:
                 password = None
+            if not password:
+                # Not a URL as it stands: `psql '...'`, quotes, a leading space.
+                found = _CREDENTIALS.search(value)
+                password = found.group(2) if found else None
             if password and len(password) >= 4:
                 values.add(password)
     return sorted(values, key=len, reverse=True)
@@ -385,9 +409,11 @@ def _secret_values() -> list[str]:
 def safe_error(error) -> str:
     """An error as text fit for the public workflow log and for
     source_health.last_error: URLs lose their query strings (API keys ride
-    in them) and every secret value is masked. At most 500 characters."""
+    in them), the password of any user:password@ is masked whether or not it
+    is one of ours, and so is every secret value. At most 500 characters."""
     message = repr(error) if isinstance(error, BaseException) else str(error)
     message = _QUERY_STRING.sub(r"\1?[redacted]", message)
+    message = _CREDENTIALS.sub(r"\1[redacted]\3", message)
     for value in _secret_values():
         message = message.replace(value, "[redacted]")
     return message[:500]

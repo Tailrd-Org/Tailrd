@@ -8,10 +8,15 @@ The lock test runs when INGEST_TEST_POSTGRES_URL names a scratch Postgres
 import asyncio
 import datetime
 import json
+import logging
 import os
+import subprocess
+import sys
 import types
+from pathlib import Path
 
 import pytest
+from sqlalchemy.exc import ArgumentError
 from sqlalchemy.orm import sessionmaker
 
 from backend.data import company_registry
@@ -261,6 +266,102 @@ def test_errors_are_published_without_secrets(monkeypatch):
     assert "hunter2pw" not in message and "[redacted]" in message
 
 
+# A connection string pasted wrongly into the secret. SQLAlchemy 2.0.32 answers
+# one it cannot parse with the text it was given, minus the query string; no
+# environment value is that text, and the workflow log is public.
+PASSWORD = "s3cr3tPWxyz9"
+GOOD_URL = f"postgresql://ingest:{PASSWORD}@ep-cool-name-123456-pooler.us-east-2.aws.neon.tech/neondb?sslmode=require"
+UNPARSABLE = {
+    "neon's psql command": f"psql '{GOOD_URL}'",
+    "a leading space": f" {GOOD_URL}",
+    "double quotes": f'"{GOOD_URL}"',
+    "single quotes": f"'{GOOD_URL}'",
+}
+
+
+@pytest.mark.parametrize("form", UNPARSABLE.values(), ids=UNPARSABLE.keys())
+def test_safe_error_masks_the_password_of_any_url_even_one_it_was_not_told_about(monkeypatch, form):
+    text = f"Could not parse SQLAlchemy URL from string '{form.split('?')[0]}'"
+
+    monkeypatch.setenv("DATABASE_URL", form)
+    assert PASSWORD not in pipeline.safe_error(ArgumentError(text))
+    # Told about it by the variable, though the variable is not a URL as it stands.
+    assert PASSWORD not in pipeline.safe_error(RuntimeError(f"rejected {PASSWORD}"))
+    monkeypatch.delenv("DATABASE_URL")
+    assert PASSWORD not in pipeline.safe_error(ArgumentError(text))
+    assert "ep-cool-name" in pipeline.safe_error(ArgumentError(text)), "only the password goes"
+
+
+def test_safe_error_does_not_start_the_adapter_registry(monkeypatch):
+    # The registry's first use imports every adapter, and through them the
+    # database module. When the connection string is what failed, each of those
+    # imports fails the same way and the registry logs it with a traceback that
+    # carries the message, password included.
+    def discovery():
+        raise AssertionError("safe_error started the adapter registry")
+
+    monkeypatch.setattr(adapters, "_registry", None)
+    monkeypatch.setattr(adapters, "_adapters", discovery)
+
+    assert pipeline.safe_error(RuntimeError("boom")) == "RuntimeError('boom')"
+
+
+def test_safe_error_still_masks_the_key_of_an_adapter_that_is_loaded(monkeypatch):
+    module = types.ModuleType("backend.ingest.adapters.fake_keyed")
+    module.REQUIRED_ENV = ("FAKE_KEYED_API_KEY",)
+    monkeypatch.setattr(adapters, "_registry", None)
+    monkeypatch.setitem(sys.modules, "backend.ingest.adapters.fake_keyed", module)
+    monkeypatch.setenv("FAKE_KEYED_API_KEY", "k3y-value-123")
+
+    assert "k3y-value-123" not in pipeline.safe_error(RuntimeError("GET /k3y-value-123/jobs"))
+
+
+class _UnparsableDatabase(types.ModuleType):
+    """backend.db.database as it is when the connection string will not parse:
+    importing the engine from it raises what create_engine raises."""
+
+    def __getattr__(self, name):
+        if name == "SessionLocal":
+            raise ArgumentError("Could not parse SQLAlchemy URL from string "
+                                f"'{os.environ['DATABASE_URL'].split('?')[0]}'")
+        raise AttributeError(name)
+
+
+@pytest.mark.parametrize("form", UNPARSABLE.values(), ids=UNPARSABLE.keys())
+def test_a_connection_string_sqlalchemy_cannot_parse_is_logged_without_its_password(
+        monkeypatch, caplog, capsys, form):
+    monkeypatch.setenv("DATABASE_URL", form)
+    monkeypatch.delenv("DATABASE_URL_DIRECT", raising=False)
+    monkeypatch.setattr(adapters, "_registry", None)
+    monkeypatch.setitem(sys.modules, "backend.db.database", _UnparsableDatabase("backend.db.database"))
+
+    with caplog.at_level(logging.WARNING):
+        assert runner.main([]) == 1
+
+    captured = capsys.readouterr()
+    everything = caplog.text + captured.out + captured.err
+    assert "ingest run failed" in everything and "[redacted]" in everything
+    assert PASSWORD not in everything
+
+
+@pytest.mark.parametrize("form", UNPARSABLE.values(), ids=UNPARSABLE.keys())
+def test_the_runner_cli_prints_none_of_a_connection_string_it_cannot_parse(form):
+    # The real thing, in a fresh interpreter: the real SQLAlchemy and the real
+    # backend/db/database.py. CI installs SQLAlchemy 2.0.32, the version that
+    # puts the string in the error.
+    repo = Path(__file__).resolve().parents[3]
+    env = {key: value for key, value in os.environ.items()
+           if key not in ("DATABASE_URL", "DATABASE_URL_DIRECT")}
+    env.update(DATABASE_URL=form, PYTHONPATH=str(repo))
+
+    result = subprocess.run([sys.executable, "-m", "backend.ingest.run", "--no-schema", "--dry-run"],
+                            cwd=repo, env=env, capture_output=True, text=True, timeout=120)
+
+    assert result.returncode == 1, result.stdout + result.stderr
+    assert PASSWORD not in result.stdout + result.stderr
+    assert "ingest run failed" in result.stderr
+
+
 def test_without_a_postgres_url_there_is_nothing_to_lock():
     with runner.run_lock(None) as locked:
         assert locked
@@ -282,3 +383,21 @@ def test_two_runs_never_overlap_on_postgres(db_session, board, capsys):
         assert json.loads(capsys.readouterr().out.splitlines()[-1])["event"] == "skipped"
     with runner.run_lock(url) as again:
         assert again
+
+
+def test_main_skips_the_schema_step_only_when_asked(monkeypatch):
+    """--no-schema is how a database role with no DDL privilege runs the
+    runner: several boot migrations send CREATE INDEX IF NOT EXISTS on every
+    start, and Postgres wants table ownership for that even when the index
+    exists."""
+    seen = []
+
+    async def fake_run(args, **kwargs):
+        seen.append(kwargs["ensure"])
+        return {"status": "completed"}
+
+    monkeypatch.setattr(runner, "run", fake_run)
+
+    assert runner.main(["--no-schema"]) == 0
+    assert runner.main([]) == 0
+    assert seen == [False, True]
