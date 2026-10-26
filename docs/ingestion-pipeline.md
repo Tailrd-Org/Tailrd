@@ -1618,7 +1618,9 @@ production with nothing able to stop it (DECISIONS 21):
   switch is still off, such rows flap. The orphan sweep of `cron-freshness`
   follows the switch as well: off, it retires an orphan row for its level and
   restores none (`entry_level_only`), so merging gives back no row production
-  had retired for its level.
+  had retired for its level. The runner's own sweep keeps every level, so while
+  the runner runs with the switch off it restores those orphan rows, and
+  `cron-freshness` retires them again.
 - **On** (`1`, `true`, `yes` or `on`): `cron-ats` stores every experience level
   (US and Canadian postings only) and crawls every enabled board, the
   adapters' too, as the runner does. The orphan sweep keeps every level then,
