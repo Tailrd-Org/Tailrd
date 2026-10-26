@@ -109,7 +109,7 @@ DEAD_HTTP_STATUSES = (404, 410)
 # footers say "can't find the job you're looking for?").
 DEAD_BODY_RE = re.compile(
     r"no longer accepting applications"
-    r"|this (?:job|position|posting|role|requisition) is no longer (?:available|active|open)"
+    r"|this (?:job|position|posting|role|requisition) is no longer (?:available|active|open|posted)"
     r"|job (?:posting )?(?:is )?no longer (?:available|active|open)"
     # "not available" only when nothing qualifies it: a live posting may say
     # "this position is not available for relocation / to remote candidates".

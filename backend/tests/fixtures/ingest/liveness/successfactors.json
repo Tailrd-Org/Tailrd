@@ -147,7 +147,6 @@
    "url": "https://careers.leonardodrs.com/job/San-Diego-Software-Engineer-CA-92127/1298209000",
    "origin": "dev branch row, listing_status=expired, changed 2026-08-01",
    "evidence": "the page says 'Sorry, this position is no longer posted. Please search again.' and the site's search no longer lists it",
-   "known_gap": "DEAD_BODY_RE has no 'no longer posted' wording, so the check reads this closed Recruiting Marketing page as unknown",
    "expect": {
     "verdict": "dead"
    },
@@ -161,7 +160,8 @@
       "content-type": "text/html; charset=utf-8"
      }
     }
-   ]
+   ],
+   "note": "SAP Recruiting Marketing's closed page says 'this position is no longer posted'"
   }
  ]
 }
