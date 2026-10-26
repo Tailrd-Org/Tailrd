@@ -1,13 +1,21 @@
 import { describe, it, expect, beforeEach, vi } from "vitest";
-import { render, screen, fireEvent, waitFor } from "@testing-library/react";
+import { act, render, screen, fireEvent, waitFor } from "@testing-library/react";
 import { MemoryRouter } from "react-router-dom";
 import SetupWizard from "../SetupWizard";
 import { AuthContext } from "../../auth/AuthContext";
 
 const putMock = vi.fn().mockResolvedValue({ data: {} });
 const postMock = vi.fn().mockResolvedValue({ data: { id: 1, profile: { name: "Jane Doe" } } });
+// GET /jobs/levels: which experience options have live jobs. Failing (not known) unless a test says.
+const getMock = vi.fn();
 const navigateMock = vi.fn();
-vi.mock("../../auth/api", () => ({ default: { put: (...a: unknown[]) => putMock(...a), post: (...a: unknown[]) => postMock(...a) } }));
+vi.mock("../../auth/api", () => ({
+  default: {
+    put: (...a: unknown[]) => putMock(...a),
+    post: (...a: unknown[]) => postMock(...a),
+    get: (...a: unknown[]) => getMock(...a),
+  },
+}));
 vi.mock("react-router-dom", async (orig) => ({
   ...(await orig<typeof import("react-router-dom")>()),
   useNavigate: () => navigateMock,
@@ -61,6 +69,8 @@ describe("SetupWizard", () => {
     navigateMock.mockClear();
     postMock.mockClear();
     postMock.mockResolvedValue({ data: { id: 1, profile: { name: "Jane Doe" } } });
+    getMock.mockReset();
+    getMock.mockRejectedValue(new Error("offline"));
   });
 
   it("has no 'I'll do this later' skip button on the resume step", () => {
@@ -199,6 +209,63 @@ describe("SetupWizard", () => {
     // The two-option labels are gone.
     expect(screen.queryByText("Internship / Co-op")).toBeNull();
     expect(screen.queryByText("New Grad / Entry Level")).toBeNull();
+  });
+
+  /** Step 3 of the wizard, ready to read its experience options. */
+  function advanceToExperienceStep() {
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // welcome -> role
+    fireEvent.click(screen.getByText("Software Engineering"));
+    const countrySelect = screen.getByText("Select country").closest("select") as HTMLSelectElement;
+    fireEvent.change(countrySelect, { target: { value: "CA" } });
+    fireEvent.click(screen.getByRole("button", { name: /next/i })); // role -> experience
+  }
+
+  const offeredLevels = () =>
+    Array.from(document.querySelectorAll('input[name="experience"]'))
+      .map((input) => input.closest("label")?.textContent?.trim());
+
+  it("offers only the experience levels that have live jobs", async () => {
+    // Production stores only internships and new grads until every level is ingested.
+    getMock.mockResolvedValue({ data: { levels: ["intern_new_grad"] } });
+    renderWizard();
+    advanceToExperienceStep();
+    await waitFor(() => expect(offeredLevels()).toEqual(["Intern/New Grad"]));
+    expect(getMock).toHaveBeenCalledWith("/jobs/levels");
+    expect(screen.queryByText("Senior Level")).toBeNull();
+  });
+
+  it("keeps the options in order, with their labels, when several levels have jobs", async () => {
+    getMock.mockResolvedValue({ data: { levels: ["director", "mid", "intern_new_grad"] } });
+    renderWizard();
+    advanceToExperienceStep();
+    await waitFor(() => expect(offeredLevels()).toEqual(["Intern/New Grad", "Mid Level", "Director/Executive"]));
+  });
+
+  it("still offers all six when the list of levels cannot be read", async () => {
+    renderWizard(); // the lookup fails
+    advanceToExperienceStep();
+    await waitFor(() => expect(getMock).toHaveBeenCalled());
+    expect(offeredLevels()).toEqual([
+      "Intern/New Grad", "Entry Level", "Mid Level", "Senior Level", "Lead/Staff", "Director/Executive",
+    ]);
+  });
+
+  it("clears a pick whose option turns out to have no jobs, and asks again", async () => {
+    let answer: (value: unknown) => void = () => {};
+    getMock.mockReturnValue(new Promise((resolve) => (answer = resolve)));
+    renderWizard();
+    advanceToExperienceStep();
+    // The list is slow, so every option shows and one is picked ...
+    fireEvent.click(screen.getByText("Senior Level"));
+    expect((screen.getByLabelText("Senior Level") as HTMLInputElement).checked).toBe(true);
+    // ... then the list arrives: only Intern/New Grad has jobs.
+    await act(async () => {
+      answer({ data: { levels: ["intern_new_grad"] } });
+    });
+    await waitFor(() => expect(offeredLevels()).toEqual(["Intern/New Grad"]));
+    expect((screen.getByLabelText("Intern/New Grad") as HTMLInputElement).checked).toBe(false);
+    fireEvent.click(screen.getByRole("button", { name: /next/i }));
+    expect(screen.getByText(/select what you're looking for/i)).toBeInTheDocument();
   });
 
   it("saves a senior choice as that one level, for the feed and for alerts", async () => {

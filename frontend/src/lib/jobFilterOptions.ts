@@ -154,6 +154,56 @@ export function experienceLevelsOrDefault(values: unknown): string[] {
   return levels.length > 0 ? levels : [...DEFAULT_EXPERIENCE_LEVELS];
 }
 
+/**
+ * GET /jobs/levels: the option values that have live jobs behind them. Anything the
+ * pages cannot use (an error page from a proxy, an older backend, an empty list, only
+ * keys that are not options) is null, which means "not known": see
+ * availableExperienceOptions.
+ */
+export function parseAvailableLevels(data: unknown): string[] | null {
+  const list = (data as { levels?: unknown } | null | undefined)?.levels;
+  if (!Array.isArray(list)) return null;
+  const keys = list.filter((v): v is string => typeof v === "string" && EXPERIENCE_VALUES.includes(v));
+  return keys.length > 0 ? keys : null;
+}
+
+/**
+ * The options worth offering, given the ones that have live jobs (parseAvailableLevels).
+ *
+ * An option with no jobs behind it is a silent dead end: ticking it returns an empty
+ * feed. Until every level is ingested, production stores only internships and new
+ * grads, so the filter bar and onboarding offer just what the catalogue holds. The
+ * options keep EXPERIENCE_OPTIONS' order and labels. When the list is not known
+ * (still loading, the request failed) every option stays on offer, so a failed lookup
+ * never takes the filter away.
+ */
+export function availableExperienceOptions(
+  available: readonly string[] | null | undefined,
+): typeof EXPERIENCE_OPTIONS {
+  if (!available) return EXPERIENCE_OPTIONS;
+  const offered = EXPERIENCE_OPTIONS.filter((o) => available.includes(o.value));
+  return offered.length > 0 ? offered : EXPERIENCE_OPTIONS;
+}
+
+/**
+ * experienceLevelsOrDefault, held to the options on offer.
+ *
+ * A saved level whose option is hidden has no checkbox, so it could not be cleared and
+ * it would return an empty feed: it is dropped from the active filter. When nothing is
+ * left, the default levels that are on offer, and when none of those are, every option
+ * on offer. The result is never empty.
+ */
+export function experienceLevelsOnOffer(
+  values: unknown,
+  available: readonly string[] | null | undefined,
+): string[] {
+  const offered = availableExperienceOptions(available).map((o) => o.value);
+  const kept = normalizeExperienceLevels(values).filter((v) => offered.includes(v));
+  if (kept.length > 0) return kept;
+  const defaults = DEFAULT_EXPERIENCE_LEVELS.filter((v) => offered.includes(v));
+  return defaults.length > 0 ? defaults : offered;
+}
+
 // scraped_jobs.experience_level -> what a job card says.
 const LEVEL_LABELS: Record<string, string> = {
   internship: "Internship",
