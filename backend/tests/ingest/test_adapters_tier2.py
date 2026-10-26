@@ -1693,13 +1693,20 @@ JIBE_ROBOTS = fixture_text("jibe_robots.txt")  # the real file: "Allow: /" and "
 
 class JibeServer:
     """One Jibe career site: robots.txt and the jobs API, which answers the
-    requested ``page`` of ``limit`` postings under a ``totalCount``. ``totals``
-    scripts the count per request (the last repeats). Records every request."""
+    requested ``page`` of ``limit`` postings under a ``totalCount``. ``total`` is
+    the count as the reply carries it (a number, None for null, a word) and
+    ``omit_total`` drops the field; ``totals`` scripts the count per request (the
+    last repeats); ``ignore_page`` serves page 1 whatever the page; ``empty_pages``
+    answers those pages with no postings. Records every request."""
 
-    def __init__(self, items=None, *, total=None, totals=None, robots=JIBE_ROBOTS):
+    def __init__(self, items=None, *, total=_MATCHES_ROWS, totals=None, omit_total=False, ignore_page=False,
+                 empty_pages=(), robots=JIBE_ROBOTS):
         self.items = list(items or [])
-        self.total = len(self.items) if total is None else total
+        self.total = len(self.items) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.ignore_page = ignore_page
+        self.empty_pages = set(empty_pages)
         self.robots = robots
         self.requests: list[httpx.Request] = []
 
@@ -1710,9 +1717,12 @@ class JibeServer:
         if request.url.path == "/api/jobs":
             page, limit = int(request.url.params["page"]), int(request.url.params["limit"])
             total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
-            start = (page - 1) * limit
-            return httpx.Response(200, json={"jobs": self.items[start:start + limit], "totalCount": total, "count": total,
-                                             "locations": [], "filter": {}})
+            start = 0 if self.ignore_page else (page - 1) * limit
+            body = {"jobs": [] if page in self.empty_pages else self.items[start:start + limit],
+                    "locations": [], "filter": {}}
+            if not self.omit_total:
+                body.update(totalCount=total, count=total)
+            return httpx.Response(200, json=body)
         return httpx.Response(404)
 
     def pages(self) -> list[int]:
@@ -1815,8 +1825,63 @@ async def test_jibe_a_posting_it_cannot_read_makes_the_board_incomplete(clock):
 
 
 @pytest.mark.asyncio
-async def test_jibe_a_site_with_no_postings_is_complete_and_empty(clock):
-    assert await jibe_list(JibeServer([])) == ([], True, 0)
+async def test_jibe_an_empty_site_is_never_called_complete(clock):
+    """An empty first page looks the same whether the site is empty or its search
+    backend hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (JibeServer([], total=0), JibeServer([], omit_total=True), JibeServer([], total=None)):
+        assert await jibe_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_jibe_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, monkeypatch, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items(), **count)
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2, 3]  # without a trusted count only an empty page ends the walk
+    assert (len(jobs), complete, total) == (4, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_count_below_the_listing_is_a_contradiction(clock):
+    jobs, complete, total = await jibe_list(JibeServer(jibe_items(), total=1))
+    assert (len(jobs), complete, total) == (4, False, 1)
+
+
+@pytest.mark.asyncio
+async def test_jibe_an_empty_page_in_the_middle_of_the_walk_is_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 1)
+    server = JibeServer(jibe_items(), empty_pages={2})
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2]
+    assert (len(jobs), complete, total) == (1, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_server_that_ignores_page_is_stopped_and_incomplete(clock, monkeypatch):
+    monkeypatch.setattr(jibe, "PAGE_SIZE", 2)
+    server = JibeServer(jibe_items(), ignore_page=True)
+    jobs, complete, total = await jibe_list(server)
+    assert server.pages() == [1, 2]  # the second page repeats the first: no third request
+    assert (len(jobs), complete, total) == (2, False, 4)
+
+
+@pytest.mark.asyncio
+async def test_jibe_a_crawl_delay_no_crawl_can_wait_out_is_refused_before_any_request(clock):
+    server = JibeServer(jibe_items(), robots="User-agent: *\nAllow: /\nCrawl-delay: 3600\n")
+    with pytest.raises(RuntimeError, match="crawl delay of 3600"):
+        await jibe_list(server)
+    assert [r.url.path for r in server.requests] == ["/robots.txt"]
+    http._robots.clear()  # robots.txt is read once per host per process
+    ok = JibeServer(jibe_items(), robots="User-agent: *\nCrawl-delay: 60\n")
+    assert (await jibe_list(ok))[1] is True  # a minute is the longest it will wait
+
+
+def test_jibe_count_reads_only_whole_non_negative_numbers():
+    assert [jibe._count(v) for v in (253, "253", " 7 ", 3.0, 0, "0")] == [253, 253, 7, 3, 0, 0]
+    assert [jibe._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio

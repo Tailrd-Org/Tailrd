@@ -15,7 +15,8 @@ or removed. Every posting arrives with its full description, so there is no
 second request per job and no ``fetch_job``.
 
 Every Jibe site checked asks for ``Crawl-delay: 5`` in its robots.txt, so
-``RATE_LIMIT`` is five seconds, and a site that asks for more is given more. A
+``RATE_LIMIT`` is five seconds, a site that asks for more is given up to a
+minute, and one that asks for more than that is skipped with an error. A
 page of 100 postings is 1 to 3 MB of JSON, so a very large board (Costco lists
 20,000 postings) takes minutes and, past the crawl deadline, stops after its
 newest pages and reports itself incomplete.
@@ -60,6 +61,9 @@ MAX_PAGES = max(1, int(os.getenv("JIBE_MAX_PAGES", "250")))
 # fetched; later pages only serve reconciliation, so they stop at the deadline.
 HEAD_PAGES = min(MAX_PAGES, 3)
 DESCRIPTION_MAX_CHARS = 10_000
+# The longest Crawl-delay honoured: at 100 postings a page, a minute between pages
+# is already an hour for a thousand postings. A site that asks for more is skipped.
+MAX_CRAWL_DELAY = 60.0
 
 _HOST_RE = re.compile(r"^[a-z0-9-]+(?:\.[a-z0-9-]+)+$")
 _COMMITMENT_WORDS = {"FULL_TIME": "Full-time", "PART_TIME": "Part-time", "CONTRACTOR": "Contract",
@@ -162,16 +166,34 @@ def _to_job(item, host: str, slug: str, company_name: str) -> ATSJob | None:
     )
 
 
-def _crawl_delay(host: str) -> float:
+def _crawl_delay(slug: str, host: str) -> float:
     """The seconds between requests: ours, or the site's Crawl-delay when longer.
     ``http.robots_allowed`` has just parsed the site's robots.txt and kept it;
-    if that ever stops being so, the five seconds still stand."""
+    if that ever stops being so, the five seconds still stand. A delay no crawl
+    can wait out raises, so ``source_health`` records why the board is skipped."""
     rules = getattr(http, "_robots", {}).get(f"https://{host}")
     try:
         delay = float(rules.crawl_delay(http.USER_AGENT) or 0) if rules is not None else 0.0
     except (TypeError, ValueError):
         delay = 0.0
+    if delay > MAX_CRAWL_DELAY:
+        raise RuntimeError(f"jibe/{slug}: {host} asks for a crawl delay of {delay:g} s, more than the "
+                           f"{MAX_CRAWL_DELAY:g} s a crawl can wait between requests")
     return max(RATE_LIMIT, delay)
+
+
+def _count(value) -> int | None:
+    """A reported count as a non-negative integer, or None when the reply gives
+    none that can be trusted: absent, null, a boolean, a word, a negative or a
+    fraction. A missing count used to read as 0 beside hundreds of listed
+    postings, so a bad count must never pass for a small one."""
+    if isinstance(value, bool) or value is None:
+        return None
+    if isinstance(value, float):
+        value = int(value) if value.is_integer() else None
+    elif isinstance(value, str):
+        value = int(value) if value.strip().isdigit() else None
+    return value if isinstance(value, int) and value >= 0 else None
 
 
 async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
@@ -179,21 +201,28 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
     """Every posting on one Jibe career site, newest first, unfiltered, with its
     description.
 
-    Returns (listings, complete, totalCount). ``complete`` needs the crawl to have
-    reached the last page (not the deadline or the page cap), the count to have
-    stayed the same, every posting to have been readable, and as many distinct
-    postings listed as the site counts: a posting removed between two page
-    requests shifts the list up by one and skips a live posting, and that must
-    read as partial, never as a takedown."""
+    Returns (listings, complete, totalCount). ``complete`` is True only with
+    positive evidence that the whole list was read, all of:
+    - every page reported ``totalCount`` as a whole number, the same one on every
+      page (a posting removed between two page requests changes it, and shifts
+      the list up by one so a live posting is skipped), and it is above zero;
+    - the crawl ran to the end (the count reached, or an empty page), not to the
+      deadline or the page cap, and no page repeated postings already seen (a
+      server that ignores ``page``);
+    - every posting was readable;
+    - exactly as many distinct postings were listed as the site counts.
+    A missing, null, zero or non-numeric count, and an empty site, read as
+    partial, never as a takedown."""
     host = _host(slug, config)
     if not await http.robots_allowed(client, _page_url(host, 1)):
         raise PermissionError(f"jibe/{slug}: {host} robots.txt does not allow TailrdBot to read its jobs")
-    pause = _crawl_delay(host)
+    pause = _crawl_delay(slug, host)
     jobs: list[ATSJob] = []
     seen: set[str] = set()
-    totals: set[int] = set()
+    counts: list[int | None] = []
     unreadable = 0
-    ended = False
+    fetched = 0
+    ended = repeated = False
     for page in range(1, MAX_PAGES + 1):
         if page > HEAD_PAGES and deadline is not None and time.monotonic() >= deadline:
             break
@@ -204,10 +233,9 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
         postings = data.get("jobs") if isinstance(data, dict) else None
         if not isinstance(postings, list):
             raise ValueError(f"jibe/{slug}: {host} answered the jobs API without a jobs list")
-        try:
-            totals.add(int(data.get("totalCount") or 0))
-        except (TypeError, ValueError):
-            totals.add(0)
+        count = _count(data.get("totalCount"))
+        counts.append(count)
+        fresh = 0
         for item in postings:
             job = _to_job(item, host, slug, company_name)
             if job is None:
@@ -215,9 +243,20 @@ async def list_jobs(client: httpx.AsyncClient, slug: str, company_name: str, *,
             elif job.url not in seen:  # a posting added mid-crawl shifts one onto the next page
                 seen.add(job.url)
                 jobs.append(job)
-        if not postings or page * PAGE_SIZE >= max(totals):
+                fresh += 1
+        fetched += len(postings)
+        if not postings:
             ended = True
             break
-    total = max(totals, default=0)
-    complete = ended and len(totals) == 1 and not unreadable and len(seen) >= total
+        if not fresh:
+            repeated = True  # the same postings again: the server is not honouring page
+            break
+        if count and fetched >= count:  # a count of 0 beside postings is a contradiction, not the end
+            ended = True
+            break
+    known = [count for count in counts if count is not None]
+    total = max(known, default=0)
+    steady = bool(counts) and len(known) == len(counts) and len(set(known)) == 1
+    complete = (ended and not repeated and not unreadable and steady and total > 0
+                and len(seen) == total)
     return jobs, complete, total
