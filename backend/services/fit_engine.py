@@ -749,9 +749,9 @@ def refresh_calibration(db, *, engine: Optional[FitEngine] = None,
     {n_candidates, n_pairs, in_charge} per family and for the global group.
     """
     from backend.db.models import JobMatchScore, MatchCalibration, ScrapedJob
-    from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES
 
     engine = engine or get_engine()
+    closed = _closed_statuses()
     when = now or dt.datetime.utcnow()
     rows = (
         db.query(JobMatchScore.user_id, JobMatchScore.raw_score, JobMatchScore.resume_fingerprint,
@@ -771,7 +771,7 @@ def refresh_calibration(db, *, engine: Optional[FitEngine] = None,
             newest[user_id] = mark
     groups: dict[tuple[str, str], tuple[list[float], list[str]]] = defaultdict(lambda: ([], []))
     for user_id, raw, fingerprint, _, family, status in rows:
-        if fingerprint != newest[user_id][1] or status in HIDDEN_LISTING_STATUSES:
+        if fingerprint != newest[user_id][1] or status in closed:
             continue
         person = hashlib.sha256(str(user_id).encode("utf-8")).hexdigest()
         keys = [("global", GLOBAL_KEY)]
@@ -1011,6 +1011,17 @@ def delete_user_traces(db, user_id: int) -> int:
 TRACE_RETENTION_DAYS = 90
 #: Traces deleted per call at most (one sweep), so the delete stays a short transaction.
 TRACE_PRUNE_LIMIT = 5000
+
+
+def _closed_statuses() -> tuple[str, ...]:
+    """The listing statuses a job counts as closed for trace pruning and the calibration references
+    (D-153): removed, expired and off_target. Never stale: since scraper v2 a stale job is hidden from
+    the feed, but it is no closure (usually a board crawl that is behind) and most come back."""
+    from backend.services.listing_freshness import CLOSED_LISTING_STATUSES, LISTING_OFF_TARGET
+
+    return CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET,)
+
+
 @dataclasses.dataclass(frozen=True)
 class PruneResult:
     """What one ``prune_traces`` call did: traces deleted (each with its score row), and traces of
@@ -1024,8 +1035,8 @@ class PruneResult:
 def prune_traces(db, *, limit: int = TRACE_PRUNE_LIMIT, now: Optional[dt.datetime] = None,
                  retention_days: int = TRACE_RETENTION_DAYS) -> PruneResult:
     """Delete at most ``limit`` traces, each with its score row, of closed jobs (a listing status in
-    ``HIDDEN_LISTING_STATUSES``: removed, expired, off_target; never active, stale, NULL or a status
-    this code does not know) scored more than ``retention_days`` ago (D-153).
+    ``_closed_statuses()``: removed, expired, off_target; never active, stale, NULL or a status this
+    code does not know) scored more than ``retention_days`` ago (D-153).
 
     * Bounded reads: one SELECT of at most ``limit`` traces, then user ids until every subject of
       the batch is found (one HMAC per user, never one per score row). Score rows are never loaded:
@@ -1040,13 +1051,12 @@ def prune_traces(db, *, limit: int = TRACE_PRUNE_LIMIT, now: Optional[dt.datetim
     from sqlalchemy import delete, select, tuple_
 
     from backend.db.models import JobMatchScore, MatchTrace, ScrapedJob, User
-    from backend.services.listing_freshness import HIDDEN_LISTING_STATUSES
 
     salt = _trace_salt()
     if limit <= 0:
         return PruneResult(0, 0)
     cutoff = (now or dt.datetime.utcnow()) - dt.timedelta(days=retention_days)
-    closed = select(ScrapedJob.id).where(ScrapedJob.listing_status.in_(HIDDEN_LISTING_STATUSES))
+    closed = select(ScrapedJob.id).where(ScrapedJob.listing_status.in_(_closed_statuses()))
     traces = (
         db.query(MatchTrace.id, MatchTrace.subject_id, MatchTrace.job_id)
         .filter(MatchTrace.scored_at < cutoff, MatchTrace.job_id.in_(closed))

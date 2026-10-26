@@ -951,6 +951,20 @@ def test_inactive_jobs_are_left_out_of_the_references(db_session):
     assert rows[("family", "Data Analysis")].samples == [0.5]
 
 
+def test_a_stale_job_stays_in_the_references(db_session):
+    """stale is hidden from the feed since scraper v2, but it is no closure: most stale jobs
+    come back, so their scores stay samples (D-153)."""
+    jobs = {status: _job(db_session, n, family="Data Analysis")
+            for n, status in enumerate(("stale", "off_target", "expired"))}
+    for raw, (status, job) in zip((0.4, 0.6, 0.8), jobs.items()):
+        job.listing_status = status
+        _bank_raw(db_session, job, "fit1:aaa", raw)
+    db_session.commit()
+    refresh_calibration(db_session)
+    rows = {(row.scope, row.key): row for row in db_session.query(MatchCalibration).all()}
+    assert rows[("family", "Data Analysis")].samples == [0.4]
+
+
 def test_a_failing_sqlite_rebuild_leaves_the_original_table_intact():
     from backend.migrations.add_fit_engine import run_migration
 
