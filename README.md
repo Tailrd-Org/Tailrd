@@ -65,7 +65,7 @@ Merging the v2 code changes no volumes. Two switches start the spending, and bot
 - The `INGEST_DATABASE_URL` secret lets the daily workflow `ingest.yml` run the runner. Without it the workflow ends green and does nothing.
 - The Vercel variable `CRON_ATS_V2_CATALOGUE=1` makes `cron-ats` store every experience level and crawl the adapters' boards. Unset (the default), `cron-ats` keeps the student catalogue, internships and new grads on the five older platforms, as before v2, and the Jobs page offers only the experience levels that have jobs.
 
-Turn them on in this order: the secret, a green first run, `INGEST_V2_RUNNER=1`, then `CRON_ATS_V2_CATALOGUE=1`. A changed Vercel variable needs a redeploy.
+Turn them on in this order: the secret, a green first run, the Vercel variable `INGEST_V2_RUNNER=1` (it makes `cron-ats` leave the boards the runner crawled to it), then `CRON_ATS_V2_CATALOGUE=1`. A changed Vercel variable needs a redeploy.
 
 ### Run it locally
 
@@ -190,7 +190,7 @@ Add an entry to the `companies` array in `backend/data/ats_companies.json`. No c
 | `config` | An object the adapter reads, for example `{"host": "...", "site": "..."}` for Oracle. Omit it when the adapter needs none. Workday entries carry `workday_url_template` instead |
 | `enabled`, `disabled_reason` | `false` parks a board, and the reason says why |
 
-The Oracle, iCIMS and Jibe boards (221 of the 1,315 enabled boards) were held until their adapters' completeness checks were fixed, and are enabled now. Boards parked for the storage budget start their `disabled_reason` with `held:`; leave those off.
+The Oracle, iCIMS and Jibe boards (221 of the 1,315 enabled boards) were held until their adapters' completeness checks were fixed, and are enabled now. Boards parked for the storage budget start their `disabled_reason` with `held:`; leave those off until the Neon plan has room.
 
 To find the platform behind a careers page, run the detector. It prints a registry entry on stdout (JSON) and its evidence on stderr, and exits 0 when it found an ATS, 1 when the page shows none and 2 when the page could not be read:
 
