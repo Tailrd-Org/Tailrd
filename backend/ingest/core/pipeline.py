@@ -824,6 +824,7 @@ def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str)
     sanitized onto ``job``)."""
     from backend.db.models import ScrapedJob
     from backend.services import listing_freshness, logo_cache
+    from backend.services.ats_scraper import web_url
     from backend.services.logo_resolver import domain_from_logo_url, resolve_logo
 
     board_key = snapshot.board_key
@@ -880,7 +881,9 @@ def _new_row(db: Session, job, snapshot, ctx: IngestContext, board_country: str)
                                 derived.get("locations_json"), job.location,
                                 extracted.get("employment_type", "")),
         company_id=_company_id(db, ctx, snapshot.platform, snapshot.slug),
-        apply_url=job.apply_url or None,
+        # The employer's apply link may live on any host (a Jibe site's is
+        # its iCIMS portal), but only ever as an http(s) page.
+        apply_url=job.apply_url if web_url(job.apply_url) else None,
     )
 
 

@@ -31,6 +31,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -687,6 +688,50 @@ def _host_of(url: str) -> str:
     return m.group(1).lower() if m else ""
 
 
+# ─── Posting URLs fit to store ───────────────────────────────────────────────
+# A board's own HTML or JSON can carry any URL: an iCIMS anchor
+# href="javascript:/jobs/1/%0aalert(document.cookie)" passes the adapter's job
+# path check, a Recruitee careers_url keeps whatever scheme it was given, and
+# the feed renders the stored URL as a link (React only warns on javascript:).
+
+# v2 adapters whose every posting URL lives on the career-site host the
+# registry config names (config["host"]); a listing anywhere else is not the
+# board's. Teamtailor's and Jooble's config host is where their feed or API
+# lives, and their postings link elsewhere, so they are not here.
+CONFIG_HOST_PLATFORMS = frozenset({"icims", "jibe", "oracle_hcm", "successfactors", "taleo"})
+
+
+def web_url(url) -> bool:
+    """Whether ``url`` is an absolute http or https URL with a host: the only
+    kind a stored posting or apply link may be."""
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urlsplit(url)
+        return parts.scheme in ("http", "https") and bool(parts.hostname)
+    except ValueError:
+        return False
+
+
+def config_host(config) -> str:
+    """The host a board's registry config names, as the adapters read it
+    ("HTTPS://Careers-Kinaxis.icims.com/" -> "careers-kinaxis.icims.com");
+    "" when it names none."""
+    raw = config.get("host") if isinstance(config, dict) else None
+    return re.sub(r"^https?://", "", str(raw or "").strip().lower()).split("/")[0]
+
+
+def _posting_url_ok(url: str, host: str) -> bool:
+    """A listing's URL is an http(s) page, on ``host`` when one is given. An
+    empty URL passes here as it always has: it is never stored, matched or
+    reconciled."""
+    if not url:
+        return True
+    if not web_url(url):
+        return False
+    return not host or (urlsplit(url).hostname or "") == host
+
+
 _PLATFORM_API_HOSTS = {
     "greenhouse": "boards-api.greenhouse.io",
     "lever": "api.lever.co",
@@ -915,7 +960,13 @@ class ATSScraper:
 
         Raises on fetch failure (callers isolate per-board errors), a failed
         board must never produce an empty snapshot that reads as "everything
-        was taken down"."""
+        was taken down".
+
+        A listing whose URL is not an http(s) page, or (CONFIG_HOST_PLATFORMS)
+        not on the career-site host the board's config names, is dropped,
+        and the snapshot is then partial: it is no posting this catalogue
+        stores, and a stored row of it is left to the stale sweep."""
+        posting_host = ""
         if platform == "greenhouse":
             listings = await self._fetch_greenhouse(client, slug, company_name)
             complete, total = True, len(listings)
@@ -942,11 +993,20 @@ class ATSScraper:
             if adapter is None or not adapter_enabled(platform):
                 return BoardSnapshot(platform=platform, slug=slug, company=company_name,
                                      complete=False)
+            config = load_board_config(platform, slug)
             listings, complete, total = await adapter.list_jobs(
-                client, slug, company_name,
-                config=load_board_config(platform, slug), deadline=self.deadline,
+                client, slug, company_name, config=config, deadline=self.deadline,
             )
             listings = list(listings)
+            if platform in CONFIG_HOST_PLATFORMS:
+                posting_host = config_host(config)
+
+        safe = [job for job in listings if _posting_url_ok(job.url, posting_host)]
+        if len(safe) < len(listings):
+            logger.warning("%s:%s: dropped %d listings whose URL is not an http(s) page%s",
+                           platform, slug, len(listings) - len(safe),
+                           f" on {posting_host}" if posting_host else "")
+            listings, complete = safe, False
 
         from backend.data.company_registry import load_board_countries
 

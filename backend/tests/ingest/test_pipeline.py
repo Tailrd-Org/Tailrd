@@ -100,6 +100,23 @@ def test_new_rows_carry_the_v2_fields(db_session, monkeypatch):
     assert len(row.fingerprint) == 64
 
 
+def test_an_apply_url_is_stored_only_as_an_http_page(db_session, fake_adapter):
+    """Jibe keeps whatever its JSON says. The employer's apply link may live
+    on another host (a Jibe site's is its iCIMS portal), never another scheme."""
+    jobs = [_job(1, apply_url="javascript:alert(document.cookie)"),
+            _job(2, apply_url="https://careers-acme.icims.com/jobs/2/login"),
+            _job(3, apply_url="data:text/html,<script>alert(1)</script>")]
+
+    _ingest(db_session, _snapshot(jobs), _ctx(db_session))
+    detail = _adapter_job(4)
+    fake_adapter.fetch_job_apply_url = "javascript:alert(2)"
+    _ingest(db_session, _snapshot([detail], platform="fakeats"), _ctx(db_session))
+
+    assert {row.url: row.apply_url for row in _rows(db_session)} == {
+        jobs[0].url: None, jobs[1].url: "https://careers-acme.icims.com/jobs/2/login",
+        jobs[2].url: None, detail.url: None}
+
+
 def test_every_level_is_stored(db_session):
     jobs = [_job(1, title="Software Engineering Intern"), _job(2, title="Senior Staff Engineer"),
             _job(3, title="Director of Engineering")]
@@ -379,6 +396,7 @@ def fake_adapter(monkeypatch):
     module = types.ModuleType("fake_adapter")
     module.PLATFORM, module.REQUIRED_ENV = "fakeats", ()
     module.asked = []
+    module.fetch_job_apply_url = None  # a test sets what the detail page says
 
     async def list_jobs(client, slug, company_name, *, config, deadline=None):
         return [], True, 0
@@ -386,7 +404,7 @@ def fake_adapter(monkeypatch):
     async def fetch_job(client, slug, ref, *, config):
         module.asked.append((slug, ref))
         return {"description": "From the detail page.", "employment_type": "Contract",
-                "apply_url": f"https://acme.example/apply/{ref}"}
+                "apply_url": module.fetch_job_apply_url or f"https://acme.example/apply/{ref}"}
 
     module.list_jobs, module.fetch_job = list_jobs, fetch_job
     monkeypatch.setattr(adapters, "_registry", {"fakeats": module})
