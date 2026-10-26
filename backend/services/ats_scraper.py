@@ -738,17 +738,38 @@ _PLATFORM_API_HOSTS = {
     "ashby": "api.ashbyhq.com",
     "smartrecruiters": "api.smartrecruiters.com",
 }
+# v2 adapters whose boards each live on the tenant's own subdomain of the
+# platform (a Teamtailor career site on its own domain names it in config).
+_TENANT_DOMAINS = {"bamboohr": "bamboohr.com", "recruitee": "recruitee.com",
+                   "teamtailor": "teamtailor.com"}
 
 
 def board_host(platform: str, slug: str) -> str:
     """The API host a board's crawl hits. Greenhouse/Lever/Ashby/SmartRecruiters
-    boards share one host per platform; every Workday tenant is its own host.
-    Callers crawling boards concurrently keep one board in flight per host."""
+    boards share one host per platform; every Workday tenant is its own host,
+    and so is a v2 adapter board on a host of its own: the career-site host
+    its config names (CONFIG_HOST_PLATFORMS: Oracle pods, iCIMS portals, Jibe
+    sites; a Teamtailor site on its own domain), or the tenant's subdomain
+    (BambooHR, Recruitee, Teamtailor). Workable, Job Bank and the keyed APIs
+    (USAJOBS, Adzuna, Jooble) serve every board from one host, so the platform
+    stays their key. Callers crawling boards concurrently keep one board in
+    flight per host."""
     if platform == "workday":
         from backend.data.company_registry import load_workday_bases
 
         return _host_of(load_workday_bases().get(slug, "")) or f"workday:{slug}"
-    return _PLATFORM_API_HOSTS.get(platform, platform)
+    if platform in _PLATFORM_API_HOSTS:
+        return _PLATFORM_API_HOSTS[platform]
+    if platform in CONFIG_HOST_PLATFORMS or platform == "teamtailor":
+        from backend.data.company_registry import load_board_config
+
+        host = config_host(load_board_config(platform, slug))
+        if host:
+            return host
+    domain = _TENANT_DOMAINS.get(platform)
+    if domain and (slug or "").strip():
+        return f"{slug.strip().lower()}.{domain}"
+    return platform
 
 
 # ─── Workday helpers ─────────────────────────────────────────────────────────
