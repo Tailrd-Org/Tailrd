@@ -1056,14 +1056,24 @@ class TaleoServer:
     the JSON search by ``pageNo`` and posting pages by job id. ``rows`` are the
     requisitions in order; ``size`` is the page size and ``total`` the count the
     search reports, which may differ from the rows (hidden requisitions).
-    ``totals`` scripts the count per search request (the last repeats)."""
+    ``total`` may also be None (null) or a word, and ``omit_total`` drops the field;
+    ``totals`` scripts the count per search request (the last repeats);
+    ``reported_size`` is the page size the reply claims, ``ignore_page`` serves
+    window 1 whatever the page (echoing it, as the live server would), ``no_echo``
+    leaves ``currentPageNo`` out and ``empty_pages`` answers those pages empty."""
 
-    def __init__(self, rows=None, *, page=None, size=25, total=None, totals=None, robots=None, details=None):
+    def __init__(self, rows=None, *, page=None, size=25, total=_MATCHES_ROWS, totals=None, omit_total=False,
+                 reported_size=None, ignore_page=False, no_echo=False, empty_pages=(), robots=None, details=None):
         self.rows = list(rows or [])
         self.page = fixture_text("taleo_jobsearch_bayshore.html") if page is None else page
         self.size = size
-        self.total = len(self.rows) if total is None else total
+        self.total = len(self.rows) if total is _MATCHES_ROWS else total
         self.totals = list(totals) if totals else None
+        self.omit_total = omit_total
+        self.reported_size = reported_size
+        self.ignore_page = ignore_page
+        self.no_echo = no_echo
+        self.empty_pages = set(empty_pages)
         self.robots = robots
         self.details = details or {}
         self.requests: list[httpx.Request] = []
@@ -1078,10 +1088,16 @@ class TaleoServer:
         if path == "/careersection/rest/jobboard/searchjobs":
             number = json.loads(request.content)["pageNo"]
             total = (self.totals.pop(0) if len(self.totals) > 1 else self.totals[0]) if self.totals else self.total
-            start = (number - 1) * self.size
+            served = 1 if self.ignore_page else number
+            start = (served - 1) * self.size
+            paging = {"pageSize": self.reported_size or self.size}
+            if not self.no_echo:
+                paging["currentPageNo"] = served
+            if not self.omit_total:
+                paging["totalCount"] = total
             return httpx.Response(200, json={
-                "requisitionList": self.rows[start:start + self.size], "facetResults": [],
-                "pagingData": {"currentPageNo": number, "pageSize": self.size, "totalCount": total},
+                "requisitionList": [] if number in self.empty_pages else self.rows[start:start + self.size],
+                "facetResults": [], "pagingData": paging,
                 "queryString": "", "careerSectionUnAvailable": False, "supportedLanguages": ["en"]})
         if path.endswith("/jobdetail.ftl"):
             status, body = self.details.get(request.url.params.get("job"), (404, ""))
@@ -1227,8 +1243,91 @@ async def test_taleo_a_row_it_cannot_read_makes_the_board_incomplete(clock):
 
 
 @pytest.mark.asyncio
-async def test_taleo_a_board_with_no_postings_is_complete_and_empty(clock):
-    assert await taleo_list(TaleoServer([])) == ([], True, 0)
+async def test_taleo_an_empty_board_is_never_called_complete(clock):
+    """An empty first page looks the same whether the board is empty or the search
+    hiccuped; with no count, or a count of zero, nothing says which."""
+    for server in (TaleoServer([]), TaleoServer([], total=None), TaleoServer([], omit_total=True)):
+        assert await taleo_list(server) == ([], False, 0)
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("count", [{"omit_total": True}, {"total": None}, {"total": 0}, {"total": "n/a"}],
+                         ids=["missing", "null", "zero", "word"])
+async def test_taleo_a_count_that_is_missing_null_zero_or_not_a_number_is_never_complete(clock, count):
+    """Each of these used to read as 0 and end the walk after one page as complete."""
+    server = TaleoServer(taleo_rows(100), **count)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1]  # nothing says how far to read
+    assert (len(jobs), complete, total) == (25, False, 0)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_claimed_page_size_of_1000_does_not_end_the_walk_after_one_page(clock):
+    """A page is 25 requisitions; believing the claim read one page of four as the whole."""
+    server = TaleoServer(taleo_rows(100), reported_size=1000)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3, 4]
+    assert (len(jobs), complete, total) == (100, True, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_server_that_ignores_pageno_is_stopped_and_incomplete(clock):
+    """It echoes page 1 each time (the reply says which page it is)."""
+    server = TaleoServer(taleo_rows(100), ignore_page=True)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2]
+    assert (len(jobs), complete, total) == (25, False, 100)
+    # And when the reply does not say, the repeated postings give it away.
+    server = TaleoServer(taleo_rows(100), ignore_page=True, no_echo=True)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2]
+    assert (len(jobs), complete, total) == (25, False, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_rows_after_an_empty_page_are_a_hole_and_incomplete(clock):
+    server = TaleoServer(taleo_rows(100), empty_pages={2})
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]  # one empty page is looked past, and page 3 has rows
+    assert (len(jobs), complete, total) == (50, False, 100)
+
+
+@pytest.mark.asyncio
+async def test_taleo_two_empty_pages_in_a_row_are_a_tail_and_then_the_coverage_decides(clock):
+    server = TaleoServer(taleo_rows(100), empty_pages={2, 3})
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1, 2, 3]
+    assert (len(jobs), complete, total) == (25, False, 100)  # 25 of 100 is not enough, tail or not
+
+
+@pytest.mark.asyncio
+async def test_taleo_the_requisitions_a_visitor_cannot_see_at_the_end_of_the_list_are_not_a_hole(clock):
+    """Bayshore's list: 438 visible of 567, pages 20 to 23 of 23 empty."""
+    server = TaleoServer(taleo_rows(438), total=567)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers()[-3:] == [18, 19, 20]  # two empty pages in a row end the walk
+    assert (len(jobs), complete, total) == (438, True, 567)
+
+
+@pytest.mark.asyncio
+async def test_taleo_every_page_empty_beside_a_count_is_stopped_at_once(clock):
+    server = TaleoServer([], total=574)
+    jobs, complete, total = await taleo_list(server)
+    assert server.page_numbers() == [1]  # not 23 requests for nothing
+    assert (jobs, complete, total) == ([], False, 574)
+
+
+@pytest.mark.asyncio
+async def test_taleo_a_walk_that_lists_under_three_fifths_of_the_count_is_incomplete(clock):
+    """Live career sections list 77% to 100% of the count (Bayshore 445 of 574)."""
+    assert (await taleo_list(TaleoServer(taleo_rows(15), total=25)))[1:] == (True, 25)
+    assert (await taleo_list(TaleoServer(taleo_rows(14), total=25)))[1:] == (False, 25)
+    assert (await taleo_list(TaleoServer(taleo_rows(1), total=2)))[1:] == (False, 2)
+
+
+def test_taleo_count_reads_only_whole_non_negative_numbers():
+    assert [taleo._count(v) for v in (574, "574", " 25 ", 3.0, 0, "0")] == [574, 574, 25, 3, 0, 0]
+    assert [taleo._count(v) for v in (None, True, False, "n/a", "", -1, "-1", 2.5, [], {}, float("nan"))] == [None] * 11
 
 
 @pytest.mark.asyncio
