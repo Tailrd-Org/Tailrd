@@ -152,17 +152,7 @@ function autofillHtml(logo) {
       <h1>Skip the retyping.<br/><span class="accent">Keep the judgment.</span></h1>
       <div class="sub">Tailrd fills the fields your profile already answers, including work
       authorization and EEO, and leaves every judgment call to you.</div>
-      <div class="foot">Works on every ATS &amp; company career site</div>
-      <div class="marks">
-        <span style="color:#1f9c6f;font-size:24px;font-weight:700;line-height:1">g</span>
-        <span style="color:#000;font-size:19px;line-height:1">&#9650;</span>
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#ff5a5f" stroke-width="1.9"
-             stroke-linecap="round" stroke-linejoin="round" aria-label="Airbnb">
-          <path d="M12 3.4c1.1 0 1.9.8 2.6 2.2 2 4 4.6 8.3 4.6 10.6 0 2.3-1.6 3.7-3.4 3.7-1.6 0-2.8-.9-3.8-2.3-1 1.4-2.2 2.3-3.8 2.3-1.8 0-3.4-1.4-3.4-3.7 0-2.3 2.6-6.6 4.6-10.6C10.1 4.2 10.9 3.4 12 3.4Z"/>
-        </svg>
-        <span style="color:#ff9900;font-size:24px;font-weight:700;line-height:1">a</span>
-        <span style="color:#111;font-size:17px;font-weight:700;line-height:1;border:1.5px solid #16151b;border-radius:5px;padding:2px 6px">N</span>
-      </div>
+      <div class="foot">Works on 60+ ATS &amp; career sites</div>
     </div>
 
     <div class="card">
@@ -177,8 +167,7 @@ function autofillHtml(logo) {
         <div><b>Vercel</b><span>Senior Frontend Engineer</span></div>
       </div>
       <div class="pad">
-        <div class="btn">Account Creation &amp; Profile Fill</div>
-        <div class="cap">18 fields your profile can fill</div>
+        <div class="btn">Fill from my profile</div>
       </div>
       <div class="div"></div>
       <div class="row">
@@ -192,11 +181,19 @@ function autofillHtml(logo) {
       <div class="row">
         <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6f6c7d"
              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="7.5" cy="15.5" r="5.5"/><path d="m21 2-9.6 9.6"/><path d="m15.5 7.5 3 3L22 7l-3-3"/>
+        </svg>
+        Saved sign-ins <span class="chev">&#8250;</span>
+      </div>
+      <div class="div"></div>
+      <div class="row">
+        <svg class="ico" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#6f6c7d"
+             stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="M17 8l-5-5-5 5"/><path d="M12 3v12"/>
         </svg>
         Upload Resume
       </div>
-      <div class="file">Alex_Rivera_Resume.pdf <span class="chip">Change</span></div>
+      <div class="file">Alex_Rivera_Resume.pdf <span class="chip">Attach</span></div>
       <div class="ghost">&#10022;&nbsp; Suggest edits for this job</div>
       <div class="div"></div>
       <div class="row">
@@ -204,11 +201,10 @@ function autofillHtml(logo) {
              stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
           <rect x="2" y="4" width="20" height="16" rx="2"/><path d="m2 7 10 6 10-6"/>
         </svg>
-        Cover Letter
+        Upload Cover Letter
       </div>
       <div class="sel">Professional <span class="chev">&#8964;</span></div>
       <div class="ghost">&#10022;&nbsp; Cover letter ideas</div>
-      <div class="cardfoot"><a>Open Dashboard</a></div>
     </div>
   </body></html>`;
 }

@@ -139,8 +139,8 @@ function marqueeHtml(logo, logoSmall) {
     <div class="wrap">
       <img class="logo" src="${logo}" alt="" />
       <h1>Skip the retyping.<br/><span class="accent">Keep the judgment.</span></h1>
-      <div class="sub">Tailrd fills the repetitive fields from your profile on Greenhouse,
-      Workday, Lever and 60+ other&nbsp;ATSs. You review and submit.</div>
+      <div class="sub">Tailrd fills the repetitive fields from your profile, on company
+      career sites and 60+ hiring&nbsp;platforms. You review and submit.</div>
       <div class="foot">You always review and submit</div>
 
       <div class="card">
@@ -151,14 +151,13 @@ function marqueeHtml(logo, logoSmall) {
           <div><b>Vercel</b><span>Senior Frontend Engineer</span></div>
         </div>
         <div class="pad">
-          <div class="btn">Account Creation &amp; Profile Fill</div>
-          <div class="cap">18 fields your profile can fill</div>
+          <div class="btn">Fill from my profile</div>
         </div>
         <div class="div"></div>
         <div class="row">Your profile on this device <span class="chev">›</span></div>
         <div class="div"></div>
         <div class="row">Upload Resume</div>
-        <div class="file">Alex_Rivera_Resume.pdf <span class="chip">Change</span></div>
+        <div class="file">Alex_Rivera_Resume.pdf <span class="chip">Attach</span></div>
         <div class="ghost">✦&nbsp; Suggest edits for this job</div>
       </div>
     </div>
