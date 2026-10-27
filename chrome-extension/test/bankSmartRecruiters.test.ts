@@ -7,7 +7,7 @@
  * bank or a live page got wrong, or a blank a stated fact answers; labels and
  * options verbatim.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { resolveWithOptions, scanPage } from "../src/content/formScanner";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { detectJobPlace } from "../src/content/jobLocation";
@@ -19,8 +19,16 @@ import { veteranOption } from "../src/content/demographicMatch";
 let restore: () => void;
 beforeAll(() => {
   restore = stubLayout();
+  // The bank's own day. A stated start date already past reads as today, so
+  // under the real clock the start dates below change, and from 2026-12-01
+  // the DD/MM/YYYY checks fail.
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-20T12:00:00Z"));
 });
-afterAll(() => restore());
+afterAll(() => {
+  restore();
+  vi.useRealTimers();
+});
 beforeEach(() => {
   document.body.innerHTML = "";
 });

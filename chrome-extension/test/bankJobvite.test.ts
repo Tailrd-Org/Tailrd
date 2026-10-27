@@ -5,7 +5,7 @@
  * page (GET only) and answered for six personas. Each test is an answer the
  * bank got wrong, or a blank a stated fact answers; labels and options verbatim.
  */
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import { scanPage } from "../src/content/formScanner";
 import { setResolveContext } from "../src/content/fieldResolver";
 import { detectJobPlace } from "../src/content/jobLocation";
@@ -16,8 +16,16 @@ import { stubLayout } from "./helpers/layout";
 let restore: () => void;
 beforeAll(() => {
   restore = stubLayout();
+  // The bank's own day. A start's distance from today picks some answers
+  // ("Immediately" is a start within 7 days), so the real clock flipped them
+  // as a persona's start drew near (US_OPT_ANALYST's 2026-11-02, from 10-26).
+  vi.useFakeTimers({ toFake: ["Date"] });
+  vi.setSystemTime(new Date("2026-10-17T12:00:00Z"));
 });
-afterAll(() => restore());
+afterAll(() => {
+  restore();
+  vi.useRealTimers();
+});
 beforeEach(() => {
   document.body.innerHTML = "";
 });
