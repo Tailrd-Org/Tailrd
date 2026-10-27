@@ -1,0 +1,35 @@
+{
+  "meta": {},
+  "result": {
+    "jobOpening": {
+      "jobOpeningShareUrl": "https://urban.bamboohr.com/careers/113",
+      "jobOpeningName": "Senior Estimator",
+      "jobOpeningStatus": "Open",
+      "jobCategoryId": null,
+      "departmentId": "18598",
+      "departmentLabel": "Estimating",
+      "employmentStatusLabel": "Full-Time",
+      "employmentType": null,
+      "location": {
+        "city": "Farmers Branch",
+        "state": "Texas",
+        "postalCode": "75234",
+        "addressCountry": "United States"
+      },
+      "atsLocation": {
+        "country": null,
+        "countryId": null,
+        "state": null,
+        "city": null
+      },
+      "description": "<p>Urban Infraconstruction is looking for a <span style=\"font-weight: bold\">Senior Estimator </span>to join our <span style=\"font-weight: bold\">Estimating department.</span></p>\n<p><br></p>\n<p>We are proud to be a leader in civil construction, delivering high-impact infrastructure projects that improve communities and drive progress. As one of the fastest-growing private companies in the industry, we are committed to innovation, precision, and excellence in everything we do-from preconstruction through project delivery.</p>\n<p><br></p>\n<p><span style=\"font-weight: bold\">Key Responsibilities:</span><br></p>\n<ul>\n<li>Lead pursuit teams in preparing and submitting competitive and accurate bid proposals</li>\n<li>Prepare detailed and accurate cost estimates, including takeoffs for labor, materials, and equipment with an emphasis on structural concrete work</li>\n<li>Apply pragmatic analysis of the overall project execution process to ensure the estimate reflects the efficient execution of the project</li>\n<li>Analyze market conditions, competition and pricing strategies<br></li>\n<li>Lead and mentor junior Estimators</li>\n</ul>\n<p><br></p>\n<p><span style=\"font-weight: bold\">Qualifications: </span></p>\n<ul>\n<li>Bachelor’s degree in civil engineering, construction management, or related field.</li>\n<li>6+ years of estimating experience.</li>\n<li>Proficiency in estimating software such as HCSS Heavybid, BlueBeam, Agtek</li>",
+      "compensation": null,
+      "datePosted": "2025-10-14",
+      "minimumExperience": "Mid-level",
+      "locationType": "0",
+      "seekPromoted": false,
+      "aiProcessingDisclosureEnabled": false
+    },
+    "formFields": {}
+  }
+}

@@ -1179,6 +1179,14 @@ class AggregatorService:
         # Determine experience level
         experience_level = self._get_experience_level(source, job.title)
 
+        # Scraper v2 tags: the career family from the title (a list row has
+        # no department, and its description arrives later), with the
+        # version of the rules that set it. Only the family: the level stays
+        # the list's own call above, since these are student lists.
+        from backend.ingest import taxonomy
+
+        career_family, career_family_secondary = taxonomy.classify_family(job.title)
+
         # Resolve an accurate company logo + domain. The parser already resolves
         # these from the company website URL; without one its domain is a name
         # guess, and an employer-hosted apply link (carvana.com/careers/...)
@@ -1240,6 +1248,9 @@ class AggregatorService:
             role_category=role_category,
             country=country,
             experience_level=experience_level,
+            career_family=career_family,
+            career_family_secondary=career_family_secondary,
+            enrichment_version=taxonomy.ENRICHMENT_VERSION,
             company_logo=company_logo,
             company_domain=company_domain,
             company_url=job.company_url or "",

@@ -209,6 +209,8 @@ def _make_job(db_session, title="Engineer", company="Globex"):
         url=f"https://jobs.example.com/{title}-{company}".replace(" ", "-"),
         description="x" * 200,
         posted_date=datetime.datetime.utcnow(),
+        # Alerts cover only jobs at the user's levels (none chosen: Intern/New Grad, Entry).
+        experience_level="new_grad",
     )
     db_session.add(job)
     db_session.commit()
@@ -397,6 +399,7 @@ def test_cron_match_alerts_endpoint(client, db_session, monkeypatch, fake_engine
 # ─── Alerts only for rows the feed shows ─────────────────────────────────────
 
 def _job(db_session, title, company="Globex", **fields):
+    fields.setdefault("experience_level", "new_grad")  # see _make_job
     job = ScrapedJob(
         title=title,
         company=company,
@@ -412,19 +415,23 @@ def _job(db_session, title, company="Globex", **fields):
 
 
 def _feed_variants(db_session):
-    """One row per visibility case; returns (visible titles, all rows)."""
+    """One row per visibility case; returns (visible titles, all rows). A stale
+    listing is hidden from the feed (scraper v2), so it never reaches an alert."""
     active = _job(db_session, "Active Role")
-    stale = _job(db_session, "Stale Role", listing_status="stale")
+    untracked = _job(db_session, "Untracked Role")
+    untracked.listing_status = None  # a row from before listing_status existed
+    db_session.commit()
     rows = [
         active,
-        stale,
+        untracked,
+        _job(db_session, "Stale Role", listing_status="stale"),
         _job(db_session, "Duplicate Role", duplicate_of=active.id),
         _job(db_session, "Removed Role", listing_status="removed"),
         _job(db_session, "Expired Role", listing_status="expired"),
         _job(db_session, "Blank Company Role", company="  "),
         _job(db_session, "Unknown Company Role", company="Unknown"),
     ]
-    return {"Active Role", "Stale Role"}, rows
+    return {"Active Role", "Untracked Role"}, rows
 
 
 def test_sweep_window_only_scores_rows_the_feed_shows(db_session, monkeypatch, fake_engine):

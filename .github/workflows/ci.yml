@@ -31,8 +31,80 @@ jobs:
           JWT_SECRET: "ci-test-secret-not-used-in-prod"
         # No OPENAI_API_KEY here, and none in a local run either: conftest.py
         # pins it empty so a developer's .env cannot make local pytest pass
-        # what CI fails. Nothing is deselected: a failing test gets fixed.
-        run: python -m pytest backend/tests -q
+        # what CI fails. The only tests left out are the ones marked
+        # `network`: they call live job boards, which a pull request must not
+        # depend on, so the ingest-network-tests workflow runs them nightly.
+        # Nothing else is deselected: a failing test gets fixed.
+        run: python -m pytest backend/tests -q -m "not network"
+
+  backend-postgres:
+    # The ingest code only a real Postgres can exercise (FOR UPDATE SKIP
+    # LOCKED task claims, the run's session advisory lock, JSON null versus SQL
+    # NULL, VACUUM) has tests that skip unless INGEST_TEST_POSTGRES_URL names
+    # a scratch database. The `backend` job above never sets it, on purpose:
+    # the main suite stays on SQLite. This job gives those tests a throwaway
+    # postgres:17 service container (Neon runs 17), and it is the only place
+    # CI opens a Postgres connection; none of it can reach a Neon branch.
+    runs-on: ubuntu-24.04
+    # The lock tests would hang, not fail, if a lock were ever left held.
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: ingest_test
+        ports:
+          - 5432:5432
+        # Steps start only once the server answers.
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          # 3.12 is what Vercel and the ingest runner run; the `backend` job
+          # covers 3.13.
+          python-version: "3.12"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          # The app and the runner reach Postgres through pg8000 (see
+          # backend/db/database.py); backend/requirements.txt only has
+          # psycopg2, which nothing imports.
+          pip install pytest hypothesis reportlab pg8000==1.31.2
+      - name: Run the Postgres-only ingest tests
+        shell: bash
+        env:
+          # Everything but the tests below still runs on SQLite.
+          DATABASE_URL: "sqlite:///./ci_test.db"
+          JWT_SECRET: "ci-test-secret-not-used-in-prod"
+          INGEST_TEST_POSTGRES_URL: "postgresql+pg8000://postgres:postgres@localhost:5432/ingest_test"
+        # Only the files that read INGEST_TEST_POSTGRES_URL: the rest of
+        # backend/tests/ingest (500+ tests, most paying a schema setup each)
+        # already runs in the `backend` job and takes many minutes. A file
+        # that starts reading the variable must be listed here, and
+        # test_ci_runs_every_test_that_waits_for_the_postgres_url fails until
+        # it is. -rs lists every skip with its reason, kept for the next step.
+        run: >-
+          python -m pytest
+          backend/tests/ingest/test_queue.py
+          backend/tests/ingest/test_reclaim.py
+          backend/tests/ingest/test_run.py
+          -q -m "not network" -rs | tee pytest.out
+      # A skipped test is a green test. If the variable above were ever
+      # renamed or dropped, the Postgres tests would skip and this job would
+      # pass having tested nothing, so a skip that names it fails the job.
+      - name: Fail if a Postgres-only test was skipped
+        run: |
+          if grep -n "INGEST_TEST_POSTGRES_URL" pytest.out; then
+            echo "::error::A Postgres-only test was skipped: INGEST_TEST_POSTGRES_URL did not reach pytest."
+            exit 1
+          fi
 
   extension:
     runs-on: ubuntu-24.04

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import CompanyLogo from "./CompanyLogo";
+import { careerFamilyLabel, experienceLevelLabel } from "../lib/jobFilterOptions";
 import { displayLocation } from "../lib/jobLocation";
 import {
   checkListingLive,
@@ -96,6 +97,7 @@ interface Job {
   company_url?: string;
   work_type?: string;
   role_category?: string;
+  career_family?: string | null;
   country?: string;
   experience_level?: string;
   posted_date?: string | null;
@@ -177,9 +179,7 @@ function formatCountry(c: string): string {
 }
 
 function formatExperienceLevel(level: string): string {
-  if (level === "new_grad") return "New Grad";
-  if (level === "internship") return "Internship";
-  return level;
+  return experienceLevelLabel(level) || level;
 }
 
 interface Props {
@@ -550,9 +550,10 @@ export default function JobDetailView({ job, onClose, onListingStatusChange, onF
               <CurrencyDollar size={14} weight="duotone" /> {job.salary_range}
             </span>
           )}
-          {job.role_category && (
+          {/* The career family once scraper v2 has tagged the row, else the old job function. */}
+          {(careerFamilyLabel(job.career_family) || job.role_category) && (
             <span className="detail-tag detail-tag-category">
-              {job.role_category}
+              {careerFamilyLabel(job.career_family) || job.role_category}
             </span>
           )}
           {job.source_platform && (

@@ -8,9 +8,12 @@ here under bash with a stub `gh` first on PATH: no network, no token."""
 import datetime
 import os
 import re
+import shlex
 import shutil
 import subprocess
+import sys
 from pathlib import Path
+from urllib.parse import urlparse
 
 import pytest
 import yaml
@@ -395,3 +398,175 @@ def test_cron_poll_still_fails_the_step_on_an_http_error(bash, tmp_path):
 
     assert result.returncode == 1
     assert "HTTP 500" in result.stdout
+
+
+# --- cut-over to the v2 runner ------------------------------------------------
+#
+# ingest.yml is the new path. Until the owner adds its database secret, this
+# workflow's cron-ats call is what feeds production, and once INGEST_V2_RUNNER
+# is on (Vercel's env, not this file) cron-ats stands aside board by board.
+
+
+def test_cron_ats_still_feeds_production_and_is_still_checked():
+    step = _step("cron_ats")
+
+    assert "/github-sources/cron-ats" in step["run"]
+    assert "steps.cron_ats.outcome" in _steps()[-1]["env"]["OUTCOMES"]
+
+
+def test_the_cut_over_flag_is_set_on_vercel_never_in_this_workflow():
+    # cron-ats reads INGEST_V2_RUNNER in its Vercel function. Setting it in
+    # this workflow's env would change nothing there and look as if it had.
+    # (safe_dump keeps the values and drops the comments, which name it.)
+    assert "INGEST_V2_RUNNER" not in yaml.safe_dump(_workflow())
+
+
+# --- ci.yml: network tests deselected, Postgres-only ingest tests run -------
+#
+# Scraper v2 added tests that call live job boards (marker `network`, run
+# nightly by ingest-network-tests.yml) and tests that need a real Postgres
+# (skipped unless INGEST_TEST_POSTGRES_URL names one). CI keeps its main suite
+# on SQLite and runs the second kind in a job with a postgres:17 service.
+
+REPO_ROOT = WORKFLOW.parents[2]
+CI = WORKFLOW.with_name("ci.yml")
+POSTGRES_JOB = "backend-postgres"
+POSTGRES_TESTS_STEP = "Run the Postgres-only ingest tests"
+SKIP_GUARD_STEP = "Fail if a Postgres-only test was skipped"
+
+
+def _ci():
+    return yaml.safe_load(CI.read_text(encoding="utf-8"))
+
+
+def _ci_step(job, name):
+    for step in _ci()["jobs"][job]["steps"]:
+        if step.get("name") == name:
+            return step
+    raise AssertionError(f"ci.yml job {job!r} has no step named {name!r}")
+
+
+def test_ci_runner_images_are_pinned():
+    for name, job in _ci()["jobs"].items():
+        assert re.fullmatch(r"ubuntu-\d\d\.\d\d", job["runs-on"]), (name, job["runs-on"])
+
+
+def test_ci_main_suite_stays_on_sqlite_and_leaves_out_only_the_network_tests():
+    step = _ci_step("backend", "Run backend tests")
+
+    assert step["env"]["DATABASE_URL"].startswith("sqlite:")
+    assert "INGEST_TEST_POSTGRES_URL" not in step["env"]
+    assert shlex.split(step["run"]) == [
+        "python", "-m", "pytest", "backend/tests", "-q", "-m", "not network",
+    ]
+
+
+def test_ci_postgres_job_runs_the_ingest_tests_on_a_postgres_17_service():
+    job = _ci()["jobs"][POSTGRES_JOB]
+    service = job["services"]["postgres"]
+    step = _ci_step(POSTGRES_JOB, POSTGRES_TESTS_STEP)
+    url = urlparse(step["env"]["INGEST_TEST_POSTGRES_URL"])
+
+    assert service["image"] == "postgres:17"
+    assert "5432:5432" in [str(port) for port in service["ports"]]
+    # The service is the only database in reach: a scratch one on the runner.
+    assert url.scheme == "postgresql+pg8000"
+    assert (url.hostname, url.port) == ("localhost", 5432)
+    assert url.username == "postgres"
+    assert url.password == service["env"]["POSTGRES_PASSWORD"]
+    assert url.path == "/" + service["env"]["POSTGRES_DB"]
+    assert "neon" not in step["env"]["INGEST_TEST_POSTGRES_URL"].lower()
+    # Everything else the app touches is still SQLite.
+    assert step["env"]["DATABASE_URL"].startswith("sqlite:")
+    # pipefail (shell: bash) so a failing pytest still fails the step behind `| tee`.
+    assert step["shell"] == "bash"
+    assert '-m "not network"' in step["run"]
+    assert "-rs" in step["run"] and "tee pytest.out" in step["run"]
+
+
+def test_ci_postgres_job_installs_the_driver_the_app_uses():
+    # The version the repo already pins for Vercel (requirements.txt) and for
+    # the runner (requirements-ingest.txt).
+    run = _ci_step(POSTGRES_JOB, "Install dependencies")["run"]
+    pinned = re.search(r"^pg8000==(\S+)", (REPO_ROOT / "requirements.txt").read_text(encoding="utf-8"), re.M)
+
+    assert pinned
+    assert re.search(r"\bpg8000==" + re.escape(pinned.group(1)) + r"\b", run)
+
+
+def test_ci_runs_every_test_that_waits_for_the_postgres_url():
+    # The job names the test files it runs (the other 500 ingest tests run in
+    # the `backend` job). A file that reads the variable but is not named there
+    # would skip in CI without anyone noticing.
+    tests = Path(__file__).resolve().parent
+    reads_it = re.compile(r"environ(?:\.get\(|\[)\s*[\"']INGEST_TEST_POSTGRES_URL[\"']")
+    readers = sorted(
+        "backend/tests/" + path.relative_to(tests).as_posix()
+        for path in tests.rglob("test_*.py")
+        if reads_it.search(path.read_text(encoding="utf-8"))
+    )
+    named = sorted(
+        arg for arg in shlex.split(_ci_step(POSTGRES_JOB, POSTGRES_TESTS_STEP)["run"].split("|")[0])
+        if arg.startswith("backend/tests/")
+    )
+
+    assert readers, "the tests the Postgres job exists for are gone"
+    assert named == readers
+
+
+def _run_skip_guard(bash, tmp_path, pytest_output):
+    (tmp_path / "pytest.out").write_text(pytest_output, encoding="utf-8")
+    step = _ci_step(POSTGRES_JOB, SKIP_GUARD_STEP)
+    return bash(f'cd "{tmp_path.as_posix()}"\n' + step["run"])
+
+
+def test_ci_fails_the_job_when_a_postgres_only_test_was_skipped(bash, tmp_path):
+    result = _run_skip_guard(
+        bash, tmp_path,
+        "..s.\n=== short test summary info ===\n"
+        "SKIPPED [1] backend/tests/ingest/test_queue.py:152: "
+        "set INGEST_TEST_POSTGRES_URL to a scratch Postgres\n"
+        "3 passed, 1 skipped in 2.10s\n",
+    )
+
+    assert result.returncode == 1
+    assert "::error::" in result.stdout
+    assert "test_queue.py:152" in result.stdout, "the log should name the skipped test"
+
+
+def test_ci_lets_other_skips_through(bash, tmp_path):
+    result = _run_skip_guard(
+        bash, tmp_path,
+        "SKIPPED [2] backend/tests/ingest/test_adapters_tier1.py:1024: "
+        "makes real network requests; set RUN_NETWORK_TESTS=1 to run\n"
+        "40 passed, 2 skipped in 9.00s\n",
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "::error" not in result.stdout
+
+
+def test_the_network_marker_is_registered_for_the_whole_repo(tmp_path):
+    # `-m "not network"` in ci.yml deselects by this marker. Registered in
+    # pyproject.toml rather than a conftest, so a marked test anywhere is known
+    # (--strict-markers fails on an unregistered one) and is deselected. The
+    # probe lives outside the repo, so no conftest of its own registers it.
+    probe = tmp_path / "test_probe.py"
+    probe.write_text(
+        "import pytest\n\n\n"
+        "@pytest.mark.network\n"
+        "def test_live_board():\n"
+        "    raise AssertionError('called a live job board')\n\n\n"
+        "def test_offline():\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    result = subprocess.run(
+        [sys.executable, "-m", "pytest", "-c", str(REPO_ROOT / "pyproject.toml"),
+         "--rootdir", str(REPO_ROOT), "--strict-markers", "-p", "no:cacheprovider",
+         "-m", "not network", "-q", str(probe)],
+        cwd=tmp_path, capture_output=True, text=True, timeout=120,
+    )
+
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "1 passed, 1 deselected" in result.stdout

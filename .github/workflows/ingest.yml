@@ -1,0 +1,238 @@
+name: Ingest
+
+# The daily full crawl of the scraper v2 runner (python -m backend.ingest.run):
+# every registry board's whole listing, detail fetches, normalisation, upserts
+# and the lifecycle sweeps. It runs here instead of in Vercel's 300 second
+# functions because a job gets hours and, in a public repository, the minutes
+# are free. scrape-jobs.yml keeps the light work (the LinkedIn and JobSpy
+# scrapers, the GitHub lists, backfill, freshness).
+#
+# This job holds a database credential in a public repository, so it is
+# narrower than scrape-jobs.yml on purpose:
+#   - it is a separate workflow, so scrape-jobs.yml (which installs
+#     python-jobspy from PyPI) never sees the credential;
+#   - the GitHub token is read-only and actions are pinned by commit SHA;
+#   - it installs requirements-ingest.txt and nothing else, with
+#     --require-hashes, so a new PyPI release cannot reach it unreviewed;
+#   - the credential is handed to the one step that uses it.
+# The credential is the connection string of a dedicated Neon role that can
+# SELECT, INSERT and UPDATE the ingestion tables, DELETE only from
+# scrape_tasks, and run no DDL (the app's boot migrations stay in the app).
+# Until the secret INGEST_DATABASE_URL exists the workflow ends green with a
+# notice, so it never runs red for want of setup.
+#
+# The runner is started with --no-schema: it would otherwise create and migrate
+# the schema at start (ensure_schema), and several boot migrations send CREATE
+# INDEX IF NOT EXISTS on every start, which Postgres refuses to a role that does
+# not own the table even when the index exists ("must be owner of table
+# cover_letters"). The app applies the schema when it deploys.
+
+on:
+  schedule:
+    # Once a day at 06:23 UTC (02:23 in Toronto and New York): a quiet hour
+    # for a Canada and US audience, and a run of up to three hours is over
+    # before the morning. An off-peak minute, never 0: GitHub fires scheduled
+    # workflows from a shared queue whose top-of-hour slot is the most
+    # contended, and fires there get delayed or silently dropped (the 00:00Z
+    # and 02:00Z fires of scrape-jobs.yml on 2026-07-13 never ran). Not :17 or
+    # :47 either, the minutes scrape-jobs.yml fires on. A day the fire is lost
+    # costs nothing lasting: once INGEST_V2_RUNNER is on, cron-ats resumes
+    # crawling a board 20 hours after the runner last did.
+    - cron: '23 6 * * *'
+  workflow_dispatch:
+
+# Least privilege: the job token can only read this repo. What uses it:
+#   - actions/checkout clones the repo: contents: read. The token is not
+#     persisted into .git/config (persist-credentials: false); nothing after
+#     checkout runs git against the remote.
+#   - the inactivity check reads the default branch and its newest commit
+#     through the REST API: contents: read (metadata is always granted).
+#   - actions/setup-python only fetches its public version manifest.
+# The runner authenticates to Neon with INGEST_DATABASE_URL, never with the
+# GitHub token.
+permissions:
+  contents: read
+
+# One run at a time. A delivery that lands while a run is in flight waits
+# (cancel-in-progress: false), so a crawl is never cut off half way. The
+# runner holds a Postgres advisory lock too, which is what stops a run started
+# some other way; this group just spares a queued run from starting only to
+# log "skipped".
+concurrency:
+  group: ingest
+  cancel-in-progress: false
+
+jobs:
+  ingest:
+    # Pinned: ubuntu-latest moves to Ubuntu 26.04 from 2026-10-19, and this
+    # job runs unattended every day: move it deliberately, not on GitHub's
+    # schedule.
+    runs-on: ubuntu-24.04
+    # The runner stops starting boards and inserting rows after its own
+    # --budget-minutes (170, inside the 3 hours the spec allows a full run),
+    # then runs the lifecycle sweeps and writes its summary. This cap sits 30
+    # minutes above that budget: anything longer is hung and would block the
+    # concurrency group.
+    timeout-minutes: 200
+    steps:
+      # The secret is read here only as a yes or no: `!= ''` is evaluated by
+      # GitHub before the step starts, so this step gets "true" or "false",
+      # never the connection string. Every later step is skipped while it is
+      # "false", and none but the one that runs the ingest holds the secret.
+      - name: Check that the database secret is set
+        id: secret
+        env:
+          CONFIGURED: ${{ secrets.INGEST_DATABASE_URL != '' }}
+        run: |
+          if [ "$CONFIGURED" = true ]; then
+            echo "configured=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "configured=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=Ingestion is not set up::The secret INGEST_DATABASE_URL is empty, so there is no database to ingest into and this run did nothing. Add the connection string of the ingest role under Settings, Secrets and variables, Actions."
+          fi
+
+      # Inactivity check, the same step as in scrape-jobs.yml (a test holds
+      # the two identical). GitHub disables scheduled workflows in a public
+      # repo after 60 days without a commit, and says nothing; from day 50 this
+      # step fails and the last step turns the run red, which leaves ~10 days
+      # to push a commit or to move scheduling to an external cron
+      # (docs/ingestion-pipeline.md, "Schedules"). It waits for the secret like
+      # every step after it: a workflow nobody has set up yet must stay green,
+      # and scrape-jobs.yml raises the same alarm meanwhile, because the clock
+      # counts commits to the whole repository. A commit's committer date is at
+      # or before its push, so the alarm can come early but never late.
+      #
+      # There is deliberately no automatic re-enable or keepalive commit. It
+      # is unconfirmed that toggling the workflow resets GitHub's timer,
+      # GitHub has blocked keepalive tooling on ToS grounds, and the toggle
+      # needed actions: write on a job that holds a database credential.
+      - name: Check the 60-day inactivity clock
+        id: inactivity
+        if: steps.secret.outputs.configured == 'true'
+        continue-on-error: true
+        timeout-minutes: 2
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          ALERT_AFTER_DAYS: 50
+        run: |
+          if ! branch=$(gh api "repos/$REPO" --jq .default_branch) || [ -z "$branch" ] ||
+             ! last=$(gh api "repos/$REPO/commits/$branch" --jq .commit.committer.date) || [ -z "$last" ]; then
+            echo "::error::Could not read the newest commit on the default branch, so the 60-day inactivity check did not run."
+            exit 1
+          fi
+          last_s=$(date -u -d "$last" +%s)
+          now_s=$(date -u +%s)
+          age=$(( (now_s - last_s) / 86400 ))
+          off=$(date -u -d "@$(( last_s + 60 * 86400 ))" +%Y-%m-%d)
+          echo "newest commit on $branch: $last ($age days ago); without a new commit GitHub disables this schedule around $off"
+          if [ "$age" -ge "$ALERT_AFTER_DAYS" ]; then
+            echo "::error::The newest commit on $branch is $age days old. GitHub disables scheduled workflows in a public repo after 60 days without a commit, silently, so ingestion stops around $off. Push any commit to $branch to reset the clock, or move scheduling to an external cron (docs/ingestion-pipeline.md, Schedules)."
+            exit 1
+          fi
+
+      # persist-credentials: false makes checkout strip its token inside this
+      # step, and that cleanup runs `git submodule foreach`. Any gitlink with
+      # no .gitmodules entry then fails the step (exit 128), so keep nested
+      # clones out of the index (.gitignore).
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262  # v4
+        if: steps.secret.outputs.configured == 'true'
+        with:
+          persist-credentials: false
+      # 3.12 is what Vercel runs and what requirements-ingest.txt was resolved
+      # for.
+      - uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5
+        if: steps.secret.outputs.configured == 'true'
+        with:
+          python-version: '3.12'
+      # Exact versions and sha256 hashes for the runner's import closure only.
+      # --only-binary=:all: means no package's own build code ever runs here.
+      # Never add python-jobspy: it belongs to the workflow with no credential.
+      - name: Install the pinned dependencies
+        if: steps.secret.outputs.configured == 'true'
+        run: |
+          pip install --require-hashes --only-binary=:all: -r requirements-ingest.txt
+
+      # The secret's shape is checked before any Python runs, and nothing of it
+      # is printed when it is wrong. A value SQLAlchemy cannot parse (Neon's
+      # copy button gives `psql '...'`; a stray space or a pair of quotes does
+      # the same) is echoed back by SQLAlchemy 2.0.32 without its query string,
+      # and GitHub masks only the exact secret, so the password would reach
+      # this public log. A good value is then masked piece by piece, with what
+      # a library could print without the whole of it: the password, the URL
+      # without its scheme, and both again without the query string
+      # (backend/db/database.py drops that before it builds the engine).
+      #
+      # DATABASE_URL_DIRECT carries the run's session advisory lock, and the
+      # pooled host's PgBouncer does not keep a session lock, so it must name
+      # the compute itself: if the secret holds Neon's pooled string, the
+      # "-pooler" in the host is dropped. A string that is already direct is
+      # left alone. The secrets after the first are optional: a key that is not
+      # set arrives empty, which leaves that adapter (or the alert webhook)
+      # off. CRON_ATS_RETIRE_OFF_TARGET is the off_target kill switch, whose
+      # twin on Vercel only covers cron-ats; the repository variable of the
+      # same name covers this runner, and empty means on.
+      - name: Run the ingest
+        id: ingest
+        if: steps.secret.outputs.configured == 'true'
+        env:
+          DATABASE_URL: ${{ secrets.INGEST_DATABASE_URL }}
+          EVENT_NAME: ${{ github.event_name }}
+          USAJOBS_API_KEY: ${{ secrets.USAJOBS_API_KEY }}
+          USAJOBS_USER_AGENT: ${{ secrets.USAJOBS_USER_AGENT }}
+          ADZUNA_APP_ID: ${{ secrets.ADZUNA_APP_ID }}
+          ADZUNA_APP_KEY: ${{ secrets.ADZUNA_APP_KEY }}
+          JOOBLE_API_KEY: ${{ secrets.JOOBLE_API_KEY }}
+          ALERT_WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          CRON_ATS_RETIRE_OFF_TARGET: ${{ vars.CRON_ATS_RETIRE_OFF_TARGET }}
+        run: |
+          shape_ok=true
+          case "$DATABASE_URL" in
+            postgres://?*|postgresql://?*) ;;
+            *) shape_ok=false ;;
+          esac
+          case "$DATABASE_URL" in
+            *[[:space:]\'\"\`]*) shape_ok=false ;;
+          esac
+          if [ "$shape_ok" != true ]; then
+            echo "::error title=INGEST_DATABASE_URL is not a bare connection string::The secret must be one postgresql:// (or postgres://) URL, with no psql command, quotes, spaces or line breaks around or inside it. Nothing from the value is printed here. Paste the string alone into the secret and run the workflow again."
+            exit 1
+          fi
+          # A workflow command escapes % as %25 in its data, and the runner
+          # unescapes it before it registers the mask: a percent-encoded
+          # password would otherwise be masked as a different string.
+          mask() { echo "::add-mask::${1//%/%25}"; }
+          rest=${DATABASE_URL#*://}
+          bare=${DATABASE_URL%%\?*}
+          password=
+          case "$rest" in
+            *@*)
+              userinfo=${rest%%@*}
+              case "$userinfo" in *:*) password=${userinfo#*:} ;; esac
+              ;;
+          esac
+          for piece in "$password" "$rest" "$bare" "${bare#*://}"; do
+            if [ "${#piece}" -ge 4 ]; then mask "$piece"; fi
+          done
+          DATABASE_URL_DIRECT=$(printf '%s' "$DATABASE_URL" | sed -E 's#(@[^/?]*)-pooler\.#\1.#')
+          mask "$DATABASE_URL_DIRECT"
+          export DATABASE_URL_DIRECT
+          # Who started the run, for the scrape_runs row and the report.
+          if [ "$EVENT_NAME" = schedule ]; then trigger=cron; else trigger=manual; fi
+          python -m backend.ingest.run --no-schema --trigger "$trigger" --budget-minutes 170
+
+      # continue-on-error keeps a failed step from stopping the run but also
+      # leaves the job green; this step makes the inactivity alarm visible. A
+      # step that did not run (no secret yet) is not a failure.
+      - name: Fail the run if a checked step failed
+        if: ${{ !cancelled() }}
+        env:
+          OUTCOMES: >-
+            inactivity=${{ steps.inactivity.outcome }}
+        run: |
+          echo "$OUTCOMES" | tr ' ' '\n'
+          failed=$(echo "$OUTCOMES" | tr ' ' '\n' | grep -v -E '=(success|skipped)$' | tr '\n' ' ' || true)
+          if [ -n "$failed" ]; then
+            echo "::error::step(s) failed: $failed"
+            exit 1
+          fi

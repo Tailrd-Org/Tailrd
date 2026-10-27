@@ -1,0 +1,303 @@
+{
+ "source": "workday",
+ "recorded_on": "2026-10-26",
+ "check": "<tenant>.myworkdayjobs.com/wday/cxs/...: jobPostingInfo is open, errorCode S21/S22 or 404 is gone",
+ "cases": [
+  {
+   "id": "workday-alive-1",
+   "truth": "alive",
+   "url": "https://investpsp.wd3.myworkdayjobs.com/psp_careers/job/Montreal/Data-Scientist--Data-Science-and-Artificial-Intelligence--Temporary---18-months-_R4886-1",
+   "board_key": "workday:investpsp",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the CXS job endpoint returns jobPostingInfo",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workday_cxs_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://investpsp.wd3.myworkdayjobs.com/wday/cxs/investpsp/psp_careers/job/Montreal/Data-Scientist--Data-Science-and-Artificial-Intelligence--Temporary---18-months-_R4886-1",
+     "status": 200,
+     "body_json": {
+      "jobPostingInfo": {
+       "id": "9b052b25347110010064d3c4a2510001",
+       "title": "Data Scientist, Data Science and Artificial Intelligence (Temporary – 18 months)",
+       "jobDescription": "<h1><b>ABOUT US</b></h1><br /><p>We’re one of Canada’s largest pension investors, with CAD$320.6 billion of net assets as of March 31, 2026.</p><p><br />We invest funds for the pension plans of the fe...",
+       "location": "Montreal",
+       "postedOn": "Posted 30+ Days Ago",
+       "startDate": "2026-08-11",
+       "timeType": "Full time",
+       "jobReqId": "R4886",
+       "jobPostingId": "Data-Scientist--Data-Science-and-Artificial-Intelligence--Temporary---18-months-_R4886-1",
+       "jobPostingSiteId": "psp_careers",
+       "country": {
+        "descriptor": "Canada",
+        "id": "a30a87ed25634629aa6c3958aa2b91ea"
+       },
+       "canApply": true,
+       "posted": true,
+       "includeResumeParsing": true,
+       "jobRequisitionLocation": {
+        "descriptor": "Montreal",
+        "country": {
+         "descriptor": "Canada",
+         "id": "a30a87ed25634629aa6c3958aa2b91ea",
+         "alpha2Code": "CA"
+        }
+       },
+       "externalUrl": "https://investpsp.wd3.myworkdayjobs.com/psp_careers/job/Montreal/Data-Scientist--Data-Science-and-Artificial-Intelligence--Temporary---18-months-_R4886-1",
+       "questionnaireId": "4995560cbc9c1001164dc476b84a0000",
+       "secondaryQuestionnaireId": "fbd0dc3303401001b4766755c1ed0000"
+      },
+      "hiringOrganization": {
+       "name": "Public Sector Pension Investment Board",
+       "url": ""
+      },
+      "similarJobs": [
+       {
+        "title": "Senior Applied AI Engineer",
+        "externalPath": "/job/Montreal/Senior-Applied-AI-Engineer_R4868",
+        "timeType": "Full time",
+        "locationsText": "Montreal",
+        "postedOn": "Posted 30+ Days Ago",
+        "startDate": "2026-07-29"
+       }
+      ],
+      "userAuthenticated": false
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workday-alive-2",
+   "truth": "alive",
+   "url": "https://prhc.wd10.myworkdayjobs.com/PRHC/job/Peterborough-ON/Medical-Radiation-Technologist--Nuclear-Medicine_JR-8525-1",
+   "board_key": "workday:prhc",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the CXS job endpoint returns jobPostingInfo",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workday_cxs_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://prhc.wd10.myworkdayjobs.com/wday/cxs/prhc/PRHC/job/Peterborough-ON/Medical-Radiation-Technologist--Nuclear-Medicine_JR-8525-1",
+     "status": 200,
+     "body_json": {
+      "jobPostingInfo": {
+       "id": "99f2a29188d51001b011cc1872f20000",
+       "title": "Medical Radiation Technologist, Nuclear Medicine",
+       "jobDescription": "<p style=\"text-align:left\"><b>Position: </b></p>Medical Radiation Technologist, Nuclear Medicine<p style=\"text-align:left\"><b>Department: </b></p>MI Nuclear Medicine<p style=\"text-align:left\"><b>Posit...",
+       "location": "Peterborough, ON",
+       "postedOn": "Posted 30+ Days Ago",
+       "startDate": "2026-08-11",
+       "timeType": "Full time",
+       "jobReqId": "JR-8525",
+       "jobPostingId": "Medical-Radiation-Technologist--Nuclear-Medicine_JR-8525-1",
+       "jobPostingSiteId": "PRHC",
+       "country": {
+        "descriptor": "Canada",
+        "id": "a30a87ed25634629aa6c3958aa2b91ea"
+       },
+       "canApply": true,
+       "posted": true,
+       "includeResumeParsing": true,
+       "jobRequisitionLocation": {
+        "descriptor": "Peterborough Regional Health Centre",
+        "country": {
+         "descriptor": "Canada",
+         "id": "a30a87ed25634629aa6c3958aa2b91ea",
+         "alpha2Code": "CA"
+        }
+       },
+       "externalUrl": "https://prhc.wd10.myworkdayjobs.com/PRHC/job/Peterborough-ON/Medical-Radiation-Technologist--Nuclear-Medicine_JR-8525-1",
+       "questionnaireId": "6e21e76c52851001142408f246a40000"
+      },
+      "hiringOrganization": {
+       "name": "Peterborough Regional Health Centre",
+       "url": ""
+      },
+      "similarJobs": [
+       {
+        "title": "Medical Radiation Technologist, Radiography X-Ray",
+        "externalPath": "/job/Peterborough-ON/Medical-Radiation-Technologist--Radiography-X-Ray_JR-8690",
+        "timeType": "Part time",
+        "locationsText": "Peterborough, ON",
+        "postedOn": "Posted 30+ Days Ago",
+        "startDate": "2026-08-11"
+       }
+      ],
+      "userAuthenticated": false
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workday-alive-3",
+   "truth": "alive",
+   "url": "https://saskenergy.wd10.myworkdayjobs.com/SaskEnergy/job/Saskatoon-SK/Engineer--Facility-Integrity---Reliability_R00004440",
+   "board_key": "workday:saskenergy",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the CXS job endpoint returns jobPostingInfo",
+   "expect": {
+    "verdict": "alive",
+    "reason": "workday_cxs_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://saskenergy.wd10.myworkdayjobs.com/wday/cxs/saskenergy/SaskEnergy/job/Saskatoon-SK/Engineer--Facility-Integrity---Reliability_R00004440",
+     "status": 200,
+     "body_json": {
+      "jobPostingInfo": {
+       "id": "a6bb7ff4451d10016d8a34fad7e10000",
+       "title": "Engineer, Facility Integrity & Reliability",
+       "jobDescription": "<p>SaskEnergy is seeking a qualified and motivated individual to join our team. The Engineer, Facility Integrity &amp; Reliability will optimize the life cycle of the Corporation’s assets to ensure sa...",
+       "location": "Saskatoon, SK",
+       "additionalLocations": [
+        "Regina, SK"
+       ],
+       "postedOn": "Posted 5 Days Ago",
+       "startDate": "2026-10-21",
+       "timeType": "Full time",
+       "jobReqId": "R00004440",
+       "jobPostingId": "Engineer--Facility-Integrity---Reliability_R00004440",
+       "jobPostingSiteId": "SaskEnergy",
+       "country": {
+        "descriptor": "Canada",
+        "id": "a30a87ed25634629aa6c3958aa2b91ea"
+       },
+       "canApply": true,
+       "posted": true,
+       "includeResumeParsing": true,
+       "jobRequisitionLocation": {
+        "descriptor": "Saskatoon, SaskEnergy",
+        "country": {
+         "descriptor": "Canada",
+         "id": "a30a87ed25634629aa6c3958aa2b91ea",
+         "alpha2Code": "CA"
+        }
+       },
+       "externalUrl": "https://saskenergy.wd10.myworkdayjobs.com/SaskEnergy/job/Saskatoon-SK/Engineer--Facility-Integrity---Reliability_R00004440",
+       "questionnaireId": "98aeba542d32100aa487bd72e6b30000",
+       "secondaryQuestionnaireId": "bae6622e4f891005b5daba6326dc0000",
+       "endDate": "2026-11-03"
+      },
+      "hiringOrganization": {
+       "name": "SaskEnergy Incorporated",
+       "url": ""
+      },
+      "similarJobs": [],
+      "userAuthenticated": false
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workday-dead-1",
+   "truth": "dead",
+   "url": "https://cibc.wd3.myworkdayjobs.com/search/job/New-York-NY/Analyst--Equity-Solutions-Group--Global-Investment-Banking_2612727",
+   "board_key": "workday:cibc",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the CXS job endpoint answers 403 errorCode S22 (unpublished)",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workday_cxs_S22",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://cibc.wd3.myworkdayjobs.com/wday/cxs/cibc/search/job/New-York-NY/Analyst--Equity-Solutions-Group--Global-Investment-Banking_2612727",
+     "status": 403,
+     "body_json": {
+      "errorCode": "S22",
+      "errorCaseId": "B19E00MVPFFA78",
+      "httpStatus": 403,
+      "locale": "en-US,en;q=0.9",
+      "message": "permission denied",
+      "messageParams": {}
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workday-dead-2",
+   "truth": "dead",
+   "url": "https://spe.wd1.myworkdayjobs.com/en-US/sonypicturesentertainment/job/Culver-City-California/Intern--Cloud---Security-Operations---Spring-2027_JR114719",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-08",
+   "evidence": "the CXS job endpoint answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workday_cxs_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://spe.wd1.myworkdayjobs.com/wday/cxs/spe/sonypicturesentertainment/job/Culver-City-California/Intern--Cloud---Security-Operations---Spring-2027_JR114719",
+     "status": 404,
+     "body_json": {
+      "errorCode": "HTTP_404",
+      "errorCaseId": "E39924MVPFFAZX",
+      "httpStatus": 404,
+      "locale": "en-US,en;q=0.9",
+      "message": "",
+      "messageParams": {}
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "workday-dead-3",
+   "truth": "dead",
+   "url": "https://mastercard.wd1.myworkdayjobs.com/CorporateCareers/job/OFallon-Missouri/Vice-President--Product-Management---Clearing-and-Reconciliation--Network-Products_R-277173",
+   "board_key": "workday:mastercard",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the CXS job endpoint answers 403 errorCode S22 (unpublished)",
+   "expect": {
+    "verdict": "dead",
+    "reason": "workday_cxs_S22",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://mastercard.wd1.myworkdayjobs.com/wday/cxs/mastercard/CorporateCareers/job/OFallon-Missouri/Vice-President--Product-Management---Clearing-and-Reconciliation--Network-Products_R-277173",
+     "status": 403,
+     "body_json": {
+      "errorCode": "S22",
+      "errorCaseId": "CBFA59MVPFFCAO",
+      "httpStatus": 403,
+      "locale": "en-US,en;q=0.9",
+      "message": "permission denied",
+      "messageParams": {}
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

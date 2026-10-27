@@ -1,0 +1,145 @@
+{
+ "source": "teamtailor",
+ "recorded_on": "2026-10-26",
+ "check": "no adapter check: the generic page check, where a bare 200 is only unknown and a 410 is gone",
+ "cases": [
+  {
+   "id": "teamtailor-alive-1",
+   "truth": "alive",
+   "url": "https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst",
+   "origin": "in the live RSS feed of owlco.na.teamtailor.com",
+   "evidence": "listed in the tenant's live RSS feed; the page serves the posting",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst",
+     "status": 200,
+     "body_file": "teamtailor/teamtailor-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "teamtailor-alive-2",
+   "truth": "alive",
+   "url": "https://careers.usg.com/jobs/8619441-mill-operator",
+   "origin": "in the live RSS feed of usgnorthamerica.teamtailor.com",
+   "evidence": "listed in the tenant's live RSS feed; the page serves the posting",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.usg.com/jobs/8619441-mill-operator",
+     "status": 200,
+     "body_file": "teamtailor/teamtailor-alive-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "teamtailor-alive-3",
+   "truth": "alive",
+   "url": "https://nordastelo.teamtailor.com/jobs/8377552-geologue-principale-en-estimation-des-ressources",
+   "origin": "in the live RSS feed of nordastelo.teamtailor.com",
+   "evidence": "listed in the tenant's live RSS feed; the page serves the posting",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://nordastelo.teamtailor.com/jobs/8377552-geologue-principale-en-estimation-des-ressources",
+     "status": 200,
+     "body_file": "teamtailor/teamtailor-alive-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "teamtailor-dead-1",
+   "truth": "dead",
+   "url": "https://careers.usg.com/jobs/3622706-manager-thermal-engineering",
+   "origin": "archived by the Wayback Machine in 2024 or 2025",
+   "evidence": "the page answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_410",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.usg.com/jobs/3622706-manager-thermal-engineering",
+     "status": 410,
+     "body_file": "teamtailor/teamtailor-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "teamtailor-dead-2",
+   "truth": "dead",
+   "url": "https://nordastelo.teamtailor.com/jobs/2475853-ingenieur-e-ou-technicien-ne-en-mecanique-du-batiment",
+   "origin": "archived by the Wayback Machine in 2024 or 2025",
+   "evidence": "the page answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_410",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://nordastelo.teamtailor.com/jobs/2475853-ingenieur-e-ou-technicien-ne-en-mecanique-du-batiment",
+     "status": 410,
+     "body_file": "teamtailor/teamtailor-dead-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "teamtailor-dead-3",
+   "truth": "dead",
+   "url": "https://owlco.na.teamtailor.com/jobs/570502-part-time-data-quality-analyst",
+   "origin": "archived by the Wayback Machine in 2024 or 2025",
+   "evidence": "the page answers 410 Gone",
+   "expect": {
+    "verdict": "dead",
+    "reason": "http_410",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://owlco.na.teamtailor.com/jobs/570502-part-time-data-quality-analyst",
+     "status": 410,
+     "body_file": "teamtailor/teamtailor-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  }
+ ]
+}

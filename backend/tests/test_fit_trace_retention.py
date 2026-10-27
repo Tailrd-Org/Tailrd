@@ -78,6 +78,8 @@ def test_closed_old_traces_and_scores_are_pruned(db_session, status):
     assert _pairs(db_session) == ([], [])
 
 
+# ``stale`` is hidden from the feed since scraper v2 (until a crawl or a check vouches for it
+# again), but it is no closure: most stale jobs come back, so their traces stay (D-153).
 @pytest.mark.parametrize("status", ["active", "stale", None, "paused", ""])
 def test_open_null_and_unknown_statuses_never_prune(db_session, status):
     user = _user(db_session)

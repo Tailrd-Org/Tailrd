@@ -121,7 +121,7 @@ class TestReconcileBoard:
         kept = db_session.get(ScrapedJob, apply_row.id)
         assert kept.listing_status == LISTING_ACTIVE and kept.last_seen_at == NOW
         assert db_session.get(ScrapedJob, gone.id).listing_status == LISTING_REMOVED
-        assert stats == {"confirmed": 1, "revived": 1, "removed": 1, "off_target": 0}
+        assert stats == {"confirmed": 1, "revived": 1, "removed": 1, "off_target": 0, "held": 0}
 
     def test_does_not_touch_other_boards(self, db_session):
         other = _row(db_session, url="https://jobs.lever.co/other/1", board_key="lever:other")
@@ -443,9 +443,11 @@ class TestRefreshKnownListings:
                 stats["relabeled"]) == (0, 0, 0, 0)
 
     @pytest.mark.parametrize("title, department, commitment, stored, healed", [
-        # The old substring test filed these under internships...
-        ("Internal Audit Analyst", "", "", "internship", "new_grad"),
-        ("Operations Analyst, Cooper Street", "", "", "internship", "new_grad"),
+        # The old substring test filed these under internships. Since v2 the
+        # weak entry tier (analyst, associate, level I) is Entry Level, not
+        # new grad (docs/scraper-v2/DECISIONS.md 4)...
+        ("Internal Audit Analyst", "", "", "internship", "entry"),
+        ("Operations Analyst, Cooper Street", "", "", "internship", "entry"),
         # ...and these real internships under new grad.
         ("RF Validation Associate", "Payload Internships", "", "new_grad", "internship"),
         ("Thermal Associate Engineer (Summer 2027)", "", "", "new_grad", "internship"),
@@ -482,7 +484,8 @@ class TestRefreshKnownListings:
 
         db_session.expire_all()
         assert stats["relabeled"] == 0
-        assert db_session.get(ScrapedJob, known.id).experience_level == "new_grad"
+        # Entry Level, not new grad, since v2 (DECISIONS.md 4); never internship.
+        assert db_session.get(ScrapedJob, known.id).experience_level == "entry"
 
     def test_list_rows_keep_their_list_label(self, db_session):
         """A GitHub-list row adopted into the board keeps the label its list
@@ -687,8 +690,9 @@ class TestDerivedFieldHelpers:
         ("Co-op Student, Data", "", "", "internship"),
         ("Coop Engineer", "", "", "internship"),
         ("New Grad Software Engineer", "", "", "new_grad"),
-        ("Analyst I", "", "", "new_grad"),
-        ("Internal Audit Analyst", "", "", "new_grad"),
+        # The weak entry tier is Entry Level since v2 (DECISIONS.md 4).
+        ("Analyst I", "", "", "entry"),
+        ("Internal Audit Analyst", "", "", "entry"),
         ("RF Validation Associate", "Payload Internships", "", "internship"),
         ("Thermal Associate Engineer (Summer 2027)", "", "", "internship"),
         ("Hardware Validation Associate", "", "Intern", "internship"),
@@ -2098,8 +2102,8 @@ class TestListVisibility:
         assert "https://boards.greenhouse.io/acme/jobs/1" in urls
         assert "https://boards.greenhouse.io/acme/jobs/2" not in urls
         assert "https://boards.greenhouse.io/acme/jobs/3" not in urls
-        # stale is a crawl-lag state, not evidence of death, stays visible
-        assert "https://boards.greenhouse.io/acme/jobs/4" in urls
+        # stale (missed a listing or failed a check) is hidden too since scraper v2
+        assert "https://boards.greenhouse.io/acme/jobs/4" not in urls
 
     def test_saved_view_keeps_removed_jobs(self, client, db_session):
         removed = _row(db_session, url="https://boards.greenhouse.io/acme/jobs/2",

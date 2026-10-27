@@ -1,0 +1,612 @@
+{
+ "source": "bamboohr",
+ "recorded_on": "2026-10-26",
+ "check": "<tenant>.bamboohr.com/careers/<id>/detail: the jobOpening is open, a JSON 404 {type: not_found} is gone",
+ "cases": [
+  {
+   "id": "bamboohr-alive-1",
+   "truth": "alive",
+   "url": "https://singleton.bamboohr.com/careers/100",
+   "board_key": "bamboohr:singleton",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the detail endpoint returns the jobOpening",
+   "expect": {
+    "verdict": "alive",
+    "reason": "bamboohr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://singleton.bamboohr.com/careers/100/detail",
+     "status": 200,
+     "body_json": {
+      "meta": {},
+      "result": {
+       "jobOpening": {
+        "jobOpeningShareUrl": "https://singleton.bamboohr.com/careers/100",
+        "jobOpeningName": "Legal Administrative Assistant - Commercial Litigation ",
+        "jobOpeningStatus": "Open",
+        "jobCategoryId": null,
+        "departmentId": "18523",
+        "departmentLabel": "Legal Administrative Assistant",
+        "employmentStatusLabel": "Full-Time",
+        "employmentType": null,
+        "location": {
+         "city": "Toronto",
+         "state": "Ontario",
+         "postalCode": "M5H 3T9",
+         "addressCountry": "Canada"
+        },
+        "atsLocation": {
+         "country": null,
+         "countryId": null,
+         "state": null,
+         "city": null
+        },
+        "description": "<p><span style=\"color: rgb(34, 34, 34); font-family: Arial, sans-serif\">Singleton Urquhart Reynolds Vogel LLP is a Canadian law firm with offices in Vancouver and Toronto. Our focus is on helping clie...",
+        "compensation": "$70,000 to $85,000 Annually, depending on experience",
+        "datePosted": "2026-09-23",
+        "minimumExperience": "Experienced",
+        "locationType": "0",
+        "seekPromoted": false,
+        "aiProcessingDisclosureEnabled": false
+       },
+       "formFields": {
+        "firstName": {
+         "isRequired": true,
+         "value": "",
+         "label": "First Name"
+        },
+        "lastName": {
+         "isRequired": true,
+         "value": "",
+         "label": "Last Name"
+        },
+        "email": {
+         "isRequired": true,
+         "value": "",
+         "label": "Email"
+        },
+        "phone": {
+         "isRequired": true,
+         "value": "",
+         "label": "Phone"
+        },
+        "streetAddress": {
+         "isRequired": false,
+         "value": "",
+         "label": "Address"
+        },
+        "city": {
+         "isRequired": false,
+         "value": "",
+         "label": "City"
+        },
+        "state": {
+         "isRequired": false,
+         "value": "",
+         "label": "State",
+         "options": [
+          {
+           "id": "52",
+           "text": "AB"
+          },
+          {
+           "id": "53",
+           "text": "BC"
+          },
+          {
+           "id": "54",
+           "text": "MB"
+          }
+         ]
+        },
+        "zip": {
+         "isRequired": false,
+         "value": "",
+         "label": "ZIP"
+        },
+        "countryId": {
+         "isRequired": false,
+         "value": "2",
+         "label": "Country",
+         "options": [
+          {
+           "id": "1",
+           "text": "United States"
+          },
+          {
+           "id": "2",
+           "text": "Canada"
+          },
+          {
+           "id": "3",
+           "text": "Australia"
+          }
+         ]
+        },
+        "dateAvailable": {
+         "isRequired": false,
+         "value": "",
+         "label": "Date Available"
+        },
+        "desiredPay": {
+         "isRequired": false,
+         "value": "",
+         "label": "Desired Pay"
+        },
+        "referredBy": {
+         "isRequired": false,
+         "value": "",
+         "label": "Referred by (Name)"
+        },
+        "resumeFileId": {
+         "isRequired": true,
+         "value": "",
+         "label": "Resume"
+        },
+        "customQuestions": [
+         {
+          "id": "108",
+          "isRequired": false,
+          "question": "Are you legally entitled to work in Canada for any employers?",
+          "type": "yes_no",
+          "value": "",
+          "isValueOther": false,
+          "hasOther": "no",
+          "options": []
+         }
+        ],
+        "genderId": [],
+        "ethnicityId": [],
+        "veteranStatusId": [],
+        "disabilityId": []
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "bamboohr-alive-2",
+   "truth": "alive",
+   "url": "https://clarkwilsonllp.bamboohr.com/careers/218",
+   "board_key": "bamboohr:clarkwilsonllp",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the detail endpoint returns the jobOpening",
+   "expect": {
+    "verdict": "alive",
+    "reason": "bamboohr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://clarkwilsonllp.bamboohr.com/careers/218/detail",
+     "status": 200,
+     "body_json": {
+      "meta": {},
+      "result": {
+       "jobOpening": {
+        "jobOpeningShareUrl": "https://clarkwilsonllp.bamboohr.com/careers/218",
+        "jobOpeningName": "Legal Assistant - Strata Litigation  ",
+        "jobOpeningStatus": "Open",
+        "jobCategoryId": null,
+        "departmentId": "18498",
+        "departmentLabel": "Litigation",
+        "employmentStatusLabel": "100%",
+        "employmentType": null,
+        "location": {
+         "city": "Vancouver",
+         "state": "British Columbia",
+         "postalCode": "V6C 3H1",
+         "addressCountry": "Canada"
+        },
+        "atsLocation": {
+         "country": null,
+         "countryId": null,
+         "state": null,
+         "city": null
+        },
+        "description": "<p><span style=\"font-weight: bold\">Who We Are</span></p>\n<p><br></p>\n<p><span>Clark Wilson LLP is a leading, innovative law firm in British Columbia. For over 100 years, we’ve proudly advised clients ...",
+        "compensation": "$60,000 - $75,000",
+        "datePosted": "2026-03-09",
+        "minimumExperience": "Mid-level",
+        "locationType": "0",
+        "seekPromoted": false,
+        "aiProcessingDisclosureEnabled": false
+       },
+       "formFields": {
+        "firstName": {
+         "isRequired": true,
+         "value": "",
+         "label": "First Name"
+        },
+        "lastName": {
+         "isRequired": true,
+         "value": "",
+         "label": "Last Name"
+        },
+        "email": {
+         "isRequired": true,
+         "value": "",
+         "label": "Email"
+        },
+        "phone": {
+         "isRequired": true,
+         "value": "",
+         "label": "Phone"
+        },
+        "streetAddress": {
+         "isRequired": true,
+         "value": "",
+         "label": "Address"
+        },
+        "city": {
+         "isRequired": true,
+         "value": "",
+         "label": "City"
+        },
+        "state": {
+         "isRequired": true,
+         "value": "",
+         "label": "State",
+         "options": [
+          {
+           "id": "52",
+           "text": "AB"
+          },
+          {
+           "id": "53",
+           "text": "BC"
+          },
+          {
+           "id": "54",
+           "text": "MB"
+          }
+         ]
+        },
+        "zip": {
+         "isRequired": true,
+         "value": "",
+         "label": "ZIP"
+        },
+        "countryId": {
+         "isRequired": true,
+         "value": "2",
+         "label": "Country",
+         "options": [
+          {
+           "id": "1",
+           "text": "United States"
+          },
+          {
+           "id": "2",
+           "text": "Canada"
+          },
+          {
+           "id": "3",
+           "text": "Australia"
+          }
+         ]
+        },
+        "linkedinUrl": {
+         "isRequired": false,
+         "value": "",
+         "label": "LinkedIn URL"
+        },
+        "dateAvailable": {
+         "isRequired": false,
+         "value": "",
+         "label": "Date Available"
+        },
+        "desiredPay": {
+         "isRequired": false,
+         "value": "",
+         "label": "Desired Pay"
+        },
+        "websiteUrl": {
+         "isRequired": false,
+         "value": "",
+         "label": "Website, Blog or Portfolio"
+        },
+        "resumeFileId": {
+         "isRequired": true,
+         "value": "",
+         "label": "Resume"
+        },
+        "customQuestions": [],
+        "genderId": [],
+        "ethnicityId": [],
+        "veteranStatusId": [],
+        "disabilityId": []
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "bamboohr-alive-3",
+   "truth": "alive",
+   "url": "https://whca.bamboohr.com/careers/2014",
+   "board_key": "bamboohr:whca",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the detail endpoint returns the jobOpening",
+   "expect": {
+    "verdict": "alive",
+    "reason": "bamboohr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://whca.bamboohr.com/careers/2014/detail",
+     "status": 200,
+     "body_json": {
+      "meta": {},
+      "result": {
+       "jobOpening": {
+        "jobOpeningShareUrl": "https://whca.bamboohr.com/careers/2014",
+        "jobOpeningName": "Support Services Attendant (GMCH) #2026-187",
+        "jobOpeningStatus": "Open",
+        "jobCategoryId": null,
+        "departmentId": "18725",
+        "departmentLabel": "Support Services",
+        "employmentStatusLabel": "Regular Part-Time",
+        "employmentType": null,
+        "location": {
+         "city": "Fergus",
+         "state": "Ontario",
+         "postalCode": "N1M 0H3",
+         "addressCountry": "Canada"
+        },
+        "atsLocation": {
+         "country": null,
+         "countryId": null,
+         "state": null,
+         "city": null
+        },
+        "description": "<p>August 19, 2026</p>\n<p><br></p>\n<p><span style=\"font-weight: bold\">GROVES MEMORIAL COMMUNITY HOSPITAL</span></p>\n<p><br></p>\n<p><span style=\"font-weight: bold\">POSTING #2026-187</span></p>\n<p><br><...",
+        "compensation": null,
+        "datePosted": "2026-08-28",
+        "minimumExperience": "Entry-level",
+        "locationType": "0",
+        "seekPromoted": false,
+        "aiProcessingDisclosureEnabled": false
+       },
+       "formFields": {
+        "firstName": {
+         "isRequired": true,
+         "value": "",
+         "label": "First Name"
+        },
+        "lastName": {
+         "isRequired": true,
+         "value": "",
+         "label": "Last Name"
+        },
+        "email": {
+         "isRequired": true,
+         "value": "",
+         "label": "Email"
+        },
+        "phone": {
+         "isRequired": true,
+         "value": "",
+         "label": "Phone"
+        },
+        "streetAddress": {
+         "isRequired": true,
+         "value": "",
+         "label": "Address"
+        },
+        "city": {
+         "isRequired": true,
+         "value": "",
+         "label": "City"
+        },
+        "state": {
+         "isRequired": true,
+         "value": "",
+         "label": "State",
+         "options": [
+          {
+           "id": "52",
+           "text": "AB"
+          },
+          {
+           "id": "53",
+           "text": "BC"
+          },
+          {
+           "id": "54",
+           "text": "MB"
+          }
+         ]
+        },
+        "zip": {
+         "isRequired": true,
+         "value": "",
+         "label": "ZIP"
+        },
+        "countryId": {
+         "isRequired": true,
+         "value": "2",
+         "label": "Country",
+         "options": [
+          {
+           "id": "1",
+           "text": "United States"
+          },
+          {
+           "id": "2",
+           "text": "Canada"
+          },
+          {
+           "id": "3",
+           "text": "Australia"
+          }
+         ]
+        },
+        "dateAvailable": {
+         "isRequired": false,
+         "value": "",
+         "label": "Date Available"
+        },
+        "coverLetterFileId": {
+         "isRequired": false,
+         "value": "",
+         "label": "Cover Letter"
+        },
+        "references": {
+         "isRequired": false,
+         "value": "",
+         "label": "References"
+        },
+        "resumeFileId": {
+         "isRequired": true,
+         "value": "",
+         "label": "Resume"
+        },
+        "customQuestions": [
+         {
+          "id": "6683",
+          "isRequired": true,
+          "question": "Do you have a Safe Food Handler's certificate?",
+          "type": "long",
+          "value": "",
+          "isValueOther": false,
+          "hasOther": "no",
+          "options": []
+         },
+         {
+          "id": "6684",
+          "isRequired": true,
+          "question": "Experience in healthcare Environmental Cleaning or Food Services Department?",
+          "type": "short",
+          "value": "",
+          "isValueOther": false,
+          "hasOther": "no",
+          "options": []
+         },
+         {
+          "id": "6685",
+          "isRequired": true,
+          "question": "Do you currently work at one of the Wellington Health Care Hospitals (Groves Memorial Community, Palmerston and District or Louise Marshall Hospital)? Or have you previously worked here?",
+          "type": "yes_no",
+          "value": "",
+          "isValueOther": false,
+          "hasOther": "no",
+          "options": []
+         }
+        ],
+        "genderId": [],
+        "ethnicityId": [],
+        "veteranStatusId": [],
+        "disabilityId": []
+       }
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "bamboohr-dead-1",
+   "truth": "dead",
+   "url": "https://solace.bamboohr.com/careers/756",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the detail endpoint answers 404 type not_found",
+   "expect": {
+    "verdict": "dead",
+    "reason": "bamboohr_not_found",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://solace.bamboohr.com/careers/756/detail",
+     "status": 404,
+     "body_json": {
+      "type": "not_found",
+      "title": "Resource not found.",
+      "details": "Looks like the id you provided doesn't exist.",
+      "meta": []
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "bamboohr-dead-2",
+   "truth": "dead",
+   "url": "https://solace.bamboohr.com/careers/759",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the detail endpoint answers 404 type not_found",
+   "expect": {
+    "verdict": "dead",
+    "reason": "bamboohr_not_found",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://solace.bamboohr.com/careers/759/detail",
+     "status": 404,
+     "body_json": {
+      "type": "not_found",
+      "title": "Resource not found.",
+      "details": "Looks like the id you provided doesn't exist.",
+      "meta": []
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "bamboohr-dead-3",
+   "truth": "dead",
+   "url": "https://solace.bamboohr.com/careers/773",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the detail endpoint answers 404 type not_found",
+   "expect": {
+    "verdict": "dead",
+    "reason": "bamboohr_not_found",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://solace.bamboohr.com/careers/773/detail",
+     "status": 404,
+     "body_json": {
+      "type": "not_found",
+      "title": "Resource not found.",
+      "details": "Looks like the id you provided doesn't exist.",
+      "meta": []
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

@@ -1,0 +1,167 @@
+{
+ "source": "successfactors",
+ "recorded_on": "2026-10-26",
+ "check": "no adapter check: the generic page check on the employer's Recruiting Marketing site, where a closed notice in the visible text is gone",
+ "cases": [
+  {
+   "id": "successfactors-alive-1",
+   "truth": "alive",
+   "url": "https://jobs.paccar.com/job/Kirkland-Summer-2027-Warranty-Data-Analyst-Intern-WA-98033/1449176033/?ats=successfactors",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-21",
+   "evidence": "the site's own search lists it, and the page serves the full posting with its Apply now button",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.paccar.com/job/Kirkland-Summer-2027-Warranty-Data-Analyst-Intern-WA-98033/1449176033/?ats=successfactors",
+     "status": 200,
+     "body_file": "successfactors/successfactors-alive-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-alive-2",
+   "truth": "alive",
+   "url": "https://jobs.l3harris.com/job/Colorado-Springs-Associate,-Software-Engineer-CO-80916/1441835200/?ats=successfactors",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-23",
+   "evidence": "the site's own search lists it, and the page serves the full posting with its Apply now button",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.l3harris.com/job/Colorado-Springs-Associate,-Software-Engineer-CO-80916/1441835200/?ats=successfactors",
+     "status": 200,
+     "body_file": "successfactors/successfactors-alive-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-alive-3",
+   "truth": "alive",
+   "url": "https://careers.dominionenergy.com/job/GLEN-ALLEN-Intern-ET-Asset-Analyst-(Digital-Solutions-Team)-VA-23060/1441549200/?ats=successfactors",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-21",
+   "evidence": "the site's own search lists it, and the page serves the full posting with its Apply now button",
+   "expect": {
+    "verdict": "unknown",
+    "reason": "http_200",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.dominionenergy.com/job/GLEN-ALLEN-Intern-ET-Asset-Analyst-(Digital-Solutions-Team)-VA-23060/1441549200/?ats=successfactors",
+     "status": 200,
+     "body_file": "successfactors/successfactors-alive-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-dead-1",
+   "truth": "dead",
+   "url": "https://jobs.mcdonalds.com/job/Chicago-Software-Engineer-I-iOS-IL-60607/1322170500",
+   "origin": "dev branch row, listing_status=expired, changed 2026-09-28",
+   "evidence": "the page says the position has been filled, and the site's search no longer lists it",
+   "expect": {
+    "verdict": "dead",
+    "reason": "body_closed",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.mcdonalds.com/job/Chicago-Software-Engineer-I-iOS-IL-60607/1322170500",
+     "status": 200,
+     "body_file": "successfactors/successfactors-dead-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-dead-2",
+   "truth": "dead",
+   "url": "https://careers.duke.edu/job/Durham-Analytics-Engineer-NC-27710/1414289400/?ats=successfactors&ref=vansh",
+   "origin": "dev branch row, listing_status=expired, changed 2026-08-30",
+   "evidence": "the page says this position is no longer available, and the site's search no longer lists it",
+   "expect": {
+    "verdict": "dead",
+    "reason": "body_closed",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.duke.edu/job/Durham-Analytics-Engineer-NC-27710/1414289400/?ats=successfactors&ref=vansh",
+     "status": 200,
+     "body_file": "successfactors/successfactors-dead-2.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-dead-3",
+   "truth": "dead",
+   "url": "https://jobs.l3harris.com/job/Palm-Bay-Associate,-Software-Engineeriing-FL-32905/1414475800/?ats=successfactors&ref=vansh",
+   "origin": "dev branch row, listing_status=expired, changed 2026-08-30",
+   "evidence": "the page says the position has been filled, and the site's search no longer lists it",
+   "expect": {
+    "verdict": "dead",
+    "reason": "body_closed",
+    "authoritative": false
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.l3harris.com/job/Palm-Bay-Associate,-Software-Engineeriing-FL-32905/1414475800/?ats=successfactors&ref=vansh",
+     "status": 200,
+     "body_file": "successfactors/successfactors-dead-3.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ]
+  },
+  {
+   "id": "successfactors-gap-1",
+   "truth": "dead",
+   "url": "https://careers.leonardodrs.com/job/San-Diego-Software-Engineer-CA-92127/1298209000",
+   "origin": "dev branch row, listing_status=expired, changed 2026-08-01",
+   "evidence": "the page says 'Sorry, this position is no longer posted. Please search again.' and the site's search no longer lists it",
+   "expect": {
+    "verdict": "dead"
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://careers.leonardodrs.com/job/San-Diego-Software-Engineer-CA-92127/1298209000",
+     "status": 200,
+     "body_file": "successfactors/successfactors-gap-1.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    }
+   ],
+   "note": "SAP Recruiting Marketing's closed page says 'this position is no longer posted'"
+  }
+ ]
+}

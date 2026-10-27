@@ -1,0 +1,41 @@
+{
+  "__CLASS__": "Adzuna::API::Response::JobSearchResults",
+  "count": 1,
+  "mean": 48500,
+  "results": [
+    {
+      "__CLASS__": "Adzuna::API::Response::Job",
+      "id": "5012345678",
+      "title": "Entry Level Marketing Coordinator",
+      "description": "Coordinate social media calendars, assist with email campaigns and report on results ...",
+      "created": "2026-10-24T20:10:05Z",
+      "redirect_url": "https://www.adzuna.com/land/ad/5012345678?se=Zm9vYmFyYmF6&utm_medium=api&utm_source=testappid&v=cafebabecafebabecafebabecafebabecafebabe",
+      "adref": "eyJhbGciOiJIUzI1NiJ9.eyJpIjoiNTAxMjM0NTY3OCJ9.example",
+      "latitude": 30.2672,
+      "longitude": -97.7431,
+      "location": {
+        "__CLASS__": "Adzuna::API::Response::Location",
+        "area": [
+          "US",
+          "Texas",
+          "Austin"
+        ],
+        "display_name": "Austin, Texas"
+      },
+      "category": {
+        "__CLASS__": "Adzuna::API::Response::Category",
+        "tag": "pr-advertising-marketing-jobs",
+        "label": "PR, Advertising & Marketing Jobs"
+      },
+      "company": {
+        "__CLASS__": "Adzuna::API::Response::Company",
+        "display_name": "Lone Star Outdoor Supply"
+      },
+      "salary_min": 45000,
+      "salary_max": 52000,
+      "salary_is_predicted": "0",
+      "contract_time": "full_time",
+      "contract_type": "permanent"
+    }
+  ]
+}

@@ -14,11 +14,11 @@ from backend.services.location_parser import location_fields
 
 def _mk(db_session, url, *, source="linkedin", title="Software Engineer Intern",
         company="Kinaxis", domain="kinaxis.com", location="Ottawa, ON, CA",
-        description="", applicant_count=None, salary_range=""):
+        description="", applicant_count=None, salary_range="", level="internship"):
     row = ScrapedJob(
         title=title, company=company, url=url, location=location,
         description=description, country="CA", work_type="onsite",
-        source_platform=source, experience_level="internship", easy_apply=0,
+        source_platform=source, experience_level=level, easy_apply=0,
         match_score=0, company_domain=domain, salary_range=salary_range,
         applicant_count=applicant_count, title_norm=normalize_title(title),
         **location_fields(location),
@@ -571,6 +571,40 @@ def test_release_leaves_mirrors_of_a_removed_direct_row_and_closed_rows(db_sessi
     assert closed_repost.duplicate_of == old.id
 
 
+def test_a_stale_spell_of_the_direct_row_never_frees_its_mirror(db_session):
+    """stale is hidden from the feed (scraper v2) but usually recovers. Its
+    LinkedIn mirror must stay hidden through the stale spell: released, it
+    would sit beside the recovered row as a duplicate nothing hides again."""
+    from backend.services.cross_source_dedup import (
+        absorb_new_aggregator_rows,
+        release_from_closed_winners,
+        stands_in_for_twins,
+    )
+
+    direct = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/74",
+                 source="ats", description=_DESC)
+    mirror = _mk(db_session, "https://ca.linkedin.com/jobs/view/4465089144")
+    mirror.duplicate_of = direct.id
+    db_session.commit()
+
+    _closed(db_session, direct, "stale")
+    assert stands_in_for_twins("stale", "ats", direct.url)
+    # A stale aggregator row stands in for no one: only direct rows speak when hidden.
+    assert not stands_in_for_twins("stale", "linkedin", mirror.url)
+    assert release_from_closed_winners(db_session) == []
+    absorb_new_aggregator_rows(db_session)  # the hourly backfill pass
+    db_session.refresh(mirror)
+    assert mirror.duplicate_of == direct.id
+    # A new copy arriving while the direct row is stale is hidden too.
+    assert has_direct_twin(db_session, company="Kinaxis", company_domain="kinaxis.com",
+                           title="Software Engineer Intern", city="ottawa")
+
+    _closed(db_session, direct, "active")  # the board lists it again
+    absorb_new_aggregator_rows(db_session)
+    db_session.refresh(mirror)
+    assert mirror.duplicate_of == direct.id
+
+
 # One LinkedIn posting under two host spellings (prod TD 61534/62435,
 # Deloitte 61647/61682, Skyworks 61937/61963).
 _SAME_SLUG = "https://ca.linkedin.com/jobs/view/software-engineer-intern-at-kinaxis-4464900190"
@@ -678,3 +712,143 @@ def test_sweep_never_hides_a_live_copy_behind_a_closed_one(db_session):
     assert repost.duplicate_of is None
     assert copy.duplicate_of is None
     assert old.duplicate_of is None and expired_direct.duplicate_of is None
+
+
+# --- the audience: a student-feed copy is never the twin of a row above entry level
+
+# normalize_title drops a parenthetical, so a board's mid-level "Software
+# Engineer" and LinkedIn's "Software Engineer (New Grad)" share a title_norm.
+_NEW_GRAD = "Software Engineer (New Grad)"
+_GUARD = dict(company="Kinaxis", company_domain="kinaxis.com", title=_NEW_GRAD, city="ottawa")
+
+
+def test_same_audience():
+    from backend.services.cross_source_dedup import same_audience
+
+    for student in ("internship", "new_grad", "entry", "", None):
+        assert same_audience(student, "new_grad") and not same_audience(student, "mid")
+    assert same_audience("mid", "director")
+
+
+def test_a_mid_level_board_row_neither_hides_nor_blocks_a_new_grad_copy(db_session):
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000080", title=_NEW_GRAD,
+               level="new_grad")
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/80", source="ats",
+                title="Software Engineer", level="mid", description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 0
+    assert absorb_new_aggregator_rows(db_session) == 0
+    db_session.refresh(copy)
+    assert copy.duplicate_of is None
+    assert not has_direct_twin(db_session, **_GUARD, experience_level="new_grad")
+    # The ingest guard's default, no level, is the student feed's: its
+    # LinkedIn and Indeed searches are scoped to entry level.
+    assert not has_direct_twin(db_session, **_GUARD)
+
+
+def test_a_student_feed_board_row_still_hides_and_blocks_its_copies(db_session):
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000081", title=_NEW_GRAD,
+               level="new_grad")
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/81", source="ats",
+                title="Software Engineer", level="entry", description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+    assert has_direct_twin(db_session, **_GUARD, experience_level="new_grad")
+    assert has_direct_twin(db_session, **_GUARD)
+
+
+def test_absorb_takes_only_a_twin_of_the_same_audience(db_session):
+    mid = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/82", source="ats",
+              title="Software Engineer", level="mid", description=_DESC)
+    new_grad = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/83", source="ats",
+                   title="Software Engineer, New Grad", level="new_grad", description=_DESC)
+    copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000082", title=_NEW_GRAD,
+               level="new_grad")
+    senior_copy = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000083",
+                      title="Software Engineer", level="mid")
+
+    assert absorb_new_aggregator_rows(db_session) == 1
+    db_session.refresh(copy)
+    db_session.refresh(senior_copy)
+    assert copy.duplicate_of is None  # its only exact-title twin is mid level
+    assert senior_copy.duplicate_of == mid.id
+    assert new_grad.duplicate_of is None
+
+
+def test_a_released_copy_never_moves_under_a_twin_of_another_audience(db_session):
+    from backend.services.cross_source_dedup import release_from_closed_winners
+
+    old = _closed(db_session, _mk(db_session, _LI_OLD, title=_NEW_GRAD, level="new_grad",
+                                  description=_DESC), "expired")
+    repost = _mk(db_session, _LI_NEW, title=_NEW_GRAD, level="new_grad")
+    _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/84", source="ats",
+        title="Software Engineer", level="mid", description=_DESC)
+    repost.duplicate_of = old.id
+    db_session.commit()
+
+    moved = release_from_closed_winners(db_session)
+
+    db_session.refresh(repost)
+    assert moved == [(repost.id, old.id, None)]
+    assert repost.duplicate_of is None
+
+
+# --- aggregator adapters (Tier 3): an inferior source ------------------------
+#
+# Adzuna and Jooble rows are stored as source_platform 'ats', like a board
+# crawl's, but they re-list other employers' postings (spec: keep the
+# employer-source row and point the aggregator row at it).
+
+_ADZUNA = "https://www.adzuna.ca/details/4471000001"
+
+
+def _adzuna(db_session, url=_ADZUNA, **kwargs):
+    row = _mk(db_session, url, source="ats", **kwargs)
+    row.board_key, row.source_trust = "adzuna:ca-intern", "low"
+    db_session.commit()
+    return row
+
+
+def test_an_aggregator_adapters_row_is_its_aggregators():
+    from backend.services.cross_source_dedup import effective_source, is_inferior_source
+
+    assert effective_source("ats", _ADZUNA) == "adzuna"
+    assert effective_source("ats", "https://jooble.org/desc/7203851104417") == "jooble"
+    assert effective_source("ats", "https://boards.greenhouse.io/kinaxis/jobs/1") == "ats"
+    assert effective_source("ats", "https://apply.workable.com/acme/j/ABC123/") == "ats"  # Tier 1
+    assert effective_source("github", _ADZUNA) == "github"  # a list's own label stands
+    assert is_inferior_source("adzuna") and is_inferior_source("jooble")
+    assert not is_inferior_source("ats") and not is_inferior_source("github")
+
+
+def test_the_employers_row_hides_an_aggregator_adapters_copy(db_session):
+    copy = _adzuna(db_session)
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/90", source="ats",
+                description=_DESC)
+
+    assert mark_inferior_twins(db_session, board) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+
+
+def test_the_absorb_pass_hides_an_aggregator_adapters_copy_behind_the_employers_row(db_session):
+    board = _mk(db_session, "https://boards.greenhouse.io/kinaxis/jobs/91", source="ats",
+                description=_DESC)
+    copy = _adzuna(db_session)
+
+    assert absorb_new_aggregator_rows(db_session) == 1
+    db_session.refresh(copy)
+    assert copy.duplicate_of == board.id
+
+
+def test_an_aggregator_adapters_row_hides_no_one_and_blocks_no_one(db_session):
+    linkedin = _mk(db_session, "https://ca.linkedin.com/jobs/view/4470000092")
+    copy = _adzuna(db_session, description=_DESC)
+
+    assert mark_inferior_twins(db_session, copy) == 0
+    assert not has_direct_twin(db_session, company="Kinaxis", company_domain="kinaxis.com",
+                               title="Software Engineer Intern", city="ottawa")
+    db_session.refresh(linkedin)
+    assert linkedin.duplicate_of is None

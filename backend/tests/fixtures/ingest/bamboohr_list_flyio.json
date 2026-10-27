@@ -1,0 +1,67 @@
+{
+  "meta": {
+    "totalCount": 10
+  },
+  "result": [
+    {
+      "id": "35",
+      "jobOpeningName": "Infrastructure Ops Engineer",
+      "departmentId": "18593",
+      "departmentLabel": "Infrastructure Operations",
+      "employmentStatusLabel": "US Employee",
+      "employmentType": null,
+      "location": {
+        "city": null,
+        "state": null
+      },
+      "atsLocation": {
+        "country": null,
+        "state": null,
+        "province": null,
+        "city": null
+      },
+      "isRemote": null,
+      "locationType": "1"
+    },
+    {
+      "id": "60",
+      "jobOpeningName": "Executive Assistant to the CEO ",
+      "departmentId": "18580",
+      "departmentLabel": "G&A",
+      "employmentStatusLabel": "US Employee",
+      "employmentType": null,
+      "location": {
+        "city": "chicago",
+        "state": "Illinois"
+      },
+      "atsLocation": {
+        "country": null,
+        "state": null,
+        "province": null,
+        "city": null
+      },
+      "isRemote": null,
+      "locationType": "2"
+    },
+    {
+      "id": "63",
+      "jobOpeningName": "VP Finance",
+      "departmentId": "18580",
+      "departmentLabel": "G&A",
+      "employmentStatusLabel": "US Employee",
+      "employmentType": null,
+      "location": {
+        "city": null,
+        "state": null
+      },
+      "atsLocation": {
+        "country": null,
+        "state": null,
+        "province": null,
+        "city": null
+      },
+      "isRemote": null,
+      "locationType": "1"
+    }
+  ]
+}

@@ -1,0 +1,41 @@
+{
+  "totalCount": 4,
+  "jobs": [
+    {
+      "id": 7203851104417,
+      "title": "Sales Associate",
+      "location": "Austin, TX",
+      "snippet": "&nbsp;...Greet customers and help them find the right product. <b>Retail</b> experience preferred, but we will train the right person...&nbsp;",
+      "salary": "$16 - $19 per hour",
+      "source": "indeed.com",
+      "type": "Part-time",
+      "link": "https://jooble.org/desc/7203851104417?ckey=sales&rgn=-1&pos=1&elckey=4803174402611781204&age=24&relb=100&brelb=100&bscr=1.2&scr=1.2",
+      "company": "Lone Star Outdoor Supply",
+      "updated": "2026-10-24T13:21:05.0000000"
+    },
+    {
+      "id": 7203851104418,
+      "title": "Junior Software Engineer",
+      "location": "Seattle, WA",
+      "snippet": "Build and test web services with a small team. Mentoring and a clear path to mid-level engineer are included ...",
+      "salary": "",
+      "source": "linkedin.com",
+      "type": "Full-time",
+      "link": "https://jooble.org/jdp/7203851104418",
+      "company": "Cedar Systems",
+      "updated": "2026-10-23T09:00:00.1230000"
+    },
+    {
+      "id": 7203851104419,
+      "title": "Warehouse Associate",
+      "location": "Dallas, TX",
+      "snippet": "",
+      "salary": "$18 - $21",
+      "source": "jooble",
+      "type": "",
+      "link": "https://jooble.org/desc/7203851104419",
+      "company": "",
+      "updated": "2026-10-22T16:40:12.5000000"
+    }
+  ]
+}

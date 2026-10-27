@@ -1,0 +1,103 @@
+{
+ "requisitionList": [
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "122750",
+   "contestNo": "37372",
+   "column": [
+    "Learning Services Assistant - LFB - Appendix D",
+    "[\"Lakeshore Campus\"]",
+    "10/23/26"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "122727",
+   "contestNo": "37363",
+   "column": [
+    "Program Support Coordinator - UGH - Appendix D",
+    "[\"North Campus\"]",
+    "10/23/26"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "122741",
+   "contestNo": "37355",
+   "column": [
+    "Accommodation Advisor - SSE - App D",
+    "[\"Multiple Locations\"]",
+    "10/23/26"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "122739",
+   "contestNo": "37353",
+   "column": [
+    "Learning Services Assistant - FHLS - Appendix-D",
+    "[\"North Campus\"]",
+    "10/23/26"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  },
+  {
+   "hotJob": false,
+   "addedToJobCart": false,
+   "draft": false,
+   "alreadyAppliedOn": false,
+   "toReApply": false,
+   "jobId": "122391",
+   "contestNo": "37077",
+   "column": [
+    "Business Analyst - Procurement and Contract Analyst - ITS - FT Admin Contract",
+    "[\"North Campus\"]",
+    "10/20/26"
+   ],
+   "linkedColumn": 0,
+   "locationsColumns": [
+    1
+   ]
+  }
+ ],
+ "facetResults": [],
+ "pagingData": {
+  "currentPageNo": 1,
+  "pageSize": 25,
+  "totalCount": 16
+ },
+ "queryString": "f=null&s=3|D&a=null&multiline=false",
+ "careerSectionUnAvailable": false,
+ "supportedLanguages": []
+}

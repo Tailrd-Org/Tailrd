@@ -1,0 +1,120 @@
+{
+ "items": [
+  {
+   "Id": "691805",
+   "Title": "Clinical Technician 1 - Emergency Department",
+   "Category": "Clinical Services",
+   "RequisitionType": "Professional",
+   "JobGrade": null,
+   "RequisitionId": 300003751585858,
+   "ExternalPostedStartDate": "2026-10-25T04:00:00+00:00",
+   "JobLevel": null,
+   "JobSchedule": "Full time",
+   "JobShift": null,
+   "StudyLevel": null,
+   "InternationalTravelRequired": null,
+   "ExternalContactName": null,
+   "ExternalContactEmail": null,
+   "ContractType": null,
+   "ExternalPostedEndDate": "2026-10-26T04:00:00+00:00",
+   "JobFamilyId": 300000006421613,
+   "GeographyId": 100000000370317,
+   "GeographyNodeId": 100000312914834,
+   "ExternalDescriptionStr": "<p><span>Inova <strong>Fair Oaks</strong> &nbsp;Hospital -&nbsp;<strong>ED</strong> is looking for a dedicated <strong>Clinical Technician 1&nbsp;</strong>to join the team.&nbsp;</span></p><p><span>This role will be&nbsp;Full Time, Nights (6:45PM – 7:15AM). Days Vary with rotating weekends &amp; holidays.</span></p><p><i><span>Inova is consistently ranked a national healthcare leader in safety, quality and patient experience.</span></i> <i><span>We are also proud to be consistently recognized as a top employer in both the D.C. metro area and the nation.&nbsp;</span></i></p><p><span><strong>Featured Benefits:&nbsp;</strong></span></p><ul style=\"padding-left: 48px;\"><li><span><strong>Committed to Team Member Health:&nbsp;</strong>offering medical, dental and vision coverage, and a robust team member wellness program.</span></li><li><span><strong>Retirement:&nbsp;</strong>Inova matches the first 5% of eligible contributions – starting on your first day.</span></li><li><span><strong>Tuition and Student Loan Assistance:&nbsp;</strong>offering<strong>&nbsp;</strong>up to $5,250 per year in education assistance and up to $10,000 for student loans.</span></li><li><span><strong>Mental Health Support:&nbsp;</strong>offering all Inova team members, their spouses/partners, and their children 25 mental health coaching or therapy sessions, per person, per year, at no cost.</span></li><li><span><strong>Work/Life Balance:&nbsp;</strong>offering&nbsp;<strong> </strong>paid time off, paid parental leave, and flexible work schedules.</span></li></ul><p>&nbsp;</p><p><span><strong>Clinical Technician 1 -&nbsp;Job Responsibilities:</strong></span></p><ul style=\"list-style-type: disc;\"><li><span>To learn more about a day in the life of a Clinical Technician 1, please visit:&nbsp; &nbsp; &nbsp;&nbsp;</span><a target=\"_blank\" rel=\"nofollow\"><span>Working as a Clinical Technician</span></a><span> (2 Mins)</span></li><li><span>Provides direct care to patients under direct supervision of registered nurse.</span></li><li><span>Effectively communicates with team members, patients, and visitors.&nbsp;</span></li><li><span>Maintains professionalism and integrity throughout the healthcare system.</span></li></ul><p>&nbsp;</p><p><span><strong>Training</strong>:&nbsp; Must be available for six (6) non-consecutive weeks of paid training, consisting of:</span></p><ul style=\"list-style-type: disc;\"><li><span>Virtual orientations (Two from 8AM -4:30PM)</span></li><li><span>Classroom-style sessions: 8AM – 4:30PM (6 shifts total)</span></li><li><span>Virtual training modules.</span></li><li><span>On-unit shifts</span></li><li><span>May perform additional duties as assigned</span></li></ul><p style=\"margin-left: 0.5in;\">&nbsp;</p><p><span><strong>Minimum Qualifications:</strong></span></p><ul style=\"list-style-type: disc;\"><li><span><strong>Education:&nbsp;</strong>High School diploma or equivalent.</span></li><li><span><strong>Certification:&nbsp;</strong>Basic Life Support (BLS) from the American Heart<strong>&nbsp;</strong>Association, or obtain within 90 days of hire&nbsp;</span></li><li><span><strong>Special Skills:&nbsp;</strong>Proficient verbal and written communication skills in English</span></li><li><span><strong>Physical Requirements:&nbsp;</strong>Ability to lift minimum of 35lbs pounds</span></li></ul>",
+   "CorporateDescriptionStr": "<p></p>\n<p>We are Inova, Northern Virginia’s leading nonprofit healthcare provider. Every day, our 26,000+ team members provide world-class healthcare to the communities we serve. Our people are the reason we're a national leader in healthcare safety, quality and patient experience. And from best-in-class facilities to professional development opportunities, we support them at every step. At Inova, we're constantly striving to be ever better \u2014 to shape a more compassionate future for healthcare.&nbsp;<br></p>\n<p><i>Inova Health is an Equal Opportunity employer. All qualified applicants will receive consideration for employment without regard to age, color, disability, gender identity or expression, marital status, national or ethnic origin, political affiliation, pregnancy (including childbirth, pregnancy-related conditions and lactation), race, religion, sex, sexual orientation, veteran status, genetic information, or any other characteristics protected by law.</i></p>",
+   "OrganizationDescriptionStr": "",
+   "ShortDescriptionStr": "Inova Fair Oaks Hospital | Clinical Technician 1 – ED | Full Time, Nights Shift| 6:45PM – 7:15AM | Days Vary | Rotating weekends & holidays |",
+   "ContentLocale": "en",
+   "PrimaryLocation": "Fairfax, VA, United States",
+   "PrimaryLocationCountry": "US",
+   "ObjectVerNumberProfile": null,
+   "ApplyWhenNotPostedFlag": true,
+   "ExternalQualificationsStr": "",
+   "InternalQualificationsStr": "",
+   "InternalResponsibilitiesStr": "",
+   "ExternalResponsibilitiesStr": "",
+   "JobFunctionCode": "CLINICAL SUPPORT",
+   "HotJobFlag": false,
+   "TrendingFlag": false,
+   "BeFirstToApplyFlag": false,
+   "WorkplaceTypeCode": null,
+   "WorkplaceType": "",
+   "OtherRequisitionTitle": null,
+   "NumberOfOpenings": null,
+   "HiringManager": null,
+   "Organization": null,
+   "BusinessUnitId": 300000007046085,
+   "LegalEmployerId": 300000001919253,
+   "OrganizationId": 1,
+   "WorkerType": null,
+   "JobType": null,
+   "WorkMonths": null,
+   "WorkYears": null,
+   "WorkHours": null,
+   "WorkDays": null,
+   "LegalEmployer": null,
+   "BusinessUnit": null,
+   "Department": null,
+   "DomesticTravelRequired": null,
+   "JobFunction": "Clinical Support",
+   "secondaryLocations": [],
+   "media": [],
+   "workLocation": [
+    {
+     "LocationId": 300000005792424,
+     "LocationName": "Inova Fair Oaks Hospital",
+     "AddressLine1": null,
+     "AddressLine2": null,
+     "AddressLine3": null,
+     "AddressLine4": null,
+     "Building": null,
+     "TownOrCity": null,
+     "PostalCode": null,
+     "Country": null,
+     "Region1": null,
+     "Region2": null,
+     "Region3": null,
+     "Longitude": "-77.38667",
+     "Latitude": "38.87506"
+    }
+   ],
+   "otherWorkLocations": [],
+   "requisitionFlexFields": [
+    {
+     "Prompt": "Salary Range",
+     "Value": "$17.00 - $26.90",
+     "ControlType": "TextArea",
+     "SequenceNumber": 7
+    },
+    {
+     "Prompt": "Pay Rate Frequency",
+     "Value": "HOURLY",
+     "ControlType": "SingleChoiceList",
+     "SequenceNumber": 8
+    }
+   ],
+   "primaryLocationCoordinates": [
+    {
+     "GeographyNodeId": 100000312914834,
+     "GeographyId": 100000000370317,
+     "Latitude": "38.80304",
+     "Longitude": "-77.32575",
+     "CountryCode": "US"
+    }
+   ],
+   "skills": []
+  }
+ ],
+ "count": 1,
+ "hasMore": false,
+ "limit": 499,
+ "offset": 0,
+ "links": [
+  {
+   "rel": "self",
+   "href": "https://elar.fa.us2.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+   "name": "recruitingCEJobRequisitionDetails",
+   "kind": "collection"
+  }
+ ]
+}

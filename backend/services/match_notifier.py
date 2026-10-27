@@ -30,7 +30,8 @@ from backend.db.models import (
 from backend.services.alert_unsubscribe import unsubscribe_url
 from backend.services.email_service import clean_company_name, email_service
 from backend.services import fit_reads
-from backend.services.listing_freshness import LISTING_ACTIVE, LISTING_STALE
+from backend.services.job_filters import user_experience_levels
+from backend.services.listing_freshness import LISTING_ACTIVE
 from backend.services.logo_cache import LOGO_PATH_PREFIX, logo_quality
 
 logger = logging.getLogger(__name__)
@@ -113,29 +114,47 @@ def _alert_regions(raw: Optional[str]) -> list[str]:
     return sorted(picked & _ALERT_COUNTRIES)
 
 
-def _alert_prefs(db: Session, user_id: int) -> tuple[bool, list[str]]:
-    """(alerts on?, region limit) for one user. Columns only. No settings row,
-    or a NULL flag, is opted in: that has been everyone's default."""
+def _alert_levels(raw: Optional[str]) -> list[str]:
+    """The stored experience levels a user's alerts cover, from
+    user_settings.experience_levels (which onboarding writes), expanded by
+    job_filters.EXPERIENCE_FILTER_MAP. No choice, or none recognized, means
+    Intern/New Grad and Entry Level: a student is never alerted about a
+    Director role because a setting was blank."""
+    return user_experience_levels(raw)
+
+
+def _level_filter(levels: list[str]):
+    """SQL: the job's experience level is one of ``levels``. A row with no
+    level is never alerted: it could be any level, a Director role included."""
+    return ScrapedJob.experience_level.in_(levels)
+
+
+def _alert_prefs(db: Session, user_id: int) -> tuple[bool, list[str], list[str]]:
+    """(alerts on?, region limit, experience levels) for one user. Columns
+    only. No settings row, or a NULL flag, is opted in: that has been
+    everyone's default."""
     row = (
-        db.query(UserSettings.match_alerts_enabled, UserSettings.regions)
+        db.query(UserSettings.match_alerts_enabled, UserSettings.regions,
+                 UserSettings.experience_levels)
         .filter(UserSettings.user_id == user_id)
         .first()
     )
     if row is None:
-        return True, []
-    return row[0] is not False, _alert_regions(row[1])
+        return True, [], _alert_levels(None)
+    return row[0] is not False, _alert_regions(row[1]), _alert_levels(row[2])
 
 
 def _alertable() -> tuple:
     """SQL filters for rows worth an alert: exactly what the feed shows. A
     hidden cross-source duplicate or a closed listing would deep-link the
     user to a job they can't apply to (26 of the first 91 alerts pointed at
-    rows since hidden as duplicates)."""
+    rows since hidden as duplicates). A ``stale`` listing is hidden from the
+    feed too, until a crawl or a check vouches for it again."""
     return (
         ScrapedJob.duplicate_of.is_(None),
         or_(
             ScrapedJob.listing_status.is_(None),
-            ScrapedJob.listing_status.in_((LISTING_ACTIVE, LISTING_STALE)),
+            ScrapedJob.listing_status == LISTING_ACTIVE,
         ),
         func.trim(func.coalesce(ScrapedJob.company, "")) != "",
         ScrapedJob.company != "Unknown",
@@ -285,7 +304,7 @@ def notify_high_matches(
     # The recipient's own choices. Checked here as well as in the sweep's user
     # query because a caller may call this directly, and a user can
     # unsubscribe while a sweep is running.
-    enabled, regions = _alert_prefs(db, user_id)
+    enabled, regions, levels = _alert_prefs(db, user_id)
     if not enabled:
         logger.info("Skipping match alert for user %s (opted out).", user_id)
         return 0
@@ -311,13 +330,15 @@ def notify_high_matches(
 
     # Only rows the feed still shows (a caller may hand over whatever it
     # scored, hidden or closed rows included), in the user's region if they
-    # picked one. Ids only, never whole rows.
+    # picked one and at the experience levels they chose. Ids only, never
+    # whole rows.
     job_ids = [job.id for job, _ in candidates]
     region_filter = [ScrapedJob.country.in_(regions)] if regions else []
     alertable = {
         row.id
         for row in db.query(ScrapedJob.id)
-        .filter(ScrapedJob.id.in_(job_ids), *_alertable(), *region_filter)
+        .filter(ScrapedJob.id.in_(job_ids), *_alertable(), *region_filter,
+                _level_filter(levels))
         .all()
     }
     candidates = [(job, score) for job, score in candidates if job.id in alertable]
@@ -705,7 +726,7 @@ async def sweep_match_alerts(
         .scalar_subquery()
     )
     users = (
-        db.query(User, UserSettings.regions)
+        db.query(User, UserSettings.regions, UserSettings.experience_levels)
         .outerjoin(UserSettings, UserSettings.user_id == User.id)
         .filter(*eligible)
         .order_by(func.coalesce(last_scored, _NEVER_SCORED).asc(), User.id.asc())
@@ -737,7 +758,7 @@ async def sweep_match_alerts(
     shadow_tally: Optional[ShadowTally] = ShadowTally(config_hash=None) if shadow_dir else None
     shadow_engine = None
 
-    for user, regions_raw in users:
+    for user, regions_raw, levels_raw in users:
         # Stop once the day's email budget is gone.
         if _emails_sent_today(db) >= budget:
             logger.info("Daily match-alert budget (%d) reached; ending sweep early.", budget)
@@ -765,9 +786,10 @@ async def sweep_match_alerts(
             .subquery()
         )
         # The scoring window: the newest N jobs the feed shows that this user hasn't been
-        # alerted about, in their region if they picked one. Ids only, and anchored to
-        # "newest N": filtering by score state before the LIMIT would make each run dig
-        # further into the backlog.
+        # alerted about, in their region if they picked one and at the experience levels
+        # they chose (Intern/New Grad and Entry Level when they chose none). Ids only, and
+        # anchored to "newest N": filtering by score state before the LIMIT would make each
+        # run dig further into the backlog.
         region_filter = [ScrapedJob.country.in_(regions)] if regions else []
         window_ids = [
             row[0]
@@ -775,6 +797,7 @@ async def sweep_match_alerts(
             .filter(
                 *_alertable(),
                 *region_filter,
+                _level_filter(_alert_levels(levels_raw)),
                 ScrapedJob.description != "",
                 ScrapedJob.description != None,  # noqa: E711
                 func.length(ScrapedJob.description) > 50,

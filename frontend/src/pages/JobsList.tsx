@@ -1,8 +1,13 @@
 import { useState, useEffect, useCallback } from "react";
 import { Logo } from "../components/brand";
+import { DEFAULT_EXPERIENCE_LEVELS } from "../lib/jobFilterOptions";
 import "../jobslist.css";
 
 const API_BASE = "";
+
+// This is the new-grad and internship list; the catalogue holds every level. The list
+// and the totals above it both count these levels only.
+const LIST_LEVELS = DEFAULT_EXPERIENCE_LEVELS.join(",");
 
 interface Job {
   id: number;
@@ -113,6 +118,7 @@ export default function JobsList() {
     params.set("page", String(page));
     params.set("page_size", String(pageSize));
     if (country) params.set("country", country);
+    params.set("experience_level", LIST_LEVELS);
     if (category) params.set("role_category", category);
     if (workType) params.set("work_type", workType);
     if (search) params.set("search", search);
@@ -137,7 +143,7 @@ export default function JobsList() {
 
   const fetchStats = useCallback(async () => {
     try {
-      const res = await fetch(`${API_BASE}/jobs/stats`);
+      const res = await fetch(`${API_BASE}/jobs/stats?experience_level=${encodeURIComponent(LIST_LEVELS)}`);
       if (res.ok) {
         const data = await res.json();
         setStats({ total: data.total || 0, new: data.new || 0 });

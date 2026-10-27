@@ -1,0 +1,643 @@
+{
+ "source": "smartrecruiters",
+ "recorded_on": "2026-10-26",
+ "check": "api.smartrecruiters.com/v1/companies/<company>/postings/<id>: active:true is open, active:false or 404 is gone",
+ "cases": [
+  {
+   "id": "smartrecruiters-alive-1",
+   "truth": "alive",
+   "url": "https://jobs.smartrecruiters.com/servicenow/744000151921269",
+   "board_key": "smartrecruiters:servicenow",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the postings API returns the posting, active",
+   "expect": {
+    "verdict": "alive",
+    "reason": "sr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/servicenow/postings/744000151921269",
+     "status": 200,
+     "body_json": {
+      "id": "744000151921269",
+      "name": "Sr Enterprise Account Executive",
+      "uuid": "36bced56-ae0f-41b7-aa05-7eca232a56c7",
+      "jobId": "eaa5acd4-5b72-445c-8e5a-a65215b42af3",
+      "jobAdId": "87bcb7c7-c92f-4096-8bf2-f65a6f93ee90",
+      "defaultJobAd": true,
+      "refNumber": "JB0074806",
+      "company": {
+       "name": "ServiceNow",
+       "identifier": "ServiceNow"
+      },
+      "location": {
+       "city": "Toronto",
+       "region": "Ontario",
+       "country": "ca",
+       "address": "161 Bay St. Ste 1300",
+       "postalCode": "M5J 2T2",
+       "remote": false,
+       "hybrid": false,
+       "fullLocation": "Toronto, Ontario, Canada"
+      },
+      "customField": [
+       {
+        "fieldId": "60345fa28b4ba8595bef1863",
+        "fieldLabel": "Recruiting Team",
+        "valueId": "professional",
+        "valueLabel": "Professional"
+       },
+       {
+        "fieldId": "60345e1a0b24a127cbdfa148",
+        "fieldLabel": "Employee Type",
+        "valueId": "0082f6cbe6154da19322cbab1f6aa5af",
+        "valueLabel": "Regular"
+       },
+       {
+        "fieldId": "5f63a78f1dae5c5c4e54ba2b",
+        "fieldLabel": "Department",
+        "valueId": "2294208",
+        "valueLabel": "Sales"
+       }
+      ],
+      "releasedDate": "2026-09-25T19:06:19.894Z",
+      "creator": {
+       "name": "",
+       "avatarUrl": ""
+      },
+      "postingUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000151921269-sr-enterprise-account-executive",
+      "applyUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000151921269-sr-enterprise-account-executive?oga=true",
+      "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/ServiceNow/publication/36bced56-ae0f-41b7-aa05-7eca232a56c7?dcr_ci=ServiceNow",
+      "jobAd": {
+       "sections": {
+        "companyDescription": {
+         "title": "Company Description",
+         "text": "<p>It all started when engineer Fred Luddy wrote code that automated a tedious task for his coworker, Phyllis. She cried tears of joy. That moment inspired Fred to build a company that could do that f..."
+        },
+        "jobDescription": {
+         "title": "Job Description",
+         "text": "<p>You will produce new business sales revenue from a SaaS license model. You will accomplish this through account planning, territory planning, researching prospect customers, using business developm..."
+        },
+        "qualifications": {
+         "title": "Qualifications",
+         "text": "<p><strong>To be successful in this role you have:</strong></p><ul><li>10+ years of sales experience within software OR solutions sales organization</li><li>Experience establishing trusted relationshi..."
+        },
+        "additionalInformation": {
+         "title": "Additional Information",
+         "text": "<p><strong>Work Personas</strong></p><p>We approach our distributed world of work with flexibility and trust. Work personas (flexible, remote, or required in office) are categories that are assigned t..."
+        }
+       }
+      },
+      "active": true,
+      "visibility": "PUBLIC",
+      "industry": {
+       "id": "it_and_services",
+       "label": "Information Technology And Services"
+      },
+      "function": {
+       "id": "sales",
+       "label": "Sales"
+      },
+      "department": {
+       "id": 2294208,
+       "label": "Sales"
+      },
+      "experienceLevel": {
+       "id": "not_applicable",
+       "label": "Not Applicable"
+      },
+      "typeOfEmployment": {
+       "id": "permanent",
+       "label": "Full-time"
+      },
+      "language": {
+       "code": "en",
+       "label": "English",
+       "labelNative": "English (US)"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "smartrecruiters-alive-2",
+   "truth": "alive",
+   "url": "https://jobs.smartrecruiters.com/NorthwesternMedicine/744000157494330",
+   "board_key": "smartrecruiters:NorthwesternMedicine",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the postings API returns the posting, active",
+   "expect": {
+    "verdict": "alive",
+    "reason": "sr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/NorthwesternMedicine/postings/744000157494330",
+     "status": 200,
+     "body_json": {
+      "id": "744000157494330",
+      "name": "Patient Access Specialist ",
+      "uuid": "d5b8d43f-f749-45ed-9b93-14d330a4421c",
+      "jobId": "924080f1-3380-4297-a721-547dc2fe143b",
+      "jobAdId": "076739f6-c423-46d6-a391-e132ae1be085",
+      "defaultJobAd": true,
+      "refNumber": "227151",
+      "company": {
+       "name": "Northwestern Memorial Healthcare",
+       "identifier": "NorthwesternMedicine"
+      },
+      "location": {
+       "city": "Winfield",
+       "region": "IL",
+       "country": "us",
+       "address": "25 N. Winfield Rd.",
+       "postalCode": "60190",
+       "remote": false,
+       "hybrid": false,
+       "fullLocation": "Winfield, IL, United States"
+      },
+      "customField": [
+       {
+        "fieldId": "5e417b6a5af62929ee8eedcd",
+        "fieldLabel": "Family",
+        "valueId": "C",
+        "valueLabel": "Administrative and Clerical"
+       },
+       {
+        "fieldId": "5e417b5cd7111e1f00775e80",
+        "fieldLabel": "Job Category",
+        "valueId": "O",
+        "valueLabel": "Not in Patient Care Giver Role"
+       },
+       {
+        "fieldId": "5e45ba3d9ff37623bf5e5800",
+        "fieldLabel": "Type of Employment (NM)",
+        "valueId": "F",
+        "valueLabel": "Full-Time"
+       }
+      ],
+      "releasedDate": "2026-10-23T14:27:13.058Z",
+      "creator": {
+       "name": "",
+       "avatarUrl": ""
+      },
+      "postingUrl": "https://jobs.smartrecruiters.com/NorthwesternMedicine/744000157494330-patient-access-specialist-",
+      "applyUrl": "https://jobs.smartrecruiters.com/NorthwesternMedicine/744000157494330-patient-access-specialist-?oga=true",
+      "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/NorthwesternMedicine/publication/d5b8d43f-f749-45ed-9b93-14d330a4421c?dcr_ci=NorthwesternMedicine",
+      "jobAd": {
+       "sections": {
+        "companyDescription": {
+         "title": "Company Description",
+         "text": "<p>At Northwestern Medicine, every patient interaction makes a difference in cultivating a positive workplace. This patient-first approach is what sets us apart as a leader in the healthcare industry...."
+        },
+        "jobDescription": {
+         "title": "Job Description",
+         "text": "<p>The <u><strong>Patient Access Specialist</strong></u> reflects the mission, vision, and values of NMHC, adheres to the organizations Code of Ethics and Corporate Compliance Program, and complies wi..."
+        },
+        "qualifications": {
+         "title": "Qualifications",
+         "text": "<p><u><strong>Required: </strong></u></p><ul><li>High School diploma or equivalent.</li><li>2-3 years customer service or medical office experience.</li><li>Excellent interpersonal, verbal, and writte..."
+        },
+        "additionalInformation": {
+         "title": "Additional Information",
+         "text": "<div sr-tagline=\"\"></div><p>Northwestern Medicine is an equal opportunity employer (disability, VETS) and does not discriminate in hiring or employment on the basis of age, sex, race, color, religion,..."
+        }
+       }
+      },
+      "compensation": {
+       "min": 18.4,
+       "max": 27.6,
+       "currency": "USD",
+       "period": "HOURLY"
+      },
+      "active": true,
+      "visibility": "PUBLIC",
+      "industry": {
+       "id": "hospital_and_health_care",
+       "label": "Hospital And Health Care"
+      },
+      "function": {
+       "id": "health_care_provider",
+       "label": "Health Care Provider"
+      },
+      "experienceLevel": {
+       "id": "associate",
+       "label": "Associate"
+      },
+      "typeOfEmployment": {
+       "id": "permanent",
+       "label": "Full-time"
+      },
+      "language": {
+       "code": "en",
+       "label": "English",
+       "labelNative": "English (US)"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "smartrecruiters-alive-3",
+   "truth": "alive",
+   "url": "https://jobs.smartrecruiters.com/Videotron/744000156053739",
+   "board_key": "smartrecruiters:Videotron",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the postings API returns the posting, active",
+   "expect": {
+    "verdict": "alive",
+    "reason": "sr_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/Videotron/postings/744000156053739",
+     "status": 200,
+     "body_json": {
+      "id": "744000156053739",
+      "name": "Concepteur·trice pédagogique, conception & diffusion",
+      "uuid": "fa567a2c-7692-4aa9-b6d0-7a7286034cac",
+      "jobId": "e8a66acc-ca6d-4ca1-aceb-47dc04698157",
+      "jobAdId": "242eaf33-2faa-4640-a12a-2764ebbf5214",
+      "defaultJobAd": true,
+      "refNumber": "REF9020S",
+      "company": {
+       "name": "Videotron",
+       "identifier": "Videotron"
+      },
+      "location": {
+       "city": "Montréal",
+       "region": "QC",
+       "country": "ca",
+       "address": "612 Rue Saint-Jacques",
+       "postalCode": "H3C 4M8",
+       "remote": false,
+       "hybrid": false,
+       "latitude": "45.50087629999999",
+       "longitude": "-73.5604091",
+       "fullLocation": "Montréal, QC, Canada"
+      },
+      "customField": [
+       {
+        "fieldId": "5e7d0e2f76f9586f1ea45b89",
+        "fieldLabel": "Statut d'employé",
+        "valueId": "6b815800-7c64-47c5-8363-e9f102bc48e8",
+        "valueLabel": "Permanent"
+       },
+       {
+        "fieldId": "5ea04adde24ccc0e4dc80a3f",
+        "fieldLabel": "Poste syndiqué",
+        "valueId": "18e96aca-f9ac-4a99-a897-6acae8a44ffe",
+        "valueLabel": "Non"
+       },
+       {
+        "fieldId": "COUNTRY",
+        "fieldLabel": "Country/Region",
+        "valueId": "ca",
+        "valueLabel": "Canada"
+       }
+      ],
+      "releasedDate": "2026-10-16T17:31:41.835Z",
+      "creator": {
+       "name": "Pierre-Olivier Lagacé",
+       "avatarUrl": "https://c.smartrecruiters.com/sr-employee-image-prod-aws-dc5/60be6fe73efddb4f8ecf9a66?r=s3-eu-central-1&_1704987792634"
+      },
+      "postingUrl": "https://jobs.smartrecruiters.com/Videotron/744000156053739-concepteur-trice-pedagogique-conception-diffusion",
+      "applyUrl": "https://jobs.smartrecruiters.com/Videotron/744000156053739-concepteur-trice-pedagogique-conception-diffusion?oga=true",
+      "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/Videotron/publication/fa567a2c-7692-4aa9-b6d0-7a7286034cac?dcr_ci=Videotron",
+      "jobAd": {
+       "sections": {
+        "companyDescription": {
+         "title": "Description de l'entreprise",
+         "text": "<p><a href=\"https://videotron.com/\" rel=\"noopener noreferrer\">Vidéotron</a>, l’une des principales entreprises de télécommunication au Canada, entretient un lien unique et privilégié avec la populatio..."
+        },
+        "jobDescription": {
+         "title": "Description du poste",
+         "text": "<p>Responsable de concevoir, développer et animer des formations destinées aux employés·es et gestionnaires du réseau de détail. La personne analyse les besoins, crée des solutions d’apprentissage ada..."
+        },
+        "qualifications": {
+         "title": "Qualifications",
+         "text": "<ul><li>Diplôme universitaire en technologie éducative, andragogie, ressources humaines, communication&#xa0;ou expérience équivalente.</li><li>Trois (3) à cinq (5) ans d'expérience en conception pédag..."
+        },
+        "additionalInformation": {
+         "title": "Informations complémentaires",
+         "text": "<ul><li>Salaire annuel&#xa0;<strong>compétitif&#xa0;</strong>;</li><li>Profite&#xa0;<strong>d’assurances collectives</strong>&#xa0;complètes selon tes besoins et d’un&#xa0;<strong>régime de retraite c..."
+        }
+       }
+      },
+      "active": true,
+      "visibility": "PUBLIC",
+      "industry": {
+       "id": "telecommunications",
+       "label": "Telecommunications"
+      },
+      "function": {
+       "id": "management",
+       "label": "Management"
+      },
+      "department": {
+       "id": 9884402,
+       "label": "Ventes"
+      },
+      "experienceLevel": {
+       "id": "mid_senior_level",
+       "label": "Mid-Senior Level"
+      },
+      "typeOfEmployment": {
+       "id": "permanent",
+       "label": "Full-time"
+      },
+      "language": {
+       "code": "fr-CA",
+       "label": "French (Canada)",
+       "labelNative": "français (Canada)"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "smartrecruiters-dead-1",
+   "truth": "dead",
+   "url": "https://jobs.smartrecruiters.com/servicenow/744000145373139",
+   "board_key": "smartrecruiters:servicenow",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the postings API returns the posting with active:false",
+   "expect": {
+    "verdict": "dead",
+    "reason": "sr_inactive",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/servicenow/postings/744000145373139",
+     "status": 200,
+     "body_json": {
+      "id": "744000145373139",
+      "name": "Associate New Logo Account Executive",
+      "uuid": "c62589bc-24cb-492d-add5-43e4f38c1317",
+      "jobId": "96dbd4c7-ab53-4a27-b4e3-912e6fc74e4e",
+      "jobAdId": "1af9d440-0aa2-4ac7-a9ab-f2e9ea7eec5f",
+      "defaultJobAd": true,
+      "refNumber": "JB0072691",
+      "company": {
+       "name": "ServiceNow",
+       "identifier": "ServiceNow"
+      },
+      "location": {
+       "city": "Atlanta",
+       "region": "Georgia",
+       "country": "us",
+       "address": "1155 Perimeter Center",
+       "postalCode": "30338",
+       "remote": false,
+       "hybrid": false,
+       "fullLocation": ", "
+      },
+      "customField": [
+       {
+        "fieldId": "60345fa28b4ba8595bef1863",
+        "fieldLabel": "Recruiting Team",
+        "valueId": "professional",
+        "valueLabel": "Professional"
+       },
+       {
+        "fieldId": "60345e1a0b24a127cbdfa148",
+        "fieldLabel": "Employee Type",
+        "valueId": "0082f6cbe6154da19322cbab1f6aa5af",
+        "valueLabel": "Regular"
+       },
+       {
+        "fieldId": "5f63a78f1dae5c5c4e54ba2b",
+        "fieldLabel": "Department",
+        "valueId": "2294208",
+        "valueLabel": "Sales"
+       }
+      ],
+      "releasedDate": "2026-08-24T22:18:45.533Z",
+      "creator": {
+       "name": "",
+       "avatarUrl": ""
+      },
+      "postingUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000145373139-associate-new-logo-account-executive",
+      "applyUrl": "https://jobs.smartrecruiters.com/ServiceNow/744000145373139-associate-new-logo-account-executive?oga=true",
+      "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/ServiceNow/publication/c62589bc-24cb-492d-add5-43e4f38c1317?dcr_ci=ServiceNow",
+      "jobAd": {
+       "sections": {
+        "companyDescription": {
+         "title": "Company Description",
+         "text": "<p>It all started in sunny San Diego, California in 2004 when a visionary engineer, Fred Luddy, saw the potential to transform how we work. Fast forward to today - ServiceNow stands as a global market..."
+        },
+        "jobDescription": {
+         "title": "Job Description",
+         "text": "<p>Job Description</p><p>The New Logo Account Executive is a pivotal role to ensuring ServiceNow’s continued growth. In this role, you will identify new business by strategically navigating a targeted..."
+        },
+        "qualifications": {
+         "title": "Qualifications",
+         "text": "<p>Preferred Qualifications</p><ul><li>4+ years of quota carrying, technology solution-based direct sales experience, penetrating net new accounts within a territory.</li><li>Strong sales strategy ski..."
+        },
+        "additionalInformation": {
+         "title": "Additional Information",
+         "text": "<p><strong>Work Personas</strong></p><p>We approach our distributed world of work with flexibility and trust. Work personas (flexible, remote, or required in office) are categories that are assigned t..."
+        }
+       }
+      },
+      "active": false,
+      "visibility": "PUBLIC",
+      "industry": {
+       "id": "it_and_services",
+       "label": "Information Technology And Services"
+      },
+      "function": {
+       "id": "sales",
+       "label": "Sales"
+      },
+      "department": {
+       "id": 2294208,
+       "label": "Sales"
+      },
+      "experienceLevel": {
+       "id": "not_applicable",
+       "label": "Not Applicable"
+      },
+      "typeOfEmployment": {
+       "id": "permanent",
+       "label": "Full-time"
+      },
+      "language": {
+       "code": "en",
+       "label": "English",
+       "labelNative": "English (US)"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "smartrecruiters-dead-2",
+   "truth": "dead",
+   "url": "https://jobs.smartrecruiters.com/BoschGroup/744000152528329",
+   "board_key": "smartrecruiters:BoschGroup",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-22",
+   "evidence": "the postings API returns the posting with active:false",
+   "expect": {
+    "verdict": "dead",
+    "reason": "sr_inactive",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/BoschGroup/postings/744000152528329",
+     "status": 200,
+     "body_json": {
+      "id": "744000152528329",
+      "name": "Cybersecurity Forensics and Incident Response Analyst",
+      "uuid": "7af44ae7-ba0f-473e-abf7-ad23ebc4e8c4",
+      "jobId": "b7937277-04c7-4b91-b237-d25c5261369f",
+      "jobAdId": "71e0f256-e66b-4e34-a54d-81ebe2ef9543",
+      "defaultJobAd": true,
+      "refNumber": "REF297362X",
+      "company": {
+       "name": "Bosch Group",
+       "identifier": "BoschGroup"
+      },
+      "location": {
+       "city": "Pittsburgh",
+       "region": "PA",
+       "country": "us",
+       "address": "2555 Smallman Street",
+       "postalCode": "15222",
+       "remote": false,
+       "hybrid": false,
+       "latitude": "40.4553472",
+       "longitude": "-79.9800679",
+       "fullLocation": ", "
+      },
+      "customField": [
+       {
+        "fieldId": "5abe2a4ab60a5e486a2d9b1d",
+        "fieldLabel": "Contract type",
+        "valueId": "1e46492b-d24f-460c-b095-38cf08a778d8",
+        "valueLabel": "Unlimited"
+       },
+       {
+        "fieldId": "5abe28e96d8bc56863dd9746",
+        "fieldLabel": "Tariff Area",
+        "valueId": "82f1dd4b-de9d-4134-9f1a-8d315be380ae",
+        "valueLabel": "United States Local Grades"
+       },
+       {
+        "fieldId": "586a997ee4b05fd937b86098",
+        "fieldLabel": "Legal Entity(acronym)",
+        "valueId": "RBUS",
+        "valueLabel": "RBUS"
+       }
+      ],
+      "releasedDate": "2026-10-20T17:25:54.425Z",
+      "creator": {
+       "name": "",
+       "avatarUrl": ""
+      },
+      "postingUrl": "https://jobs.smartrecruiters.com/BoschGroup/744000156621557-cybersecurity-forensics-and-incident-response-analyst",
+      "applyUrl": "https://jobs.smartrecruiters.com/BoschGroup/744000156621557-cybersecurity-forensics-and-incident-response-analyst?oga=true",
+      "referralUrl": "https://jobs.smartrecruiters.com/external-referrals/company/BoschGroup/publication/7af44ae7-ba0f-473e-abf7-ad23ebc4e8c4?dcr_ci=BoschGroup",
+      "jobAd": {
+       "sections": {
+        "companyDescription": {
+         "title": "Company Description",
+         "text": "<p><strong>We Are Bosch.</strong></p><p>At Bosch, we shape the future by inventing high-quality technologies and services that spark enthusiasm and enrich people’s lives. Our areas of activity are eve..."
+        },
+        "jobDescription": {
+         "title": "Job Description",
+         "text": "<p>Our Security Analysts play a critical role in protecting the organization through activities such as log analysis, incident response, digital forensics, security tooling development, and risk asses..."
+        },
+        "qualifications": {
+         "title": "Qualifications",
+         "text": "<p><strong>Basic Qualifications </strong></p><ul><li>Bachelor’s degree in Computer Science, Electrical Engineering, or a closely related field.</li><li>At least 3 years of hands-on experience in incid..."
+        },
+        "additionalInformation": {
+         "title": "Additional Information",
+         "text": "<p><strong>Equal Opportunity Employer, including disability / veterans.</strong></p><p><strong><em>Please note that employment is contingent upon the successful completion of a drug screen and backgro..."
+        }
+       }
+      },
+      "active": false,
+      "visibility": "PUBLIC",
+      "industry": {
+       "id": "computer_and_network_security",
+       "label": "Computer And Network Security"
+      },
+      "function": {
+       "id": "information_technology",
+       "label": "Information Technology"
+      },
+      "experienceLevel": {
+       "id": "associate",
+       "label": "Associate"
+      },
+      "typeOfEmployment": {
+       "id": "permanent",
+       "label": "Full-time"
+      },
+      "language": {
+       "code": "en",
+       "label": "English",
+       "labelNative": "English (US)"
+      }
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "smartrecruiters-dead-3",
+   "truth": "dead",
+   "url": "https://jobs.smartrecruiters.com/assent/744000148266037",
+   "board_key": "smartrecruiters:assent",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-29",
+   "evidence": "the postings API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "sr_api_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.smartrecruiters.com/v1/companies/assent/postings/744000148266037",
+     "status": 404,
+     "body_json": {
+      "id": "0782828d-f8f9-4c8f-a3bd-b251c34764c1",
+      "httpCode": 404,
+      "code": "RESOURCE_NOT_FOUND",
+      "message": "[MDC: ppa-cc26c352-e89a-4cd3-bb42-be5a2089456f] Response code: 404. Reason: Resource not found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

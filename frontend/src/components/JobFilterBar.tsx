@@ -1,19 +1,27 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { CaretDown, CaretUp } from "@phosphor-icons/react";
 import api from "../auth/api";
+import {
+  CAREER_FAMILY_OPTIONS,
+  availableExperienceOptions,
+  experienceLevelsOnOffer,
+  type JobFilters,
+} from "../lib/jobFilterOptions";
 
-export interface JobFilters {
-  country: string;           // "US" | "CA" | ""
-  location: string[];        // array of city search tags
-  work_type: string[];       // ["remote", "hybrid", "onsite"]
-  role_category: string[];   // selected categories
-  experience_level: string[];  // ["internship", "new_grad"]
-  date_posted: string;       // "24h" | "3d" | "week" | "month" | ""
-}
+// The option lists, their normalizers and the saved-filter migration live in
+// lib/jobFilterOptions (pure, so pages use them without this component); every
+// caller can still import them from here.
+export * from "../lib/jobFilterOptions";
 
 interface JobFilterBarProps {
   filters: JobFilters;
   onChange: (filters: JobFilters) => void;
+  /**
+   * The Experience Level options that have live jobs (GET /jobs/levels). Only those are
+   * offered, and a ticked level without one is dropped on Confirm. Not known (null or
+   * left out) offers all six.
+   */
+  availableExperienceLevels?: readonly string[] | null;
 }
 
 // --- Constants ---
@@ -22,67 +30,6 @@ export const COUNTRY_OPTIONS = [
   { value: "US", label: "United States" },
   { value: "CA", label: "Canada" },
 ];
-
-export const JOB_FUNCTION_OPTIONS = [
-  "Software Engineering",
-  "Engineering and Development",
-  "Data Analysis",
-  "Machine Learning and AI",
-  "Accounting and Finance",
-  "Management and Executive",
-  "Sales",
-  "Marketing",
-  "Human Resources",
-  "Product Management",
-  "Business Analyst",
-  "Creatives and Design",
-  "Legal and Compliance",
-  "Customer Service and Support",
-  "Operations",
-  "Consultant",
-  "Other",
-];
-
-// Values are the spellings stored in scraped_jobs.experience_level, the only two
-// levels the catalogue actually contains. Labels carry both the US ("internship",
-// "entry level") and Canadian ("co-op", "new grad") vocabulary.
-export const EXPERIENCE_OPTIONS = [
-  { value: "internship", label: "Internship / Co-op" },
-  { value: "new_grad", label: "New Grad / Entry Level" },
-];
-
-const EXPERIENCE_VALUES = EXPERIENCE_OPTIONS.map((o) => o.value);
-
-// Experience values persisted by the pre-2026-07 taxonomy, which offered levels the
-// catalogue never had. Mid/senior/lead/director are absent on purpose: they matched
-// zero jobs, so they are dropped rather than remapped.
-const LEGACY_EXPERIENCE_MAP: Record<string, string[]> = {
-  intern_new_grad: ["internship", "new_grad"],
-  entry: ["new_grad"],
-};
-
-/**
- * Migrate persisted experience filters onto the current taxonomy.
- *
- * Saved filters outlive the options that produced them. Without this, a user holding
- * `["senior"]` in localStorage would carry an invisible filter, no checkbox renders
- * for it, so it cannot be cleared, and it silently returns an empty job list.
- * Unknown values are dropped, which restores an unfiltered view instead.
- */
-export function normalizeExperienceLevels(values: unknown): string[] {
-  const raw = Array.isArray(values) ? values : typeof values === "string" && values ? [values] : [];
-  const out: string[] = [];
-  for (const item of raw) {
-    if (typeof item !== "string") continue;
-    const key = item.trim().toLowerCase();
-    if (!key) continue;
-    const mapped = EXPERIENCE_VALUES.includes(key) ? [key] : (LEGACY_EXPERIENCE_MAP[key] ?? []);
-    for (const value of mapped) {
-      if (!out.includes(value)) out.push(value);
-    }
-  }
-  return out;
-}
 
 const WORK_MODEL_OPTIONS = [
   { value: "onsite", label: "Onsite" },
@@ -251,15 +198,16 @@ const styles = {
 
 // --- Component ---
 
-export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
+export default function JobFilterBar({ filters, onChange, availableExperienceLevels }: JobFilterBarProps) {
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
+  const experienceOptions = availableExperienceOptions(availableExperienceLevels);
   const containerRef = useRef<HTMLDivElement>(null);
 
   // Temp state for pending selections (before Confirm)
   const [tempCountry, setTempCountry] = useState(filters.country);
   const [tempLocationTags, setTempLocationTags] = useState<string[]>(filters.location);
   const [locationInput, setLocationInput] = useState("");
-  const [tempRoleCategory, setTempRoleCategory] = useState<string[]>(filters.role_category);
+  const [tempCareerFamily, setTempCareerFamily] = useState<string[]>(filters.career_family);
   const [tempExperience, setTempExperience] = useState<string[]>(Array.isArray(filters.experience_level) ? filters.experience_level : filters.experience_level ? [filters.experience_level] : []);
   const [tempWorkType, setTempWorkType] = useState<string[]>(filters.work_type);
   const [tempDatePosted, setTempDatePosted] = useState(filters.date_posted);
@@ -268,7 +216,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   useEffect(() => {
     setTempCountry(filters.country);
     setTempLocationTags(filters.location);
-    setTempRoleCategory(filters.role_category);
+    setTempCareerFamily(filters.career_family);
     setTempExperience(Array.isArray(filters.experience_level) ? filters.experience_level : filters.experience_level ? [filters.experience_level] : []);
     setTempWorkType(filters.work_type);
     setTempDatePosted(filters.date_posted);
@@ -359,12 +307,17 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   }
 
   function confirmJobFunction() {
-    onChange({ ...filters, role_category: tempRoleCategory });
+    onChange({ ...filters, career_family: tempCareerFamily });
     setOpenDropdown(null);
   }
 
   function confirmExperience() {
-    onChange({ ...filters, experience_level: tempExperience });
+    // Nothing ticked means the default levels on offer, never "every level" (see
+    // experienceLevelsOnOffer); the boxes show that when the panel reopens.
+    onChange({
+      ...filters,
+      experience_level: experienceLevelsOnOffer(tempExperience, availableExperienceLevels),
+    });
     setOpenDropdown(null);
   }
 
@@ -387,11 +340,11 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   }
 
   function resetJobFunction() {
-    setTempRoleCategory([]);
+    setTempCareerFamily([]);
   }
 
   function resetExperience() {
-    setTempExperience([]);
+    setTempExperience(experienceLevelsOnOffer([], availableExperienceLevels));
   }
 
   function resetWorkModel() {
@@ -405,7 +358,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
   // --- Badge counts ---
 
   const countryActive = filters.country || filters.location.length > 0;
-  const jobFunctionCount = filters.role_category.length;
+  const jobFunctionCount = filters.career_family.length;
   const experienceActive = filters.experience_level.length;
   const workModelCount = filters.work_type.length;
   const datePostedActive = filters.date_posted ? 1 : 0;
@@ -557,22 +510,24 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
           onClick={() => toggleDropdown("jobFunction")}
         />
         {openDropdown === "jobFunction" && (
-          <DropdownPanel style={{ minWidth: "280px" }}>
+          // Capped so the longer family labels wrap instead of widening the panel
+          // past a phone screen.
+          <DropdownPanel style={{ minWidth: "280px", maxWidth: "min(320px, calc(100vw - 32px))" }}>
             <div style={styles.dropdownTitle}>Job Function</div>
             <div style={{ maxHeight: "280px", overflowY: "auto" }}>
-              {JOB_FUNCTION_OPTIONS.map((cat) => (
-                <label key={cat} style={styles.checkboxRow}>
+              {CAREER_FAMILY_OPTIONS.map((opt) => (
+                <label key={opt.value} style={styles.checkboxRow}>
                   <input
                     type="checkbox"
                     style={styles.checkbox}
-                    checked={tempRoleCategory.includes(cat)}
+                    checked={tempCareerFamily.includes(opt.value)}
                     onChange={() => {
-                      setTempRoleCategory((prev) =>
-                        prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat]
+                      setTempCareerFamily((prev) =>
+                        prev.includes(opt.value) ? prev.filter((c) => c !== opt.value) : [...prev, opt.value]
                       );
                     }}
                   />
-                  {cat}
+                  {opt.label}
                 </label>
               ))}
             </div>
@@ -593,7 +548,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
         {openDropdown === "experience" && (
           <DropdownPanel style={{}}>
             <div style={styles.dropdownTitle}>Experience Level</div>
-            {EXPERIENCE_OPTIONS.map((opt) => (
+            {experienceOptions.map((opt) => (
               <label key={opt.value} style={styles.checkboxRow}>
                 <input
                   type="checkbox"
@@ -719,7 +674,7 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
             ))}
 
             <div style={styles.sectionLabel}>Experience Level</div>
-            {EXPERIENCE_OPTIONS.map((opt) => (
+            {experienceOptions.map((opt) => (
               <label key={opt.value} style={styles.checkboxRow}>
                 <input
                   type="checkbox"
@@ -763,8 +718,8 @@ export default function JobFilterBar({ filters, onChange }: JobFilterBarProps) {
                   country: tempCountry,
                   location: commitPendingCityInput(),
                   work_type: tempWorkType,
-                  role_category: tempRoleCategory,
-                  experience_level: tempExperience,
+                  career_family: tempCareerFamily,
+                  experience_level: experienceLevelsOnOffer(tempExperience, availableExperienceLevels),
                   date_posted: tempDatePosted,
                 });
                 setOpenDropdown(null);

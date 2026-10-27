@@ -31,6 +31,7 @@ import re
 import time
 from dataclasses import dataclass, field
 from typing import Optional
+from urllib.parse import urlsplit
 
 import httpx
 
@@ -69,6 +70,10 @@ class ATSJob:
     # ("San Francisco; Toronto" beside a primary "London"). Read for the NA
     # verdict and the country column only, never displayed or stored.
     location_hint: str = ""
+    # The employer's own apply link, when an aggregator adapter's listing
+    # gives one (scraped_jobs.apply_url); ``url`` stays the posting it was
+    # found on.
+    apply_url: str = ""
 
 
 def _text(value) -> str:
@@ -250,17 +255,26 @@ _LEGACY_ATS_COMPANIES: list[tuple[str, str, str]] = [
 ]
 
 
-# Canonical company list: loaded from backend/data/ats_companies.json.
-# Falls back to the legacy hardcoded list if the registry can't be read.
-try:
-    from backend.data.company_registry import load_companies
+def _registry_companies() -> list[tuple[str, str, str]]:
+    """The canonical company list: backend/data/ats_companies.json through
+    company_registry.load_companies(), or the legacy list above when the
+    registry is empty or unreadable.
 
-    ATS_COMPANIES: list[tuple[str, str, str]] = load_companies() or _LEGACY_ATS_COMPANIES
-    if ATS_COMPANIES is _LEGACY_ATS_COMPANIES:
+    Read when called, never at import. The registry asks the v2 adapter
+    registry which platforms are enabled, and adapters import this module, so
+    an import-time read ran adapter discovery while an adapter imported first
+    was still half-loaded, and that adapter dropped out of the registry."""
+    try:
+        from backend.data.company_registry import load_companies
+
+        companies = load_companies()
+    except Exception as e:  # pragma: no cover - defensive
+        logger.error("Failed to load company registry, using legacy list: %s", e)
+        return _LEGACY_ATS_COMPANIES
+    if not companies:
         logger.warning("Company registry empty; using legacy fallback list")
-except Exception as e:  # pragma: no cover - defensive
-    logger.error("Failed to load company registry, using legacy list: %s", e)
-    ATS_COMPANIES = _LEGACY_ATS_COMPANIES
+        return _LEGACY_ATS_COMPANIES
+    return companies
 
 
 # ─── Entry-level classification ──────────────────────────────────────────────
@@ -348,6 +362,10 @@ WEAK_ENTRY = re.compile(
 _HARD_SENIOR_WORDS = re.compile(
     r"\bsenior\b|\bsr\b\.?|\bprincipal\b|\bdirector\b|\b[aers]?vp\b|\bvice[- ]president\b"
     r"|\bhead of\b|\bchief\b|\bdistinguished\b|\bfellow\b|\bcounsel\b"
+    # A dean is a senior academic post whatever its qualifier ("Associate
+    # Dean" must not read as the entry-level "Associate"); "Dean's Office
+    # Assistant" names an office, not a rank, as taxonomy.json reads it too.
+    r"|\bdean\b(?!['’]s)"
     r"|\bmanaging\b|\bassociate partner\b"
     r"|\bmid[- ]?level\b|\bintermediate\b|\bexperienced\b"
     r"|\biii\b|\biv\b"
@@ -614,7 +632,11 @@ def experience_level_for(title: str, department: str = "", employment_type: str 
 # posting is off target, so a stored row at its URL is retired (listing_status
 # off_target) instead of confirmed. "unplaced" (no North American location,
 # and no evidence against one either: Workday's "2 Locations", "Hybrid") never
-# retires a row.
+# retires a row. Only a crawl that filters by level gives a "level" verdict:
+# cron-ats while CRON_ATS_V2_CATALOGUE is off, which keeps the student
+# catalogue as before scraper v2. An every-level crawl (the switch on, the v2
+# runner) never does, so there only a posting outside the US and Canada is
+# off target.
 RETIRABLE_REJECTIONS = frozenset({"level", "location"})
 
 # Workday names one location and counts the rest ("PRAGUE DC (2 Locations)",
@@ -666,23 +688,88 @@ def _host_of(url: str) -> str:
     return m.group(1).lower() if m else ""
 
 
+# ─── Posting URLs fit to store ───────────────────────────────────────────────
+# A board's own HTML or JSON can carry any URL: an iCIMS anchor
+# href="javascript:/jobs/1/%0aalert(document.cookie)" passes the adapter's job
+# path check, a Recruitee careers_url keeps whatever scheme it was given, and
+# the feed renders the stored URL as a link (React only warns on javascript:).
+
+# v2 adapters whose every posting URL lives on the career-site host the
+# registry config names (config["host"]); a listing anywhere else is not the
+# board's. Teamtailor's and Jooble's config host is where their feed or API
+# lives, and their postings link elsewhere, so they are not here.
+CONFIG_HOST_PLATFORMS = frozenset({"icims", "jibe", "oracle_hcm", "successfactors", "taleo"})
+
+
+def web_url(url) -> bool:
+    """Whether ``url`` is an absolute http or https URL with a host: the only
+    kind a stored posting or apply link may be."""
+    if not isinstance(url, str):
+        return False
+    try:
+        parts = urlsplit(url)
+        return parts.scheme in ("http", "https") and bool(parts.hostname)
+    except ValueError:
+        return False
+
+
+def config_host(config) -> str:
+    """The host a board's registry config names, as the adapters read it
+    ("HTTPS://Careers-Kinaxis.icims.com/" -> "careers-kinaxis.icims.com");
+    "" when it names none."""
+    raw = config.get("host") if isinstance(config, dict) else None
+    return re.sub(r"^https?://", "", str(raw or "").strip().lower()).split("/")[0]
+
+
+def _posting_url_ok(url: str, host: str) -> bool:
+    """A listing's URL is an http(s) page, on ``host`` when one is given. An
+    empty URL passes here as it always has: it is never stored, matched or
+    reconciled."""
+    if not url:
+        return True
+    if not web_url(url):
+        return False
+    return not host or (urlsplit(url).hostname or "") == host
+
+
 _PLATFORM_API_HOSTS = {
     "greenhouse": "boards-api.greenhouse.io",
     "lever": "api.lever.co",
     "ashby": "api.ashbyhq.com",
     "smartrecruiters": "api.smartrecruiters.com",
 }
+# v2 adapters whose boards each live on the tenant's own subdomain of the
+# platform (a Teamtailor career site on its own domain names it in config).
+_TENANT_DOMAINS = {"bamboohr": "bamboohr.com", "recruitee": "recruitee.com",
+                   "teamtailor": "teamtailor.com"}
 
 
 def board_host(platform: str, slug: str) -> str:
     """The API host a board's crawl hits. Greenhouse/Lever/Ashby/SmartRecruiters
-    boards share one host per platform; every Workday tenant is its own host.
-    Callers crawling boards concurrently keep one board in flight per host."""
+    boards share one host per platform; every Workday tenant is its own host,
+    and so is a v2 adapter board on a host of its own: the career-site host
+    its config names (CONFIG_HOST_PLATFORMS: Oracle pods, iCIMS portals, Jibe
+    sites; a Teamtailor site on its own domain), or the tenant's subdomain
+    (BambooHR, Recruitee, Teamtailor). Workable, Job Bank and the keyed APIs
+    (USAJOBS, Adzuna, Jooble) serve every board from one host, so the platform
+    stays their key. Callers crawling boards concurrently keep one board in
+    flight per host."""
     if platform == "workday":
         from backend.data.company_registry import load_workday_bases
 
         return _host_of(load_workday_bases().get(slug, "")) or f"workday:{slug}"
-    return _PLATFORM_API_HOSTS.get(platform, platform)
+    if platform in _PLATFORM_API_HOSTS:
+        return _PLATFORM_API_HOSTS[platform]
+    if platform in CONFIG_HOST_PLATFORMS or platform == "teamtailor":
+        from backend.data.company_registry import load_board_config
+
+        host = config_host(load_board_config(platform, slug))
+        if host:
+            return host
+    domain = _TENANT_DOMAINS.get(platform)
+    if domain and (slug or "").strip():
+        return f"{slug.strip().lower()}.{domain}"
+    return platform
 
 
 # ─── Workday helpers ─────────────────────────────────────────────────────────
@@ -723,11 +810,21 @@ def workday_public_base(cxs_base: str) -> str:
 
     "https://bmo.wd3.myworkdayjobs.com/wday/cxs/bmo/external"
       → "https://bmo.wd3.myworkdayjobs.com/external"
+
+    A myworkdaysite.com host serves every tenant from one pod ("wd1") and
+    names the tenant in the path instead, under /recruiting/. Checked live
+    2026-10-25: Workday's own externalUrl for a posting of each of the 23
+    boards is this URL (one site name differs in letter case only):
+    "https://wd1.myworkdaysite.com/wday/cxs/upenn/careers-at-penn"
+      → "https://wd1.myworkdaysite.com/recruiting/upenn/careers-at-penn"
     """
-    m = re.match(r"(https?://[^/]+)/wday/cxs/[^/]+/([^/?#]+)", (cxs_base or "").rstrip("/"))
+    m = re.match(r"(https?://[^/]+)/wday/cxs/([^/]+)/([^/?#]+)", (cxs_base or "").rstrip("/"))
     if not m:
         return (cxs_base or "").rstrip("/")
-    return f"{m.group(1)}/{m.group(2)}"
+    host, tenant, site = m.groups()
+    if host.lower().endswith(".myworkdaysite.com"):
+        return f"{host}/recruiting/{tenant}/{site}"
+    return f"{host}/{site}"
 
 
 SMARTRECRUITERS_POSTING_BASE = "https://jobs.smartrecruiters.com/"
@@ -851,7 +948,7 @@ class ATSScraper:
         registry when omitted. Returns filtered job list."""
         all_jobs: list[ATSJob] = []
         if companies is None:
-            companies = ATS_COMPANIES
+            companies = _registry_companies()
 
         async with httpx.AsyncClient(timeout=30) as client:
             for platform, slug, company_name in companies:
@@ -884,7 +981,13 @@ class ATSScraper:
 
         Raises on fetch failure (callers isolate per-board errors), a failed
         board must never produce an empty snapshot that reads as "everything
-        was taken down"."""
+        was taken down".
+
+        A listing whose URL is not an http(s) page, or (CONFIG_HOST_PLATFORMS)
+        not on the career-site host the board's config names, is dropped,
+        and the snapshot is then partial: it is no posting this catalogue
+        stores, and a stored row of it is left to the stale sweep."""
+        posting_host = ""
         if platform == "greenhouse":
             listings = await self._fetch_greenhouse(client, slug, company_name)
             complete, total = True, len(listings)
@@ -899,8 +1002,32 @@ class ATSScraper:
         elif platform == "workday":
             listings, complete, total = await self._fetch_workday(client, slug, company_name)
         else:
-            return BoardSnapshot(platform=platform, slug=slug, company=company_name,
-                                 complete=False)
+            # Every other platform is a v2 adapter (backend/ingest/adapters),
+            # which lists the whole board unfiltered; the filters below apply
+            # as they do to the built-ins. A platform with no adapter, or one
+            # whose API keys are missing, keeps the empty incomplete snapshot:
+            # nothing ingested, and nothing reconciled away.
+            from backend.data.company_registry import load_board_config
+            from backend.ingest.adapters import adapter_enabled, get_adapter
+
+            adapter = get_adapter(platform)
+            if adapter is None or not adapter_enabled(platform):
+                return BoardSnapshot(platform=platform, slug=slug, company=company_name,
+                                     complete=False)
+            config = load_board_config(platform, slug)
+            listings, complete, total = await adapter.list_jobs(
+                client, slug, company_name, config=config, deadline=self.deadline,
+            )
+            listings = list(listings)
+            if platform in CONFIG_HOST_PLATFORMS:
+                posting_host = config_host(config)
+
+        safe = [job for job in listings if _posting_url_ok(job.url, posting_host)]
+        if len(safe) < len(listings):
+            logger.warning("%s:%s: dropped %d listings whose URL is not an http(s) page%s",
+                           platform, slug, len(listings) - len(safe),
+                           f" on {posting_host}" if posting_host else "")
+            listings, complete = safe, False
 
         from backend.data.company_registry import load_board_countries
 

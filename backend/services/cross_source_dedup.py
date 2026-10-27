@@ -40,10 +40,69 @@ logger = logging.getLogger(__name__)
 
 DIRECT_SOURCES = ("ats", "github")
 INFERIOR_SOURCES = ("linkedin", "indeed")
+# A v2 adapter of this tier or above (Tier 3: Adzuna, Jooble; Tier 4) is an
+# aggregator: its rows are stored as source_platform 'ats', like a board
+# crawl's, but they re-list other employers' postings. By URL they are their
+# aggregator's (effective_source), an inferior source like LinkedIn and
+# Indeed: the employer's own row hides them, and they never hide anything.
+AGGREGATOR_TIER = 3
 
 # Lower is better. Direct rows beat aggregator rows; LinkedIn beats Indeed
-# (richer metadata) when no direct row exists.
+# (richer metadata) when no direct row exists; an aggregator adapter's row
+# comes last (the default, 3).
 _SOURCE_TIER = {"ats": 0, "github": 0, "linkedin": 1, "indeed": 2}
+
+# (adapter registry, ((platform, compiled HOST_PATTERNS), ...)) of the
+# aggregator adapters, rebuilt when the registry is (tests swap it).
+_aggregators: tuple = (None, ())
+
+
+def _aggregator_patterns() -> tuple:
+    """((platform, compiled HOST_PATTERNS), ...) of every v2 adapter of
+    AGGREGATOR_TIER or above, enabled or not. Read on use, never at import
+    (the adapter registry must not be asked at import time)."""
+    global _aggregators
+    from backend.ingest import adapters
+
+    registry = adapters._adapters()
+    if _aggregators[0] is not registry:
+        found = []
+        for platform, module in sorted(registry.items()):
+            tier = getattr(module, "TIER", None)
+            if isinstance(tier, int) and not isinstance(tier, bool) and tier >= AGGREGATOR_TIER:
+                patterns = getattr(module, "HOST_PATTERNS", ()) or ()
+                if isinstance(patterns, (str, re.Pattern)):
+                    patterns = (patterns,)
+                compiled = tuple(p for p in (adapters._compile(x) for x in patterns) if p is not None)
+                found.append((platform, compiled))
+        _aggregators = (registry, tuple(found))
+    return _aggregators[1]
+
+
+def aggregator_platforms() -> tuple[str, ...]:
+    """The platforms of the aggregator adapters (AGGREGATOR_TIER)."""
+    return tuple(platform for platform, _patterns in _aggregator_patterns())
+
+
+def is_inferior_source(source: str) -> bool:
+    """An effective source whose copies the employer's own row hides:
+    LinkedIn, Indeed, or an aggregator adapter."""
+    return source in INFERIOR_SOURCES or source in aggregator_platforms()
+
+
+def _inferior_row_filter():
+    """SQL: a row that may be an inferior copy (is_inferior_source decides):
+    a LinkedIn/Indeed source or URL, or a row of an aggregator adapter's
+    board."""
+    return or_(
+        ScrapedJob.source_platform.in_(INFERIOR_SOURCES),
+        # Rogue-era rows are labeled 'ats' but carry aggregator URLs.
+        ScrapedJob.url.ilike("%linkedin.com%"),
+        ScrapedJob.url.ilike("%indeed.com%"),
+        *(ScrapedJob.board_key.startswith(f"{platform}:", autoescape=True)
+          for platform in aggregator_platforms()),
+    )
+
 
 # Only aggregator copies may ever be hidden. Two direct-board rows with the
 # same title are distinct requisitions (per-country variants, multiple
@@ -75,12 +134,24 @@ def titles_fuzzy_match(a: str, b: str) -> bool:
 
 def effective_source(source: str, url: str) -> str:
     """The rogue-scraper era mislabeled LinkedIn/Indeed rows as source='ats';
-    the URL is the truth."""
+    the URL is the truth. An aggregator adapter's row ('ats' too) is its
+    aggregator's (the adapter whose HOST_PATTERNS own the URL)."""
     blob = (url or "").lower()
     if "linkedin.com" in blob:
         return "linkedin"
     if "indeed.com" in blob:
         return "indeed"
+    if source == "ats" and blob:
+        aggregators = _aggregator_patterns()
+        if aggregators:
+            try:
+                host = (urlsplit(url).hostname or "").lower()
+            except ValueError:
+                host = ""
+            for platform, patterns in aggregators:
+                # As adapters.adapter_for_url reads them: in the URL or its host.
+                if any(p.search(url) or (host and p.search(host)) for p in patterns):
+                    return platform
     return source or ""
 
 
@@ -263,6 +334,21 @@ def _cities_compatible(
     return loser_city == winner_city or f"|{loser_city}|" in (winner_search or "")
 
 
+# Since scraper v2 a board stores every level, and normalize_title drops a
+# parenthetical: "Software Engineer (New Grad)" and a board's mid-level
+# "Software Engineer" share a title_norm. A student-feed copy is never the
+# twin of a row above entry level.
+_STUDENT_FEED_LEVELS = ("internship", "new_grad", "entry")
+
+
+def same_audience(a: str | None, b: str | None) -> bool:
+    """Both rows are student-feed level (or carry no level, as rows from
+    before the levels may), or neither is."""
+    def student(level):
+        return not level or level in _STUDENT_FEED_LEVELS
+    return student(a) == student(b)
+
+
 def _employer_filter(company: str, company_domain: str):
     """SQL predicate: same employer by resolved domain OR case-folded name."""
     conditions = [func.lower(ScrapedJob.company) == (company or "").strip().lower()]
@@ -285,12 +371,16 @@ def _employer_filter(company: str, company_domain: str):
 # missing evidence, never a death verdict, so an expired row speaks for no
 # one.
 
+# Open, not closed. ``stale`` is hidden from the feed since scraper v2, but it
+# is no closure (usually a board crawl that is behind), so it counts as open here.
 _VISIBLE_LISTING_STATUSES = (LISTING_ACTIVE, LISTING_STALE)
 # An ``off_target`` direct row speaks for its mirrors too: the employer's own
 # listing says the posting is not entry level or not in North America, and a
 # LinkedIn copy of the same posting is no more on target than the original,
-# so its twins stay hidden rather than coming back in its place.
-_SPEAKS_WHEN_HIDDEN = (LISTING_REMOVED, LISTING_OFF_TARGET)
+# so its twins stay hidden rather than coming back in its place. So does a
+# ``stale`` direct row: it usually recovers, and a mirror released while it
+# was stale would then sit beside it as a duplicate nothing hides again.
+_SPEAKS_WHEN_HIDDEN = (LISTING_REMOVED, LISTING_OFF_TARGET, LISTING_STALE)
 
 
 def stands_in_for_twins(listing_status: str | None, source_platform: str, url: str) -> bool:
@@ -313,31 +403,35 @@ def _stands_in_filter():
 
 
 # Column-only view of a possible absorber: id, source_platform, url,
-# description length, city, location_search, country, title_norm, status.
+# description length, city, location_search, country, title_norm, status,
+# experience level.
 _TWIN_COLUMNS = (
     ScrapedJob.id, ScrapedJob.source_platform, ScrapedJob.url,
     func.length(func.coalesce(ScrapedJob.description, "")),
     ScrapedJob.city, ScrapedJob.location_search, ScrapedJob.country,
-    ScrapedJob.title_norm, ScrapedJob.listing_status,
+    ScrapedJob.title_norm, ScrapedJob.listing_status, ScrapedJob.experience_level,
 )
 
 
 def _find_absorber(db: Session, *, row_id: int, source: str, title_norm: str,
                    company: str, company_domain: str, city: str, country: str,
-                   desc_len: int) -> int | None:
+                   desc_len: int, experience_level: str = "") -> int | None:
     """The id of the row that should hide this aggregator row: a better twin
     (a direct row, or a same-tier aggregator row that has a description when
     this one doesn't, the older one when both do) for the same employer,
-    title and city, among the rows that may stand in for it. Exact title
-    first; failing that, a near-identical DIRECT title only (fuzzy-merging
-    two aggregator copies risks eating a genuinely different posting).
-    Column-only."""
+    title and city, and of the same audience (same_audience on the row's
+    ``experience_level``), among the rows that may stand in for it. Exact
+    title first; failing that, a near-identical DIRECT title only
+    (fuzzy-merging two aggregator copies risks eating a genuinely different
+    posting). Column-only."""
     row_tier = _SOURCE_TIER.get(source, 3)
 
     def pick(twins) -> int | None:
         for (twin_id, twin_source, twin_url, twin_desc_len, twin_city,
-             twin_search, twin_country, _norm, twin_status) in twins:
+             twin_search, twin_country, _norm, twin_status, twin_level) in twins:
             if not stands_in_for_twins(twin_status, twin_source, twin_url):
+                continue
+            if not same_audience(experience_level, twin_level):
                 continue
             twin_tier = _SOURCE_TIER.get(effective_source(twin_source or "", twin_url or ""), 3)
             better = twin_tier < row_tier or (
@@ -393,11 +487,15 @@ def has_direct_twin(
     title: str,
     city: str,
     country: str = "",
+    experience_level: str = "",
 ) -> bool:
     """True when a direct (ats/github) row for the same employer, title, and
-    city already exists, the ingest guard for LinkedIn/Indeed sources. An
-    expired direct row doesn't count (no death verdict, the new copy may be
-    live); a removed one does (stands_in_for_twins)."""
+    city, and of the same audience as ``experience_level`` (same_audience:
+    the default, no level, is the student feed's, which the LinkedIn and
+    Indeed searches are), already exists, the ingest guard for
+    LinkedIn/Indeed sources. An expired direct row doesn't count (no death
+    verdict, the new copy may be live); a removed one does
+    (stands_in_for_twins)."""
     title_norm = normalize_title(title)
     if not title_norm:
         return False
@@ -407,7 +505,7 @@ def has_direct_twin(
         db.query(
             ScrapedJob.id, ScrapedJob.city, ScrapedJob.location_search,
             ScrapedJob.country, ScrapedJob.url, ScrapedJob.source_platform,
-            ScrapedJob.listing_status,
+            ScrapedJob.listing_status, ScrapedJob.experience_level,
         )
         .filter(
             ScrapedJob.duplicate_of.is_(None),
@@ -418,10 +516,13 @@ def has_direct_twin(
         )
         .limit(20)
     )
-    for _id, winner_city, winner_search, winner_country, url, source, status in query.all():
+    for (_id, winner_city, winner_search, winner_country, url, source, status,
+         winner_level) in query.all():
         if effective_source(source, url) not in DIRECT_SOURCES:
             continue  # rogue-era mislabel: an aggregator URL is not a direct twin
         if not stands_in_for_twins(status, source, url):
+            continue
+        if not same_audience(experience_level, winner_level):
             continue
         if _cities_compatible(city, winner_city or "", winner_search or "",
                               country or "", winner_country or ""):
@@ -430,23 +531,22 @@ def has_direct_twin(
 
 
 def mark_inferior_twins(db: Session, winner: ScrapedJob) -> int:
-    """Hide pre-existing LinkedIn/Indeed twins of a freshly inserted direct
-    row, pulling their enrichment fields onto the winner. Returns the number
-    of rows hidden. Commits."""
+    """Hide pre-existing LinkedIn/Indeed (or aggregator adapter) twins of a
+    freshly inserted direct row (same employer, title and city, and the same
+    audience: same_audience), pulling their enrichment fields onto the
+    winner. A row that is no direct row itself (an aggregator adapter's)
+    hides nothing. Returns the number of rows hidden. Commits."""
     title_norm = winner.title_norm or normalize_title(winner.title)
     if not title_norm or winner.id is None:
+        return 0
+    if effective_source(winner.source_platform or "", winner.url or "") not in DIRECT_SOURCES:
         return 0
 
     candidates = (
         db.query(ScrapedJob)
         .filter(
             ScrapedJob.duplicate_of.is_(None),
-            or_(
-                ScrapedJob.source_platform.in_(INFERIOR_SOURCES),
-                # Rogue-era rows are labeled 'ats' but carry aggregator URLs.
-                ScrapedJob.url.ilike("%linkedin.com%"),
-                ScrapedJob.url.ilike("%indeed.com%"),
-            ),
+            _inferior_row_filter(),
             ScrapedJob.title_norm == title_norm,
             ScrapedJob.id != winner.id,
             _employer_filter(winner.company, winner.company_domain or ""),
@@ -457,7 +557,9 @@ def mark_inferior_twins(db: Session, winner: ScrapedJob) -> int:
 
     marked = 0
     for twin in candidates:
-        if effective_source(twin.source_platform, twin.url) not in INFERIOR_SOURCES:
+        if not is_inferior_source(effective_source(twin.source_platform, twin.url)):
+            continue
+        if not same_audience(twin.experience_level, winner.experience_level):
             continue
         if not _cities_compatible(twin.city or "", winner.city or "",
                                   winner.location_search or "",
@@ -517,6 +619,7 @@ def release_from_closed_winners(db: Session, *, clear_probe: bool = True) -> lis
             ScrapedJob.title_norm, ScrapedJob.city, ScrapedJob.country,
             func.length(func.coalesce(ScrapedJob.description, "")),
             winner.id, winner.url, winner.source_platform, winner.listing_status,
+            ScrapedJob.experience_level,
         )
         .join(winner, winner.id == ScrapedJob.duplicate_of)
         .filter(
@@ -537,9 +640,9 @@ def release_from_closed_winners(db: Session, *, clear_probe: bool = True) -> lis
     moved: list[tuple] = []
     released: dict[str, int] = {}  # posting_key -> the copy this pass released
     for (row_id, url, source, company, domain, title, title_norm, city, country,
-         desc_len, winner_id, winner_url, winner_source, winner_status) in rows:
+         desc_len, winner_id, winner_url, winner_source, winner_status, level) in rows:
         row_source = effective_source(source or "", url or "")
-        if row_source not in INFERIOR_SOURCES:
+        if not is_inferior_source(row_source):
             continue  # direct rows are only ever hidden as URL twins
         if stands_in_for_twins(winner_status, winner_source, winner_url):
             continue
@@ -553,6 +656,7 @@ def release_from_closed_winners(db: Session, *, clear_probe: bool = True) -> lis
                 db, row_id=row_id, source=row_source, title_norm=norm,
                 company=company or "", company_domain=domain or "",
                 city=city or "", country=country or "", desc_len=desc_len or 0,
+                experience_level=level or "",
             )
         values: dict = {"duplicate_of": new_home}
         if new_home is None and clear_probe:
@@ -568,10 +672,11 @@ def release_from_closed_winners(db: Session, *, clear_probe: bool = True) -> lis
 
 def absorb_new_aggregator_rows(db: Session, limit: int = 300) -> int:
     """Incremental dedup for rows the one-time sweep never saw: the newest
-    unmarked LinkedIn/Indeed rows get absorbed by any better existing twin
-    that may stand in for them (_find_absorber). Rows hidden behind a winner
-    that has since closed are given back first (release_from_closed_winners).
-    Called from the hourly backfill cron. Commits. Returns rows absorbed."""
+    unmarked LinkedIn/Indeed (or aggregator adapter) rows get absorbed by
+    any better existing twin that may stand in for them (_find_absorber).
+    Rows hidden behind a winner that has since closed are given back first
+    (release_from_closed_winners). Called from the hourly backfill cron.
+    Commits. Returns rows absorbed."""
     moved = release_from_closed_winners(db)
     if moved:
         logger.info(
@@ -582,14 +687,7 @@ def absorb_new_aggregator_rows(db: Session, limit: int = 300) -> int:
 
     candidates = (
         db.query(ScrapedJob)
-        .filter(
-            ScrapedJob.duplicate_of.is_(None),
-            or_(
-                ScrapedJob.source_platform.in_(INFERIOR_SOURCES),
-                ScrapedJob.url.ilike("%linkedin.com%"),
-                ScrapedJob.url.ilike("%indeed.com%"),
-            ),
-        )
+        .filter(ScrapedJob.duplicate_of.is_(None), _inferior_row_filter())
         .order_by(ScrapedJob.id.desc())
         .limit(limit)
         .all()
@@ -598,7 +696,7 @@ def absorb_new_aggregator_rows(db: Session, limit: int = 300) -> int:
     marked = 0
     for row in candidates:
         row_source = effective_source(row.source_platform, row.url)
-        if row_source not in INFERIOR_SOURCES:
+        if not is_inferior_source(row_source):
             continue
         title_norm = row.title_norm or normalize_title(row.title)
         if not title_norm or title_norm == "\x01":
@@ -607,7 +705,7 @@ def absorb_new_aggregator_rows(db: Session, limit: int = 300) -> int:
             db, row_id=row.id, source=row_source, title_norm=title_norm,
             company=row.company, company_domain=row.company_domain or "",
             city=row.city or "", country=row.country or "",
-            desc_len=len(row.description or ""),
+            desc_len=len(row.description or ""), experience_level=row.experience_level or "",
         )
         best = db.get(ScrapedJob, best_id) if best_id is not None else None
         if best is None:
@@ -746,7 +844,7 @@ def dedup_sweep(db: Session) -> dict:
             home = None
             # Only aggregator copies may be absorbed; a direct row is always
             # its own posting (distinct requisitions share titles).
-            if row.source in INFERIOR_SOURCES:
+            if is_inferior_source(row.source):
                 for winner in winners:
                     domains_ok = not row.domain or not winner.domain or row.domain == winner.domain
                     if domains_ok and _cities_compatible(

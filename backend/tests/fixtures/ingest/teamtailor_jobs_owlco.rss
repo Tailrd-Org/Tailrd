@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss version="2.0" xmlns:tt="https://teamtailor.com/locations">
+  <channel>
+    <title>Owl.co</title>
+    <description>Current job openings</description>
+    <link>https://owlco.na.teamtailor.com/jobs</link>
+    <item>
+      <title>Part-time Data Quality Analyst</title>
+      <description>&lt;p&gt;We’re building applied &lt;strong&gt;AI systems for high‑stakes, real‑world decisions&lt;/strong&gt;. Our platform ingests and reasons over large, messy data to surface evidence with hard constraints around fairness, auditability, and low bias.&lt;/p&gt;&lt;p&gt;The single gnarliest, most impact‑heavy place this problem shows up is in insurance claims, so that’s where we’re deployed today, running in production at some of the largest carriers in North America.&lt;/p&gt;&lt;p&gt;As a Data Quality Analyst, you will play a pivotal role in leveraging data to ensure the integrity and accuracy of insurance claims processing. Pulling from open data sources, you will support our clients in monitoring, detecting, and preventing potential illegitimate claims.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;This is a remote, part-time role (15-30 hours/week).&lt;/strong&gt;&lt;/p&gt;&lt;p&gt;&lt;strong&gt;Responsibilities &amp;amp; Scope:&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;Conduct investigations utilizing open data sources and in partnership with Owl’s AI.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Ensure findings are inputted logically, leveraging our internal platform to guide the process.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Analyze external claimant data for quality, completeness, and accuracy.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Efficiently utilize time and resources to deliver high-quality results that maximize value for the company.&lt;/p&gt;&lt;/li&gt;</description>
+      <pubDate>Tue, 13 Oct 2026 11:06:34 -0700</pubDate>
+      <link>https://owlco.na.teamtailor.com/jobs/719055-part-time-data-quality-analyst</link>
+      <remoteStatus>fully</remoteStatus>
+      <guid>40d7e5f3-239d-4930-a95c-c7bdc670f6f8</guid>
+      <tt:locations>
+        <tt:location>
+          <tt:name>Toronto</tt:name>
+          <tt:address>241 Yonge St</tt:address>
+          <tt:zip>M5B 1N8</tt:zip>
+          <tt:city>Toronto</tt:city>
+          <tt:country>Canada</tt:country>
+        </tt:location>
+      </tt:locations>
+      <tt:department>Review</tt:department>
+      <tt:role/>
+    </item>
+    <item>
+      <title>Senior Software Engineer (Infrastructure)</title>
+      <description>&lt;p&gt;We’re building applied &lt;strong&gt;AI systems for high‑stakes, real‑world decisions&lt;/strong&gt;. Our platform ingests and reasons over large, messy data to surface evidence with hard constraints around fairness, auditability, and low bias.&lt;/p&gt;&lt;p&gt;The single gnarliest, most impact‑heavy place this problem shows up is in insurance claims, so that’s where we’re deployed today, running in production at some of the largest carriers in North America.&lt;/p&gt;&lt;p&gt;We’re looking for an experienced Software Engineer (Infrastructure) who wants to own core systems end‑to‑end, not just close tickets. You’ll design, implement, and evolve the infrastructure that keeps our AI products fast, reliable, and secure from AWS architecture and networking, to observability, performance, and deployment pipelines for real‑time decisioning. You’ll work in a small, senior team where you can actually shape architecture, tooling, and engineering standards, and see your decisions show up directly in what ships to customers.&lt;/p&gt;&lt;p&gt;We have engineering hubs in New York City and Vancouver, and this role is 5 days per week onsite in one of those offices. We optimize for people who like to think deeply, whiteboard with other sharp engineers, and ship ambitious systems together in person.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;Key Responsibilities:&lt;/strong&gt;&lt;/p&gt;</description>
+      <pubDate>Fri, 20 Feb 2026 17:05:21 -0800</pubDate>
+      <link>https://owlco.na.teamtailor.com/jobs/559259-senior-software-engineer-infrastructure</link>
+      <remoteStatus>none</remoteStatus>
+      <guid>61868264-7e3a-44f9-8c60-ca986787b610</guid>
+      <tt:locations>
+        <tt:location>
+          <tt:name>New York</tt:name>
+          <tt:address>636 Broadway</tt:address>
+          <tt:zip>10012</tt:zip>
+          <tt:city>New York</tt:city>
+          <tt:country>United States</tt:country>
+        </tt:location>
+        <tt:location>
+          <tt:name>Toronto</tt:name>
+          <tt:address>241 Yonge St</tt:address>
+          <tt:zip>M5B 1N8</tt:zip>
+          <tt:city>Toronto</tt:city>
+          <tt:country>Canada</tt:country>
+        </tt:location>
+      </tt:locations>
+      <tt:department>Engineering</tt:department>
+      <tt:role/>
+    </item>
+    <item>
+      <title>Enterprise Account Executive</title>
+      <description>&lt;p&gt;We’re building applied &lt;strong&gt;AI systems for high‑stakes, real‑world decisions&lt;/strong&gt;. Our platform ingests and reasons over large, messy data to surface evidence with hard constraints around fairness, auditability, and low bias.&lt;/p&gt;&lt;p&gt;The single gnarliest, most impact‑heavy place this problem shows up is in insurance claims, so that’s where we’re deployed today, running in production at some of the largest carriers in North America.&lt;/p&gt;&lt;p&gt;We’re hiring an &lt;strong&gt;IC hunter&lt;/strong&gt; who can run and close complex, multi-stakeholder enterprise cycles. You’ll build pipeline, shape opportunities with clear business cases, and partner cross-functionally to land and expand strategic accounts. If you thrive in ambiguity, love discovery, and can sell both product and outcomes, you’ll fit right in.&lt;/p&gt;&lt;p&gt;&lt;strong&gt;What you’ll do:&lt;/strong&gt;&lt;/p&gt;&lt;ul&gt;&lt;li&gt;&lt;p&gt;Own the full cycle from discovery → solution mapping → business case → security/legal → close → handoff.&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Build and manage a &lt;strong&gt;3× pipeline&lt;/strong&gt; coverage target with a disciplined methodology&lt;/p&gt;&lt;/li&gt;&lt;li&gt;&lt;p&gt;Run &lt;strong&gt;executive-level conversations&lt;/strong&gt; with insurers and ecosystem partners; tailor narratives to CCO/CFO/CIO and line-of-business leaders.&lt;/p&gt;&lt;/li&gt;</description>
+      <pubDate>Fri, 20 Feb 2026 17:04:06 -0800</pubDate>
+      <link>https://owlco.na.teamtailor.com/jobs/559258-enterprise-account-executive</link>
+      <remoteStatus>hybrid</remoteStatus>
+      <guid>9319b8c9-fa81-4538-8400-bc9a8df5010b</guid>
+      <tt:locations>
+        <tt:location>
+          <tt:name>Vancouver</tt:name>
+          <tt:address>1280 Homer St</tt:address>
+          <tt:zip>V6B 6K3</tt:zip>
+          <tt:city>Vancouver</tt:city>
+          <tt:country>Canada</tt:country>
+        </tt:location>
+      </tt:locations>
+      <tt:department>Sales</tt:department>
+      <tt:role/>
+    </item>
+  </channel>
+</rss>

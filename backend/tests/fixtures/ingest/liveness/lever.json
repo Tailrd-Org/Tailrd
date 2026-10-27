@@ -1,0 +1,284 @@
+{
+ "source": "lever",
+ "recorded_on": "2026-10-26",
+ "check": "api.lever.co/v0/postings/<company>/<id>: 200 is open, 404 is gone",
+ "cases": [
+  {
+   "id": "lever-alive-1",
+   "truth": "alive",
+   "url": "https://jobs.lever.co/gopuff/8184864c-1bc3-41e3-8131-3dcd99d83d8d",
+   "board_key": "lever:gopuff",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the Lever API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "lever_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/gopuff/8184864c-1bc3-41e3-8131-3dcd99d83d8d",
+     "status": 200,
+     "body_json": {
+      "additionalPlain": "At Gopuff, we know that life can be unpredictable. Sometimes you forget the milk at the store, run out of pet food for Fido, or just really need ice cream at 11 pm. We get it-stuff happens. But that’s...",
+      "additional": "<div><span style=\"font-size: 16px\">At Gopuff, we know that life can be unpredictable. Sometimes you forget the milk at the store, run out of pet food for Fido, or just really need ice cream at 11 pm. ...",
+      "categories": {
+       "commitment": "Seasonal",
+       "department": "BevMo!",
+       "location": "Lake Forest, CA",
+       "team": "Associates",
+       "allLocations": [
+        "Lake Forest, CA"
+       ]
+      },
+      "createdAt": 1686672366514,
+      "descriptionPlain": "Make an immediate impact as a Seasonal Retail Sales Associate during our upcoming peak season! This is a dynamic opportunity to help us manage high customer traffic and ensure our store looks its best...",
+      "description": "<div><span style=\"font-size: 16px\">Make an immediate impact as a </span><b style=\"font-size: 16px\">Seasonal Retail Sales Associate</b><span style=\"font-size: 16px\"> during our upcoming peak season! Th...",
+      "id": "8184864c-1bc3-41e3-8131-3dcd99d83d8d",
+      "lists": [
+       {
+        "text": "Responsibilities & Requirements:",
+        "content": "<li>Operate Cash Register: Accurately handle sales and payments throughout customer checkout.</li><li>Product Flow: Unload, stock, and organize merchandise on shelves.</li><li>Store Presentation: Focu..."
+       },
+       {
+        "text": "What We Offer:",
+        "content": "<li>Medical/Dental/Vision Insurance (for full-time employees)</li><li>401(k) Retirement Savings Plan</li><li>25% employee discount &amp; FAM Membership</li><li>Vacation and Sick Time for eligible empl..."
+       },
+       {
+        "text": "Pay:",
+        "content": "\n<li>Gopuff/Bevmo! pays employees based on market pricing and pay may vary depending on your location. Compensation for U.S. locations is based on a cost of labor index for that geographic area.</li>\n..."
+       }
+      ],
+      "text": "Seasonal Retail Sales Associate, Lake Forest, #474",
+      "country": "US",
+      "workplaceType": "onsite",
+      "opening": "<div><span style=\"font-size: 16px\">Make an immediate impact as a </span><b style=\"font-size: 16px\">Seasonal Retail Sales Associate</b><span style=\"font-size: 16px\"> during our upcoming peak season! Th...",
+      "openingPlain": "Make an immediate impact as a Seasonal Retail Sales Associate during our upcoming peak season! This is a dynamic opportunity to help us manage high customer traffic and ensure our store looks its best...",
+      "descriptionBody": "",
+      "descriptionBodyPlain": "",
+      "hostedUrl": "https://jobs.lever.co/gopuff/8184864c-1bc3-41e3-8131-3dcd99d83d8d",
+      "applyUrl": "https://jobs.lever.co/gopuff/8184864c-1bc3-41e3-8131-3dcd99d83d8d/apply"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lever-alive-2",
+   "truth": "alive",
+   "url": "https://jobs.lever.co/stanleygroup/d35b6223-29dd-474e-8920-29eaed01111f",
+   "board_key": "lever:stanleygroup",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the Lever API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "lever_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/stanleygroup/d35b6223-29dd-474e-8920-29eaed01111f",
+     "status": 200,
+     "body_json": {
+      "additionalPlain": "Learn more about Stanley Consultants in this short video:  Working at Stanley Consultants\n \nStanley Consultants does not welcome unsolicited resumes from staffing and recruiting agencies. Any unsolici...",
+      "additional": "<div><strong>Learn more about Stanley Consultants in this short video:&nbsp; </strong><a href=\"https://www.stanleyconsultants.com/videos/default-source/default-video-library/stanley_working_for_and_wi...",
+      "categories": {
+       "commitment": "Early Career Talent",
+       "department": "Market",
+       "location": "Chicago, IL",
+       "team": "Transportation",
+       "allLocations": [
+        "Chicago, IL"
+       ]
+      },
+      "createdAt": 1788983664376,
+      "descriptionPlain": "Stanley Consultants is an award-winning and industry-leading global consulting engineering firm, with an unmatched commitment to culture, values, and ethics. We are dedicated to client experience and ...",
+      "description": "<div><span style=\"font-size: 11pt;\">Stanley Consultants is an award-winning and industry-leading global consulting engineering firm, with an unmatched commitment to culture, values, and ethics. We are...",
+      "id": "d35b6223-29dd-474e-8920-29eaed01111f",
+      "lists": [
+       {
+        "text": "What You Will Be Doing:",
+        "content": "<div>\n\n<li>Understanding engineering studies, drawings, and specifications</li>\n<li>Performing and checking engineering calculations</li>\n<li>Performing quantity calculations and take-offs</li>\n<li>Ba..."
+       },
+       {
+        "text": "Required Qualifications:",
+        "content": "<div>\n\n<li>Must have attained a minimum status as a college junior AND</li>\n<li>Must be currently enrolled in an accredited civil engineering program AND</li>\n<li>Must be pursuing a minimum of a Bache..."
+       },
+       {
+        "text": "Preferred Qualifications:",
+        "content": "<div>\n\n<li>Traffic engineering experience and/or class work is strongly preferred</li>\n\n</div>"
+       }
+      ],
+      "salaryRange": {
+       "min": 23.26,
+       "max": 28.49,
+       "currency": "USD",
+       "interval": "per-hour-wage"
+      },
+      "salaryDescription": "<div>\n<div><em>(Hourly range for IL location)</em></div>\n<div><em>Stanley Consultants is committed to maintaining transparency in our hiring process, including providing information about compensation...",
+      "salaryDescriptionPlain": "(Hourly range for IL location)\nStanley Consultants is committed to maintaining transparency in our hiring process, including providing information about compensation. The starting salary for the succe...",
+      "text": "Student Intern 2027 - Transportation Traffic",
+      "country": "US",
+      "workplaceType": "onsite",
+      "opening": "<div><span style=\"font-size: 11pt;\">Stanley Consultants is an award-winning and industry-leading global consulting engineering firm, with an unmatched commitment to culture, values, and ethics. We are...",
+      "openingPlain": "Stanley Consultants is an award-winning and industry-leading global consulting engineering firm, with an unmatched commitment to culture, values, and ethics. We are dedicated to client experience and ...",
+      "descriptionBody": "<div>\n<div>Job Title - Student Intern, Transportation Traffic</div>\n<div>Location - Chicago, IL</div>\n<div>Job Type - Onsite</div>\n<div>Requisition ID - 11340</div>\n<div>&nbsp;</div>\n<div><span style=...",
+      "descriptionBodyPlain": "Job Title - Student Intern, Transportation Traffic\nLocation - Chicago, IL\nJob Type - Onsite\nRequisition ID - 11340\n \nStanley Consultants is seeking a Student Intern to work in our Traffic Engineering ...",
+      "hostedUrl": "https://jobs.lever.co/stanleygroup/d35b6223-29dd-474e-8920-29eaed01111f",
+      "applyUrl": "https://jobs.lever.co/stanleygroup/d35b6223-29dd-474e-8920-29eaed01111f/apply"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lever-alive-3",
+   "truth": "alive",
+   "url": "https://jobs.lever.co/palantir/91117724-9389-48dc-912f-98e48d4d45d8",
+   "board_key": "lever:palantir",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the Lever API returns the posting",
+   "expect": {
+    "verdict": "alive",
+    "reason": "lever_api_200",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/palantir/91117724-9389-48dc-912f-98e48d4d45d8",
+     "status": 200,
+     "body_json": {
+      "additionalPlain": "Salary\n \nThe estimated salary range for this position is estimated to be $135,000 - $145,000/year. Total compensation for this position may also include Restricted Stock units, sign-on bonus and other...",
+      "additional": "<div><strong style=\"font-size: 18px;\">Salary</strong></div>\n<div>&nbsp;</div>\n<div><span style=\"font-size: 15px;\">The estimated salary range for this position is estimated to be $135,000 - $145,000/ye...",
+      "categories": {
+       "commitment": "Full-time",
+       "location": "New York, NY",
+       "team": "Delta",
+       "allLocations": [
+        "New York, NY"
+       ]
+      },
+      "createdAt": 1761762442352,
+      "descriptionPlain": "A World-Changing Company\n \nPalantir builds the world’s leading software for data-driven decisions and operations. By bringing the right data to the people who need it, our platforms empower our partne...",
+      "description": "<div><strong><span style=\"font-size: 18px;\">A World-Changing Company</span></strong></div>\n<div>&nbsp;</div>\n<div>Palantir builds the world’s leading software for data-driven decisions and operations....",
+      "id": "91117724-9389-48dc-912f-98e48d4d45d8",
+      "lists": [
+       {
+        "text": "Core Responsibilities",
+        "content": "\n<li>Handle support and operations of Palantir software, including monitoring and alerting, configuration management, and upgrades</li>\n<li>Deploy new Palantir products at customer deployments and per..."
+       },
+       {
+        "text": "What We Value",
+        "content": "\n<li>Confidence in troubleshooting complex systems issues independently using observability tools and service logs</li>\n<li>Ability to identify and automate highly manual tasks, driving ongoing improv..."
+       },
+       {
+        "text": "What We Require",
+        "content": "\n<li>Strong engineering background, preferred in fields such as Computer Science, Mathematics, Software Engineering, Physics, and Data Science</li>\n<li>Strong coder with shown proficiency in programmi..."
+       }
+      ],
+      "text": "Forward Deployed Infrastructure Engineer, New Grad - US Government",
+      "country": "US",
+      "workplaceType": "hybrid",
+      "opening": "<div><strong><span style=\"font-size: 18px;\">A World-Changing Company</span></strong></div>\n<div>&nbsp;</div>\n<div>Palantir builds the world&rsquo;s leading software for data-driven decisions and opera...",
+      "openingPlain": "A World-Changing Company\n \nPalantir builds the world’s leading software for data-driven decisions and operations. By bringing the right data to the people who need it, our platforms empower our partne...",
+      "descriptionBody": "<div><strong style=\"font-size: 18px;\">The Role</strong></div>\n<div>&nbsp;</div>\n<div>We&rsquo;re looking for Forward Deployed Infrastructure Engineers who can help us build, operate, and maintain high...",
+      "descriptionBodyPlain": "The Role\n \nWe’re looking for Forward Deployed Infrastructure Engineers who can help us build, operate, and maintain high-performance, scalable, and reliable services for Palantir platforms, products, ...",
+      "hostedUrl": "https://jobs.lever.co/palantir/91117724-9389-48dc-912f-98e48d4d45d8",
+      "applyUrl": "https://jobs.lever.co/palantir/91117724-9389-48dc-912f-98e48d4d45d8/apply"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lever-dead-1",
+   "truth": "dead",
+   "url": "https://jobs.lever.co/veeva/02b4428c-240e-456a-80d2-59ef8e6a013c",
+   "board_key": "lever:veeva",
+   "origin": "dev branch row, listing_status=removed, changed 2026-07-17",
+   "evidence": "the Lever API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "lever_api_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/veeva/02b4428c-240e-456a-80d2-59ef8e6a013c",
+     "status": 404,
+     "body_json": {
+      "ok": false,
+      "error": "Document not found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lever-dead-2",
+   "truth": "dead",
+   "url": "https://jobs.lever.co/pointclickcare/92bd0a33-a934-499a-81ec-b38956488cc5",
+   "board_key": "lever:pointclickcare",
+   "origin": "dev branch row, listing_status=removed, changed 2026-08-10",
+   "evidence": "the Lever API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "lever_api_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/pointclickcare/92bd0a33-a934-499a-81ec-b38956488cc5",
+     "status": 404,
+     "body_json": {
+      "ok": false,
+      "error": "Document not found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "lever-dead-3",
+   "truth": "dead",
+   "url": "https://jobs.lever.co/palantir/b8816fd2-d12d-41dd-8467-88748903267f",
+   "board_key": "lever:palantir",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-24",
+   "evidence": "the Lever API answers 404",
+   "expect": {
+    "verdict": "dead",
+    "reason": "lever_api_404",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://api.lever.co/v0/postings/palantir/b8816fd2-d12d-41dd-8467-88748903267f",
+     "status": 404,
+     "body_json": {
+      "ok": false,
+      "error": "Document not found"
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

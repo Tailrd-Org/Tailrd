@@ -1,0 +1,1014 @@
+{
+ "source": "oracle_hcm",
+ "recorded_on": "2026-10-26",
+ "check": "hcmRestApi recruitingCEJobRequisitionDetails finder: an item is open, an empty item list is gone (an employer-domain page first names its Oracle pod)",
+ "cases": [
+  {
+   "id": "oracle_hcm-alive-1",
+   "truth": "alive",
+   "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/231713",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "the requisition finder returns the item",
+   "expect": {
+    "verdict": "alive",
+    "reason": "oracle_api_item",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22231713%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [
+       {
+        "Id": "231713",
+        "Title": "Cleaner",
+        "Category": null,
+        "RequisitionType": "Part-time",
+        "JobGrade": null,
+        "RequisitionId": 300001473039486,
+        "ExternalPostedStartDate": "2026-07-06T13:52:00+00:00",
+        "JobLevel": null,
+        "JobSchedule": "Part time",
+        "JobShift": null,
+        "StudyLevel": null,
+        "InternationalTravelRequired": null,
+        "ExternalContactName": null,
+        "ExternalContactEmail": null,
+        "ContractType": null,
+        "ExternalPostedEndDate": null,
+        "JobFamilyId": null,
+        "GeographyId": 300000026038162,
+        "GeographyNodeId": 100001541977422,
+        "ExternalDescriptionStr": "<p><strong>Who We Are &nbsp;</strong></p>\n<p>At BGIS Sustainable Cleaning Solutions, we are dedicated to providing environmentally responsible and high-quality cleaning services. Our mission is to cre...",
+        "CorporateDescriptionStr": "<span>We value transparency in our hiring processes. Please note, artificial intelligence may be used in certain stages to screen, assess, or select applicants, however, a human reviewer makes all fin...",
+        "OrganizationDescriptionStr": "<span>BGIS is a global leader in integrated facility management services. With a combined team of over 10,000 globally, BGIS relentlessly focuses on delivering innovative service solutions that create...",
+        "ShortDescriptionStr": "",
+        "ContentLocale": "en",
+        "PrimaryLocation": "Walkerton, ON, Canada",
+        "PrimaryLocationCountry": "CA",
+        "ObjectVerNumberProfile": null,
+        "ApplyWhenNotPostedFlag": true,
+        "ExternalQualificationsStr": "",
+        "InternalQualificationsStr": "",
+        "InternalResponsibilitiesStr": "",
+        "ExternalResponsibilitiesStr": "",
+        "JobFunctionCode": null,
+        "HotJobFlag": false,
+        "TrendingFlag": false,
+        "BeFirstToApplyFlag": false,
+        "WorkplaceTypeCode": null,
+        "WorkplaceType": "",
+        "OtherRequisitionTitle": null,
+        "NumberOfOpenings": null,
+        "HiringManager": null,
+        "Organization": null,
+        "BusinessUnitId": 300000038129072,
+        "LegalEmployerId": 300000044080324,
+        "OrganizationId": 300000038129072,
+        "WorkerType": null,
+        "JobType": null,
+        "WorkMonths": null,
+        "WorkYears": null,
+        "WorkHours": null,
+        "WorkDays": null,
+        "LegalEmployer": null,
+        "BusinessUnit": null,
+        "Department": null,
+        "DomesticTravelRequired": null,
+        "JobFunction": null,
+        "secondaryLocations": [],
+        "media": [],
+        "workLocation": [
+         {
+          "LocationId": null,
+          "LocationName": null,
+          "AddressLine1": null,
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": null,
+          "PostalCode": null,
+          "Country": null,
+          "Region1": null,
+          "Region2": null,
+          "Region3": null,
+          "Longitude": "",
+          "Latitude": ""
+         }
+        ],
+        "otherWorkLocations": [],
+        "requisitionFlexFields": [
+         {
+          "Prompt": "Working Arrangement",
+          "Value": "Onsite",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 1
+         },
+         {
+          "Prompt": "Assignment Category",
+          "Value": "Part-time regular",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 2
+         }
+        ],
+        "primaryLocationCoordinates": [
+         {
+          "GeographyNodeId": 100001541977422,
+          "GeographyId": 300000026038162,
+          "Latitude": "44.09668",
+          "Longitude": "-81.22179",
+          "CountryCode": "CA"
+         }
+        ],
+        "skills": []
+       }
+      ],
+      "count": 1,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-alive-2",
+   "truth": "alive",
+   "url": "https://jpmc.fa.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1001/job/210801790",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-24",
+   "evidence": "the requisition finder returns the item",
+   "expect": {
+    "verdict": "alive",
+    "reason": "oracle_api_item",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jpmc.fa.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22210801790%22,siteNumber=CX_1001",
+     "status": 200,
+     "body_json": {
+      "items": [
+       {
+        "Id": "210801790",
+        "Title": "2027 Machine Learning Center of Excellence (NLP) - Summer Associate",
+        "Category": "Data & Analytics",
+        "RequisitionType": "Campus",
+        "JobGrade": null,
+        "RequisitionId": 300097714370642,
+        "ExternalPostedStartDate": "2026-10-20T01:37:21+00:00",
+        "JobLevel": null,
+        "JobSchedule": "Full time",
+        "JobShift": null,
+        "StudyLevel": null,
+        "InternationalTravelRequired": null,
+        "ExternalContactName": null,
+        "ExternalContactEmail": null,
+        "ContractType": null,
+        "ExternalPostedEndDate": "2026-12-31T05:00:00+00:00",
+        "JobFamilyId": 300000086249595,
+        "GeographyId": 300000020694566,
+        "GeographyNodeId": 100302248438881,
+        "ExternalDescriptionStr": "<p><span style=\"font-size: 11pt;\">At JPMorgan Chase, AI is transforming how we operate on a global scale. We invest over $18 billion annually in technology, including innovation, data, and security, t...",
+        "CorporateDescriptionStr": "<div>\n <div>\n  JPMorganChase, one of the oldest financial institutions, offers innovative financial solutions to millions of consumers, small businesses and many of the world’s most prominent corporat...",
+        "OrganizationDescriptionStr": "",
+        "ShortDescriptionStr": "MLCOE is a world-class machine learning team with state-of-the-art methods to solve financial problems using our unique datasets.\n",
+        "ContentLocale": "en",
+        "PrimaryLocation": "New York, NY, United States",
+        "PrimaryLocationCountry": "US",
+        "ObjectVerNumberProfile": null,
+        "ApplyWhenNotPostedFlag": false,
+        "ExternalQualificationsStr": "",
+        "InternalQualificationsStr": "",
+        "InternalResponsibilitiesStr": "",
+        "ExternalResponsibilitiesStr": "",
+        "JobFunctionCode": "D&A",
+        "HotJobFlag": false,
+        "TrendingFlag": false,
+        "BeFirstToApplyFlag": false,
+        "WorkplaceTypeCode": null,
+        "WorkplaceType": "",
+        "OtherRequisitionTitle": null,
+        "NumberOfOpenings": null,
+        "HiringManager": null,
+        "Organization": null,
+        "BusinessUnitId": 300000086610244,
+        "LegalEmployerId": 300000087185180,
+        "OrganizationId": 300015812082370,
+        "WorkerType": null,
+        "JobType": null,
+        "WorkMonths": null,
+        "WorkYears": null,
+        "WorkHours": null,
+        "WorkDays": null,
+        "LegalEmployer": null,
+        "BusinessUnit": "Corporate Sector",
+        "Department": null,
+        "DomesticTravelRequired": null,
+        "JobFunction": "Data & Analytics",
+        "secondaryLocations": [
+         {
+          "RequisitionLocationId": 300097715784609,
+          "GeographyNodeId": 100302248439184,
+          "GeographyId": 300000020691811,
+          "Name": "Seattle, WA, United States",
+          "CountryCode": "US",
+          "Latitude": "47.60357",
+          "Longitude": "-122.32945"
+         },
+         {
+          "RequisitionLocationId": 300097715784610,
+          "GeographyNodeId": 100302248438229,
+          "GeographyId": 300000020696877,
+          "Name": "Palo Alto, CA, United States",
+          "CountryCode": "US",
+          "Latitude": "37.44466",
+          "Longitude": "-122.16079"
+         }
+        ],
+        "media": [],
+        "workLocation": [
+         {
+          "LocationId": 300000161067083,
+          "LocationName": "03363-277 Park",
+          "AddressLine1": "277 Park Ave",
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": "New York",
+          "PostalCode": "10172",
+          "Country": "US",
+          "Region1": "New York",
+          "Region2": "NY",
+          "Region3": null,
+          "Longitude": "-73.97493",
+          "Latitude": "40.75567"
+         }
+        ],
+        "otherWorkLocations": [
+         {
+          "RequisitionWorkLocationId": 300097715844655,
+          "LocationId": 300000161093804,
+          "LocationName": "44337-JPMorganChase Center Seattle",
+          "AddressLine1": "1301 2nd Ave",
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": "Seattle",
+          "PostalCode": "98101",
+          "Country": "US",
+          "Region1": "King",
+          "Region2": "WA",
+          "Region3": null,
+          "Latitude": "47.61257",
+          "Longitude": "-122.33396"
+         },
+         {
+          "RequisitionWorkLocationId": 300097715844656,
+          "LocationId": 300040160872204,
+          "LocationName": "01055-3203 Hanover",
+          "AddressLine1": "3203 Hanover St",
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": "Palo Alto",
+          "PostalCode": "94304",
+          "Country": "US",
+          "Region1": "Santa Clara",
+          "Region2": "CA",
+          "Region3": null,
+          "Latitude": "37.40325",
+          "Longitude": "-122.16529"
+         }
+        ],
+        "requisitionFlexFields": [
+         {
+          "Prompt": "Base Pay/Salary",
+          "Value": "New York,NY $135,000.00-$155,000.00; Seattle,WA $135,000.00-$155,000.00; Palo Alto,CA $135,000.00-$155,000.00",
+          "ControlType": "TextArea",
+          "SequenceNumber": 30
+         }
+        ],
+        "primaryLocationCoordinates": [
+         {
+          "GeographyNodeId": 100302248438881,
+          "GeographyId": 300000020694566,
+          "Latitude": "40.58055",
+          "Longitude": "-74.00391",
+          "CountryCode": "US"
+         }
+        ],
+        "skills": []
+       }
+      ],
+      "count": 1,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://jpmc.fa.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-alive-3",
+   "truth": "alive",
+   "url": "https://egup.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/job/20281371",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-24",
+   "evidence": "the requisition finder returns the item",
+   "expect": {
+    "verdict": "alive",
+    "reason": "oracle_api_item",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://egup.fa.us2.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%2220281371%22,siteNumber=CX",
+     "status": 200,
+     "body_json": {
+      "items": [
+       {
+        "Id": "20281371",
+        "Title": "UI/UX Design Intern (Summer 2027)",
+        "Category": "Interns",
+        "RequisitionType": "Campus",
+        "JobGrade": null,
+        "RequisitionId": 300009091083645,
+        "ExternalPostedStartDate": "2026-10-13T13:28:26+00:00",
+        "JobLevel": null,
+        "JobSchedule": null,
+        "JobShift": null,
+        "StudyLevel": null,
+        "InternationalTravelRequired": null,
+        "ExternalContactName": null,
+        "ExternalContactEmail": null,
+        "ContractType": null,
+        "ExternalPostedEndDate": null,
+        "JobFamilyId": 300004055401440,
+        "GeographyId": 300000004388253,
+        "GeographyNodeId": 100045938610582,
+        "ExternalDescriptionStr": "<p><strong>Position Summary</strong>: -</p>\n<ul>\n <li>We are seeking a dedicated and proactive individual to join our Core Engineering team as an Engineering Intern. This internship offers an excellen...",
+        "CorporateDescriptionStr": "<p><b>The successful candidate will embrace Vertiv’s Core Principles &amp; Behaviors to help execute our Strategic Priorities.</b></p>\n<p></p>\n<p><b>OUR CORE PRINCIPLES:</b> Safety. Integrity. Respect...",
+        "OrganizationDescriptionStr": "",
+        "ShortDescriptionStr": "We are seeking a dedicated and proactive individual to join our Core Engineering team as an Engineering Intern. This internship offers an excellent opportunity to gain hands-on experience in various a...",
+        "ContentLocale": "en",
+        "PrimaryLocation": "Delaware, OH, United States",
+        "PrimaryLocationCountry": "US",
+        "ObjectVerNumberProfile": "1",
+        "ApplyWhenNotPostedFlag": false,
+        "ExternalQualificationsStr": "",
+        "InternalQualificationsStr": "",
+        "InternalResponsibilitiesStr": "",
+        "ExternalResponsibilitiesStr": "",
+        "JobFunctionCode": "PDE",
+        "HotJobFlag": false,
+        "TrendingFlag": true,
+        "BeFirstToApplyFlag": false,
+        "WorkplaceTypeCode": null,
+        "WorkplaceType": "",
+        "OtherRequisitionTitle": null,
+        "NumberOfOpenings": null,
+        "HiringManager": null,
+        "Organization": null,
+        "BusinessUnitId": 300000002391628,
+        "LegalEmployerId": 300000002393330,
+        "OrganizationId": 300000002391628,
+        "WorkerType": null,
+        "JobType": null,
+        "WorkMonths": null,
+        "WorkYears": null,
+        "WorkHours": null,
+        "WorkDays": null,
+        "LegalEmployer": null,
+        "BusinessUnit": null,
+        "Department": null,
+        "DomesticTravelRequired": null,
+        "JobFunction": "Products and Solutions - Engineering",
+        "secondaryLocations": [
+         {
+          "RequisitionLocationId": 300009091083649,
+          "GeographyNodeId": 100046872857865,
+          "GeographyId": 300000004364608,
+          "Name": "Fort Lauderdale, FL, United States",
+          "CountryCode": "US",
+          "Latitude": "26.12388",
+          "Longitude": "-80.14357"
+         },
+         {
+          "RequisitionLocationId": 300009091083650,
+          "GeographyNodeId": 100046872857899,
+          "GeographyId": 300000004359719,
+          "Name": "Huntsville, AL, United States",
+          "CountryCode": "US",
+          "Latitude": "34.59022",
+          "Longitude": "-86.80887"
+         }
+        ],
+        "media": [],
+        "workLocation": [
+         {
+          "LocationId": null,
+          "LocationName": null,
+          "AddressLine1": null,
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": null,
+          "PostalCode": null,
+          "Country": null,
+          "Region1": null,
+          "Region2": null,
+          "Region3": null,
+          "Longitude": "",
+          "Latitude": ""
+         }
+        ],
+        "otherWorkLocations": [],
+        "requisitionFlexFields": [],
+        "primaryLocationCoordinates": [
+         {
+          "GeographyNodeId": 100045938610582,
+          "GeographyId": 300000004388253,
+          "Latitude": "40.30114",
+          "Longitude": "-83.06577",
+          "CountryCode": "US"
+         }
+        ],
+        "skills": []
+       }
+      ],
+      "count": 1,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://egup.fa.us2.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-dead-1",
+   "truth": "dead",
+   "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/230159",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the requisition finder returns an empty item list",
+   "expect": {
+    "verdict": "dead",
+    "reason": "oracle_items_0",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22230159%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [],
+      "count": 0,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-dead-2",
+   "truth": "dead",
+   "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/228423",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "the requisition finder returns an empty item list",
+   "expect": {
+    "verdict": "dead",
+    "reason": "oracle_items_0",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22228423%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [],
+      "count": 0,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-dead-3",
+   "truth": "dead",
+   "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/job/231477",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-10-25",
+   "evidence": "the requisition finder returns an empty item list",
+   "expect": {
+    "verdict": "dead",
+    "reason": "oracle_items_0",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%22231477%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [],
+      "count": 0,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evcg-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-alive-4",
+   "truth": "alive",
+   "url": "https://jobs.nokia.com/en/sites/CX_1/job/37840",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "an employer-domain link: the page names its Oracle pod, whose finder returns the item",
+   "expect": {
+    "verdict": "alive",
+    "reason": "oracle_api_item",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.nokia.com/en/sites/CX_1/job/37840",
+     "status": 200,
+     "body_file": "oracle_hcm/oracle_hcm-alive-4.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%2237840%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [
+       {
+        "Id": "37840",
+        "Title": "Semi Mfg Technician 2 (DFAB - S6)",
+        "Category": "Direct Production",
+        "RequisitionType": "Standard (Internal & External)",
+        "JobGrade": null,
+        "RequisitionId": 300002012260547,
+        "ExternalPostedStartDate": "2026-06-22T14:15:49+00:00",
+        "JobLevel": null,
+        "JobSchedule": "Full time",
+        "JobShift": null,
+        "StudyLevel": "High school diploma (B-levels)",
+        "InternationalTravelRequired": null,
+        "ExternalContactName": null,
+        "ExternalContactEmail": null,
+        "ContractType": "Regular",
+        "ExternalPostedEndDate": null,
+        "JobFamilyId": 300000009357785,
+        "GeographyId": 300000000480126,
+        "GeographyNodeId": 100002145190048,
+        "ExternalDescriptionStr": "<p><span style=\"background-color: rgb(255, 255, 255); color: rgb(60, 62, 66); font-family: Lato, sans-serif;\"><span style=\"-webkit-text-stroke-width: 0px; display: inline !important; float: none; font...",
+        "CorporateDescriptionStr": "",
+        "OrganizationDescriptionStr": "",
+        "ShortDescriptionStr": "Join the DFAB team at Nokia as a DFAB Inspector, where meticulous attention to detail meets cutting-edge technology. You will work in-person, collaborating closely with the assembly and test teams to ...",
+        "ContentLocale": "en",
+        "PrimaryLocation": "United States",
+        "PrimaryLocationCountry": "US",
+        "ObjectVerNumberProfile": null,
+        "ApplyWhenNotPostedFlag": null,
+        "ExternalQualificationsStr": "<p style=\"-webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); color: rgb(60, 62, 66); font-family: Lato, sans-serif; font-size: 14px; font-style: normal; font-variant-caps: normal; f...",
+        "InternalQualificationsStr": "<p style=\"-webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); color: rgb(60, 62, 66); font-family: Lato, sans-serif; font-size: 14px; font-style: normal; font-variant-caps: normal; f...",
+        "InternalResponsibilitiesStr": "<ul style=\"-webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); color: rgb(60, 62, 66); font-family: Lato, sans-serif; font-size: 14px; font-style: normal; font-variant-caps: normal; ...",
+        "ExternalResponsibilitiesStr": "<ul style=\"-webkit-text-stroke-width: 0px; background-color: rgb(255, 255, 255); color: rgb(60, 62, 66); font-family: Lato, sans-serif; font-size: 14px; font-style: normal; font-variant-caps: normal; ...",
+        "JobFunctionCode": "DPO",
+        "HotJobFlag": true,
+        "TrendingFlag": false,
+        "BeFirstToApplyFlag": false,
+        "WorkplaceTypeCode": "ORA_ON_SITE",
+        "WorkplaceType": "Onsite",
+        "OtherRequisitionTitle": null,
+        "NumberOfOpenings": null,
+        "HiringManager": null,
+        "Organization": null,
+        "BusinessUnitId": 300000006664259,
+        "LegalEmployerId": 300001149319675,
+        "OrganizationId": 300000945986418,
+        "WorkerType": null,
+        "JobType": "Experienced",
+        "WorkMonths": null,
+        "WorkYears": null,
+        "WorkHours": null,
+        "WorkDays": null,
+        "LegalEmployer": null,
+        "BusinessUnit": null,
+        "Department": null,
+        "DomesticTravelRequired": null,
+        "JobFunction": "Direct Production",
+        "secondaryLocations": [],
+        "media": [],
+        "workLocation": [
+         {
+          "LocationId": 300000764022944,
+          "LocationName": "Infinera Bordeaux Dr",
+          "AddressLine1": "1322 Bordeaux Drive",
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": "Sunnyvale",
+          "PostalCode": "94089-1005",
+          "Country": "US",
+          "Region1": null,
+          "Region2": "California",
+          "Region3": null,
+          "Longitude": "-122.00764",
+          "Latitude": "37.4023"
+         }
+        ],
+        "otherWorkLocations": [],
+        "requisitionFlexFields": [
+         {
+          "Prompt": "Will NSA/CAPS approval be required? (E.g., accessing a US Customer Network?)",
+          "Value": "No",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 5
+         },
+         {
+          "Prompt": "Role Type",
+          "Value": "Individual contributor",
+          "ControlType": null,
+          "SequenceNumber": 8
+         },
+         {
+          "Prompt": "Laptop - support with ordering needed",
+          "Value": "No",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 10
+         }
+        ],
+        "primaryLocationCoordinates": [
+         {
+          "GeographyNodeId": 100002145190048,
+          "GeographyId": 300000000480126,
+          "Latitude": "39.82844",
+          "Longitude": "-98.57939",
+          "CountryCode": "US"
+         }
+        ],
+        "skills": []
+       }
+      ],
+      "count": 1,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-alive-5",
+   "truth": "alive",
+   "url": "https://jobs.nokia.com/en/sites/CX_1/job/37765",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=active, last seen 2026-10-25",
+   "evidence": "an employer-domain link: the page names its Oracle pod, whose finder returns the item",
+   "expect": {
+    "verdict": "alive",
+    "reason": "oracle_api_item",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.nokia.com/en/sites/CX_1/job/37765",
+     "status": 200,
+     "body_file": "oracle_hcm/oracle_hcm-alive-5.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%2237765%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [
+       {
+        "Id": "37765",
+        "Title": "5G gNB PHY Developer",
+        "Category": "Applied R&D",
+        "RequisitionType": "Standard (Internal & External)",
+        "JobGrade": null,
+        "RequisitionId": 300002006514371,
+        "ExternalPostedStartDate": "2026-10-01T14:08:29+00:00",
+        "JobLevel": null,
+        "JobSchedule": "Full time",
+        "JobShift": null,
+        "StudyLevel": "Bachelor’s degree",
+        "InternationalTravelRequired": null,
+        "ExternalContactName": null,
+        "ExternalContactEmail": null,
+        "ContractType": "Regular",
+        "ExternalPostedEndDate": null,
+        "JobFamilyId": 300000009357764,
+        "GeographyId": 300000000480126,
+        "GeographyNodeId": 100002145190048,
+        "ExternalDescriptionStr": "As an Applied R&D Engineer 4 - SW, you will play a crucial role in our TAO BLSR Space Communication Solutions department. Your primary focus will be on the Physical Layer (PHY) development for 5G NR g...",
+        "CorporateDescriptionStr": "",
+        "OrganizationDescriptionStr": "",
+        "ShortDescriptionStr": "We are seeking an experienced 5G gNB PHY Developer to join our team and contribute to the design and optimization of 5G NR base stations. The role involves developing and implementing PHY layer algori...",
+        "ContentLocale": "en",
+        "PrimaryLocation": "United States",
+        "PrimaryLocationCountry": "US",
+        "ObjectVerNumberProfile": null,
+        "ApplyWhenNotPostedFlag": null,
+        "ExternalQualificationsStr": "<ul><li> 2-3 years of hands-on experience in 5G NR/LTE PHY Layer development, demonstrating a strong understanding of OFDM, MIMO, and other key PHY concepts.</li><li> Proficiency in C/C++, MATLAB, and...",
+        "InternalQualificationsStr": "<ul><li> 2-3 years of hands-on experience in 5G NR/LTE PHY Layer development, demonstrating a strong understanding of OFDM, MIMO, and other key PHY concepts.</li><li> Proficiency in C/C++, MATLAB, and...",
+        "InternalResponsibilitiesStr": "<ul><li> Design, develop, and optimize the PHY layer for 5G NR gNB, adhering to 3GPP standards.</li><li> Implement and optimize PHY algorithms, including channel estimation, equalization, beamforming,...",
+        "ExternalResponsibilitiesStr": "<ul><li> Design, develop, and optimize the PHY layer for 5G NR gNB, adhering to 3GPP standards.</li><li> Implement and optimize PHY algorithms, including channel estimation, equalization, beamforming,...",
+        "JobFunctionCode": "SWA",
+        "HotJobFlag": false,
+        "TrendingFlag": false,
+        "BeFirstToApplyFlag": false,
+        "WorkplaceTypeCode": "ORA_ON_SITE",
+        "WorkplaceType": "Onsite",
+        "OtherRequisitionTitle": null,
+        "NumberOfOpenings": null,
+        "HiringManager": null,
+        "Organization": null,
+        "BusinessUnitId": 300001340677611,
+        "LegalEmployerId": 300000006365816,
+        "OrganizationId": 300001340677673,
+        "WorkerType": null,
+        "JobType": "Experienced",
+        "WorkMonths": null,
+        "WorkYears": null,
+        "WorkHours": null,
+        "WorkDays": null,
+        "LegalEmployer": null,
+        "BusinessUnit": null,
+        "Department": null,
+        "DomesticTravelRequired": null,
+        "JobFunction": "Software",
+        "secondaryLocations": [],
+        "media": [],
+        "workLocation": [
+         {
+          "LocationId": 300001555954003,
+          "LocationName": "Legacy Central",
+          "AddressLine1": "6600 Chase Oaks Blvd",
+          "AddressLine2": null,
+          "AddressLine3": null,
+          "AddressLine4": null,
+          "Building": null,
+          "TownOrCity": "Plano",
+          "PostalCode": "75023-2310",
+          "Country": "US",
+          "Region1": null,
+          "Region2": "Texas",
+          "Region3": null,
+          "Longitude": "-96.73592",
+          "Latitude": "33.05794"
+         }
+        ],
+        "otherWorkLocations": [],
+        "requisitionFlexFields": [
+         {
+          "Prompt": "Will NSA/CAPS approval be required? (E.g., accessing a US Customer Network?)",
+          "Value": "Yes,Ensure NSA Vetting+ Drug Test (US) is completed during onboarding",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 5
+         },
+         {
+          "Prompt": "Role Type",
+          "Value": "Individual contributor",
+          "ControlType": null,
+          "SequenceNumber": 8
+         },
+         {
+          "Prompt": "Laptop - support with ordering needed",
+          "Value": "Yes",
+          "ControlType": "SingleChoiceList",
+          "SequenceNumber": 10
+         }
+        ],
+        "primaryLocationCoordinates": [
+         {
+          "GeographyNodeId": 100002145190048,
+          "GeographyId": 300000000480126,
+          "Latitude": "39.82844",
+          "Longitude": "-98.57939",
+          "CountryCode": "US"
+         }
+        ],
+        "skills": []
+       }
+      ],
+      "count": 1,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-dead-4",
+   "truth": "dead",
+   "url": "https://jobs.nokia.com/en/sites/CX_1/job/26707",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "an employer-domain link: the page names its Oracle pod, whose finder returns an empty item list",
+   "expect": {
+    "verdict": "dead",
+    "reason": "oracle_items_0",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.nokia.com/en/sites/CX_1/job/26707",
+     "status": 200,
+     "body_file": "oracle_hcm/oracle_hcm-dead-4.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%2226707%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [],
+      "count": 0,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  },
+  {
+   "id": "oracle_hcm-dead-5",
+   "truth": "dead",
+   "url": "https://jobs.nokia.com/en/sites/CX_1/job/37829",
+   "board_key": "unknown",
+   "origin": "dev branch row, listing_status=removed, changed 2026-09-28",
+   "evidence": "an employer-domain link: the page names its Oracle pod, whose finder returns an empty item list",
+   "expect": {
+    "verdict": "dead",
+    "reason": "oracle_items_0",
+    "authoritative": true
+   },
+   "exchanges": [
+    {
+     "method": "GET",
+     "url": "https://jobs.nokia.com/en/sites/CX_1/job/37829",
+     "status": 200,
+     "body_file": "oracle_hcm/oracle_hcm-dead-5.html",
+     "headers": {
+      "content-type": "text/html; charset=utf-8"
+     }
+    },
+    {
+     "method": "GET",
+     "url": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest/recruitingCEJobRequisitionDetails?expand=all&onlyData=true&finder=ById;Id=%2237829%22,siteNumber=CX_1",
+     "status": 200,
+     "body_json": {
+      "items": [],
+      "count": 0,
+      "hasMore": false,
+      "limit": 499,
+      "offset": 0,
+      "links": [
+       {
+        "rel": "self",
+        "href": "https://fa-evmr-saasfaprod1.fa.ocs.oraclecloud.com:443/hcmRestApi/resources/11.13.18.05/recruitingCEJobRequisitionDetails",
+        "name": "recruitingCEJobRequisitionDetails",
+        "kind": "collection"
+       }
+      ]
+     },
+     "headers": {
+      "content-type": "application/json"
+     }
+    }
+   ]
+  }
+ ]
+}

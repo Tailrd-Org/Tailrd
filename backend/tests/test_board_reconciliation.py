@@ -474,6 +474,51 @@ def test_board_host_per_platform(monkeypatch):
     assert ats_scraper.board_host("workday", "qnx") == ats_scraper.board_host("workday", "blackberry")
 
 
+def test_an_adapter_board_on_a_host_of_its_own_is_keyed_by_that_host(monkeypatch):
+    """Oracle pods, iCIMS portals, Jibe sites and BambooHR or Recruitee
+    tenants are distinct hosts: keyed by platform they crawled one at a time
+    (Jibe, at 5 s a page, held its lane for minutes)."""
+    configs = {
+        ("oracle_hcm", "jpmorgan"): {"host": "jpmc.fa.oraclecloud.com", "site": "CX_1001"},
+        ("oracle_hcm", "goldmansachs"): {"host": "hdpc.fa.us2.oraclecloud.com"},
+        ("icims", "kinaxis"): {"host": "HTTPS://Careers-Kinaxis.icims.com/"},
+        ("jibe", "costco"): {"host": "careers.costco.com"},
+        ("teamtailor", "owlco"): {"host": "owlco.na.teamtailor.com"},
+        ("jooble", "ca-intern"): {"host": "ca.jooble.org"},
+    }
+    monkeypatch.setattr(company_registry, "load_board_config",
+                        lambda platform, slug: dict(configs.get((platform, slug), {})))
+    host = ats_scraper.board_host
+
+    assert host("oracle_hcm", "jpmorgan") == "jpmc.fa.oraclecloud.com"
+    assert host("oracle_hcm", "goldmansachs") == "hdpc.fa.us2.oraclecloud.com"
+    assert host("icims", "kinaxis") == "careers-kinaxis.icims.com"
+    assert host("jibe", "costco") == "careers.costco.com"
+    assert host("bamboohr", "CarfaxCanada") == "carfaxcanada.bamboohr.com"
+    assert host("recruitee", "petalmd") == "petalmd.recruitee.com"
+    assert host("teamtailor", "owlco") == "owlco.na.teamtailor.com"
+    assert host("teamtailor", "acme") == "acme.teamtailor.com"
+    # One host for every board: the shared key stays.
+    for platform in ("workable", "jobbank_ca", "usajobs", "adzuna", "jooble"):
+        assert host(platform, "ca-intern") == platform
+    # A config-host board whose config names none fails its crawl anyway.
+    assert host("icims", "unconfigured") == "icims"
+
+
+@pytest.mark.asyncio
+async def test_boards_on_hosts_of_their_own_crawl_side_by_side(monkeypatch):
+    from backend.ingest.core import pipeline
+
+    monkeypatch.setattr(company_registry, "load_board_config",
+                        lambda platform, slug: {"host": f"{slug}.example"})
+    scraper = _RecordingScraper()
+    boards = [("jibe", f"site{n}", f"Site {n}") for n in range(4)]
+
+    results = [item async for item in pipeline.crawl_boards(scraper, None, boards, 4)]
+
+    assert len(results) == 4 and scraper.max_total == 4 and scraper.max_per_host == 1
+
+
 def test_pacing_survives_a_new_event_loop(monkeypatch):
     """Per-host locks bind to the loop that first waits on them; each cron
     request (and each test) may run on a fresh loop."""

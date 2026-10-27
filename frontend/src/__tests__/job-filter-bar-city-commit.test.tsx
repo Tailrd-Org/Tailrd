@@ -10,8 +10,8 @@ const EMPTY: JobFilters = {
   country: "CA",
   location: [],
   work_type: [],
-  role_category: [],
-  experience_level: [],
+  career_family: [],
+  experience_level: ["intern_new_grad", "entry"],
   date_posted: "",
 };
 

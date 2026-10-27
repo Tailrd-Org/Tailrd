@@ -2,3 +2,13 @@
 name = "applypilot"
 version = "0.1.0"
 requires-python = "~=3.12.0"
+
+[tool.pytest.ini_options]
+# A test that makes real network requests carries @pytest.mark.network. The
+# per-PR run deselects them (-m "not network") and the nightly
+# ingest-network-tests workflow runs them with RUN_NETWORK_TESTS=1.
+# backend/tests/ingest/conftest.py also skips a marked test unless that
+# variable is set, so a bare local pytest never calls a live job board.
+markers = [
+    "network: makes real network requests; runs only with RUN_NETWORK_TESTS=1",
+]

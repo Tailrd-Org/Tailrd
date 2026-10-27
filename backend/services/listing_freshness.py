@@ -70,9 +70,10 @@ LISTING_STALE = "stale"
 LISTING_REMOVED = "removed"
 LISTING_EXPIRED = "expired"
 # Open on its board, but the board's own listing fails the crawler's filters
-# (not entry level, or outside the US and Canada): a London, UK posting stored
-# before the NA filter knew better, a "Vice President" row from before the
-# entry-level filter. Set only from a listing's verdict (a board crawl, or the
+# (outside the US and Canada; for a crawl that keeps the student catalogue,
+# cron-ats while CRON_ATS_V2_CATALOGUE is off, also not entry level): a
+# London, UK posting stored before the NA filter knew better.
+# Set only from a listing's verdict (a board crawl, or the
 # orphan sweep for rows no crawl reaches), and a crawl brings it back to
 # active the moment the listing passes again. Never a death verdict: a
 # complete crawl that stops listing it marks it removed, like any row. A
@@ -83,11 +84,53 @@ LISTING_OFF_TARGET = "off_target"
 
 # Closed: the posting no longer takes applications (or nothing vouches for it).
 CLOSED_LISTING_STATUSES = (LISTING_REMOVED, LISTING_EXPIRED)
-# Listing statuses hidden from the default catalogue view. ``stale`` stays
-# visible: it usually means the board crawl is behind, not that the job died.
-HIDDEN_LISTING_STATUSES = CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET,)
+# Listing statuses hidden from the default catalogue view. ``stale`` (missed a
+# listing or failed a check) is hidden too, until a crawl or check vouches again.
+HIDDEN_LISTING_STATUSES = CLOSED_LISTING_STATUSES + (LISTING_OFF_TARGET, LISTING_STALE)
 # ats_scraper.RETIRABLE_REJECTIONS: the listing verdicts that retire a row.
+# Only a crawl that filters by level gives "level" (cron-ats while
+# CRON_ATS_V2_CATALOGUE is off); an every-level crawl never does.
 _RETIRABLE = frozenset({"level", "location"})
+
+# scraped_jobs.closed_reason, stamped whenever a row is removed or expires and
+# cleared when it comes back: the board's complete listing no longer has it,
+# the posting answers not-found, it redirects to a careers home or an error
+# page, it says it is closed, or it aged out.
+CLOSED_DELISTED = "delisted"
+CLOSED_404 = "404"
+CLOSED_REDIRECT_HOME = "redirect_home"
+CLOSED_TEXT = "closed_text"
+CLOSED_TTL = "ttl"
+CLOSED_REASONS = (CLOSED_DELISTED, CLOSED_404, CLOSED_REDIRECT_HOME, CLOSED_TEXT, CLOSED_TTL)
+# platform_liveness dead reasons (LivenessResult.reason) that are not a
+# not-found answer. Every other dead reason (http_404, workday_cxs_S22,
+# gh_api_404, oracle_items_0, ...) is the platform saying the posting is gone.
+_DEAD_REASON_CLOSED = {
+    "ashby_posting_null": CLOSED_DELISTED,   # absent from the org's board
+    "sr_inactive": CLOSED_TEXT,              # the API's own active: false
+    "linkedin_closed": CLOSED_TEXT,          # the closed banner
+    "body_closed": CLOSED_TEXT,              # a dead phrase in the page
+    "error_redirect": CLOSED_REDIRECT_HOME,
+    "offsite_home_redirect": CLOSED_REDIRECT_HOME,
+}
+
+
+def closed_reason_for(dead_reason: str | None) -> str:
+    """The closed_reason for a platform_liveness DEAD verdict's reason. An
+    adapter's check_alive may already answer in closed_reason terms (spec:
+    404 / redirect_home / closed_text); anything unrecognized is a
+    not-found."""
+    reason = (dead_reason or "").strip()
+    if reason in CLOSED_REASONS:
+        return reason
+    if reason in _DEAD_REASON_CLOSED:
+        return _DEAD_REASON_CLOSED[reason]
+    lowered = reason.lower()
+    if "redirect" in lowered:
+        return CLOSED_REDIRECT_HOME
+    if "closed" in lowered or "inactive" in lowered or "expired" in lowered:
+        return CLOSED_TEXT
+    return CLOSED_404
 
 
 def retire_off_target_enabled() -> bool:
@@ -171,6 +214,21 @@ def _chunks(items: list, size: int = _IN_CHUNK):
 
 # ─── New-row field construction ──────────────────────────────────────────────
 
+def stored_external_id(board_key: str, external_id: str) -> str:
+    """scraped_jobs.external_id for a crawled listing: "{platform}:{slug}:{the
+    source's id}". The five built-in fetchers give the bare source id, so it
+    takes the board key in front; a v2 adapter's ATSJob.external_id already
+    has that shape (docs/scraper-v2/PLAN.md, constraint 13) and is kept as
+    it is, never "workable:financeit:workable:financeit:ABC123"."""
+    from backend.data.company_registry import SUPPORTED_PLATFORMS
+
+    if not external_id:
+        return ""
+    if (board_key or "").split(":", 1)[0] in SUPPORTED_PLATFORMS:
+        return f"{board_key}:{external_id}"
+    return external_id
+
+
 def build_new_row_fields(job, board_key: str, source_trust: str = "high") -> dict:
     """Structured-extraction + freshness fields for a brand-new direct-board
     row. The caller merges these into its ScrapedJob(...) constructor kwargs.
@@ -187,7 +245,7 @@ def build_new_row_fields(job, board_key: str, source_trust: str = "high") -> dic
         "first_seen_at": now,
         "last_seen_at": now,
         "board_key": board_key,
-        "external_id": f"{board_key}:{job.external_id}" if job.external_id else "",
+        "external_id": stored_external_id(board_key, job.external_id),
         "raw_hash": compute_raw_hash(job.title, job.location, description, salary_text),
         "source_trust": source_trust,
         "salary_min": salary_min,
@@ -209,11 +267,11 @@ def listed_status_change(listing_status: str | None, source_platform: str,
 
     ``rejection`` is the crawler's verdict on the listing (ats_scraper.
     ATSScraper.rejection, None when it passes). A crawler row ('ats') whose
-    listing is off target ("level", "location") goes off_target, whatever it
-    was; one that passes comes back to active from any hidden or stale
-    state. An "unplaced" listing (no location either way) proves only that
-    the posting is open: it revives a closed row as before, never an
-    off_target one. Other sources' rows (a GitHub-list row adopted into the
+    listing is off target (_RETIRABLE: "location", and "level" from a crawl
+    that filters by level) goes off_target, whatever it was; one that passes
+    comes back to active from any hidden or stale state. An "unplaced"
+    listing (no location either way) proves only that the posting is open:
+    it revives a closed row as before, never an off_target one. Other sources' rows (a GitHub-list row adopted into the
     board, LinkedIn/Indeed copies) keep the old rule, listed means active:
     they passed their own source's filters, which are not the crawler's."""
     status = listing_status or LISTING_ACTIVE
@@ -222,6 +280,22 @@ def listed_status_change(listing_status: str | None, source_platform: str,
     if status == LISTING_OFF_TARGET and rejection is not None:
         return None
     return LISTING_ACTIVE if status != LISTING_ACTIVE else None
+
+
+# A complete listing that would close more than MASS_REMOVAL_SHARE of a
+# board's open rows, and more than MASS_REMOVAL_MIN of them, is held: a source
+# that answers short looks exactly like that, and three adapters were caught
+# calling a partial listing complete. The rows it lists are confirmed as
+# usual; the rest are left to the stale sweep and the verifier, which close
+# the dead ones within days (stale rows are hidden since scraper v2).
+MASS_REMOVAL_MIN = 20
+MASS_REMOVAL_SHARE = 0.5
+
+
+def mass_removal(removals: int, open_rows: int) -> bool:
+    """Whether a complete listing that would close ``removals`` of a board's
+    ``open_rows`` is held instead (MASS_REMOVAL_MIN, MASS_REMOVAL_SHARE)."""
+    return removals > MASS_REMOVAL_MIN and removals > MASS_REMOVAL_SHARE * open_rows
 
 
 def reconcile_board(db: Session, board_key: str, live_urls: set[str],
@@ -237,25 +311,51 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
       was confirmed whatever its listing said, so a row stored under older
       filters (London, UK; a "Vice President" title) stayed visible for as
       long as its board listed it.
-    - rows whose URL vanished: ``removed``, effective immediately. An
-      ``off_target`` row too: hidden either way, but only a closed status
-      tells a saved job, an application or a deep link that the posting is
-      gone. If it is relisted and still fails, listed_status_change sends it
-      back to off_target.
+    - rows whose URL vanished: ``removed`` with closed_reason ``delisted``,
+      effective immediately. An ``off_target`` row too: hidden either way,
+      but only a closed status tells a saved job, an application or a deep
+      link that the posting is gone. If it is relisted and still fails,
+      listed_status_change sends it back to off_target. Unless the removals
+      are a mass removal (mass_removal: more than half of the board's open
+      rows, and more than 20): then none goes, a warning is logged, and
+      ``held`` counts them.
 
-    Only call with a COMPLETE snapshot, a partial crawl's absence is not
-    evidence of removal. Commits. Returns counts.
+    A row leaving a closed status loses its closed_reason. Only call with a
+    COMPLETE snapshot, a partial crawl's absence is not evidence of removal.
+    Commits. Returns counts.
     """
     now = now or _utcnow()
     rejected = rejected or {}
-    stats = {"confirmed": 0, "revived": 0, "removed": 0, "off_target": 0}
+    stats = {"confirmed": 0, "revived": 0, "removed": 0, "off_target": 0, "held": 0}
 
+    # Every open row of the board, but of its closed history (which only
+    # grows) just the rows the listing names: a closed row it does not list
+    # stays as it is, so reading it back every crawl was transfer for nothing.
+    # A Workday '/job/<slug>/apply' row is matched to its listing below, so
+    # closed rows with such a link are read too.
+    columns = (ScrapedJob.id, ScrapedJob.url, ScrapedJob.listing_status,
+               ScrapedJob.source_platform)
+    closed = ScrapedJob.listing_status.in_(CLOSED_LISTING_STATUSES)
     rows = (
-        db.query(ScrapedJob.id, ScrapedJob.url, ScrapedJob.listing_status,
-                 ScrapedJob.source_platform)
-        .filter(ScrapedJob.board_key == board_key)
+        db.query(*columns)
+        .filter(ScrapedJob.board_key == board_key,
+                or_(ScrapedJob.listing_status.is_(None), not_(closed)))
         .all()
     )
+    for chunk in _chunks(sorted(url for url in live_urls if url)):
+        rows += (
+            db.query(*columns)
+            .filter(ScrapedJob.board_key == board_key, closed, ScrapedJob.url.in_(chunk))
+            .all()
+        )
+    if live_urls:
+        rows += (
+            db.query(*columns)
+            .filter(ScrapedJob.board_key == board_key, closed,
+                    ScrapedJob.url.like("%/apply%"))
+            .all()
+        )
+        rows = list({row[0]: row for row in rows}.values())
     if not rows:
         return stats
 
@@ -284,6 +384,13 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
         logger.warning("reconcile %s: empty board with %d active rows, leaving to stale sweep",
                        board_key, len(gone_ids))
         return stats
+    open_rows = sum(1 for _id, _url, status, _source in rows
+                    if status is None or status not in CLOSED_LISTING_STATUSES)
+    if mass_removal(len(gone_ids), open_rows):
+        logger.warning("reconcile %s: a complete listing would close %d of %d open rows; "
+                       "held as partial", board_key, len(gone_ids), open_rows)
+        stats["held"] = len(gone_ids)
+        gone_ids = []
 
     for chunk in _chunks(live_ids):
         db.query(ScrapedJob).filter(ScrapedJob.id.in_(chunk)).update(
@@ -291,17 +398,20 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
         )
     for chunk in _chunks(revive_ids):
         db.query(ScrapedJob).filter(ScrapedJob.id.in_(chunk)).update(
-            {"listing_status": LISTING_ACTIVE, "listing_status_changed_at": now},
+            {"listing_status": LISTING_ACTIVE, "listing_status_changed_at": now,
+             "closed_reason": None},
             synchronize_session=False,
         )
     for chunk in _chunks(gone_ids):
         db.query(ScrapedJob).filter(ScrapedJob.id.in_(chunk)).update(
-            {"listing_status": LISTING_REMOVED, "listing_status_changed_at": now},
+            {"listing_status": LISTING_REMOVED, "listing_status_changed_at": now,
+             "closed_reason": CLOSED_DELISTED},
             synchronize_session=False,
         )
     for chunk in _chunks(off_target_ids):
         db.query(ScrapedJob).filter(ScrapedJob.id.in_(chunk)).update(
-            {"listing_status": LISTING_OFF_TARGET, "listing_status_changed_at": now},
+            {"listing_status": LISTING_OFF_TARGET, "listing_status_changed_at": now,
+             "closed_reason": None},
             synchronize_session=False,
         )
 
@@ -319,23 +429,50 @@ def reconcile_board(db: Session, board_key: str, live_urls: set[str],
 # the same helpers, so an edited row can never end up filed differently from
 # a new one with the same title and location.
 
-def title_fields(title: str, department: str = "", employment_type: str = "") -> dict:
-    """Columns derived from a crawled row's title: the cross-source dedup key,
-    the role category and the experience level (ats_scraper.
-    experience_level_for: word-bounded, and aware of the department and the
-    source's commitment ``employment_type``, so "Internal Audit Analyst" is
-    no internship and a Lever "Intern" commitment behind a bare "RF
-    Validation Associate" is one)."""
-    from backend.services.ats_scraper import experience_level_for
+def title_fields(title: str, department: str = "", employment_type: str = "",
+                 description: str = "", years_required: int | None = None) -> dict:
+    """Columns derived from a crawled row's title, and from its description
+    where the title leaves a gap: the cross-source dedup key, the role
+    category (role_classifier, which the fit engine reads) and the scraper v2
+    tags of ingest/taxonomy, with the version of the rules that set them.
+
+    The experience level (taxonomy.classify_experience) reads the title, the
+    department and the source's commitment ``employment_type``, word-bounded:
+    "Internal Audit Analyst" is no internship, and a Lever "Intern"
+    commitment behind a bare "RF Validation Associate" is one. A title that
+    names no level falls back to the minimum years the description asks for:
+    ``years_required`` when the caller already knows it (a refresh whose
+    crawl carried no description passes the stored value), else
+    taxonomy.years_required(description). That number is stored too
+    (experience_years_required). The career families read the title, the
+    department and the start of the description."""
+    from backend.ingest import taxonomy
     from backend.services.cross_source_dedup import normalize_title
     from backend.services.role_classifier import classify as classify_role
 
+    title, department, employment_type = title or "", department or "", employment_type or ""
+    if years_required is None and description:
+        years_required = taxonomy.years_required(description)
+    family, secondary = taxonomy.classify_family(title, department, description or "")
     return {
-        "title_norm": normalize_title(title or ""),
-        "role_category": classify_role(title or "", department or ""),
-        "experience_level": experience_level_for(title or "", department or "",
-                                                 employment_type or ""),
+        "title_norm": normalize_title(title),
+        "role_category": classify_role(title, department),
+        "experience_level": taxonomy.classify_experience(
+            title, department, employment_type, years_required=years_required),
+        "experience_years_required": years_required,
+        "career_family": family,
+        "career_family_secondary": secondary,
+        "enrichment_version": taxonomy.ENRICHMENT_VERSION,
     }
+
+
+def cap_description(description: str, max_chars: int | None) -> str:
+    """The description as stored: cut at ``max_chars`` (limits.json
+    description_max_chars) when set. Hashes and extraction read the whole
+    text; only the stored copy is cut."""
+    if max_chars and len(description or "") > max_chars:
+        return description[:max_chars]
+    return description
 
 
 def location_derived_fields(location: str, board_country: str = "", *, hint: str = "",
@@ -372,12 +509,22 @@ def _title_edited_before(change_log) -> bool:
 
 def refresh_known_listings(db: Session, board_key: str, jobs: list,
                            now: datetime.datetime | None = None,
-                           board_country: str = "") -> tuple[list, dict]:
+                           board_country: str = "", *,
+                           description_max_chars: int | None = None,
+                           listed_urls: set[str] | None = None) -> tuple[list, dict]:
     """Split a board's filtered jobs into (new, stats) and refresh the ones
     already stored: detect edits (title/location/salary/description) into
     ``change_log``, update the structured fields, adopt legacy rows into
     ``board_key``, and give a crawler row the registry's company name.
     ``jobs`` are ats_scraper.ATSJob. Commits.
+
+    A row is matched by its URL, and failing that by the source's own id
+    (external_id) on this board: Recruitee, Teamtailor, SmartRecruiters and
+    Workday URLs carry the title, so a retitle moves the URL, and the row
+    moves with it ("moved") instead of closing beside a new twin that saved
+    jobs and alerts never point at. Only an id one listing and one row carry,
+    and only a row whose own URL the board no longer lists (``listed_urls``,
+    the whole listing, filtered-out postings included).
 
     Change detection is explicit column compares plus a description hash,
     a re-crawl that didn't carry the description (SmartRecruiters/Workday
@@ -395,56 +542,88 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
     registry's country for a one-country board) says ("recountried": a bare
     "Toronto" once defaulted to "US"), a title_norm left stale by an
     earlier title edit ("retitled"), and a crawler row's experience_level
-    that disagrees with ats_scraper.experience_level_for ("relabeled": the
-    old substring test filed "Internal Audit Analyst" under internships).
-    Only rows that differ are rewritten.
+    that disagrees with taxonomy.classify_experience ("relabeled": the old
+    substring test filed "Internal Audit Analyst" under internships, and
+    scraper v2 splits the old entry tier into new_grad and entry). The level
+    falls back on the years the description asks for; a crawl that carries
+    no description (SmartRecruiters/Workday list payloads) uses the stored
+    experience_years_required, so the label never flips between crawls.
+    Only rows that differ are rewritten; a row the crawl only re-confirms
+    gets its last_seen_at in one UPDATE per chunk. A changed description is
+    stored cut at ``description_max_chars``.
     """
-    from backend.services.ats_scraper import experience_level_for
+    from backend.ingest import taxonomy
     from backend.services.location_parser import is_location_count, location_fields
 
     now = now or _utcnow()
     stats = {"refreshed": 0, "edited": 0, "salary_removed": 0,
-             "reparsed": 0, "recountried": 0, "retitled": 0, "relabeled": 0}
+             "reparsed": 0, "recountried": 0, "retitled": 0, "relabeled": 0, "moved": 0}
     if not jobs:
         return [], stats
 
     by_url = {job.url: job for job in jobs if job.url}
     existing: dict[str, tuple] = {}
     urls = list(by_url.keys())
+    columns = (
+        ScrapedJob.id, ScrapedJob.url, ScrapedJob.title,
+        ScrapedJob.location, ScrapedJob.salary_min, ScrapedJob.raw_hash,
+        ScrapedJob.edit_count, ScrapedJob.change_log,
+        ScrapedJob.board_key, ScrapedJob.external_id,
+        ScrapedJob.country, ScrapedJob.city, ScrapedJob.region,
+        ScrapedJob.location_search, ScrapedJob.title_norm,
+        ScrapedJob.experience_level, ScrapedJob.source_platform,
+        ScrapedJob.company, ScrapedJob.experience_years_required,
+        ScrapedJob.salary_max, ScrapedJob.salary_currency, ScrapedJob.salary_period,
+    )
     for chunk in _chunks(urls):
-        found = (
-            db.query(
-                ScrapedJob.id, ScrapedJob.url, ScrapedJob.title,
-                ScrapedJob.location, ScrapedJob.salary_min, ScrapedJob.raw_hash,
-                ScrapedJob.edit_count, ScrapedJob.change_log,
-                ScrapedJob.board_key, ScrapedJob.external_id,
-                ScrapedJob.country, ScrapedJob.city, ScrapedJob.region,
-                ScrapedJob.location_search, ScrapedJob.title_norm,
-                ScrapedJob.experience_level, ScrapedJob.source_platform,
-                ScrapedJob.company,
-            )
-            .filter(ScrapedJob.url.in_(chunk))
-            .all()
-        )
-        for row in found:
+        for row in db.query(*columns).filter(ScrapedJob.url.in_(chunk)).all():
             existing[row[1]] = row
+
+    # The listings no row has by URL, by the id their row would carry. An id
+    # two listings share names neither of them.
+    unmatched: dict[str, list[str]] = {}
+    for url, job in by_url.items():
+        if url not in existing and job.external_id:
+            unmatched.setdefault(stored_external_id(board_key, job.external_id), []).append(url)
+    by_external = {ext: found[0] for ext, found in unmatched.items() if len(found) == 1}
+    listed = (set(listed_urls or ()) | set(by_url)) if by_external else set()
+    for chunk in _chunks(sorted(by_external)):
+        found = (db.query(*columns)
+                 .filter(ScrapedJob.board_key == board_key, ScrapedJob.external_id.in_(chunk))
+                 .all())
+        carriers = Counter(row[9] for row in found)
+        for row in found:
+            # A row its board still lists under its own URL is another posting.
+            if carriers[row[9]] == 1 and row[1] not in listed:
+                existing[by_external[row[9]]] = row
 
     new_jobs = [job for url, job in by_url.items() if url not in existing]
 
     from backend.services.cross_source_dedup import normalize_title
 
+    seen_only: list[int] = []
     for url, row in existing.items():
-        (row_id, _url, old_title, old_location, old_salary_min, old_hash,
+        (row_id, old_url, old_title, old_location, old_salary_min, old_hash,
          edit_count, change_log, old_board_key, old_external_id, old_country,
          old_city, old_region, old_search, old_title_norm, old_level,
-         source_platform, old_company) = row
+         source_platform, old_company, old_years, old_salary_max, old_currency,
+         old_period) = row
         job = by_url[url]
+        # The description as cron-ats stores and hashes it (sanitized), and
+        # the years of experience it asks for: the level's fallback.
+        raw_description = (job.description or "").strip()
+        description = sanitize_description(raw_description) if raw_description else ""
+        years = taxonomy.years_required(description) if description else old_years
 
         updates: dict = {"last_seen_at": now}
+        if old_url != url:
+            # Found by its external_id: the posting's URL changed shape.
+            updates["url"] = url
+            stats["moved"] += 1
         if not old_board_key:
             updates["board_key"] = board_key
         if job.external_id and not old_external_id:
-            updates["external_id"] = f"{board_key}:{job.external_id}"
+            updates["external_id"] = stored_external_id(board_key, job.external_id)
         # A crawler row carries the registry's name for the employer, so a
         # rename ("Notion (Ashby)" -> "Notion") reaches the stored rows. Not
         # an edit of the posting. A list row keeps its list's spelling.
@@ -469,15 +648,20 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
         if title and (title_changed or (
                 _title_edited_before(change_log)
                 and (old_title_norm or "") != normalize_title(title))):
-            updates.update(title_fields(title, job.department or "", job.employment_type or ""))
+            updates.update(title_fields(title, job.department or "", job.employment_type or "",
+                                        description, years_required=years))
             stats["retitled"] += 1
         # The crawler's own label only: a GitHub-list row adopted into the
         # board keeps the label its list gave it.
         if title and source_platform == "ats" and "experience_level" not in updates:
-            level = experience_level_for(title, job.department or "", job.employment_type or "")
+            level = taxonomy.classify_experience(title, job.department or "",
+                                                 job.employment_type or "",
+                                                 years_required=years)
             if level != (old_level or ""):
                 updates["experience_level"] = level
                 stats["relabeled"] += 1
+        if description and years != old_years:
+            updates["experience_years_required"] = years
 
         new_location = (job.location or "").strip()
         if (is_location_count(new_location)
@@ -506,15 +690,13 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
             updates["country"] = derived["country"]
             stats["recountried"] += 1
 
-        # The description as cron-ats stores and hashes it (sanitized): the
+        # The description is hashed sanitized, as cron-ats stores it: the
         # raw text hashed differently, so every Greenhouse/Lever/Ashby row
         # logged a false 'description' edit on its second crawl, and the
         # longer sanitized text moves parse_salary's window. A row that
         # older refresh rewrote holds the raw text and its hash: the same
         # content, healed without an edit.
-        raw_description = (job.description or "").strip()
-        description = sanitize_description(raw_description) if raw_description else ""
-        new_hash = (compute_raw_hash(job.title, job.location, description, job.salary_text or "")
+        new_hash =(compute_raw_hash(job.title, job.location, description, job.salary_text or "")
                     if description else "")
         same_content = bool(new_hash) and (old_hash == new_hash or old_hash == compute_raw_hash(
             job.title, job.location, job.description, job.salary_text or ""))
@@ -532,8 +714,10 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
                 # A new reading of unchanged content is the parser's, not an edit.
                 if old_salary_min and salary_min != old_salary_min and not same_content:
                     changes.append("salary")
-                updates.update(salary_min=salary_min, salary_max=salary_max,
-                               salary_currency=currency, salary_period=period)
+                if (salary_min, salary_max, currency, period) != (
+                        old_salary_min, old_salary_max, old_currency or "", old_period or ""):
+                    updates.update(salary_min=salary_min, salary_max=salary_max,
+                                   salary_currency=currency, salary_period=period)
             elif old_salary_min and job.salary_text == "" and content_changed:
                 # The source used to state pay and the fresh full content no
                 # longer does, the bait-and-switch edit worth flagging. Once:
@@ -549,7 +733,7 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
             if old_hash and new_hash != old_hash:
                 if content_changed and not changes:
                     changes.append("description")
-                updates["description"] = description
+                updates["description"] = cap_description(description, description_max_chars)
                 # The same content healed to its sanitized form keeps what was
                 # read from it: the LLM section cache (description_sections)
                 # and the visa and skills extraction.
@@ -557,7 +741,8 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
                     updates["description_sections"] = None
                     updates["visa_sponsorship"] = detect_visa_sponsorship(description)
                     updates["skills"] = extract_skills(job.title, description) or None
-            updates["raw_hash"] = new_hash
+            if new_hash != old_hash:
+                updates["raw_hash"] = new_hash
 
         if changes:
             log = list(change_log or [])
@@ -566,11 +751,18 @@ def refresh_known_listings(db: Session, board_key: str, jobs: list,
             updates["edit_count"] = (edit_count or 0) + 1
             stats["edited"] += 1
 
-        db.query(ScrapedJob).filter(ScrapedJob.id == row_id).update(
-            updates, synchronize_session=False,
-        )
+        if updates.keys() == {"last_seen_at"}:
+            seen_only.append(row_id)
+        else:
+            db.query(ScrapedJob).filter(ScrapedJob.id == row_id).update(
+                updates, synchronize_session=False,
+            )
         stats["refreshed"] += 1
 
+    # Most listed rows only need the confirmation: one UPDATE per chunk
+    # instead of one round trip per row, which with every level crawled
+    # would not fit cron-ats' 300 s.
+    _update_ids(db, seen_only, {"last_seen_at": now})
     db.commit()
     return new_jobs, stats
 
@@ -715,7 +907,8 @@ def sweep_aggregator_expiry(db: Session, now: datetime.datetime | None = None,
     now = now or _utcnow()
     dates = (ScrapedJob.posted_date, ScrapedJob.first_seen_at, ScrapedJob.scraped_at)
     visible = ScrapedJob.listing_status.in_((LISTING_ACTIVE, LISTING_STALE))
-    expire = {"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now}
+    expire = {"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now,
+              "closed_reason": CLOSED_TTL}
 
     fast = (
         db.query(ScrapedJob)
@@ -764,7 +957,8 @@ def sweep_terminal_expiry(db: Session, now: datetime.datetime | None = None,
     Column-only UPDATEs. Commits.
     """
     now = now or _utcnow()
-    expire = {"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now}
+    expire = {"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now,
+              "closed_reason": CLOSED_TTL}
     evidence = func.coalesce(ScrapedJob.last_seen_at, ScrapedJob.first_seen_at,
                              ScrapedJob.scraped_at)
     checked_since = (ScrapedJob.last_probed_at.isnot(None), ScrapedJob.last_probed_at > evidence)
@@ -822,7 +1016,8 @@ def _restore_off_target(db: Session, now: datetime.datetime, limit: int, owned: 
                 .filter(ScrapedJob.id.in_(chunk),
                         _older_than(expire_before, ScrapedJob.posted_date,
                                     ScrapedJob.first_seen_at, ScrapedJob.scraped_at))
-                .update({"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now},
+                .update({"listing_status": LISTING_EXPIRED, "listing_status_changed_at": now,
+                         "closed_reason": CLOSED_TTL},
                         synchronize_session=False)
             )
         stats["restored"] += (
@@ -843,20 +1038,55 @@ def _orphan_row() -> tuple:
             not_(_fast_aggregator_row()))
 
 
+def _relabel_orphans(db: Session, rows) -> int:
+    """Give orphan rows (id, title, ..., experience_level,
+    experience_years_required, the last two columns) the level
+    taxonomy.classify_experience reads in the title, falling back on the
+    stored years as a crawl's refresh does. Unlike a crawled row (the
+    backfill keeps a stored student label, DECISIONS 13) these rows never
+    passed this crawler's filter, and no crawl will ever relabel them: a
+    rogue-era "Senior ..." row labeled new_grad would come back into the
+    student feed. One UPDATE per chunk per level, uncommitted. Returns the
+    rows relabeled."""
+    from backend.ingest import taxonomy
+
+    moves: dict[str, list[int]] = {}
+    for row in rows:
+        row_id, title, level, years = row[0], row[1], row[-2], row[-1]
+        wanted = taxonomy.classify_experience(title or "", years_required=years)
+        if wanted != (level or ""):
+            moves.setdefault(wanted, []).append(row_id)
+    for wanted, ids in moves.items():
+        _update_ids(db, ids, {"experience_level": wanted})
+    return sum(len(ids) for ids in moves.values())
+
+
 def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None = None,
-                                     limit: int = ORPHAN_RETIRE_LIMIT) -> dict:
+                                     limit: int = ORPHAN_RETIRE_LIMIT, *,
+                                     entry_level_only: bool = False) -> dict:
     """Retire visible crawler rows no board crawl will ever judge, when their
     own stored title or location fails the crawler's filters.
 
     Rows on board_key '' / 'unknown' (BGIS on Oracle, Nokia, Huawei's
     Recruitee: 144 visible, 2026-09, all rogue-era inserts) are never
     reconciled, and every authoritative "alive" from the verify sweeps bumps
-    their last_seen_at, so the terminal expiry never ends them either: a
-    "Cleaner" posting stayed in a student feed as long as it stayed open.
+    their last_seen_at, so the terminal expiry never ends them either.
     The verdict is ATSScraper.rejection on the stored title and location,
-    the same one a board crawl acts on; there is no department to rescue a
-    title, and "location" only on positive foreign evidence. Only "ats"
-    rows, never a LinkedIn/Indeed page stored as one.
+    the same one a board crawl acts on. By default every experience level is
+    in scope (scraper v2), so only "location" retires, and only on positive
+    foreign evidence, and rows an earlier sweep retired for their level come
+    back. ``entry_level_only`` is the rule from before scraper v2, for
+    cron-freshness while CRON_ATS_V2_CATALOGUE is off: the scraper filters by
+    level too, so a title that is not entry level retires as "level", and a
+    row retired for its level stays retired. Without it the sweep would
+    restore, hourly, every orphan row production retired for its level, in a
+    catalogue the switch exists to keep as it was. The runner's sweeps never
+    set it: the runner stores every level whatever the switch says. Only
+    "ats" rows, never a LinkedIn/Indeed page stored as one. With every level
+    in scope, every row the sweep checks or restores gets the level its title
+    says (_relabel_orphans, ``relabeled``); under ``entry_level_only`` no row
+    is relabeled, as before scraper v2, so a relabel cannot put a level the
+    switch keeps out (an "Associate Professor" read as senior) into the feed.
 
     No crawl ever brings these rows back (reconcile_board goes by board_key,
     and backfill_board_keys re-derives only a '' or NULL key), so with the
@@ -868,16 +1098,30 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     from backend.services.ats_scraper import ATSJob, ATSScraper
 
     now = now or _utcnow()
-    stats = {"checked": 0, "off_target": 0, "level": 0, "location": 0}
+    stats = {"checked": 0, "off_target": 0, "level": 0, "location": 0, "relabeled": 0}
+    columns = (ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location,
+               ScrapedJob.experience_level, ScrapedJob.experience_years_required)
     if not retire_off_target_enabled():
         stats["disabled"] = True
-        stats["restored"] = _restore_off_target(db, now, limit, _orphan_row())["restored"]
+        held = (
+            db.query(*columns)
+            .filter(ScrapedJob.listing_status == LISTING_OFF_TARGET, *_orphan_row())
+            .order_by(ScrapedJob.id.asc())
+            .limit(limit)
+            .all()
+        )
+        if held:
+            stats["relabeled"] = 0 if entry_level_only else _relabel_orphans(db, held)
+            stats["restored"] = _restore_off_target(
+                db, now, limit, (ScrapedJob.id.in_([row[0] for row in held]),))["restored"]
+        else:
+            stats["restored"] = 0
         if stats["restored"]:
             logger.info("retire_unreconcilable_off_target disabled, rolled back: %s", stats)
         return stats
 
     rows = (
-        db.query(ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location)
+        db.query(*columns)
         .filter(
             *_orphan_row(),
             ScrapedJob.listing_status.in_((LISTING_ACTIVE, LISTING_STALE)),
@@ -887,9 +1131,9 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
         .limit(limit)
         .all()
     )
-    scraper = ATSScraper(filter_entry_level=True, filter_north_america=True)
+    scraper = ATSScraper(filter_entry_level=entry_level_only, filter_north_america=True)
     retire: list[int] = []
-    for row_id, title, company, location in rows:
+    for row_id, title, company, location, _level, _years in rows:
         stats["checked"] += 1
         reason = scraper.rejection(ATSJob(title=title or "", company=company or "",
                                           location=location or "", url="", department=""))
@@ -899,29 +1143,34 @@ def retire_unreconcilable_off_target(db: Session, now: datetime.datetime | None 
     _update_ids(db, retire, {"listing_status": LISTING_OFF_TARGET,
                              "listing_status_changed_at": now})
     stats["off_target"] = len(retire)
-    if retire:
+    stats["relabeled"] = 0 if entry_level_only else _relabel_orphans(db, rows)
+    if retire or stats["relabeled"]:
         db.commit()
 
     # No crawl re-judges these rows, so this sweep re-reads the ones it hid
     # on every run: a row the current filters no longer reject (a classifier
     # or location fix since) comes back.
     held = (
-        db.query(ScrapedJob.id, ScrapedJob.title, ScrapedJob.company, ScrapedJob.location)
+        db.query(*columns)
         .filter(*_orphan_row(), ScrapedJob.listing_status == LISTING_OFF_TARGET)
         .order_by(ScrapedJob.id.asc())
         .limit(limit)
         .all()
     )
     back = [
-        row_id for row_id, title, company, location in held
+        row_id for row_id, title, company, location, _level, _years in held
         if scraper.rejection(ATSJob(title=title or "", company=company or "",
                                     location=location or "", url="", department=""))
         not in _RETIRABLE
     ]
+    relabeled = 0 if entry_level_only else _relabel_orphans(db, held)
+    stats["relabeled"] += relabeled
     if back:
         stats["restored"] = _restore_off_target(
             db, now, limit, (ScrapedJob.id.in_(back),))["restored"]
-    if retire or back:
+    if relabeled:
+        db.commit()
+    if retire or back or stats["relabeled"]:
         logger.info("retire_unreconcilable_off_target: %s", stats)
     return stats
 
@@ -1251,11 +1500,14 @@ async def probe_urls_liveness(client, urls: list[str], *, concurrency: int = 8,
 
 
 def mark_listing_removed(db: Session, row_id: int,
-                         now: datetime.datetime | None = None) -> None:
-    """Soft-remove one listing (dead apply URL). Commit is the caller's."""
+                         now: datetime.datetime | None = None,
+                         reason: str = CLOSED_404) -> None:
+    """Soft-remove one listing (dead apply URL), closed for ``reason``.
+    Commit is the caller's."""
     now = now or _utcnow()
     db.query(ScrapedJob).filter(ScrapedJob.id == row_id).update(
-        {"listing_status": LISTING_REMOVED, "listing_status_changed_at": now},
+        {"listing_status": LISTING_REMOVED, "listing_status_changed_at": now,
+         "closed_reason": reason},
         synchronize_session=False,
     )
 
@@ -1286,18 +1538,21 @@ def _liveness_outcome(listing_status: str, result) -> str:
 def record_liveness(db: Session, row_id: int, listing_status: str, result,
                     now: datetime.datetime | None = None) -> str:
     """Apply one platform_liveness result to one row, by the same rules as
-    the verify sweeps: stamp ``last_probed_at``; dead → removed; only an
-    authoritative alive bumps ``last_seen_at`` and revives. Returns the row's
+    the verify sweeps: stamp ``last_probed_at``; dead → removed (closed_reason
+    from the verdict's reason, closed_reason_for); only an authoritative
+    alive bumps ``last_seen_at`` and revives. Returns the row's
     listing_status afterwards. Commit is the caller's."""
     now = now or _utcnow()
     outcome = _liveness_outcome(listing_status, result)
     values: dict = {"last_probed_at": now}
     if outcome == "removed":
-        values.update(listing_status=LISTING_REMOVED, listing_status_changed_at=now)
+        values.update(listing_status=LISTING_REMOVED, listing_status_changed_at=now,
+                      closed_reason=closed_reason_for(result.reason))
     elif outcome in ("confirmed", "revived"):
         values["last_seen_at"] = now
         if outcome == "revived":
-            values.update(listing_status=LISTING_ACTIVE, listing_status_changed_at=now)
+            values.update(listing_status=LISTING_ACTIVE, listing_status_changed_at=now,
+                          closed_reason=None)
     db.query(ScrapedJob).filter(ScrapedJob.id == row_id).update(
         values, synchronize_session=False,
     )
@@ -1355,7 +1610,8 @@ async def _verify_rows(db: Session, client, rows: list, *, now: datetime.datetim
             concurrency=_VERIFY_CONCURRENCY, deadline=deadline, cache=cache,
             board_keys={row[1]: row[3] or "" for row in chunk},
         )
-        probed, removed, confirmed, revived = [], [], [], []
+        probed, confirmed, revived = [], [], []
+        removed: dict[str, list[int]] = {}
         for row_id, url, listing_status, _board_key in chunk:
             result = results.get(url)
             if result is None:
@@ -1368,7 +1624,7 @@ async def _verify_rows(db: Session, client, rows: list, *, now: datetime.datetim
             probed.append(row_id)
             outcome = _liveness_outcome(listing_status, result)
             if outcome == "removed":
-                removed.append(row_id)
+                removed.setdefault(closed_reason_for(result.reason), []).append(row_id)
             elif outcome in ("confirmed", "revived"):
                 confirmed.append(row_id)
                 if outcome == "revived":
@@ -1377,15 +1633,16 @@ async def _verify_rows(db: Session, client, rows: list, *, now: datetime.datetim
                 stats["unverified"] += 1
 
         _update_ids(db, probed, {"last_probed_at": now})
-        _update_ids(db, removed, {"listing_status": LISTING_REMOVED,
-                                  "listing_status_changed_at": now})
+        for reason, ids in removed.items():
+            _update_ids(db, ids, {"listing_status": LISTING_REMOVED,
+                                  "listing_status_changed_at": now, "closed_reason": reason})
         _update_ids(db, confirmed, {"last_seen_at": now})
         _update_ids(db, revived, {"listing_status": LISTING_ACTIVE,
-                                  "listing_status_changed_at": now})
+                                  "listing_status_changed_at": now, "closed_reason": None})
         if probed:
             db.commit()
         stats["checked"] += len(probed)
-        stats["removed"] += len(removed)
+        stats["removed"] += sum(len(ids) for ids in removed.values())
         stats["confirmed"] += len(confirmed)
         stats["revived"] += len(revived)
 
